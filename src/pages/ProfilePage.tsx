@@ -1,15 +1,23 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Profile, LevelConfig, Badge, UserBadge } from '../types';
-import { User, Star, Shield } from 'lucide-react';
+import { User, Star, Shield, Settings } from 'lucide-react';
+import { ProfileSettingsModal } from '../components/ProfileSettingsModal';
 
 interface ProfilePageProps {
   profile: Profile;
   levels: LevelConfig[];
   allBadges: Badge[];
   userBadges: UserBadge[];
+  onUpdateProfile: (updatedData: { username: string; newProfilePic: File | null; }) => void;
+  onUpdateEmail: (newEmail: string) => void;
+  onSignOut: () => void;
+  onDeleteAccount: () => void;
 }
 
-const ProfilePage: React.FC<ProfilePageProps> = ({ profile, levels, allBadges, userBadges }) => {
+const ProfilePage: React.FC<ProfilePageProps> = (props) => {
+  const { profile, levels, allBadges, userBadges } = props;
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
   const currentLevel = levels.find(l => l.level_name === (profile.level ?? 'Amateur')) || levels[0];
   const nextLevel = levels.find(l => l.min_xp > currentLevel.min_xp);
   
@@ -22,7 +30,10 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, levels, allBadges, u
   return (
     <div className="space-y-6 animate-scale-in">
       {/* Profile Header */}
-      <div className="bg-white rounded-2xl shadow-lg p-5 flex flex-col items-center space-y-3">
+      <div className="bg-white rounded-2xl shadow-lg p-5 flex flex-col items-center space-y-3 relative">
+        <button onClick={() => setIsSettingsOpen(true)} className="absolute top-4 right-4 p-2 text-gray-500 hover:bg-gray-100 rounded-full">
+          <Settings size={20} />
+        </button>
         <div className="relative">
           <div className="w-24 h-24 bg-gradient-to-br from-purple-200 to-blue-200 rounded-full flex items-center justify-center">
             {profile.profile_picture_url ? (
@@ -81,6 +92,16 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, levels, allBadges, u
           </div>
         )}
       </div>
+      
+      <ProfileSettingsModal 
+        isOpen={isSettingsOpen} 
+        onClose={() => setIsSettingsOpen(false)} 
+        profile={profile}
+        onUpdateProfile={props.onUpdateProfile}
+        onUpdateEmail={props.onUpdateEmail}
+        onSignOut={props.onSignOut}
+        onDeleteAccount={props.onDeleteAccount}
+      />
     </div>
   );
 };

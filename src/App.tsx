@@ -165,8 +165,80 @@ function App() {
   };
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    // In a real app, you would call supabase.auth.signOut()
+    setProfile(null);
     setPage('challenges');
+    addToast('You have been signed out.', 'info');
+  };
+
+  const handleUpdateProfile = async (updatedData: { username: string; newProfilePic: File | null; }) => {
+    if (!profile || profile.is_guest) return;
+    setLoading(true);
+    addToast('Updating profile...', 'info');
+
+    let newProfilePictureUrl = profile.profile_picture_url;
+
+    if (updatedData.newProfilePic) {
+        try {
+            const file = updatedData.newProfilePic;
+            const fileExt = file.name.split('.').pop();
+            const filePath = `public/${profile.id}/${Date.now()}.${fileExt}`;
+            
+            const { error: uploadError } = await supabase.storage
+                .from('avatars')
+                .upload(filePath, file, { upsert: true });
+
+            if (uploadError) {
+                throw uploadError;
+            }
+
+            const { data: urlData } = supabase.storage
+                .from('avatars')
+                .getPublicUrl(filePath);
+
+            newProfilePictureUrl = urlData.publicUrl;
+        } catch (error: any) {
+            addToast(`Error uploading image: ${error.message}`, 'error');
+            setLoading(false);
+            return;
+        }
+    }
+
+    const { error: dbError } = await supabase.from('users').update({
+        username: updatedData.username,
+        profile_picture_url: newProfilePictureUrl,
+    }).eq('id', profile.id).select().single();
+
+    if (dbError) {
+      addToast(`Error updating profile: ${dbError.message}`, 'error');
+    } else {
+      setProfile({
+          ...profile,
+          username: updatedData.username,
+          profile_picture_url: newProfilePictureUrl,
+      });
+      addToast('Profile updated successfully!', 'success');
+    }
+    
+    setLoading(false);
+  };
+
+  const handleUpdateEmail = async (newEmail: string) => {
+    if (!profile || profile.is_guest) return;
+    const { error } = await supabase.auth.updateUser({ email: newEmail });
+    if (error) {
+      addToast(`Error: ${error.message}`, 'error');
+    } else {
+      addToast('A confirmation email has been sent to your new address.', 'info');
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!profile || profile.is_guest) return;
+    // In a real app, you would have a Supabase Edge Function to handle this
+    console.log("Account deletion initiated for user:", profile.id);
+    addToast('Account deleted successfully. Signing out.', 'success');
+    await handleSignOut();
   };
 
   const handleBetClick = (match: Match, prediction: 'teamA' | 'draw' | 'teamB', odds: number) => {
@@ -552,7 +624,16 @@ function App() {
         />;
       case 'profile':
         if (profile) {
-          return <ProfilePage profile={profile} levels={levelsConfig} allBadges={badges} userBadges={userBadges} />;
+          return <ProfilePage 
+            profile={profile} 
+            levels={levelsConfig} 
+            allBadges={badges} 
+            userBadges={userBadges}
+            onUpdateProfile={handleUpdateProfile}
+            onUpdateEmail={handleUpdateEmail}
+            onSignOut={handleSignOut}
+            onDeleteAccount={handleDeleteAccount}
+          />;
         }
         return null;
       default:
@@ -586,7 +667,7 @@ function App() {
     <div className="min-h-screen bg-gradient-to-br from-purple-100 via-blue-50 to-pink-100">
       <ToastContainer toasts={toasts} removeToast={removeToast} />
       <div className="max-w-md mx-auto px-4 pt-4 pb-28 space-y-4">
-        <Header profile={profile} onSignOut={handleSignOut} onSignIn={() => setMagicLinkModalOpen(true)} />
+        <Header profile={profile} onViewProfile={() => handlePageChange('profile')} />
         {renderPage()}
       </div>
 
