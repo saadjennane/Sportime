@@ -13,7 +13,7 @@ interface LivePointsBreakdownProps {
 }
 
 export const LivePointsBreakdown: React.FC<LivePointsBreakdownProps> = ({ playerResults, teamResult, teamPlayers, captainId, isFinished }) => {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
 
   const sumOfPlayerPoints = useMemo(() => {
     return teamPlayers.reduce((sum, player) => {

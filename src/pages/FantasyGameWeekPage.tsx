@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { FantasyGame, UserFantasyTeam, FantasyPlayer, PlayerPosition, Booster } from '../types';
-import { ScrollText, Trophy, X, Check, Target } from 'lucide-react';
+import { ScrollText, Trophy, X, Check, Target, ArrowLeft } from 'lucide-react';
 import { FantasyPlayerModal } from '../components/FantasyPlayerModal';
 import { FantasyLeaderboardModal } from '../components/FantasyLeaderboardModal';
 import { mockLeagues } from '../data/mockLeagues';
@@ -191,6 +191,11 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = ({ game, 
 
   return (
     <div className="space-y-4 pb-28">
+      <button onClick={onBack} className="flex items-center gap-2 text-sm text-gray-600 font-semibold hover:text-purple-700">
+        <ArrowLeft size={18} />
+        Back to Games
+      </button>
+
       {/* 1. TOP SECTION */}
       <div className="flex justify-between items-start">
         <div>

@@ -1,9 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { Challenge, ChallengeMatch, UserChallengeEntry, ChallengeBet, BoosterSelection, DailyChallengeEntry, LeaderboardEntry } from '../types';
-import { ArrowLeft, Coins, ShieldAlert, Trophy } from 'lucide-react';
+import { ArrowLeft, Coins, ShieldAlert, Trophy, ScrollText } from 'lucide-react';
 import { ChallengeBetController } from '../components/ChallengeBetController';
 import { BoosterSelector } from '../components/BoosterSelector';
 import { BoosterInfoModal } from '../components/BoosterInfoModal';
+import { MatchDaySwitcher } from '../components/fantasy/MatchDaySwitcher';
+import { addDays, parseISO, isBefore } from 'date-fns';
+import { RulesModal } from '../components/RulesModal';
 
 interface ChallengeRoomPageProps {
   challenge: Challenge;
@@ -43,8 +46,38 @@ const calculateChallengePoints = (entry: UserChallengeEntry, matches: ChallengeM
 
 const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = ({ challenge, matches, userEntry, onUpdateDailyBets, onSetDailyBooster, onBack, onViewLeaderboard, boosterInfoPreferences, onUpdateBoosterPreferences }) => {
   const betsLocked = challenge.status === 'Ongoing' || challenge.status === 'Finished';
+
+  const [selectedDay, setSelectedDay] = useState<number>(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const challengeStartDate = parseISO(challenge.startDate);
+
+    for (const dailyEntry of userEntry.dailyEntries) {
+        const dayDate = addDays(challengeStartDate, dailyEntry.day - 1);
+        if (!isBefore(dayDate, today)) {
+            return dailyEntry.day;
+        }
+    }
+    return userEntry.dailyEntries[userEntry.dailyEntries.length - 1]?.day || 1;
+  });
+
   const [armingBooster, setArmingBooster] = useState<{ day: number, type: 'x2' | 'x3' } | null>(null);
   const [modalState, setModalState] = useState<{ day: number, type: 'x2' | 'x3' } | null>(null);
+  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
+
+  const matchDaysForSwitcher = useMemo(() => {
+    return userEntry.dailyEntries.map(dailyEntry => {
+      const date = addDays(parseISO(challenge.startDate), dailyEntry.day - 1);
+      return {
+        id: dailyEntry.day.toString(),
+        name: `Day ${dailyEntry.day}`,
+        startDate: date.toISOString(),
+        endDate: date.toISOString(),
+        leagues: [],
+        status: challenge.status,
+      };
+    });
+  }, [userEntry.dailyEntries, challenge.startDate, challenge.status]);
 
   const handleBetChange = (day: number, matchId: string, prediction: 'teamA' | 'draw' | 'teamB' | null, amount: number) => {
     const dailyEntry = userEntry.dailyEntries.find(d => d.day === day);
@@ -117,15 +150,85 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = ({ challenge, matche
 
   const dailyBalance = 1000;
 
+  const formatNumberShort = (num: number) => {
+    if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
+    return num.toString();
+  };
+
+  const { points, pointsLabel } = useMemo(() => {
+    const dayEntry = userEntry.dailyEntries.find(d => d.day === selectedDay);
+    if (!dayEntry) return { points: 0, pointsLabel: 'Potential Points' };
+
+    const dayMatches = matches.filter(m => m.day === selectedDay);
+    const isDayFinished = dayMatches.every(m => m.status === 'played');
+
+    if (isDayFinished) {
+        let finalPoints = 0;
+        dayEntry.bets.forEach(bet => {
+            const match = dayMatches.find(m => m.id === bet.challengeMatchId);
+            if (match && match.result) {
+                if (match.result === bet.prediction) {
+                    let profit = (bet.amount * match.odds[bet.prediction]) - bet.amount;
+                    if (dayEntry.booster?.matchId === bet.challengeMatchId) {
+                        if (dayEntry.booster.type === 'x2') profit *= 2;
+                        if (dayEntry.booster.type === 'x3') profit *= 3;
+                    }
+                    finalPoints += profit;
+                } else {
+                    if (dayEntry.booster?.matchId === bet.challengeMatchId && dayEntry.booster.type === 'x3') {
+                        finalPoints -= 200;
+                    }
+                }
+            }
+        });
+        return { points: Math.round(finalPoints), pointsLabel: 'Final Points' };
+    } else {
+        const potentialPoints = dayEntry.bets.reduce((total, bet) => {
+            const match = dayMatches.find(m => m.id === bet.challengeMatchId);
+            if (match) {
+                total += (bet.amount * match.odds[bet.prediction]) - bet.amount;
+            }
+            return total;
+        }, 0);
+        return { points: Math.round(potentialPoints), pointsLabel: 'Potential Points' };
+    }
+  }, [userEntry, selectedDay, matches]);
+
+
   return (
     <div className="space-y-6">
       <button onClick={onBack} className="flex items-center gap-2 text-gray-600 font-semibold hover:text-purple-600">
         <ArrowLeft size={20} /> Back to Challenges
       </button>
 
-      <div>
-        <h2 className="text-2xl font-bold text-gray-800">{challenge.name}</h2>
-        <p className="text-sm text-gray-500">{challenge.status}</p>
+      <div className="flex justify-between items-start">
+        <div>
+            <h2 className="text-2xl font-bold text-gray-800">{challenge.name}</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setIsRulesModalOpen(true)} className="p-2 bg-white rounded-lg shadow-sm text-gray-600 hover:text-purple-600">
+            <ScrollText size={20} />
+          </button>
+          <button onClick={() => onViewLeaderboard(challenge.id)} className="flex items-center gap-1.5 p-2 bg-white rounded-lg shadow-sm text-gray-600 hover:text-purple-600">
+            <Trophy size={20} />
+            <span className="text-xs font-bold">{formatNumberShort(rank)}/{formatNumberShort(totalPlayers)}</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="-mx-4">
+        <MatchDaySwitcher
+          gameWeeks={matchDaysForSwitcher}
+          selectedGameWeekId={selectedDay.toString()}
+          onSelect={(id) => setSelectedDay(Number(id))}
+        />
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-lg p-4 text-center animate-scale-in">
+        <p className="text-sm font-semibold text-gray-500">{pointsLabel}</p>
+        <p className={`text-3xl font-bold ${points >= 0 ? 'text-purple-700' : 'text-red-600'}`}>
+            {points >= 0 ? `+${points.toLocaleString()}` : points.toLocaleString()}
+        </p>
       </div>
 
       {betsLocked && (
@@ -141,16 +244,17 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = ({ challenge, matche
       )}
 
       <div className="space-y-6">
-        {userEntry.dailyEntries.map(dailyEntry => {
+        {userEntry.dailyEntries
+          .filter(d => d.day === selectedDay)
+          .map(dailyEntry => {
           const dayMatches = matches.filter(m => m.day === dailyEntry.day);
           const totalBetOnDay = dailyEntry.bets.reduce((sum, b) => sum + b.amount, 0);
           const remainingDayBalance = dailyBalance - totalBetOnDay;
 
           return (
-            <div key={dailyEntry.day} className="bg-white rounded-2xl shadow-lg p-4 space-y-4">
+            <div key={dailyEntry.day} className="bg-white rounded-2xl shadow-lg p-4 space-y-4 animate-scale-in">
               <div className="flex justify-between items-center border-b border-gray-100 pb-3">
                 <div className="flex items-baseline gap-3">
-                  <h3 className="text-lg font-bold text-gray-700">Day {dailyEntry.day}</h3>
                   {!betsLocked && <BoosterSelector
                     day={dailyEntry.day}
                     activeBooster={dailyEntry.booster}
@@ -198,19 +302,6 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = ({ challenge, matche
         })}
       </div>
 
-      <button
-        onClick={() => onViewLeaderboard(challenge.id)}
-        className="fixed bottom-24 right-4 z-40 flex items-center gap-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-5 py-3 rounded-full shadow-2xl hover:scale-105 transition-transform"
-      >
-        <Trophy size={20} />
-        <div className="text-left">
-          <div className="text-xs font-semibold uppercase">Your Rank</div>
-          <div className="text-lg font-bold leading-tight">
-            #{rank.toLocaleString()} / {totalPlayers.toLocaleString()}
-          </div>
-        </div>
-      </button>
-
       {modalState && (
         <BoosterInfoModal
           boosterType={modalState.type}
@@ -220,6 +311,7 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = ({ challenge, matche
           onSetDontShowAgain={() => onUpdateBoosterPreferences(modalState.type)}
         />
       )}
+      <RulesModal isOpen={isRulesModalOpen} onClose={() => setIsRulesModalOpen(false)} />
     </div>
   );
 };

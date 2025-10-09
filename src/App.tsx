@@ -251,6 +251,7 @@ function App() {
     }
     setUserChallengeEntries([...userChallengeEntries, newEntry]);
     setJoinChallengeModalState({ isOpen: false, challenge: null });
+    setActiveChallengeId(challenge.id);
   };
 
   const handleUpdateDailyBets = async (challengeId: string, day: number, newBets: ChallengeBet[]) => {
