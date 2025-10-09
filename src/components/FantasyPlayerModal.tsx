@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { FantasyPlayer, PlayerPosition } from '../types';
-import { X, Key, Dices, Star, Shirt } from 'lucide-react';
+import { X, Search } from 'lucide-react';
+import { CategoryIcon } from './fantasy/CategoryIcon';
 
 interface FantasyPlayerModalProps {
   isOpen: boolean;
@@ -10,19 +11,17 @@ interface FantasyPlayerModalProps {
   onSelectPlayer: (player: FantasyPlayer) => void;
 }
 
-const CategoryIcon: React.FC<{ category: 'Star' | 'Key' | 'Wild' }> = ({ category }) => {
-  switch (category) {
-    case 'Star': return <Star size={14} className="text-yellow-400 fill-yellow-400" />;
-    case 'Key': return <Key size={14} className="text-gray-400 -rotate-90" />;
-    case 'Wild': return <Dices size={14} className="text-green-400" />;
-    default: return null;
-  }
-};
-
 export const FantasyPlayerModal: React.FC<FantasyPlayerModalProps> = ({ isOpen, onClose, position, allPlayers, onSelectPlayer }) => {
-  if (!isOpen) return null;
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  const availablePlayers = useMemo(() => {
+    return allPlayers
+      .filter(p => p.position === position)
+      .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()))
+      .sort((a, b) => b.pgs - a.pgs);
+  }, [allPlayers, position, searchTerm]);
 
-  const availablePlayers = allPlayers.filter(p => p.position === position);
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-scale-in">
@@ -33,6 +32,18 @@ export const FantasyPlayerModal: React.FC<FantasyPlayerModalProps> = ({ isOpen, 
             <X size={24} />
           </button>
         </div>
+        
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search player..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-3 py-2 bg-gray-100 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-purple-500"
+          />
+        </div>
+
         <div className="flex-1 overflow-y-auto space-y-2 pr-2">
           {availablePlayers.map(player => (
             <button
@@ -45,9 +56,9 @@ export const FantasyPlayerModal: React.FC<FantasyPlayerModalProps> = ({ isOpen, 
                 <p className="font-bold text-sm">{player.name}</p>
                 <p className="text-xs text-gray-500">{player.teamName}</p>
               </div>
-              <div className="text-center">
-                <CategoryIcon category={player.category} />
-                <p className="text-xs font-semibold">{player.avgFantasyScore.toFixed(1)}</p>
+              <div className="text-center w-10">
+                <CategoryIcon category={player.status} />
+                <p className="text-xs font-semibold">{player.pgs.toFixed(1)}</p>
               </div>
               <div className="text-center w-12">
                 <p className="text-xs text-gray-500">Fatigue</p>

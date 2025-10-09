@@ -136,6 +136,8 @@ export interface SwipeLeaderboardEntry {
 // --- Fantasy Football Types ---
 export type PlayerCategory = 'Star' | 'Key' | 'Wild';
 export type PlayerPosition = 'Goalkeeper' | 'Defender' | 'Midfielder' | 'Attacker';
+export type PlayerLiveStatus = 'playing' | 'not_yet_played' | 'dnp' | 'finished';
+
 
 export interface Booster {
   id: number;
@@ -150,18 +152,18 @@ export interface FantasyPlayer {
   name: string;
   photo: string;
   position: PlayerPosition;
-  // DEPRECATED: category: PlayerCategory;
-  fatigue: number; // This will now represent the *base* fatigue from the user team state
+  fatigue: number;
   teamName: string;
   teamLogo: string;
   birthdate: string;
-  // DEPRECATED: avgFantasyScore: number;
+  pgs: number; 
+  status: PlayerCategory;
+  playtime_ratio?: number;
+  // Live mode fields
+  liveStatus?: PlayerLiveStatus;
+  isSubbedIn?: boolean;
   livePoints?: number;
   livePointsBreakdown?: Record<string, number>;
-  // NEW FIELDS
-  pgs: number; // Player Game Score - calculated before each GW
-  status: PlayerCategory; // 'Star', 'Key', 'Wild' - calculated from PGS
-  playtime_ratio?: number; // Ratio of minutes played in last 10 games
 }
 
 export interface UserFantasyTeam {
@@ -170,10 +172,8 @@ export interface UserFantasyTeam {
   gameWeekId: string;
   starters: string[];
   substitutes: string[];
-  // DEPRECATED: activeBooster: Booster['id'] | null;
-  // NEW FIELDS
-  fatigue_state: Record<string, number>; // e.g., {'p1': 0.8, 'p2': 1.0}
-  booster_used: number | null; // ID of the booster used for this gameweek
+  fatigue_state: Record<string, number>; 
+  booster_used: number | null;
   captain_id: string;
 }
 

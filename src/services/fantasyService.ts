@@ -40,6 +40,7 @@ export function updateAllPlayerStatuses(
 export interface GameWeekSimulationResult {
   playerResults: Record<string, {
     points: number;
+    basePoints: number;
     breakdown: Record<string, number>;
     initialFatigue: number;
     finalFatigue: number;
@@ -81,7 +82,7 @@ export function processGameWeek(
     const isCaptain = player.id === userTeam.captain_id;
     const isDoubleImpactActive = userTeam.booster_used === 1; // 1 = Double Impact
 
-    const { totalPoints, breakdown } = computePlayerPoints(
+    const { totalPoints, breakdown, basePoints } = computePlayerPoints(
       stats,
       player.position,
       initialFatigue,
@@ -95,6 +96,7 @@ export function processGameWeek(
 
     playerResults[playerId] = {
       points: totalPoints,
+      basePoints,
       breakdown,
       initialFatigue,
       finalFatigue,
@@ -111,6 +113,7 @@ export function processGameWeek(
       
       playerResults[playerId] = {
           points: 0,
+          basePoints: 0,
           breakdown: {},
           initialFatigue,
           finalFatigue,

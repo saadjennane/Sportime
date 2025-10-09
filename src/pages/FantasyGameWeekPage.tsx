@@ -1,18 +1,22 @@
 import React, { useState, useMemo } from 'react';
-import { FantasyGame, UserFantasyTeam, FantasyPlayer, PlayerPosition, Booster, PlayerLast10Stats, PlayerGameWeekStats } from '../types';
-import { ArrowLeft, Check, ScrollText, Trophy, X, Zap, Cpu, Award } from 'lucide-react';
-import { FantasyPlayerCard } from '../components/FantasyPlayerCard';
+import { FantasyGame, UserFantasyTeam, FantasyPlayer, PlayerPosition, Booster } from '../types';
+import { ScrollText, Trophy, X, Check, Target } from 'lucide-react';
 import { FantasyPlayerModal } from '../components/FantasyPlayerModal';
-import { FantasyPointsPopup } from '../components/FantasyPointsPopup';
-import { MatchDaySwitcher } from '../components/MatchDaySwitcher';
 import { FantasyLeaderboardModal } from '../components/FantasyLeaderboardModal';
-import { parseISO, isWithinInterval, format } from 'date-fns';
 import { mockLeagues } from '../data/mockLeagues';
 import { mockBoosters } from '../data/mockFantasy.tsx';
 import { BoosterSelectionModal } from '../components/BoosterSelectionModal';
 import { FantasyRulesModal } from '../components/FantasyRulesModal';
-import { updateAllPlayerStatuses, processGameWeek, GameWeekSimulationResult } from '../services/fantasyService';
+import { updateAllPlayerStatuses, processGameWeek } from '../services/fantasyService';
 import { mockPlayerLast10Stats, mockPlayerGameWeekStats } from '../data/mockPlayerStats';
+
+// New fantasy components
+import { GameWeekConditions } from '../components/fantasy/GameWeekConditions';
+import { FantasyPitch } from '../components/fantasy/FantasyPitch';
+import { Bench } from '../components/fantasy/Bench';
+import { MatchDaySwitcher } from '../components/fantasy/MatchDaySwitcher';
+import { LivePointsBreakdown } from '../components/fantasy/LivePointsBreakdown';
+
 
 interface FantasyGameWeekPageProps {
   game: FantasyGame;
@@ -21,166 +25,303 @@ interface FantasyGameWeekPageProps {
   onBack: () => void;
 }
 
-export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = ({ game, userTeams, allPlayers: initialPlayers, onBack }) => {
-  // Simulate pre-gameweek status update
+export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = ({ game, userTeams: initialUserTeams, allPlayers: initialPlayers, onBack }) => {
   const allPlayers = useMemo(() => updateAllPlayerStatuses(initialPlayers, mockPlayerLast10Stats), [initialPlayers]);
 
-  const activeMatchDay = useMemo(() => {
-    const today = new Date();
-    return game.gameWeeks.find(gw => isWithinInterval(today, { start: parseISO(gw.startDate), end: parseISO(gw.endDate) })) || game.gameWeeks.find(gw => gw.status === 'upcoming') || game.gameWeeks[0];
-  }, [game.gameWeeks]);
-  
-  const [selectedMatchDayId, setSelectedMatchDayId] = useState(activeMatchDay.id);
-  const [editingPosition, setEditingPosition] = useState<PlayerPosition | null>(null);
-  const [viewingPlayer, setViewingPlayer] = useState<FantasyPlayer | null>(null);
+  const [selectedMatchDayId, setSelectedMatchDayId] = useState(game.gameWeeks.find(gw => gw.status === 'live')?.id || game.gameWeeks.find(gw => gw.status === 'upcoming')?.id || game.gameWeeks[0].id);
+  const [userTeams, setUserTeams] = useState(initialUserTeams);
+
+  const [editingSlot, setEditingSlot] = useState<{ position: PlayerPosition; playerToReplaceId: string | null } | null>(null);
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
   const [isBoosterModalOpen, setIsBoosterModalOpen] = useState(false);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
-  const [simulationResult, setSimulationResult] = useState<GameWeekSimulationResult | null>(null);
-
-  const [boosters, setBoosters] = useState<Booster[]>(mockBoosters);
-  const [selectedBoosterId, setSelectedBoosterId] = useState<number | null>(null);
+  const [selectedForSwap, setSelectedForSwap] = useState<FantasyPlayer | null>(null);
+  const [isTeamConfirmed, setIsTeamConfirmed] = useState(false);
 
   const selectedGameWeek = useMemo(() => game.gameWeeks.find(gw => gw.id === selectedMatchDayId)!, [game.gameWeeks, selectedMatchDayId]);
+  const isLive = selectedGameWeek.status === 'live';
+  const isFinished = selectedGameWeek.status === 'finished';
+  const isLiveOrFinished = isLive || isFinished;
   
   const userTeam = useMemo(() => {
     return userTeams.find(t => t.gameWeekId === selectedGameWeek.id);
   }, [userTeams, selectedGameWeek.id]);
 
-  const starters = useMemo(() => (userTeam?.starters.map(id => allPlayers.find(p => p.id === id)).filter(Boolean) as FantasyPlayer[]) || [], [userTeam, allPlayers]);
-  
-  const isEditable = selectedGameWeek.status === 'upcoming';
-  const isLive = selectedGameWeek.status === 'live';
-  
-  const deadline = useMemo(() => {
-    if (!selectedGameWeek) return null;
-    const deadlineDate = parseISO(selectedGameWeek.startDate);
-    return format(deadlineDate, "MMM d, yyyy 'at' h:mm a");
-  }, [selectedGameWeek]);
+  const simulationResult = useMemo(() => {
+    if (!userTeam || !isLiveOrFinished) return null;
+    return processGameWeek(userTeam, allPlayers, mockPlayerGameWeekStats);
+  }, [userTeam, allPlayers, isLiveOrFinished]);
 
-  const handleSelectBooster = (booster: Booster) => {
-    setSelectedBoosterId(booster.id);
+  const { effectiveStarters, effectiveCaptainId } = useMemo(() => {
+    if (!userTeam) return { effectiveStarters: [], effectiveCaptainId: null };
+
+    const initialStarters = userTeam.starters.map(id => allPlayers.find(p => p.id === id)).filter(Boolean) as FantasyPlayer[];
+    let subs = userTeam.substitutes.map(id => allPlayers.find(p => p.id === id)).filter(Boolean) as FantasyPlayer[];
+    
+    let currentStarters = [...initialStarters];
+    let currentCaptainId = userTeam.captain_id;
+
+    if (isLiveOrFinished) {
+        const dnpStarters = currentStarters.filter(p => p.liveStatus === 'dnp');
+        dnpStarters.forEach(dnpPlayer => {
+            const subIndex = subs.findIndex(sub => sub.position === dnpPlayer.position && !sub.isSubbedIn);
+            if (subIndex > -1) {
+                const subPlayer = subs[subIndex];
+                subPlayer.isSubbedIn = true;
+                
+                // Swap player
+                currentStarters = currentStarters.map(p => p.id === dnpPlayer.id ? subPlayer : p);
+                
+                // If captain is DNP, sub inherits captaincy
+                if (dnpPlayer.id === currentCaptainId) {
+                    currentCaptainId = subPlayer.id;
+                }
+                
+                // Mark sub as used
+                subs.splice(subIndex, 1);
+            }
+        });
+    }
+    
+    return {
+        effectiveStarters: currentStarters,
+        effectiveCaptainId: currentCaptainId,
+    };
+  }, [userTeam, allPlayers, isLiveOrFinished]);
+
+  const substitutes = useMemo(() => (userTeam?.substitutes.map(id => allPlayers.find(p => p.id === id)).filter(Boolean) as FantasyPlayer[]) || [], [userTeam, allPlayers]);
+
+  const updateUserTeam = (updatedTeam: UserFantasyTeam) => {
+    setUserTeams(prev => prev.map(t => t.gameWeekId === updatedTeam.gameWeekId ? updatedTeam : t));
+    setIsTeamConfirmed(false); // Re-enable confirmation on any edit
   };
 
+  const handlePitchSlotClick = (position: PlayerPosition, player: FantasyPlayer | null) => {
+    if (isLiveOrFinished) return;
+
+    if (selectedForSwap) {
+      if (player) {
+        if (userTeam) {
+            const newStartersIds = effectiveStarters.map(p => (p.id === player.id ? selectedForSwap.id : p.id));
+            const newSubstitutesIds = substitutes.map(p => (p.id === selectedForSwap.id ? player.id : p.id));
+            updateUserTeam({ ...userTeam, starters: newStartersIds, substitutes: newSubstitutesIds });
+        }
+        setSelectedForSwap(null);
+      } else {
+        setSelectedForSwap(null);
+      }
+    } else {
+      setEditingSlot({ position, playerToReplaceId: player?.id || null });
+    }
+  };
+
+  const handleBenchSlotClick = (position: PlayerPosition, player: FantasyPlayer | null) => {
+    if (isLiveOrFinished) return;
+    if (player) {
+      setSelectedForSwap(current => (current?.id === player.id ? null : player));
+    } else {
+      setEditingSlot({ position, playerToReplaceId: null });
+    }
+  };
+
+  const handleSelectPlayerFromModal = (selectedPlayer: FantasyPlayer) => {
+    if (!userTeam || !editingSlot || isLiveOrFinished) return;
+
+    const { playerToReplaceId } = editingSlot;
+    const newStartersIds = [...effectiveStarters.map(p => p.id)];
+    const newSubstitutesIds = [...substitutes.map(p => p.id)];
+
+    if (newStartersIds.includes(selectedPlayer.id) || newSubstitutesIds.includes(selectedPlayer.id)) {
+        console.error("Player is already in the team.");
+        setEditingSlot(null);
+        return;
+    }
+
+    if (playerToReplaceId) {
+        const starterIndex = newStartersIds.indexOf(playerToReplaceId);
+        if (starterIndex > -1) {
+            newStartersIds[starterIndex] = selectedPlayer.id;
+            updateUserTeam({ ...userTeam, starters: newStartersIds });
+        } else {
+            const subIndex = newSubstitutesIds.indexOf(playerToReplaceId);
+            if (subIndex > -1) {
+                newSubstitutesIds[subIndex] = selectedPlayer.id;
+                updateUserTeam({ ...userTeam, substitutes: newSubstitutesIds });
+            }
+        }
+    }
+    setEditingSlot(null);
+  };
+  
+  const handleBoosterSelect = (booster: Booster) => {
+    if (!userTeam || isLiveOrFinished) return;
+    updateUserTeam({ ...userTeam, booster_used: booster.id });
+    setIsBoosterModalOpen(false);
+  };
+  
   const handleCancelBooster = () => {
-    setSelectedBoosterId(null);
+    if (!userTeam || isLiveOrFinished) return;
+    updateUserTeam({ ...userTeam, booster_used: null });
   };
 
-  const handleSimulate = () => {
-    if (!userTeam) return;
-    const result = processGameWeek(userTeam, allPlayers, mockPlayerGameWeekStats);
-    setSimulationResult(result);
+  const handleConfirmTeam = () => {
+    if (isLiveOrFinished || !areConditionsMet) return;
+    console.log("Team confirmed:", userTeam);
+    setIsTeamConfirmed(true);
   };
 
-  const renderPitch = () => {
-    const positions: Record<PlayerPosition, FantasyPlayer[]> = { Goalkeeper: [], Defender: [], Midfielder: [], Attacker: [] };
-    starters.forEach(player => {
-        const playerResult = simulationResult?.playerResults[player.id];
-        const updatedPlayer = {
-            ...player,
-            livePoints: playerResult ? playerResult.points : undefined,
-            livePointsBreakdown: playerResult ? playerResult.breakdown : undefined,
-            fatigue: playerResult ? playerResult.initialFatigue * 100 : player.fatigue,
-        };
-        positions[player.position].push(updatedPlayer);
+  const areConditionsMet = useMemo(() => {
+    if (!selectedGameWeek.conditions) return true;
+    return selectedGameWeek.conditions.every(condition => {
+      switch (condition.key) {
+        case 'max_club_players':
+          const clubCounts = effectiveStarters.reduce((acc, player) => {
+            acc[player.teamName] = (acc[player.teamName] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>);
+          return Object.values(clubCounts).every(count => count <= (condition.value as number));
+        default: return true;
+      }
     });
-
-    return (
-      <div className="bg-green-600/80 rounded-2xl p-4 space-y-4 bg-[url('https://www.transparenttextures.com/patterns/grass.png')]">
-        {['Attacker', 'Midfielder', 'Defender', 'Goalkeeper'].map(pos => (
-          <div key={pos} className="flex justify-around items-center">
-            {positions[pos as PlayerPosition].map(player => (
-              <FantasyPlayerCard
-                key={player.id}
-                player={player}
-                isCaptain={player.id === userTeam?.captain_id}
-                onClick={() => (simulationResult || isLive) ? setViewingPlayer(player) : isEditable ? setEditingPosition(player.position) : null}
-                isLive={!!simulationResult || isLive || selectedGameWeek.status === 'finished'}
-              />
-            ))}
-          </div>
-        ))}
-      </div>
-    );
-  };
+  }, [effectiveStarters, selectedGameWeek.conditions]);
 
   const selectedLeagues = mockLeagues.filter(l => selectedGameWeek.leagues.includes(l.name));
-  const availableBoosters = boosters.filter(b => !b.used);
-  const boostersLeft = availableBoosters.length;
-  const selectedBooster = boosters.find(b => b.id === selectedBoosterId);
-  
+  const remainingBoosters = mockBoosters.filter(b => !b.used);
+  const selectedBooster = mockBoosters.find(b => b.id === userTeam?.booster_used);
+
   return (
-    <div className="space-y-4 pb-24">
-      <div className="flex justify-between items-center">
-        <button onClick={onBack} className="flex items-center gap-2 text-gray-600 font-semibold hover:text-purple-600">
-          <ArrowLeft size={20} /> Back
-        </button>
+    <div className="space-y-4 pb-28">
+      {/* 1. TOP SECTION */}
+      <div className="flex justify-between items-start">
+        <div>
+          <h2 className="text-xl font-bold text-gray-800">{game.name}</h2>
+          <p className="text-sm font-semibold text-gray-500">{selectedGameWeek.name}</p>
+          <div className="flex items-center gap-2 mt-1">
+            {selectedLeagues.map(league => <img key={league.id} src={league.logo} alt={league.name} className="w-5 h-5" title={league.name} />)}
+          </div>
+        </div>
         <div className="flex items-center gap-2">
-            <button onClick={() => setIsRulesModalOpen(true)} className="p-2 text-gray-600 hover:text-purple-600"><ScrollText size={24} /></button>
-            <button onClick={() => setIsLeaderboardOpen(true)} className="p-2 text-gray-600 hover:text-purple-600"><Trophy size={24} /></button>
+          <button onClick={() => setIsRulesModalOpen(true)} className="p-2 bg-white rounded-lg shadow-sm text-gray-600 hover:text-purple-600">
+            <ScrollText size={20} />
+          </button>
+          <button onClick={() => setIsLeaderboardOpen(true)} className="flex items-center gap-1.5 p-2 bg-white rounded-lg shadow-sm text-gray-600 hover:text-purple-600">
+            <Trophy size={20} />
+            <span className="text-xs font-bold">3k/12k</span>
+          </button>
         </div>
       </div>
 
-      <div className="text-center">
-        <h2 className="text-2xl font-bold text-gray-800">{game.name}</h2>
-        <div className="flex justify-center items-center gap-2 mt-2">
-          {selectedLeagues.map(league => ( <img key={league.id} src={league.logo} alt={league.name} className="w-6 h-6" title={league.name} /> ))}
-        </div>
-      </div>
-      
+      {/* 2. MATCHDAY CAROUSEL */}
       <div className="-mx-4">
-        <MatchDaySwitcher matchDays={game.gameWeeks} selectedMatchDayId={selectedMatchDayId} onSelect={setSelectedMatchDayId} />
+        <MatchDaySwitcher 
+          gameWeeks={game.gameWeeks}
+          selectedGameWeekId={selectedMatchDayId}
+          onSelect={setSelectedMatchDayId}
+        />
       </div>
 
-      {isEditable && deadline && (
-        <div className="text-center text-xs font-semibold p-2 rounded-lg bg-yellow-100 text-yellow-800">
-          You can edit your team until {deadline}
+      {/* 3. DEADLINE/LIVE INFOBULE */}
+      {isLive ? (
+        <div className="text-center text-sm font-bold p-2 rounded-lg bg-red-100 text-red-600 flex items-center justify-center gap-2">
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+            </span>
+            LIVE
+        </div>
+      ) : isFinished ? (
+         <div className="text-center text-sm font-bold p-2 rounded-lg bg-green-100 text-green-700 flex items-center justify-center gap-2">
+            <Check size={16} />
+            Game Week Finished
+        </div>
+      ) : (
+        <div className="text-center text-xs font-semibold p-2 rounded-lg bg-gray-100 text-gray-600">
+          Team edit available until deadline
         </div>
       )}
+      
+      {/* 4. & 5. GAME WEEK CONDITIONS & BONUSES */}
+      <GameWeekConditions gameWeek={selectedGameWeek} team={effectiveStarters} />
+      
+      {/* NEW: LIVE/FINAL POINTS BREAKDOWN */}
+      {isLiveOrFinished && simulationResult && (
+        <LivePointsBreakdown 
+          playerResults={simulationResult.playerResults}
+          teamResult={simulationResult.teamResult}
+          teamPlayers={effectiveStarters}
+          captainId={effectiveCaptainId}
+          isFinished={isFinished}
+        />
+      )}
 
-      {renderPitch()}
+      {/* 6. TEAM GRID */}
+      <FantasyPitch 
+        starters={effectiveStarters} 
+        onSlotClick={handlePitchSlotClick} 
+        captainId={effectiveCaptainId}
+        selectedForSwap={selectedForSwap}
+        formation={selectedGameWeek.formationConstraint || '2-3-1'}
+        isLive={isLiveOrFinished}
+      />
 
-      {simulationResult && (
-        <div className="bg-white rounded-2xl shadow-lg p-4 space-y-3 animate-scale-in">
-            <h3 className="font-bold text-lg text-purple-700 text-center">GameWeek Simulation Results</h3>
-            {simulationResult.teamResult.bonusApplied && (
-                <div className="bg-yellow-100 text-yellow-800 p-3 rounded-lg text-center font-semibold flex items-center justify-center gap-2">
-                    <Award size={18} />
-                    Team Bonus Applied: {simulationResult.teamResult.bonusApplied}
-                </div>
-            )}
-            <div className="text-center">
-                <p className="text-sm font-semibold text-gray-500">Total Team Score</p>
-                <p className="text-4xl font-bold text-gray-800">{simulationResult.teamResult.totalPoints.toFixed(2)}</p>
+      {/* 7. BENCH */}
+      <Bench 
+        substitutes={substitutes} 
+        onSlotClick={handleBenchSlotClick} 
+        captainId={effectiveCaptainId}
+        selectedForSwap={selectedForSwap}
+        isLive={isLiveOrFinished}
+      />
+      
+      {/* 8. ACTION BUTTONS */}
+      {!isLiveOrFinished && (
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+          {selectedBooster ? (
+            <div className="flex items-center justify-center gap-2 font-semibold py-3 rounded-xl shadow-lg transition-all bg-gradient-to-r from-yellow-400 to-orange-500 text-white">
+              {React.cloneElement(selectedBooster.icon, { size: 20 })}
+              <span>{selectedBooster.name}</span>
+              <button 
+                onClick={handleCancelBooster} 
+                disabled={isLiveOrFinished}
+                className="ml-1 text-white/80 hover:text-white disabled:opacity-50"
+                aria-label="Cancel booster"
+              >
+                <X size={16}/>
+              </button>
             </div>
+          ) : (
+            <button 
+              onClick={() => setIsBoosterModalOpen(true)} 
+              disabled={isLiveOrFinished || remainingBoosters.length === 0}
+              className="flex items-center justify-center gap-2 font-semibold py-3 rounded-xl shadow-lg transition-all disabled:bg-gray-200 disabled:text-gray-500 disabled:opacity-70 bg-white hover:bg-gray-50"
+            >
+              <Target size={18} /> 
+              <span>Booster ({remainingBoosters.length})</span>
+            </button>
+          )}
+
+          <button 
+              onClick={handleConfirmTeam}
+              disabled={!areConditionsMet || isTeamConfirmed}
+              title={!areConditionsMet ? "Complete all mandatory conditions first." : isTeamConfirmed ? "Your team is already confirmed." : "Submit your final team."}
+              className="flex-1 flex items-center justify-center gap-2 font-semibold py-3 rounded-xl shadow-lg transition-all bg-gradient-to-r from-purple-600 to-blue-600 text-white disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed"
+          >
+            {isTeamConfirmed ? <><Check size={18} /> Team Confirmed</> : <><Check size={18} /> Confirm Team</>}
+          </button>
         </div>
       )}
 
-      {editingPosition && <FantasyPlayerModal isOpen={!!editingPosition} onClose={() => setEditingPosition(null)} position={editingPosition} allPlayers={allPlayers} onSelectPlayer={() => {}} />}
-      {viewingPlayer && <FantasyPointsPopup player={viewingPlayer} onClose={() => setViewingPlayer(null)} />}
+      {/* MODALS */}
+      <FantasyPlayerModal 
+        isOpen={!!editingSlot} 
+        onClose={() => setEditingSlot(null)} 
+        position={editingSlot?.position || 'Attacker'} 
+        allPlayers={allPlayers} 
+        onSelectPlayer={handleSelectPlayerFromModal} 
+      />
       <FantasyLeaderboardModal isOpen={isLeaderboardOpen} onClose={() => setIsLeaderboardOpen(false)} gameWeekName={selectedGameWeek.name} />
-      <BoosterSelectionModal isOpen={isBoosterModalOpen} onClose={() => setIsBoosterModalOpen(false)} boosters={boosters} onSelect={handleSelectBooster} />
+      <BoosterSelectionModal isOpen={isBoosterModalOpen} onClose={() => setIsBoosterModalOpen(false)} boosters={mockBoosters} onSelect={handleBoosterSelect} />
       <FantasyRulesModal isOpen={isRulesModalOpen} onClose={() => setIsRulesModalOpen(false)} />
-
-      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/80 backdrop-blur-lg p-3 border-t border-gray-200">
-        <div className="flex gap-3">
-          <button onClick={() => setIsBoosterModalOpen(true)} disabled={!isEditable || boostersLeft === 0}
-            className={`flex-1 flex items-center justify-center gap-2 font-semibold py-3 rounded-xl shadow-lg transition-all ${!isEditable || boostersLeft === 0 ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : selectedBooster ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white' : 'bg-gradient-to-r from-purple-500 to-yellow-400 text-white'}`}>
-            {selectedBooster ? (
-              <>
-                {selectedBooster.icon}
-                <span>{selectedBooster.name}</span>
-                <button onClick={(e) => { e.stopPropagation(); handleCancelBooster(); }} className="ml-1 text-white/80 hover:text-white"><X size={14}/></button>
-              </>
-            ) : ( <> <Zap size={16} /> <span>Booster ({boostersLeft})</span> </> )}
-          </button>
-          <button onClick={handleSimulate} disabled={!isEditable}
-            className="flex-1 flex items-center justify-center gap-2 font-semibold py-3 rounded-xl shadow-lg transition-all bg-gradient-to-r from-purple-600 to-blue-600 text-white disabled:bg-gray-200 disabled:text-gray-500 disabled:from-gray-200 disabled:to-gray-300">
-            <Cpu size={18} />
-            Simulate GW
-          </button>
-        </div>
-      </div>
     </div>
   );
 };

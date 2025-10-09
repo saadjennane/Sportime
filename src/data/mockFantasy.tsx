@@ -7,25 +7,25 @@ const today = new Date();
 
 export const mockFantasyPlayers: FantasyPlayer[] = [
   // Goalkeepers
-  { id: 'p4', name: 'Alisson', photo: 'https://media.api-sports.io/football/players/304.png', position: 'Goalkeeper', status: 'Key', fatigue: 100, teamName: 'Liverpool', teamLogo: 'https://media.api-sports.io/football/teams/40.png', birthdate: '1992-10-02', pgs: 7.0 },
-  { id: 'p12', name: 'M. ter Stegen', photo: 'https://media.api-sports.io/football/players/1101.png', position: 'Goalkeeper', status: 'Key', fatigue: 98, teamName: 'Barcelona', teamLogo: 'https://media.api-sports.io/football/teams/529.png', birthdate: '1992-04-30', pgs: 6.9 },
+  { id: 'p4', name: 'Alisson', photo: 'https://media.api-sports.io/football/players/304.png', position: 'Goalkeeper', status: 'Key', fatigue: 100, teamName: 'Liverpool', teamLogo: 'https://media.api-sports.io/football/teams/40.png', birthdate: '1992-10-02', pgs: 7.0, liveStatus: 'playing', livePoints: 8.5 },
+  { id: 'p12', name: 'M. ter Stegen', photo: 'https://media.api-sports.io/football/players/1101.png', position: 'Goalkeeper', status: 'Key', fatigue: 98, teamName: 'Barcelona', teamLogo: 'https://media.api-sports.io/football/teams/529.png', birthdate: '1992-04-30', pgs: 6.9, liveStatus: 'not_yet_played' },
 
   // Defenders
-  { id: 'p3', name: 'V. van Dijk', photo: 'https://media.api-sports.io/football/players/306.png', position: 'Defender', status: 'Key', fatigue: 92, teamName: 'Liverpool', teamLogo: 'https://media.api-sports.io/football/teams/40.png', birthdate: '1991-07-08', pgs: 7.2 },
-  { id: 'p7', name: 'A. Davies', photo: 'https://media.api-sports.io/football/players/1102.png', position: 'Defender', status: 'Key', fatigue: 98, teamName: 'Bayern Munich', teamLogo: 'https://media.api-sports.io/football/teams/157.png', birthdate: '2000-11-02', pgs: 7.1 },
-  { id: 'p9', name: 'J. Koundé', photo: 'https://media.api-sports.io/football/players/163.png', position: 'Defender', status: 'Key', fatigue: 94, teamName: 'Barcelona', teamLogo: 'https://media.api-sports.io/football/teams/529.png', birthdate: '1998-11-12', pgs: 6.9 },
-  { id: 'p13', name: 'R. James', photo: 'https://media.api-sports.io/football/players/18888.png', position: 'Defender', status: 'Wild', fatigue: 100, teamName: 'Chelsea', teamLogo: 'https://media.api-sports.io/football/teams/49.png', birthdate: '1999-12-08', pgs: 5.9 },
+  { id: 'p3', name: 'V. van Dijk', photo: 'https://media.api-sports.io/football/players/306.png', position: 'Defender', status: 'Key', fatigue: 92, teamName: 'Liverpool', teamLogo: 'https://media.api-sports.io/football/teams/40.png', birthdate: '1991-07-08', pgs: 7.2, liveStatus: 'playing', livePoints: 12.1 },
+  { id: 'p7', name: 'A. Davies', photo: 'https://media.api-sports.io/football/players/1102.png', position: 'Defender', status: 'Key', fatigue: 98, teamName: 'Bayern Munich', teamLogo: 'https://media.api-sports.io/football/teams/157.png', birthdate: '2000-11-02', pgs: 7.1, liveStatus: 'dnp' }, // DNP example
+  { id: 'p9', name: 'J. Koundé', photo: 'https://media.api-sports.io/football/players/163.png', position: 'Defender', status: 'Key', fatigue: 94, teamName: 'Barcelona', teamLogo: 'https://media.api-sports.io/football/teams/529.png', birthdate: '1998-11-12', pgs: 6.9, liveStatus: 'not_yet_played' },
+  { id: 'p13', name: 'R. James', photo: 'https://media.api-sports.io/football/players/18888.png', position: 'Defender', status: 'Wild', fatigue: 100, teamName: 'Chelsea', teamLogo: 'https://media.api-sports.io/football/teams/49.png', birthdate: '1999-12-08', pgs: 5.9, liveStatus: 'not_yet_played' },
 
   // Midfielders
-  { id: 'p2', name: 'K. De Bruyne', photo: 'https://media.api-sports.io/football/players/62.png', position: 'Midfielder', status: 'Star', fatigue: 88, teamName: 'Man City', teamLogo: 'https://media.api-sports.io/football/teams/50.png', birthdate: '1991-06-28', pgs: 7.8 },
-  { id: 'p5', name: 'J. Bellingham', photo: 'https://media.api-sports.io/football/players/874.png', position: 'Midfielder', status: 'Star', fatigue: 85, teamName: 'Real Madrid', teamLogo: 'https://media.api-sports.io/football/teams/541.png', birthdate: '2003-06-29', pgs: 7.9 },
-  { id: 'p8', name: 'Pedri', photo: 'https://media.api-sports.io/football/players/1456.png', position: 'Midfielder', status: 'Key', fatigue: 80, teamName: 'Barcelona', teamLogo: 'https://media.api-sports.io/football/teams/529.png', birthdate: '2002-11-25', pgs: 6.8 },
-  { id: 'p10', name: 'F. Wirtz', photo: 'https://media.api-sports.io/football/players/2289.png', position: 'Midfielder', status: 'Wild', fatigue: 100, teamName: 'Leverkusen', teamLogo: 'https://media.api-sports.io/football/teams/168.png', birthdate: '2003-05-03', pgs: 5.8 },
+  { id: 'p2', name: 'K. De Bruyne', photo: 'https://media.api-sports.io/football/players/62.png', position: 'Midfielder', status: 'Star', fatigue: 88, teamName: 'Man City', teamLogo: 'https://media.api-sports.io/football/teams/50.png', birthdate: '1991-06-28', pgs: 7.8, liveStatus: 'playing', livePoints: 15.2 },
+  { id: 'p5', name: 'J. Bellingham', photo: 'https://media.api-sports.io/football/players/874.png', position: 'Midfielder', status: 'Star', fatigue: 85, teamName: 'Real Madrid', teamLogo: 'https://media.api-sports.io/football/teams/541.png', birthdate: '2003-06-29', pgs: 7.9, liveStatus: 'playing', livePoints: 9.8 },
+  { id: 'p8', name: 'Pedri', photo: 'https://media.api-sports.io/football/players/1456.png', position: 'Midfielder', status: 'Key', fatigue: 80, teamName: 'Barcelona', teamLogo: 'https://media.api-sports.io/football/teams/529.png', birthdate: '2002-11-25', pgs: 6.8, liveStatus: 'not_yet_played' },
+  { id: 'p10', name: 'F. Wirtz', photo: 'https://media.api-sports.io/football/players/2289.png', position: 'Midfielder', status: 'Wild', fatigue: 100, teamName: 'Leverkusen', teamLogo: 'https://media.api-sports.io/football/teams/168.png', birthdate: '2003-05-03', pgs: 5.8, liveStatus: 'not_yet_played' },
 
   // Attackers
-  { id: 'p1', name: 'L. Messi', photo: 'https://media.api-sports.io/football/players/154.png', position: 'Attacker', status: 'Star', fatigue: 95, teamName: 'Inter Miami', teamLogo: 'https://media.api-sports.io/football/teams/10101.png', birthdate: '1987-06-24', pgs: 8.1 },
-  { id: 'p6', name: 'E. Haaland', photo: 'https://media.api-sports.io/football/players/969.png', position: 'Attacker', status: 'Star', fatigue: 90, teamName: 'Man City', teamLogo: 'https://media.api-sports.io/football/teams/50.png', birthdate: '2000-07-21', pgs: 8.3 },
-  { id: 'p11', name: 'Rafael Leão', photo: 'https://media.api-sports.io/football/players/241.png', position: 'Attacker', status: 'Key', fatigue: 85, teamName: 'AC Milan', teamLogo: 'https://media.api-sports.io/football/teams/489.png', birthdate: '1999-06-10', pgs: 7.3 },
+  { id: 'p1', name: 'L. Messi', photo: 'https://media.api-sports.io/football/players/154.png', position: 'Attacker', status: 'Star', fatigue: 95, teamName: 'Inter Miami', teamLogo: 'https://media.api-sports.io/football/teams/10101.png', birthdate: '1987-06-24', pgs: 8.1, liveStatus: 'not_yet_played' },
+  { id: 'p6', name: 'E. Haaland', photo: 'https://media.api-sports.io/football/players/969.png', position: 'Attacker', status: 'Star', fatigue: 90, teamName: 'Man City', teamLogo: 'https://media.api-sports.io/football/teams/50.png', birthdate: '2000-07-21', pgs: 8.3, liveStatus: 'playing', livePoints: 22.0 },
+  { id: 'p11', name: 'Rafael Leão', photo: 'https://media.api-sports.io/football/players/241.png', position: 'Attacker', status: 'Key', fatigue: 85, teamName: 'AC Milan', teamLogo: 'https://media.api-sports.io/football/teams/489.png', birthdate: '1999-06-10', pgs: 7.3, liveStatus: 'playing', livePoints: 7.0 },
 ];
 
 export const mockFantasyGame: FantasyGame = {
@@ -84,7 +84,7 @@ export const mockFantasyGame: FantasyGame = {
       startDate: subDays(today, 2).toISOString(),
       endDate: addDays(today, 2).toISOString(),
       leagues: ['LaLiga', 'Premier League'], 
-      status: 'upcoming',
+      status: 'live', // Changed to 'live' for testing
       conditions: [
         { key: 'max_club_players', text: 'Max. 2 players from same club', value: 2 },
         { key: 'max_star_players', text: 'Max. 2 Star players', value: 2 },
@@ -110,7 +110,7 @@ const userFantasyTeam_GW2: UserFantasyTeam = {
   gameId: 'fantasy-1',
   gameWeekId: 'gw1', // MatchDay 6
   starters: ['p4', 'p3', 'p7', 'p9', 'p2', 'p5', 'p6'], // 1 GK, 3 DEF, 2 MID, 1 FWD
-  substitutes: ['p11', 'p8'], // 1 offensive, 1 defensive
+  substitutes: ['p11', 'p8'], // 1 Attacker, 1 Midfielder
   captain_id: 'p6', // Haaland
   booster_used: 1, // Double Impact
   fatigue_state: { 'p4': 1, 'p3': 0.6, 'p7': 0.8, 'p9': 0.9, 'p2': 1, 'p5': 1, 'p6': 1, 'p11': 1, 'p8': 1 }

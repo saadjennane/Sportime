@@ -96,7 +96,7 @@ export function computePlayerPoints(
   fatigue: number,
   isCaptain: boolean,
   isDoubleImpactActive: boolean
-): { totalPoints: number, breakdown: Record<string, number> } {
+): { totalPoints: number; breakdown: Record<string, number>; basePoints: number } {
   let basePoints = 0;
   const breakdown: Record<string, number> = {};
 
@@ -119,12 +119,13 @@ export function computePlayerPoints(
     if (action === 'minutes_played' || action === 'clean_sheet' || action === 'rating') return;
     
     const value = stats[action];
-    if (typeof value === 'number' && value > 0) {
+    if (typeof value === 'number' && value !== 0) {
       const pointsPerAction = BASE_SCORING_TABLE[action][position];
       if (pointsPerAction) {
           const totalActionPoints = pointsPerAction * value;
           basePoints += totalActionPoints;
-          breakdown[action.replace(/_/g, ' ')] = totalActionPoints;
+          const actionName = action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+          breakdown[actionName] = totalActionPoints;
       }
     }
   });
@@ -132,33 +133,38 @@ export function computePlayerPoints(
   // Apply rating multiplier
   const ratingMultiplier = BASE_SCORING_TABLE.rating[position];
   const ratingPoints = basePoints * (ratingMultiplier - 1);
-  basePoints += ratingPoints;
-  if (ratingPoints) breakdown['Rating Bonus'] = ratingPoints;
+  if (ratingPoints !== 0) {
+    basePoints += ratingPoints;
+    breakdown['Rating Bonus'] = ratingPoints;
+  }
 
   let finalPoints = basePoints;
   
   // Apply fatigue multiplier
   const fatigueEffect = finalPoints * (fatigue - 1);
-  finalPoints += fatigueEffect;
-  if (fatigueEffect) breakdown['Fatigue Effect'] = fatigueEffect;
+  if (fatigueEffect !== 0) {
+    finalPoints += fatigueEffect;
+    breakdown['Fatigue Effect'] = fatigueEffect;
+  }
 
   // Apply captain bonus
   if (isCaptain) {
     const captainPassiveBonus = finalPoints * (FANTASY_CONFIG.captain_passive - 1);
     finalPoints += captainPassiveBonus;
-    if(captainPassiveBonus) breakdown['Captain Bonus'] = captainPassiveBonus;
+    if(captainPassiveBonus !== 0) breakdown['Captain Bonus'] = captainPassiveBonus;
 
     if (isDoubleImpactActive) {
       // The total multiplier is 2.2. We've already applied 1.1, so we apply the rest.
       const doubleImpactMultiplier = FANTASY_CONFIG.boosters.double_impact / FANTASY_CONFIG.captain_passive;
       const doubleImpactBonus = finalPoints * (doubleImpactMultiplier - 1);
       finalPoints += doubleImpactBonus;
-      if(doubleImpactBonus) breakdown['Double Impact'] = doubleImpactBonus;
+      if(doubleImpactBonus !== 0) breakdown['Double Impact'] = doubleImpactBonus;
     }
   }
 
-  return { totalPoints: finalPoints, breakdown };
+  return { totalPoints: finalPoints, breakdown, basePoints };
 }
+
 
 /**
  * Computes the final team total after applying team-wide bonuses.
@@ -173,23 +179,28 @@ export function computeTeamTotal(
 
   // Determine which team bonus is highest (they are exclusive)
   let bestBonusMultiplier = 1.0;
+  let bonusName = '';
 
   const isNoStar = teamPlayers.every(p => p.status !== 'Star');
   if (isNoStar) {
     bestBonusMultiplier = Math.max(bestBonusMultiplier, FANTASY_CONFIG.bonuses.no_star);
-    bonusApplied = `No Star Bonus (+${(FANTASY_CONFIG.bonuses.no_star - 1) * 100}%)`;
+    bonusName = `No Star Bonus (+${(FANTASY_CONFIG.bonuses.no_star - 1) * 100}%)`;
   }
 
   const isCrazy = teamPlayers.every(p => p.status === 'Wild');
   if (isCrazy && FANTASY_CONFIG.bonuses.crazy > bestBonusMultiplier) {
     bestBonusMultiplier = FANTASY_CONFIG.bonuses.crazy;
-    bonusApplied = `Crazy Boost (+${(FANTASY_CONFIG.bonuses.crazy - 1) * 100}%)`;
+    bonusName = `Crazy Boost (+${(FANTASY_CONFIG.bonuses.crazy - 1) * 100}%)`;
   }
 
   const avgAge = teamPlayers.reduce((sum, p) => sum + differenceInYears(new Date(), parseISO(p.birthdate)), 0) / teamPlayers.length;
   if (avgAge >= 30 && FANTASY_CONFIG.bonuses.vintage > bestBonusMultiplier) {
     bestBonusMultiplier = FANTASY_CONFIG.bonuses.vintage;
-    bonusApplied = `Vintage Boost (+${(FANTASY_CONFIG.bonuses.vintage - 1) * 100}%)`;
+    bonusName = `Vintage Boost (+${(FANTASY_CONFIG.bonuses.vintage - 1) * 100}%)`;
+  }
+  
+  if(bestBonusMultiplier > 1.0) {
+    bonusApplied = bonusName;
   }
 
   totalPoints *= bestBonusMultiplier;
@@ -197,9 +208,10 @@ export function computeTeamTotal(
   // Apply Golden Game booster
   if (isGoldenGameActive) {
     totalPoints *= FANTASY_CONFIG.boosters.golden_game;
+    const goldenGameBonus = `Golden Game (+${(FANTASY_CONFIG.boosters.golden_game - 1) * 100}%)`;
     bonusApplied = bonusApplied 
-      ? `${bonusApplied} & Golden Game (+20%)` 
-      : 'Golden Game (+20%)';
+      ? `${bonusApplied} & ${goldenGameBonus}` 
+      : goldenGameBonus;
   }
 
   return { finalScore: totalPoints, bonusApplied };
