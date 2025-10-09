@@ -1,5 +1,5 @@
-import React from 'react';
-import { Coins } from 'lucide-react';
+import React from "react";
+import { Coins } from "lucide-react";
 
 interface CoinBalanceProps {
   balance: number;
@@ -14,7 +14,9 @@ export const CoinBalance: React.FC<CoinBalanceProps> = ({ balance }) => {
           <span className="text-white font-semibold text-sm">Your Balance</span>
         </div>
         <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-xl">
-          <span className="text-white font-bold text-xl">{balance.toLocaleString()}</span>
+          <span className="text-white font-bold text-xl">
+            {balance.toLocaleString()}
+          </span>
           <span className="text-white/90 text-sm ml-1">coins</span>
         </div>
       </div>

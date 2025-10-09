@@ -1,5 +1,5 @@
-import React from 'react';
-import { X, Info } from 'lucide-react';
+import React from "react";
+import { X, Info } from "lucide-react";
 
 interface RulesModalProps {
   isOpen: boolean;
@@ -18,7 +18,7 @@ export const RulesModal: React.FC<RulesModalProps> = ({ isOpen, onClose }) => {
         >
           <X className="w-6 h-6" />
         </button>
-        
+
         <div className="flex items-center gap-3">
           <div className="bg-purple-100 p-2 rounded-full">
             <Info className="w-6 h-6 text-purple-600" />
@@ -28,19 +28,26 @@ export const RulesModal: React.FC<RulesModalProps> = ({ isOpen, onClose }) => {
 
         <div className="space-y-4 text-gray-600 text-sm">
           <p>
-            <strong>1. Join the Challenge:</strong> Pay the entry cost to receive your starting challenge balance.
+            <strong>1. Join the Challenge:</strong> Pay the entry cost to
+            receive your starting challenge balance.
           </p>
           <p>
-            <strong>2. Place Your Bets:</strong> You must allocate your entire challenge balance across the available matches before the first match begins.
+            <strong>2. Place Your Bets:</strong> You must allocate your entire
+            challenge balance across the available matches before the first
+            match begins.
           </p>
           <p>
-            <strong>3. Bets are Locked:</strong> Once the challenge status becomes 'Ongoing', you cannot change your bets.
+            <strong>3. Bets are Locked:</strong> Once the challenge status
+            becomes 'Ongoing', you cannot change your bets.
           </p>
           <p>
-            <strong>4. Calculate Winnings:</strong> As matches finish, your winnings are calculated based on your predictions and the odds.
+            <strong>4. Calculate Winnings:</strong> As matches finish, your
+            winnings are calculated based on your predictions and the odds.
           </p>
           <p>
-            <strong>5. The Winner:</strong> The player with the highest final coin balance at the end of the challenge wins the top spot on the leaderboard!
+            <strong>5. The Winner:</strong> The player with the highest final
+            coin balance at the end of the challenge wins the top spot on the
+            leaderboard!
           </p>
         </div>
 

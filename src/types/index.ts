@@ -5,7 +5,7 @@ export interface Match {
     emoji: string;
   };
   teamB: {
-    name:string;
+    name: string;
     emoji: string;
   };
   kickoffTime: string;
@@ -14,8 +14,8 @@ export interface Match {
     draw: number;
     teamB: number;
   };
-  status: 'upcoming' | 'played';
-  result?: 'teamA' | 'draw' | 'teamB';
+  status: "upcoming" | "played";
+  result?: "teamA" | "draw" | "teamB";
   score?: {
     teamA: number;
     teamB: number;
@@ -24,14 +24,14 @@ export interface Match {
 
 export interface Bet {
   matchId: string;
-  prediction: 'teamA' | 'draw' | 'teamB';
+  prediction: "teamA" | "draw" | "teamB";
   amount: number;
   odds: number;
-  status: 'pending' | 'won' | 'lost';
+  status: "pending" | "won" | "lost";
   winAmount?: number;
 }
 
-export type ChallengeStatus = 'Upcoming' | 'Ongoing' | 'Finished';
+export type ChallengeStatus = "Upcoming" | "Ongoing" | "Finished";
 
 // --- GENERIC GAME TYPES ---
 // Base interface for all game modes
@@ -43,23 +43,22 @@ export interface Game {
   endDate: string;
   entryCost: number;
   totalPlayers: number;
-  gameType: 'betting' | 'prediction' | 'fantasy';
+  gameType: "betting" | "prediction" | "fantasy";
 }
 
 export interface BettingChallenge extends Game {
-  gameType: 'betting';
+  gameType: "betting";
   challengeBalance: number;
 }
 
 export interface PredictionGame extends Game {
-  gameType: 'prediction';
+  gameType: "prediction";
   matches: SwipeMatch[];
 }
 
 // Deprecated types, will be removed later
 export type Challenge = BettingChallenge;
 export type SwipeMatchDay = PredictionGame;
-
 
 export interface ChallengeMatch {
   id: string;
@@ -68,18 +67,18 @@ export interface ChallengeMatch {
   teamA: { name: string; emoji: string };
   teamB: { name: string; emoji: string };
   odds: { teamA: number; draw: number; teamB: number };
-  status: 'upcoming' | 'played';
-  result?: 'teamA' | 'draw' | 'teamB';
+  status: "upcoming" | "played";
+  result?: "teamA" | "draw" | "teamB";
 }
 
 export interface ChallengeBet {
   challengeMatchId: string;
-  prediction: 'teamA' | 'draw' | 'teamB';
+  prediction: "teamA" | "draw" | "teamB";
   amount: number;
 }
 
 export interface BoosterSelection {
-  type: 'x2' | 'x3';
+  type: "x2" | "x3";
   matchId: string;
 }
 
@@ -104,7 +103,7 @@ export interface LeaderboardEntry {
 }
 
 // --- Swipe Prediction Game Types ---
-export type SwipePredictionOutcome = 'teamA' | 'draw' | 'teamB';
+export type SwipePredictionOutcome = "teamA" | "draw" | "teamB";
 
 export interface SwipeMatch {
   id: string;
@@ -134,8 +133,12 @@ export interface SwipeLeaderboardEntry {
 }
 
 // --- Fantasy Football Types ---
-export type PlayerCategory = 'Star' | 'Key' | 'Wild';
-export type PlayerPosition = 'Goalkeeper' | 'Defender' | 'Midfielder' | 'Attacker';
+export type PlayerCategory = "Star" | "Key" | "Wild";
+export type PlayerPosition =
+  | "Goalkeeper"
+  | "Defender"
+  | "Midfielder"
+  | "Attacker";
 
 export interface Booster {
   id: number;
@@ -168,7 +171,7 @@ export interface UserFantasyTeam {
   starters: string[];
   substitutes: string[];
   captainId: string;
-  activeBooster: Booster['id'] | null;
+  activeBooster: Booster["id"] | null;
 }
 
 export interface GameWeekCondition {
@@ -183,14 +186,14 @@ export interface FantasyGameWeek {
   startDate: string;
   endDate: string;
   leagues: string[];
-  status: 'upcoming' | 'live' | 'finished';
+  status: "upcoming" | "live" | "finished";
   conditions?: GameWeekCondition[];
   formationConstraint?: string;
   theme?: string;
 }
 
 export interface FantasyGame extends Game {
-  gameType: 'fantasy';
+  gameType: "fantasy";
   gameWeeks: FantasyGameWeek[];
 }
 
@@ -199,7 +202,7 @@ export interface FantasyLeaderboardEntry {
   username: string;
   avatar: string;
   totalPoints: number;
-  boosterUsed: Booster['id'] | null;
+  boosterUsed: Booster["id"] | null;
 }
 
 export interface League {
@@ -207,7 +210,6 @@ export interface League {
   name: string;
   logo: string;
 }
-
 
 // --- Supabase Profile Type ---
 export interface Profile {
@@ -255,7 +257,7 @@ export interface LevelConfig {
 export interface Toast {
   id: string;
   message: string;
-  type: 'success' | 'error' | 'info';
+  type: "success" | "error" | "info";
 }
 
 // --- API Football Types ---

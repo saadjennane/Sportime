@@ -1,6 +1,6 @@
-import React from 'react';
-import { X, Coins, ShieldAlert, CheckCircle } from 'lucide-react';
-import { SwipeMatchDay } from '../types';
+import React from "react";
+import { X, Coins, ShieldAlert, CheckCircle } from "lucide-react";
+import { SwipeMatchDay } from "../types";
 
 interface JoinSwipeGameConfirmationModalProps {
   isOpen: boolean;
@@ -10,13 +10,9 @@ interface JoinSwipeGameConfirmationModalProps {
   userBalance: number;
 }
 
-export const JoinSwipeGameConfirmationModal: React.FC<JoinSwipeGameConfirmationModalProps> = ({
-  isOpen,
-  onClose,
-  onConfirm,
-  game,
-  userBalance,
-}) => {
+export const JoinSwipeGameConfirmationModal: React.FC<
+  JoinSwipeGameConfirmationModalProps
+> = ({ isOpen, onClose, onConfirm, game, userBalance }) => {
   if (!isOpen) return null;
 
   const hasSufficientFunds = userBalance >= game.entryCost;
@@ -31,7 +27,9 @@ export const JoinSwipeGameConfirmationModal: React.FC<JoinSwipeGameConfirmationM
           <X className="w-6 h-6" />
         </button>
 
-        <h2 className="text-2xl font-bold text-center text-gray-900">Join Challenge</h2>
+        <h2 className="text-2xl font-bold text-center text-gray-900">
+          Join Challenge
+        </h2>
 
         <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center space-y-2">
           <p className="text-lg font-bold text-purple-700">{game.name}</p>
@@ -39,7 +37,9 @@ export const JoinSwipeGameConfirmationModal: React.FC<JoinSwipeGameConfirmationM
             <p className="text-sm text-slate-500">Entry Cost</p>
             <div className="flex items-center justify-center gap-2">
               <Coins className="w-6 h-6 text-amber-500" />
-              <p className="text-3xl font-bold text-slate-800">{game.entryCost.toLocaleString()}</p>
+              <p className="text-3xl font-bold text-slate-800">
+                {game.entryCost.toLocaleString()}
+              </p>
             </div>
           </div>
         </div>
@@ -48,7 +48,8 @@ export const JoinSwipeGameConfirmationModal: React.FC<JoinSwipeGameConfirmationM
           <div className="bg-green-50 border border-green-200 text-green-800 p-3 rounded-xl flex items-center gap-3">
             <CheckCircle size={20} />
             <p className="text-sm font-medium">
-              You have enough coins to join. This amount will be deducted from your balance.
+              You have enough coins to join. This amount will be deducted from
+              your balance.
             </p>
           </div>
         ) : (
@@ -66,7 +67,7 @@ export const JoinSwipeGameConfirmationModal: React.FC<JoinSwipeGameConfirmationM
             disabled={!hasSufficientFunds}
             className="w-full py-3.5 px-6 bg-gradient-to-r from-purple-600 to-blue-600 hover:shadow-lg disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-all"
           >
-            {hasSufficientFunds ? 'Confirm & Join' : 'Insufficient Funds'}
+            {hasSufficientFunds ? "Confirm & Join" : "Insufficient Funds"}
           </button>
           <button
             onClick={onClose}
@@ -76,7 +77,10 @@ export const JoinSwipeGameConfirmationModal: React.FC<JoinSwipeGameConfirmationM
           </button>
           <div className="text-center">
             <span className="text-sm text-gray-500">
-              Your Balance: <span className="font-semibold">{userBalance.toLocaleString()} coins</span>
+              Your Balance:{" "}
+              <span className="font-semibold">
+                {userBalance.toLocaleString()} coins
+              </span>
             </span>
           </div>
         </div>
