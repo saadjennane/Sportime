@@ -36,6 +36,19 @@ export type Page = 'challenges' | 'matches' | 'profile' | 'admin';
 const MOCK_SIGNED_IN = true;
 const MOCK_EMAIL = 'saadjennane@gmail.com';
 
+// Pre-populate user entries for testing purposes
+const initialUserSwipeEntries: UserSwipeEntry[] = [
+  // Mock entry for the finished game so "View Results" works
+  {
+    matchDayId: 'swipe-2',
+    predictions: mockSwipeMatchDays.find(md => md.id === 'swipe-2')!.matches.map(m => ({
+      matchId: m.id,
+      prediction: ['teamA', 'draw', 'teamB'][Math.floor(Math.random() * 3)] as 'teamA'|'draw'|'teamB',
+    })),
+    isFinalized: true,
+  }
+];
+
 function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -62,7 +75,7 @@ function App() {
   const [challengeMatches, setChallengeMatches] = useState<ChallengeMatch[]>(mockChallengeMatches);
   const [userChallengeEntries, setUserChallengeEntries] = useState<UserChallengeEntry[]>([]);
   const [swipeMatchDays, setSwipeMatchDays] = useState<SwipeMatchDay[]>(mockSwipeMatchDays);
-  const [userSwipeEntries, setUserSwipeEntries] = useState<UserSwipeEntry[]>([]);
+  const [userSwipeEntries, setUserSwipeEntries] = useState<UserSwipeEntry[]>(initialUserSwipeEntries);
   const [fantasyGames, setFantasyGames] = useState<FantasyGame[]>([mockFantasyGame]);
   const [fantasyPlayers, setFantasyPlayers] = useState<FantasyPlayer[]>(mockFantasyPlayers);
   const [userFantasyTeams, setUserFantasyTeams] = useState<UserFantasyTeam[]>(mockUserFantasyTeams);
@@ -104,6 +117,7 @@ function App() {
         id: 'mock-user-saad-jennane',
         email: MOCK_EMAIL,
         username: MOCK_EMAIL.split('@')[0],
+        profile_picture_url: 'https://i.pravatar.cc/150?u=a042581f4e29026704e',
         coins_balance: 50000,
         created_at: new Date().toISOString(),
         is_guest: false,
@@ -332,28 +346,40 @@ function App() {
     setActiveSwipeGameId(matchDayId);
   };
 
-  const handleSwipePrediction = async (matchDayId: string, matchId: string, prediction: SwipePredictionOutcome) => {
-    const newEntries = userSwipeEntries.map(entry => {
-      if (entry.matchDayId === matchDayId) {
-        const newPredictions = [...entry.predictions];
-        const existingPredIndex = newPredictions.findIndex(p => p.matchId === matchId);
-        if (existingPredIndex > -1) {
-          newPredictions[existingPredIndex] = { matchId, prediction };
-        } else {
-          newPredictions.push({ matchId, prediction });
-        }
-        return { ...entry, predictions: newPredictions };
+  const handleSwipePrediction = useCallback(async (matchDayId: string, matchId: string, prediction: SwipePredictionOutcome) => {
+    setUserSwipeEntries(prevEntries => {
+      const newEntries = [...prevEntries];
+      const entryIndex = newEntries.findIndex(e => e.matchDayId === matchDayId);
+      if (entryIndex === -1) return prevEntries;
+
+      const entry = { ...newEntries[entryIndex] };
+      const newPredictions = [...entry.predictions];
+      const predIndex = newPredictions.findIndex(p => p.matchId === matchId);
+
+      if (predIndex > -1) {
+        newPredictions[predIndex] = { matchId, prediction };
+      } else {
+        newPredictions.push({ matchId, prediction });
       }
-      return entry;
+      
+      entry.predictions = newPredictions;
+      newEntries[entryIndex] = entry;
+
+      if (!profile?.is_guest) {
+        supabase.from('user_swipe_entries')
+          .update({ predictions: newPredictions })
+          .match({ user_id: profile.id, matchDayId })
+          .then(({ error }) => {
+            if (error) {
+              addToast('Failed to save prediction. Please try again.', 'error');
+              // Optionally revert state here
+            }
+          });
+      }
+      
+      return newEntries;
     });
-    setUserSwipeEntries(newEntries);
-    if (!profile?.is_guest) {
-      const entryToUpdate = newEntries.find(e => e.matchDayId === matchDayId);
-      if(entryToUpdate) {
-        await supabase.from('user_swipe_entries').update({ predictions: entryToUpdate.predictions }).match({ user_id: profile.id, matchDayId });
-      }
-    }
-  };
+  }, [profile, addToast]);
 
   const handleUpdateSwipePrediction = handleSwipePrediction;
 
@@ -467,9 +493,17 @@ function App() {
       const userEntry = userSwipeEntries.find(e => e.matchDayId === activeSwipeGameId);
       if (matchDay && userEntry) {
         if (swipeGameViewMode === 'recap') {
-          return <SwipeRecapPage matchDay={matchDay} userEntry={userEntry} onBack={() => setActiveSwipeGameId(null)} onUpdatePrediction={handleUpdateSwipePrediction} onViewLeaderboard={setViewingSwipeLeaderboardFor} onToggleView={() => setSwipeGameViewMode('swiping')} />;
+          return <SwipeRecapPage 
+            allMatchDays={swipeMatchDays}
+            selectedMatchDayId={activeSwipeGameId}
+            userEntry={userEntry} 
+            onBack={() => setActiveSwipeGameId(null)} 
+            onUpdatePrediction={(matchId, prediction) => handleUpdateSwipePrediction(activeSwipeGameId, matchId, prediction)} 
+            onViewLeaderboard={setViewingSwipeLeaderboardFor} 
+            onSelectMatchDay={setActiveSwipeGameId}
+          />;
         }
-        return <SwipeGamePage matchDay={matchDay} userEntry={userEntry} onSwipePrediction={handleSwipePrediction} onAllSwipesDone={() => handleFinalizeSwipePicks(matchDay.id)} hasSeenSwipeTutorial={hasSeenSwipeTutorial} onDismissTutorial={handleDismissSwipeTutorial} onExit={() => setSwipeGameViewMode('recap')} />;
+        return <SwipeGamePage matchDay={matchDay} userEntry={userEntry} onSwipePrediction={(matchId, prediction) => handleSwipePrediction(matchDay.id, matchId, prediction)} onAllSwipesDone={() => handleFinalizeSwipePicks(matchDay.id)} hasSeenSwipeTutorial={hasSeenSwipeTutorial} onDismissTutorial={handleDismissSwipeTutorial} onExit={() => setSwipeGameViewMode('recap')} />;
       }
     }
 

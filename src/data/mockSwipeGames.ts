@@ -35,7 +35,7 @@ export const mockSwipeMatchDays: SwipeMatchDay[] = [
   {
     id: 'swipe-1',
     gameType: 'prediction',
-    name: 'Summer Swipe Fest',
+    name: 'Match Day 1',
     status: 'Upcoming',
     matches: generateMatches(5),
     entryCost: 250,
@@ -46,7 +46,7 @@ export const mockSwipeMatchDays: SwipeMatchDay[] = [
   {
     id: 'swipe-2',
     gameType: 'prediction',
-    name: 'Weekend Wipeout',
+    name: 'Match Day 2',
     status: 'Finished',
     matches: generateMatches(5).map(m => ({...m, result: ['teamA', 'draw', 'teamB'][Math.floor(Math.random() * 3)] as 'teamA'|'draw'|'teamB' })),
     entryCost: 100,
