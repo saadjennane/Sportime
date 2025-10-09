@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Trophy, Medal, Award, User, Users, Shield } from 'lucide-react';
-import { mockFantasyLeaderboard } from '../data/mockFantasy';
+import { mockFantasyLeaderboard } from '../data/mockFantasy.tsx';
 import { FantasyLeaderboardEntry } from '../types';
 
 interface FantasyLeaderboardModalProps {

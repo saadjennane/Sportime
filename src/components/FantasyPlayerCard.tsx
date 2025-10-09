@@ -1,5 +1,5 @@
 import React from 'react';
-import { FantasyPlayer } from '../types';
+import { FantasyPlayer, PlayerCategory } from '../types';
 import { Key, Dices, Star as StarIcon } from 'lucide-react';
 
 interface FantasyPlayerCardProps {
@@ -9,7 +9,7 @@ interface FantasyPlayerCardProps {
   isLive: boolean;
 }
 
-const CategoryIcon: React.FC<{ category: 'Star' | 'Key' | 'Wild', size?: number }> = ({ category, size = 12 }) => {
+const CategoryIcon: React.FC<{ category: PlayerCategory, size?: number }> = ({ category, size = 12 }) => {
   switch (category) {
     case 'Star':
       return <StarIcon size={size} className="text-yellow-400 fill-yellow-400" />;
@@ -60,14 +60,14 @@ export const FantasyPlayerCard: React.FC<FantasyPlayerCardProps> = ({ player, is
       
       {isLive ? (
         <div className="mt-1 text-center">
-            <p className="text-lg font-bold text-purple-700">{player.livePoints ?? 0}</p>
+            <p className="text-lg font-bold text-purple-700">{player.livePoints?.toFixed(1) ?? 0}</p>
             <p className="text-[10px] text-gray-500 -mt-1">pts</p>
         </div>
       ) : (
         <>
             <div className="flex items-center justify-center gap-1 text-xs text-gray-500 w-full">
-                <CategoryIcon category={player.category} />
-                <span className="font-semibold">{player.avgFantasyScore.toFixed(1)}</span>
+                <CategoryIcon category={player.status} />
+                <span className="font-semibold">{player.pgs.toFixed(1)}</span>
             </div>
             <div className="w-12 mt-1">
                 <FatigueBar fatigue={player.fatigue} />

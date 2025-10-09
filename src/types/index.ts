@@ -150,15 +150,18 @@ export interface FantasyPlayer {
   name: string;
   photo: string;
   position: PlayerPosition;
-  category: PlayerCategory;
-  fatigue: number;
+  // DEPRECATED: category: PlayerCategory;
+  fatigue: number; // This will now represent the *base* fatigue from the user team state
   teamName: string;
   teamLogo: string;
   birthdate: string;
-  pgs: number; // Player Game Score
-  avgFantasyScore: number;
+  // DEPRECATED: avgFantasyScore: number;
   livePoints?: number;
   livePointsBreakdown?: Record<string, number>;
+  // NEW FIELDS
+  pgs: number; // Player Game Score - calculated before each GW
+  status: PlayerCategory; // 'Star', 'Key', 'Wild' - calculated from PGS
+  playtime_ratio?: number; // Ratio of minutes played in last 10 games
 }
 
 export interface UserFantasyTeam {
@@ -167,8 +170,11 @@ export interface UserFantasyTeam {
   gameWeekId: string;
   starters: string[];
   substitutes: string[];
-  captainId: string;
-  activeBooster: Booster['id'] | null;
+  // DEPRECATED: activeBooster: Booster['id'] | null;
+  // NEW FIELDS
+  fatigue_state: Record<string, number>; // e.g., {'p1': 0.8, 'p2': 1.0}
+  booster_used: number | null; // ID of the booster used for this gameweek
+  captain_id: string;
 }
 
 export interface GameWeekCondition {
@@ -371,4 +377,43 @@ export interface ApiSyncConfig {
   id: string; // endpoint name e.g., 'fixtures'
   frequency: string;
   last_sync_at: string | null;
+}
+
+// --- FANTASY ENGINE V2 TYPES ---
+export interface FantasyConfig {
+  fatigue: { star: number; key: number; rest: number };
+  bonuses: { no_star: number; crazy: number; vintage: number };
+  boosters: { double_impact: number; golden_game: number };
+  captain_passive: number;
+}
+
+export interface PlayerLast10Stats {
+  rating: number; // avg
+  impact: number; // avg
+  consistency: number; // avg
+  minutes_played: number; // total
+  total_possible_minutes: number; // total
+}
+
+export interface PlayerGameWeekStats {
+  minutes_played: number;
+  goals: number;
+  assists: number;
+  shots_on_target: number;
+  saves: number;
+  penalties_saved: number;
+  penalties_scored: number;
+  penalties_missed: number;
+  yellow_cards: number;
+  red_cards: number;
+  goals_conceded: number;
+  interceptions: number;
+  tackles: number;
+  duels_won: number;
+  duels_lost: number;
+  dribbles_succeeded: number;
+  fouls_committed: number;
+  fouls_suffered: number;
+  rating: number;
+  clean_sheet: boolean;
 }

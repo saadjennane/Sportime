@@ -7,7 +7,7 @@ import { FooterNav } from './components/FooterNav';
 import { mockMatches } from './data/mockMatches';
 import { mockChallenges, mockChallengeMatches } from './data/mockChallenges';
 import { mockSwipeMatchDays } from './data/mockSwipeGames';
-import { mockFantasyGame, mockFantasyPlayers, mockUserFantasyTeams } from './data/mockFantasy';
+import { mockFantasyGame, mockFantasyPlayers, mockUserFantasyTeams } from './data/mockFantasy.tsx';
 import { Match, Bet, Challenge, ChallengeMatch, UserChallengeEntry, ChallengeStatus, DailyChallengeEntry, BoosterSelection, SwipeMatchDay, UserSwipeEntry, SwipePredictionOutcome, Profile, LevelConfig, Badge, UserBadge, FantasyGame, UserFantasyTeam, FantasyPlayer } from './types';
 import UpcomingPage from './pages/Upcoming';
 import PlayedPage from './pages/Played';
