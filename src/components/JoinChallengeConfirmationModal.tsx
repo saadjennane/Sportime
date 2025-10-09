@@ -1,6 +1,6 @@
-import React from 'react';
-import { X, Coins, ShieldAlert, CheckCircle } from 'lucide-react';
-import { Challenge } from '../types';
+import React from "react";
+import { X, Coins, ShieldAlert, CheckCircle } from "lucide-react";
+import { Challenge } from "../types";
 
 interface JoinChallengeConfirmationModalProps {
   isOpen: boolean;
@@ -10,13 +10,9 @@ interface JoinChallengeConfirmationModalProps {
   userBalance: number;
 }
 
-export const JoinChallengeConfirmationModal: React.FC<JoinChallengeConfirmationModalProps> = ({
-  isOpen,
-  onClose,
-  onConfirm,
-  challenge,
-  userBalance,
-}) => {
+export const JoinChallengeConfirmationModal: React.FC<
+  JoinChallengeConfirmationModalProps
+> = ({ isOpen, onClose, onConfirm, challenge, userBalance }) => {
   if (!isOpen) return null;
 
   const hasSufficientFunds = userBalance >= challenge.entryCost;
@@ -31,7 +27,9 @@ export const JoinChallengeConfirmationModal: React.FC<JoinChallengeConfirmationM
           <X className="w-6 h-6" />
         </button>
 
-        <h2 className="text-2xl font-bold text-center text-gray-900">Join Challenge</h2>
+        <h2 className="text-2xl font-bold text-center text-gray-900">
+          Join Challenge
+        </h2>
 
         <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center space-y-2">
           <p className="text-lg font-bold text-purple-700">{challenge.name}</p>
@@ -39,7 +37,9 @@ export const JoinChallengeConfirmationModal: React.FC<JoinChallengeConfirmationM
             <p className="text-sm text-slate-500">Entry Cost</p>
             <div className="flex items-center justify-center gap-2">
               <Coins className="w-6 h-6 text-amber-500" />
-              <p className="text-3xl font-bold text-slate-800">{challenge.entryCost.toLocaleString()}</p>
+              <p className="text-3xl font-bold text-slate-800">
+                {challenge.entryCost.toLocaleString()}
+              </p>
             </div>
           </div>
         </div>
@@ -48,7 +48,8 @@ export const JoinChallengeConfirmationModal: React.FC<JoinChallengeConfirmationM
           <div className="bg-green-50 border border-green-200 text-green-800 p-3 rounded-xl flex items-center gap-3">
             <CheckCircle size={20} />
             <p className="text-sm font-medium">
-              You have enough coins to join. This amount will be deducted from your balance.
+              You have enough coins to join. This amount will be deducted from
+              your balance.
             </p>
           </div>
         ) : (
@@ -66,7 +67,7 @@ export const JoinChallengeConfirmationModal: React.FC<JoinChallengeConfirmationM
             disabled={!hasSufficientFunds}
             className="w-full py-3.5 px-6 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-all shadow-lg shadow-purple-500/30"
           >
-            {hasSufficientFunds ? 'Confirm & Join' : 'Insufficient Funds'}
+            {hasSufficientFunds ? "Confirm & Join" : "Insufficient Funds"}
           </button>
           <button
             onClick={onClose}
@@ -76,7 +77,10 @@ export const JoinChallengeConfirmationModal: React.FC<JoinChallengeConfirmationM
           </button>
           <div className="text-center">
             <span className="text-sm text-gray-500">
-              Your Balance: <span className="font-semibold">{userBalance.toLocaleString()} coins</span>
+              Your Balance:{" "}
+              <span className="font-semibold">
+                {userBalance.toLocaleString()} coins
+              </span>
             </span>
           </div>
         </div>

@@ -1,7 +1,7 @@
-import React from 'react';
-import { X } from 'lucide-react';
-import { Challenge, LeaderboardEntry } from '../types';
-import { Leaderboard } from './Leaderboard';
+import React from "react";
+import { X } from "lucide-react";
+import { Challenge, LeaderboardEntry } from "../types";
+import { Leaderboard } from "./Leaderboard";
 
 interface LeaderboardModalProps {
   isOpen: boolean;
@@ -10,7 +10,12 @@ interface LeaderboardModalProps {
   leaderboard: LeaderboardEntry[];
 }
 
-export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({ isOpen, onClose, challenge, leaderboard }) => {
+export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
+  isOpen,
+  onClose,
+  challenge,
+  leaderboard,
+}) => {
   if (!isOpen) return null;
 
   return (
@@ -22,9 +27,8 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({ isOpen, onCl
         >
           <X className="w-6 h-6" />
         </button>
-        
-        <Leaderboard challenge={challenge} leaderboard={leaderboard} />
 
+        <Leaderboard challenge={challenge} leaderboard={leaderboard} />
       </div>
     </div>
   );

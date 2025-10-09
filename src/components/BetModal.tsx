@@ -1,15 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { X, Coins, TrendingUp } from 'lucide-react';
-import { Match, Bet } from '../types';
+import React, { useState, useEffect } from "react";
+import { X, Coins, TrendingUp } from "lucide-react";
+import { Match, Bet } from "../types";
 
 interface BetModalProps {
   isOpen: boolean;
   onClose: () => void;
   match: Match;
-  prediction: 'teamA' | 'draw' | 'teamB';
+  prediction: "teamA" | "draw" | "teamB";
   odds: number;
   balance: number;
-  onConfirm: (amount: number, prediction: 'teamA' | 'draw' | 'teamB', odds: number) => void;
+  onConfirm: (
+    amount: number,
+    prediction: "teamA" | "draw" | "teamB",
+    odds: number,
+  ) => void;
   userBet?: Bet;
   onCancelBet: (matchId: string) => void;
 }
@@ -23,9 +27,9 @@ export const BetModal: React.FC<BetModalProps> = ({
   balance,
   onConfirm,
   userBet,
-  onCancelBet
+  onCancelBet,
 }) => {
-  const [amount, setAmount] = useState<string>('');
+  const [amount, setAmount] = useState<string>("");
   const [selectedPrediction, setSelectedPrediction] = useState(prediction);
   const [selectedOdds, setSelectedOdds] = useState(odds);
 
@@ -38,7 +42,7 @@ export const BetModal: React.FC<BetModalProps> = ({
       } else {
         setSelectedPrediction(prediction);
         setSelectedOdds(odds);
-        setAmount('');
+        setAmount("");
       }
     }
   }, [isOpen, prediction, odds, userBet]);
@@ -60,17 +64,20 @@ export const BetModal: React.FC<BetModalProps> = ({
     onCancelBet(match.id);
     onClose();
   };
-  
+
   const formatQuickAmount = (value: number) => {
     if (value >= 1000) {
       return `${value / 1000}K`;
     }
     return value.toString();
-  }
+  };
 
   const quickAmounts = [100, 500, 1000, 2500];
 
-  const handlePredictionChange = (newPrediction: 'teamA' | 'draw' | 'teamB', newOdds: number) => {
+  const handlePredictionChange = (
+    newPrediction: "teamA" | "draw" | "teamB",
+    newOdds: number,
+  ) => {
     setSelectedPrediction(newPrediction);
     setSelectedOdds(newOdds);
   };
@@ -79,7 +86,7 @@ export const BetModal: React.FC<BetModalProps> = ({
     label: string;
     emoji: string;
     currentOdds: number;
-    predictionKey: 'teamA' | 'draw' | 'teamB';
+    predictionKey: "teamA" | "draw" | "teamB";
   }> = ({ label, emoji, currentOdds, predictionKey }) => {
     const isActive = selectedPrediction === predictionKey;
     return (
@@ -87,13 +94,15 @@ export const BetModal: React.FC<BetModalProps> = ({
         onClick={() => handlePredictionChange(predictionKey, currentOdds)}
         className={`flex-1 flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all duration-200 ${
           isActive
-            ? 'bg-purple-100 border-purple-500 shadow-inner'
-            : 'bg-slate-50 border-slate-200 hover:border-purple-300'
+            ? "bg-purple-100 border-purple-500 shadow-inner"
+            : "bg-slate-50 border-slate-200 hover:border-purple-300"
         }`}
       >
         <span className="text-2xl mb-1">{emoji}</span>
         <span className="text-xs font-bold text-gray-800">{label}</span>
-        <span className="text-sm font-semibold text-purple-600">@{currentOdds.toFixed(2)}</span>
+        <span className="text-sm font-semibold text-purple-600">
+          @{currentOdds.toFixed(2)}
+        </span>
       </button>
     );
   };
@@ -101,9 +110,10 @@ export const BetModal: React.FC<BetModalProps> = ({
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-scale-in">
       <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-5">
-        
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">{userBet ? 'Modify Bet' : 'Place Bet'}</h2>
+          <h2 className="text-2xl font-bold text-gray-900">
+            {userBet ? "Modify Bet" : "Place Bet"}
+          </h2>
           <button
             onClick={onClose}
             className="p-2 text-gray-500 hover:bg-gray-100 rounded-full transition-colors"
@@ -120,12 +130,16 @@ export const BetModal: React.FC<BetModalProps> = ({
           <div className="flex items-center justify-center gap-4 text-center">
             <div className="flex-1">
               <div className="text-3xl mb-1">{match.teamA.emoji}</div>
-              <div className="text-sm font-bold text-gray-800">{match.teamA.name}</div>
+              <div className="text-sm font-bold text-gray-800">
+                {match.teamA.name}
+              </div>
             </div>
             <div className="text-lg font-bold text-slate-400">vs</div>
             <div className="flex-1">
               <div className="text-3xl mb-1">{match.teamB.emoji}</div>
-              <div className="text-sm font-bold text-gray-800">{match.teamB.name}</div>
+              <div className="text-sm font-bold text-gray-800">
+                {match.teamB.name}
+              </div>
             </div>
           </div>
         </div>
@@ -136,7 +150,7 @@ export const BetModal: React.FC<BetModalProps> = ({
           </label>
           <div className="flex gap-2">
             <PredictionOption
-              label={match.teamA.name.split(' ')[0]}
+              label={match.teamA.name.split(" ")[0]}
               emoji={match.teamA.emoji}
               currentOdds={match.odds.teamA}
               predictionKey="teamA"
@@ -148,7 +162,7 @@ export const BetModal: React.FC<BetModalProps> = ({
               predictionKey="draw"
             />
             <PredictionOption
-              label={match.teamB.name.split(' ')[0]}
+              label={match.teamB.name.split(" ")[0]}
               emoji={match.teamB.emoji}
               currentOdds={match.odds.teamB}
               predictionKey="teamB"
@@ -189,10 +203,14 @@ export const BetModal: React.FC<BetModalProps> = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-green-600" />
-              <span className="text-sm font-medium text-green-800">Potential Win</span>
+              <span className="text-sm font-medium text-green-800">
+                Potential Win
+              </span>
             </div>
             <span className="text-xl font-bold text-green-700">
-              {potentialWin.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              {potentialWin.toLocaleString(undefined, {
+                maximumFractionDigits: 0,
+              })}
             </span>
           </div>
         </div>
@@ -233,7 +251,10 @@ export const BetModal: React.FC<BetModalProps> = ({
           )}
           <div className="text-center">
             <span className="text-sm text-gray-500">
-              Balance: <span className="font-semibold">{balance.toLocaleString()} coins</span>
+              Balance:{" "}
+              <span className="font-semibold">
+                {balance.toLocaleString()} coins
+              </span>
             </span>
           </div>
         </div>
