@@ -26,19 +26,18 @@ import { MagicLinkModal } from './components/MagicLinkModal';
 import { useToast } from './hooks/useToast';
 import { ToastContainer } from './components/Toast';
 import ProfilePage from './pages/ProfilePage';
-import { mockBadges, mockLevelsConfig, mockUserBadges } from './data/mockProgression';
+import { mockBadges, mockLevelsConfig } from './data/mockProgression';
+import { mockUserProfile, mockUserBadgesData } from './data/mockUsers';
 import MatchesPage from './pages/MatchesPage';
 import { FantasyGameWeekPage } from './pages/FantasyGameWeekPage';
 import LeaguesListPage from './pages/leagues/LeaguesListPage';
 import LeagueDetailPage from './pages/leagues/LeagueDetailPage';
 import LeagueJoinPage from './pages/leagues/LeagueJoinPage';
 import { mockLeaguesData } from './data/mockLeagues';
+import { USE_SUPABASE } from './config/env';
 
 
 export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'leagues';
-
-const MOCK_SIGNED_IN = true;
-const MOCK_EMAIL = 'saadjennane@gmail.com';
 
 // Pre-populate user entries for testing purposes
 const initialUserSwipeEntries: UserSwipeEntry[] = [
@@ -86,7 +85,7 @@ function App() {
   // --- Progression State ---
   const [levelsConfig, setLevelsConfig] = useState<LevelConfig[]>(mockLevelsConfig);
   const [badges, setBadges] = useState<Badge[]>(mockBadges);
-  const [userBadges, setUserBadges] = useState<UserBadge[]>(mockUserBadges);
+  const [userBadges, setUserBadges] = useState<UserBadge[]>(mockUserBadgesData);
 
   // --- League State (Using Mock Data) ---
   const [leagues, setLeagues] = useState<League[]>(mockLeaguesData);
@@ -117,27 +116,52 @@ function App() {
 
   // Main Auth Effect
   useEffect(() => {
-    if (MOCK_SIGNED_IN) {
+    if (!USE_SUPABASE) {
       setLoading(true);
-      const mockProfile: Profile = {
-        id: 'mock-user-saad-jennane',
-        email: MOCK_EMAIL,
-        username: MOCK_EMAIL.split('@')[0],
-        profile_picture_url: 'https://i.pravatar.cc/150?u=a042581f4e29026704e',
-        coins_balance: 50000,
-        created_at: new Date().toISOString(),
-        is_guest: false,
-        level: 'Pro',
-        xp: 2500,
-        is_admin: true,
-      };
-      setProfile(mockProfile);
-      setUserBadges(mockUserBadges);
-      setUserFantasyTeams(mockUserFantasyTeams);
-      setLoading(false);
-      return; // Skip real auth logic
+      setTimeout(() => {
+        setProfile(mockUserProfile);
+        setUserBadges(mockUserBadgesData);
+        setUserFantasyTeams(mockUserFantasyTeams);
+        setLeagues(mockLeaguesData);
+        setLoading(false);
+      }, 500); // Simulate network delay
+      return;
     }
-    // ... (real auth logic remains)
+
+    // --- Real Supabase Auth Logic ---
+    const getInitialData = async () => {
+      setLoading(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
+
+      if (session) {
+        const { data: profileData, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (error) {
+          addToast('Could not fetch your profile.', 'error');
+        } else {
+          setProfile(profileData);
+        }
+      }
+      setLoading(false);
+    };
+
+    getInitialData();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (_event === 'SIGNED_IN' && session) {
+        // Fetch profile on sign in
+      } else if (_event === 'SIGNED_OUT') {
+        setProfile(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, [addToast]);
 
   const coinBalance = profile?.coins_balance ?? 0;
@@ -155,7 +179,7 @@ function App() {
   };
 
   const handleUpdateProfile = async (updatedData: { username: string; newProfilePic: File | null; }) => {
-    if (!profile || profile.is_guest) return;
+    if (!profile) return;
     addToast('Profile updated (mock)!', 'success');
     setProfile({
         ...profile,
@@ -174,29 +198,38 @@ function App() {
   };
 
   // --- League Handlers (Mock Data) ---
-  const handleCreateLeague = (name: string, description: string | null) => {
-    if (!profile) return;
-    const newLeague: League = {
-      id: uuidv4(),
-      name,
-      description,
-      image_url: null,
-      invite_code: Math.random().toString(36).substring(2, 10).toUpperCase(),
-      created_by: profile.id,
-      created_at: new Date().toISOString(),
-      member_count: 1,
-      members: [{
-        role: 'admin',
-        user: {
-          id: profile.id,
-          username: profile.username,
-          profile_picture_url: profile.profile_picture_url || null,
+  const handleCreateLeague = async (name: string, description: string | null): Promise<League | null> => {
+    return new Promise(resolve => {
+      setTimeout(() => {
+        if (!profile) {
+          addToast('You must be signed in.', 'error');
+          resolve(null);
+          return;
         }
-      }]
-    };
-    setLeagues(prev => [...prev, newLeague]);
-    addToast(`League '${name}' created!`, 'success');
-    setActiveLeague(newLeague);
+        const newLeague: League = {
+          id: uuidv4(),
+          name,
+          description,
+          image_url: null,
+          invite_code: Math.random().toString(36).substring(2, 10).toUpperCase(),
+          created_by: profile.id,
+          created_at: new Date().toISOString(),
+          member_count: 1,
+          members: [{
+            role: 'admin',
+            user: {
+              id: profile.id,
+              username: profile.username,
+              profile_picture_url: profile.profile_picture_url || null,
+            }
+          }]
+        };
+        setLeagues(prev => [...prev, newLeague]);
+        addToast(`League '${name}' created!`, 'success');
+        setActiveLeague(newLeague);
+        resolve(newLeague);
+      }, 500);
+    });
   };
 
   const handleJoinLeague = (inviteCode: string) => {
