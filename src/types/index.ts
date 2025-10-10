@@ -208,13 +208,6 @@ export interface FantasyLeaderboardEntry {
   boosterUsed: Booster['id'] | null;
 }
 
-export interface League {
-  id: string;
-  name: string;
-  logo: string;
-}
-
-
 // --- Supabase Profile Type ---
 export interface Profile {
   id: string;
@@ -255,6 +248,29 @@ export interface LevelConfig {
   min_xp: number;
   max_xp: number;
   level_icon_url: string;
+}
+
+// --- League Types ---
+export interface League {
+  id: string;
+  name: string;
+  description: string | null;
+  image_url: string | null;
+  invite_code: string;
+  created_by: string;
+  created_at: string;
+  // Joined fields from RPC
+  member_count?: number;
+  members?: LeagueMember[];
+}
+
+export interface LeagueMember {
+  role: 'admin' | 'member';
+  user: {
+    id: string;
+    username: string | null;
+    profile_picture_url: string | null;
+  };
 }
 
 // --- Toast Notification Type ---

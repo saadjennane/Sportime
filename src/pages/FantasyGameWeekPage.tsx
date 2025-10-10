@@ -3,7 +3,7 @@ import { FantasyGame, UserFantasyTeam, FantasyPlayer, PlayerPosition, Booster } 
 import { ScrollText, Trophy, X, Check, Target, ArrowLeft } from 'lucide-react';
 import { FantasyPlayerModal } from '../components/FantasyPlayerModal';
 import { FantasyLeaderboardModal } from '../components/FantasyLeaderboardModal';
-import { mockLeagues } from '../data/mockLeagues';
+import { mockLeaguesData as mockLeagues } from '../data/mockLeagues';
 import { mockBoosters } from '../data/mockFantasy.tsx';
 import { BoosterSelectionModal } from '../components/BoosterSelectionModal';
 import { FantasyRulesModal } from '../components/FantasyRulesModal';
@@ -202,7 +202,7 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = ({ game, 
           <h2 className="text-xl font-bold text-gray-800">{game.name}</h2>
           <p className="text-sm font-semibold text-gray-500">{selectedGameWeek.name}</p>
           <div className="flex items-center gap-2 mt-1">
-            {selectedLeagues.map(league => <img key={league.id} src={league.logo} alt={league.name} className="w-5 h-5" title={league.name} />)}
+            {selectedLeagues.map(league => <img key={league.id} src={league.image_url || ''} alt={league.name} className="w-5 h-5" title={league.name} />)}
           </div>
         </div>
         <div className="flex items-center gap-2">
