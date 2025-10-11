@@ -1,26 +1,31 @@
 import React from 'react';
-import { Coins } from 'lucide-react';
+import { Coins, LogIn } from 'lucide-react';
 import { Profile } from '../types';
 
 interface HeaderProps {
   profile: Profile | null;
   onViewProfile: () => void;
+  onSignIn: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ profile, onViewProfile }) => {
+export const Header: React.FC<HeaderProps> = ({ profile, onViewProfile, onSignIn }) => {
+  const isGuest = profile?.is_guest;
+
   return (
     <header className="flex items-center justify-between">
-      {/* Left side: Avatar */}
+      {/* Left side: Avatar or Sign In button */}
       <div className="relative">
         <button 
-          onClick={onViewProfile}
+          onClick={isGuest ? onSignIn : onViewProfile}
           className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-white/80"
         >
-          {profile?.profile_picture_url ? (
+          {isGuest ? (
+            <LogIn className="w-5 h-5 text-purple-600" />
+          ) : profile?.profile_picture_url ? (
             <img src={profile.profile_picture_url} alt="Profile" className="w-full h-full rounded-full object-cover" />
           ) : (
              <span className="font-bold text-lg text-purple-600">
-              {profile?.username ? profile.username.charAt(0).toUpperCase() : 'G'}
+              {profile?.username ? profile.username.charAt(0).toUpperCase() : '?'}
             </span>
           )}
         </button>

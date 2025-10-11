@@ -2,12 +2,15 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Profile } from '../types';
 import { X, User, Mail, LogOut, Trash2, Loader2, Camera } from 'lucide-react';
 import { DeleteAccountModal } from './DeleteAccountModal';
+import { SearchableSelect } from './SearchableSelect';
+import { mockTeams } from '../data/mockTeams';
+import { mockCountries } from '../data/mockCountries';
 
 interface ProfileSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   profile: Profile;
-  onUpdateProfile: (updatedData: { username: string; newProfilePic: File | null; }) => void;
+  onUpdateProfile: (updatedData: { username: string; newProfilePic: File | null; favoriteClub?: string | null; favoriteNationalTeam?: string | null; }) => void;
   onUpdateEmail: (newEmail: string) => void;
   onSignOut: () => void;
   onDeleteAccount: () => void;
@@ -18,6 +21,9 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({ isOp
   const [newEmail, setNewEmail] = useState('');
   const [newProfilePicFile, setNewProfilePicFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(profile.profile_picture_url || null);
+  const [favoriteClub, setFavoriteClub] = useState<string | null>(profile.favorite_club || null);
+  const [favoriteNationalTeam, setFavoriteNationalTeam] = useState<string | null>(profile.favorite_national_team || null);
+
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
 
@@ -37,7 +43,7 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({ isOp
   const handleProfileUpdate = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading('profile');
-    onUpdateProfile({ username, newProfilePic: newProfilePicFile });
+    onUpdateProfile({ username, newProfilePic: newProfilePicFile, favoriteClub, favoriteNationalTeam });
     setLoading(null);
     onClose();
   };
@@ -61,6 +67,9 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({ isOp
         setPreviewUrl(URL.createObjectURL(file));
     }
   };
+
+  const clubOptions = mockTeams.map(team => ({ value: team.id, label: team.name, icon: team.logo }));
+  const countryOptions = mockCountries.map(country => ({ value: country.name, label: country.name, icon: country.flag }));
 
   return (
     <>
@@ -92,9 +101,9 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({ isOp
                     className="relative w-24 h-24 rounded-full group"
                 >
                     <img
-                        src={previewUrl || 'https://i.pravatar.cc/150'}
+                        src={previewUrl || `https://api.dicebear.com/8.x/bottts/svg?seed=${profile.id}`}
                         alt="Profile Preview"
-                        className="w-full h-full rounded-full object-cover"
+                        className="w-full h-full rounded-full object-cover bg-gray-200"
                     />
                     <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <Camera className="text-white" size={32} />
@@ -109,9 +118,12 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({ isOp
                   <input type="text" value={username} onChange={e => setUsername(e.target.value)} className="w-full pl-10 pr-3 py-2 bg-gray-100 border border-gray-200 rounded-lg" />
                 </div>
               </div>
+
+              <SearchableSelect label="Favorite Club" options={clubOptions} value={favoriteClub} onChange={setFavoriteClub} placeholder="Choose a club" />
+              <SearchableSelect label="Favorite National Team" options={countryOptions} value={favoriteNationalTeam} onChange={setFavoriteNationalTeam} placeholder="Choose a country" />
               
               <button type="submit" className="w-full py-2.5 bg-purple-600 text-white font-semibold rounded-lg shadow-sm hover:bg-purple-700">
-                {loading === 'profile' ? <Loader2 className="animate-spin mx-auto" /> : 'Save Profile'}
+                {loading === 'profile' ? <Loader2 className="animate-spin mx-auto" /> : 'Save Changes'}
               </button>
             </form>
 

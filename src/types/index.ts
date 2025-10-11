@@ -218,17 +218,27 @@ export interface League {
 // --- Supabase Profile Type ---
 export interface Profile {
   id: string;
-  email?: string;
+  email: string | null;
   username: string | null;
+  verified: boolean;
+  is_guest: boolean;
   profile_picture_url?: string | null;
   level?: string;
   xp?: number;
   coins_balance: number;
-  favorite_team_id?: string | null;
-  is_subscribed?: boolean;
   created_at: string;
-  is_guest: boolean; // Client-side flag
   is_admin?: boolean;
+  favorite_club?: string; // club ID
+  favorite_national_team?: string; // country name
+  sports_preferences?: {
+    football?: {
+      club?: string; // club ID
+      national_team?: string; // country name
+    },
+    nba?: { team?: string },
+    f1?: { team?: string, driver?: string },
+    tennis?: { player?: string }
+  }
 }
 
 // --- Progression System Types ---

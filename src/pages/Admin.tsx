@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { Match, ChallengeStatus, LevelConfig, Badge } from '../types';
 import { MatchForm } from '../components/MatchForm';
-import { ChevronDown, Edit2, ShieldCheck, Gamepad2, Settings, Star, DatabaseZap } from 'lucide-react';
+import { ChevronDown, Edit2, ShieldCheck, Gamepad2, Settings, Star, DatabaseZap, Terminal, Trash2 } from 'lucide-react';
 import { ProgressionAdmin } from '../components/ProgressionAdmin';
 import { ChallengesAdmin } from '../components/ChallengesAdmin';
 import { DataSyncAdmin } from '../components/DataSyncAdmin';
 import { useToast } from '../hooks/useToast';
+import { TestModeToggle } from '../components/TestModeToggle';
 
 
 interface AdminPageProps {
@@ -36,14 +37,19 @@ interface AdminPageProps {
   onAddSwipeMatchDay: (matchDay: any) => void;
   onResolveSwipeMatch: (matchId: string, result: any) => void;
   onUpdateSwipeMatchDayStatus: (matchDayId: string, status: 'Ongoing' | 'Finished') => void;
+
+  // Developer props
+  isTestMode: boolean;
+  onSetTestMode: (enabled: boolean) => void;
+  onResetTestUsers: () => void;
 }
 
-type AdminSection = 'challenges' | 'progression' | 'datasync' | 'general';
+type AdminSection = 'challenges' | 'progression' | 'datasync' | 'general' | 'developer';
 
 const AdminPage: React.FC<AdminPageProps> = (props) => {
   const [editingMatch, setEditingMatch] = useState<Match | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [activeSection, setActiveSection] = useState<AdminSection>('datasync');
+  const [activeSection, setActiveSection] = useState<AdminSection>('developer');
   const { addToast } = useToast();
 
   const handleEdit = (match: Match) => {
@@ -62,7 +68,7 @@ const AdminPage: React.FC<AdminPageProps> = (props) => {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-4 bg-gray-200 rounded-xl p-1">
+      <div className="grid grid-cols-5 bg-gray-200 rounded-xl p-1">
         <button
           onClick={() => setActiveSection('challenges')}
           className={`flex-1 flex items-center justify-center gap-2 p-2 rounded-lg font-semibold transition-all text-xs ${activeSection === 'challenges' ? 'bg-white shadow text-purple-700' : 'text-gray-600'}`}
@@ -86,6 +92,12 @@ const AdminPage: React.FC<AdminPageProps> = (props) => {
           className={`flex-1 flex items-center justify-center gap-2 p-2 rounded-lg font-semibold transition-all text-xs ${activeSection === 'general' ? 'bg-white shadow text-purple-700' : 'text-gray-600'}`}
         >
           <Settings size={16} /> General
+        </button>
+        <button
+          onClick={() => setActiveSection('developer')}
+          className={`flex-1 flex items-center justify-center gap-2 p-2 rounded-lg font-semibold transition-all text-xs ${activeSection === 'developer' ? 'bg-white shadow text-purple-700' : 'text-gray-600'}`}
+        >
+          <Terminal size={16} /> Developer
         </button>
       </div>
 
@@ -160,6 +172,26 @@ const AdminPage: React.FC<AdminPageProps> = (props) => {
                 onResolve={props.onResolveMatch}
               />
             ))}
+          </div>
+        </div>
+      )}
+
+      {activeSection === 'developer' && (
+        <div className="animate-scale-in space-y-6">
+          <div className="bg-white rounded-2xl shadow-lg p-5 space-y-4">
+            <h3 className="font-bold text-lg text-gray-800">Developer Options</h3>
+            <TestModeToggle
+              label="Enable Test Mode (Skip Email Verification)"
+              description="When active, the app bypasses the Magic Link verification step and goes straight to onboarding after entering an email."
+              isTestMode={props.isTestMode}
+              onToggle={props.onSetTestMode}
+            />
+            <button
+              onClick={props.onResetTestUsers}
+              className="w-full flex items-center justify-center gap-2 py-3 bg-red-100 text-red-700 rounded-xl font-semibold hover:bg-red-200 transition-colors"
+            >
+              <Trash2 size={16} /> Reset All Test Users
+            </button>
           </div>
         </div>
       )}

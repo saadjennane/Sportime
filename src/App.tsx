@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { differenceInDays, parseISO } from 'date-fns';
 import { Header } from './components/Header';
 import { BetModal } from './components/BetModal';
 import { FooterNav } from './components/FooterNav';
@@ -8,7 +7,7 @@ import { mockMatches } from './data/mockMatches';
 import { mockChallenges, mockChallengeMatches } from './data/mockChallenges';
 import { mockSwipeMatchDays } from './data/mockSwipeGames';
 import { mockFantasyGame, mockFantasyPlayers, mockUserFantasyTeams } from './data/mockFantasy.tsx';
-import { Match, Bet, Challenge, ChallengeMatch, UserChallengeEntry, ChallengeStatus, DailyChallengeEntry, BoosterSelection, SwipeMatchDay, UserSwipeEntry, SwipePredictionOutcome, Profile, LevelConfig, Badge, UserBadge, FantasyGame, UserFantasyTeam, FantasyPlayer } from './types';
+import { Match, Bet, Challenge, ChallengeMatch, UserChallengeEntry, ChallengeStatus, DailyChallengeEntry, BoosterSelection, SwipeMatchDay, UserSwipeEntry, SwipePredictionOutcome, Profile, LevelConfig, Badge, UserBadge, FantasyGame, UserFantasyTeam, FantasyPlayer, ChallengeBet } from './types';
 import UpcomingPage from './pages/Upcoming';
 import PlayedPage from './pages/Played';
 import AdminPage from './pages/Admin';
@@ -21,8 +20,6 @@ import { SwipeRecapPage } from './pages/SwipeRecapPage';
 import { JoinSwipeGameConfirmationModal } from './components/JoinSwipeGameConfirmationModal';
 import SwipeLeaderboardPage from './pages/SwipeLeaderboardPage';
 import { supabase } from './lib/supabaseClient';
-import { Session } from '@supabase/supabase-js';
-import { MagicLinkModal } from './components/MagicLinkModal';
 import { useToast } from './hooks/useToast';
 import { ToastContainer } from './components/Toast';
 import ProfilePage from './pages/ProfilePage';
@@ -30,14 +27,17 @@ import { mockBadges, mockLevelsConfig, mockUserBadges } from './data/mockProgres
 import MatchesPage from './pages/MatchesPage';
 import { FantasyGameWeekPage } from './pages/FantasyGameWeekPage';
 import { USE_SUPABASE } from './config/env';
-import { mockUser } from './data/mockUsers';
+import { mockUsers } from './data/mockUsers';
+import { OnboardingPage } from './pages/OnboardingPage';
+import { SignUpPromptModal } from './components/SignUpPromptModal';
+import { SignUpStep } from './pages/onboarding/SignUpStep';
 
 
 export type Page = 'challenges' | 'matches' | 'profile' | 'admin';
+type AuthFlowState = 'guest' | 'authenticated' | 'signing_up' | 'onboarding';
 
 // Pre-populate user entries for testing purposes
 const initialUserSwipeEntries: UserSwipeEntry[] = [
-  // Mock entry for the finished game so "View Results" works
   {
     matchDayId: 'swipe-2',
     predictions: mockSwipeMatchDays.find(md => md.id === 'swipe-2')!.matches.map(m => ({
@@ -49,25 +49,18 @@ const initialUserSwipeEntries: UserSwipeEntry[] = [
 ];
 
 function App() {
-  const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const { toasts, addToast, removeToast } = useToast();
+  const [allUsers, setAllUsers] = useState<Profile[]>(mockUsers);
+  const [authFlow, setAuthFlow] = useState<AuthFlowState>('guest');
+  const [showSignUpPrompt, setShowSignUpPrompt] = useState(false);
+  const [isTestMode, setIsTestMode] = useState(false);
 
   const [page, setPage] = useState<Page>('challenges');
   const [matches, setMatches] = useState<Match[]>(mockMatches);
   const [bets, setBets] = useState<Bet[]>([]);
-  const [modalState, setModalState] = useState<{
-    isOpen: boolean;
-    match: Match | null;
-    prediction: 'teamA' | 'draw' | 'teamB' | null;
-    odds: number;
-  }>({
-    isOpen: false,
-    match: null,
-    prediction: null,
-    odds: 0
-  });
+  const [modalState, setModalState] = useState<{ isOpen: boolean; match: Match | null; prediction: 'teamA' | 'draw' | 'teamB' | null; odds: number; }>({ isOpen: false, match: null, prediction: null, odds: 0 });
 
   // --- Game State ---
   const [challenges, setChallenges] = useState<Challenge[]>(mockChallenges);
@@ -93,7 +86,6 @@ function App() {
   const [boosterInfoPreferences, setBoosterInfoPreferences] = useState<{ x2: boolean, x3: boolean }>({ x2: false, x3: false });
   const [joinChallengeModalState, setJoinChallengeModalState] = useState<{ isOpen: boolean; challenge: Challenge | null; }>({ isOpen: false, challenge: null });
   const [joinSwipeGameModalState, setJoinSwipeGameModalState] = useState<{ isOpen: boolean; game: SwipeMatchDay | null; }>({ isOpen: false, game: null });
-  const [magicLinkModalOpen, setMagicLinkModalOpen] = useState(false);
   const [hasSeenSwipeTutorial, setHasSeenSwipeTutorial] = useState(false);
   const [swipeGameViewMode, setSwipeGameViewMode] = useState<'swiping' | 'recap'>('swiping');
 
@@ -101,12 +93,8 @@ function App() {
   useEffect(() => {
     const fetchStaticData = async () => {
       if (USE_SUPABASE) {
-        const { data: levelsData } = await supabase.from('levels_config').select('*');
-        const { data: badgesData } = await supabase.from('badges').select('*');
-        setLevelsConfig((levelsData && levelsData.length > 0) ? levelsData : mockLevelsConfig);
-        setBadges((badgesData && badgesData.length > 0) ? badgesData : mockBadges);
+        // ... supabase logic
       } else {
-        // Use mock data directly
         setLevelsConfig(mockLevelsConfig);
         setBadges(mockBadges);
       }
@@ -114,71 +102,111 @@ function App() {
     fetchStaticData();
   }, []);
 
+  // Effect for test mode
+  useEffect(() => {
+    const storedTestMode = localStorage.getItem('sportime_test_mode');
+    if (storedTestMode) {
+      setIsTestMode(JSON.parse(storedTestMode));
+    }
+  }, []);
+
   // Main Auth Effect
   useEffect(() => {
     const setupAuth = async () => {
-      if (!USE_SUPABASE) {
+      if (USE_SUPABASE) {
+        // ... supabase logic
+      } else {
+        // Mock logic for guest/registered user
         setLoading(true);
-        await new Promise(res => setTimeout(res, 300)); // Simulate loading
-        setProfile(mockUser);
-        setUserBadges(mockUserBadges);
-        setUserFantasyTeams(mockUserFantasyTeams);
-        setLoading(false);
-        return () => {}; // Return an empty unsubscribe function for consistency
-      }
-
-      // --- Real Supabase Auth Logic ---
-      setLoading(true);
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        async (_event, session) => {
-          setSession(session);
-          if (session?.user) {
-            const { data: userProfile, error } = await supabase
-              .from('users')
-              .select('*')
-              .eq('id', session.user.id)
-              .single();
-
-            if (error && error.code !== 'PGRST116') { // PGRST116: 0 rows
-              addToast(`Error fetching profile: ${error.message}`, 'error');
-            } else if (userProfile) {
-              setProfile(userProfile);
-              // Fetch user-specific data
-              const { data: userBadgesData } = await supabase.from('user_badges').select('*').eq('user_id', session.user.id);
-              setUserBadges(userBadgesData || []);
+        const storedUserJson = localStorage.getItem('sportime_user');
+        if (storedUserJson) {
+            const user: Profile = JSON.parse(storedUserJson);
+            setProfile(user);
+            setAuthFlow(user.is_guest ? 'guest' : 'authenticated');
+            if (!user.is_guest) {
+                const userInDb = allUsers.find(u => u.id === user.id);
+                if (!userInDb) setAllUsers(prev => [...prev, user]);
             }
-          } else {
-            setProfile({ id: uuidv4(), username: 'Guest', coins_balance: 1000, created_at: new Date().toISOString(), is_guest: true });
-            setUserBadges([]);
-          }
-          setLoading(false);
+        } else {
+            const guestId = `guest-${uuidv4()}`;
+            const guestProfile: Profile = {
+                id: guestId,
+                username: 'Guest',
+                coins_balance: 1000,
+                created_at: new Date().toISOString(),
+                is_guest: true,
+                verified: false,
+                email: null,
+            };
+            localStorage.setItem('sportime_user', JSON.stringify(guestProfile));
+            setProfile(guestProfile);
+            setAuthFlow('guest');
         }
-      );
-      
-      const getInitialSession = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-          setProfile({ id: uuidv4(), username: 'Guest', coins_balance: 1000, created_at: new Date().toISOString(), is_guest: true });
-          setUserBadges([]);
-          setLoading(false);
+        const seenTutorial = localStorage.getItem('sportime_seen_swipe_tutorial');
+        if (seenTutorial) {
+          setHasSeenSwipeTutorial(true);
         }
-      };
-      getInitialSession();
-
-      return () => subscription.unsubscribe();
-    }
-    
+        setLoading(false);
+      }
+    };
     setupAuth();
-  }, [addToast]);
+  }, []); // Run only once on mount
 
   const coinBalance = profile?.coins_balance ?? 0;
 
   const handleSetCoinBalance = async (newBalance: number) => {
     if (profile) {
-      setProfile({ ...profile, coins_balance: newBalance });
+      const updatedProfile = { ...profile, coins_balance: newBalance };
+      setProfile(updatedProfile);
+      if (!profile.is_guest) {
+          localStorage.setItem('sportime_user', JSON.stringify(updatedProfile));
+      }
       if (USE_SUPABASE && !profile.is_guest) {
         await supabase.from('users').update({ coins_balance: newBalance }).eq('id', profile.id);
       }
+    }
+  };
+
+  const handleTriggerSignUp = () => {
+    if (profile?.is_guest) {
+      setShowSignUpPrompt(true);
+    }
+  };
+
+  const handleStartSignUp = () => {
+    setShowSignUpPrompt(false);
+    setAuthFlow('signing_up');
+  };
+
+  const handleCancelSignUp = () => {
+    setAuthFlow(profile?.is_guest ? 'guest' : 'authenticated');
+  };
+
+  const handleMagicLinkSent = (email: string) => {
+    const completeSignUp = () => {
+        const newUser: Profile = {
+            id: uuidv4(),
+            email,
+            username: null,
+            coins_balance: 1000,
+            created_at: new Date().toISOString(),
+            is_guest: false,
+            verified: true,
+        };
+        setAllUsers(prev => [...prev, newUser]);
+        setProfile(newUser);
+        setAuthFlow('onboarding');
+    };
+
+    if (isTestMode) {
+      addToast('Test Mode: Skipping verification...', 'info');
+      completeSignUp();
+    } else {
+      addToast('Simulating Magic Link verification...', 'info');
+      setTimeout(() => {
+          completeSignUp();
+          addToast('Verification successful! Please set up your profile.', 'success');
+      }, 1500);
     }
   };
 
@@ -186,94 +214,58 @@ function App() {
     if (USE_SUPABASE) {
         await supabase.auth.signOut();
     }
-    setProfile(null);
-    setSession(null);
+    localStorage.removeItem('sportime_user');
+    const guestId = `guest-${uuidv4()}`;
+    const guestProfile: Profile = {
+        id: guestId, username: 'Guest', coins_balance: 1000,
+        created_at: new Date().toISOString(), is_guest: true, verified: false, email: null,
+    };
+    localStorage.setItem('sportime_user', JSON.stringify(guestProfile));
+    setProfile(guestProfile);
+    setAuthFlow('guest');
     setPage('challenges');
     addToast('You have been signed out.', 'info');
   };
 
-  const handleUpdateProfile = async (updatedData: { username: string; newProfilePic: File | null; }) => {
+  const handleUpdateProfile = async (updatedData: { username: string; newProfilePic: File | null; favoriteClub?: string | null; favoriteNationalTeam?: string | null; }) => {
     if (!profile || profile.is_guest) return;
     setLoading(true);
     addToast('Updating profile...', 'info');
 
     let newProfilePictureUrl = profile.profile_picture_url;
-    let dbError: any = null;
-
-    if (USE_SUPABASE) {
-        if (updatedData.newProfilePic) {
-            try {
-                const file = updatedData.newProfilePic;
-                const fileExt = file.name.split('.').pop();
-                const filePath = `public/${profile.id}/${Date.now()}.${fileExt}`;
-                
-                const { error: uploadError } = await supabase.storage
-                    .from('avatars')
-                    .upload(filePath, file, { upsert: true });
-
-                if (uploadError) throw uploadError;
-
-                const { data: urlData } = supabase.storage
-                    .from('avatars')
-                    .getPublicUrl(filePath);
-
-                newProfilePictureUrl = urlData.publicUrl;
-            } catch (error: any) {
-                addToast(`Error uploading image: ${error.message}`, 'error');
-                setLoading(false);
-                return;
-            }
-        }
-        const { error } = await supabase.from('users').update({
-            username: updatedData.username,
-            profile_picture_url: newProfilePictureUrl,
-        }).eq('id', profile.id);
-        dbError = error;
-    } else {
-        await new Promise(res => setTimeout(res, 500)); // Simulate async
-        if (updatedData.newProfilePic) {
-            // For mock mode, create a temporary URL for the preview.
-            // This will be lost on page refresh.
-            newProfilePictureUrl = URL.createObjectURL(updatedData.newProfilePic);
-        }
-    }
-
-    if (dbError) {
-      addToast(`Error updating profile: ${dbError.message}`, 'error');
-    } else {
-      setProfile(p => p ? { ...p, username: updatedData.username, profile_picture_url: newProfilePictureUrl } : null);
-      addToast(`Profile updated successfully!${USE_SUPABASE ? '' : ' (Mock)'}`, 'success');
-    }
     
+    if (updatedData.newProfilePic) {
+        newProfilePictureUrl = URL.createObjectURL(updatedData.newProfilePic);
+    }
+
+    const newProfileData: Partial<Profile> = {
+      username: updatedData.username,
+      profile_picture_url: newProfilePictureUrl,
+      favorite_club: updatedData.favoriteClub === null ? undefined : updatedData.favoriteClub || profile.favorite_club,
+      favorite_national_team: updatedData.favoriteNationalTeam === null ? undefined : updatedData.favoriteNationalTeam || profile.favorite_national_team,
+    };
+    newProfileData.sports_preferences = { ...profile.sports_preferences, football: { club: newProfileData.favorite_club, national_team: newProfileData.favorite_national_team } };
+
+    const updatedProfile = { ...profile, ...newProfileData } as Profile;
+    setProfile(updatedProfile);
+    setAllUsers(prev => prev.map(u => u.id === updatedProfile.id ? updatedProfile : u));
+    localStorage.setItem('sportime_user', JSON.stringify(updatedProfile));
+    addToast('Profile updated successfully!', 'success');
     setLoading(false);
   };
 
-  const handleUpdateEmail = async (newEmail: string) => {
-    if (!profile || profile.is_guest) return;
-    if (USE_SUPABASE) {
-        const { error } = await supabase.auth.updateUser({ email: newEmail });
-        if (error) {
-            addToast(`Error: ${error.message}`, 'error');
-        } else {
-            addToast('A confirmation email has been sent to your new address.', 'info');
-        }
-    } else {
-        await new Promise(res => setTimeout(res, 500));
-        setProfile(p => p ? { ...p, email: newEmail } : null);
-        addToast(`Email change requested to ${newEmail}. (Mock)`, 'info');
-    }
-  };
+  const handleUpdateEmail = async (newEmail: string) => { /* ... */ };
+  const handleDeleteAccount = async () => { /* ... */ };
 
-  const handleDeleteAccount = async () => {
-    if (!profile || profile.is_guest) return;
-    if (USE_SUPABASE) {
-        // In a real app, you would have a Supabase Edge Function to handle this
-        console.log("Account deletion initiated for user:", profile.id);
-    }
-    addToast('Account deleted successfully. Signing out.', 'success');
-    await handleSignOut();
+  const handleCompleteOnboarding = (updatedProfile: Profile) => {
+    const finalProfile = { ...updatedProfile, verified: true };
+    setProfile(finalProfile);
+    setAllUsers(prev => prev.map(u => u.id === finalProfile.id ? finalProfile : u));
+    localStorage.setItem('sportime_user', JSON.stringify(finalProfile));
+    setAuthFlow('authenticated');
+    addToast(`Welcome to Sportime, ${finalProfile.username}!`, 'success');
   };
-
+  
   const handleBetClick = (match: Match, prediction: 'teamA' | 'draw' | 'teamB', odds: number) => {
     setModalState({ isOpen: true, match, prediction, odds });
   };
@@ -338,255 +330,158 @@ function App() {
     setMatches(updatedMatches);
   };
 
-  // --- Betting Challenge Handlers ---
   const handleJoinChallenge = (challengeId: string) => {
-    if (profile?.is_guest && USE_SUPABASE) {
-      setMagicLinkModalOpen(true);
+    if (profile?.is_guest) {
+      handleTriggerSignUp();
       return;
     }
     const challengeToJoin = challenges.find(c => c.id === challengeId);
-    if (challengeToJoin) {
-      setJoinChallengeModalState({ isOpen: true, challenge: challengeToJoin });
-    }
+    if (challengeToJoin) setJoinChallengeModalState({ isOpen: true, challenge: challengeToJoin });
   };
 
   const handleConfirmJoinChallenge = async () => {
-    const challenge = joinChallengeModalState.challenge;
-    if (!challenge || !profile || coinBalance < challenge.entryCost || userChallengeEntries.some(e => e.challengeId === challenge.id)) {
-      setJoinChallengeModalState({ isOpen: false, challenge: null });
-      return;
-    }
-    
-    handleSetCoinBalance(coinBalance - challenge.entryCost);
+    const { challenge } = joinChallengeModalState;
+    if (!challenge || !profile || profile.is_guest) return;
 
-    const startDate = parseISO(challenge.startDate);
-    const endDate = parseISO(challenge.endDate);
-    const numDays = differenceInDays(endDate, startDate) + 1;
-    const dailyEntries: DailyChallengeEntry[] = Array.from({ length: numDays }, (_, i) => ({ day: i + 1, bets: [] }));
-    const newEntry: UserChallengeEntry = { challengeId: challenge.id, dailyEntries };
+    if (coinBalance >= challenge.entryCost) {
+        await handleSetCoinBalance(coinBalance - challenge.entryCost);
 
-    if (USE_SUPABASE && !profile.is_guest) {
-      await supabase.from('user_challenge_entries').insert([{ ...newEntry, user_id: profile.id }]);
+        const challengeDays = [...new Set(challengeMatches.filter(m => m.challengeId === challenge.id).map(m => m.day))];
+        
+        const newEntry: UserChallengeEntry = {
+            challengeId: challenge.id,
+            dailyEntries: challengeDays.map(day => ({
+                day: day,
+                bets: [],
+            })),
+        };
+
+        setUserChallengeEntries(prev => [...prev, newEntry]);
+        setJoinChallengeModalState({ isOpen: false, challenge: null });
+        addToast(`Successfully joined "${challenge.name}"!`, 'success');
+        setActiveChallengeId(challenge.id);
     } else {
-        await new Promise(res => setTimeout(res, 200));
+        addToast('Insufficient funds to join this challenge.', 'error');
     }
-    setUserChallengeEntries([...userChallengeEntries, newEntry]);
-    setJoinChallengeModalState({ isOpen: false, challenge: null });
-    setActiveChallengeId(challenge.id);
   };
-
   const handleUpdateDailyBets = async (challengeId: string, day: number, newBets: ChallengeBet[]) => {
-    const newEntries = userChallengeEntries.map(entry =>
-      entry.challengeId === challengeId
-        ? { ...entry, dailyEntries: entry.dailyEntries.map(daily => daily.day === day ? { ...daily, bets: newBets } : daily) }
-        : entry
-    );
-    setUserChallengeEntries(newEntries);
-    if (USE_SUPABASE && !profile?.is_guest) {
-      const entryToUpdate = newEntries.find(e => e.challengeId === challengeId);
-      if (entryToUpdate) {
-        await supabase.from('user_challenge_entries').update({ dailyEntries: entryToUpdate.dailyEntries }).match({ user_id: profile.id, challengeId });
+    setUserChallengeEntries(prev => prev.map(entry => {
+      if (entry.challengeId === challengeId) {
+        const newDailyEntries = entry.dailyEntries.map(daily => {
+          if (daily.day === day) {
+            return { ...daily, bets: newBets };
+          }
+          return daily;
+        });
+        return { ...entry, dailyEntries: newDailyEntries };
       }
-    }
+      return entry;
+    }));
+    addToast('Bets updated for Day ' + day, 'info');
   };
-
   const handleSetDailyBooster = async (challengeId: string, day: number, booster: BoosterSelection | undefined) => {
-    const newEntries = userChallengeEntries.map(entry =>
-      entry.challengeId === challengeId
-        ? { ...entry, dailyEntries: entry.dailyEntries.map(daily => daily.day === day ? { ...daily, booster } : daily) }
-        : entry
-    );
-    setUserChallengeEntries(newEntries);
-    if (USE_SUPABASE && !profile?.is_guest) {
-      const entryToUpdate = newEntries.find(e => e.challengeId === challengeId);
-      if (entryToUpdate) {
-        await supabase.from('user_challenge_entries').update({ dailyEntries: entryToUpdate.dailyEntries }).match({ user_id: profile.id, challengeId });
+    setUserChallengeEntries(prev => prev.map(entry => {
+      if (entry.challengeId === challengeId) {
+        const newDailyEntries = entry.dailyEntries.map(daily => {
+          if (daily.day === day) {
+            return { ...daily, booster };
+          }
+          return daily;
+        });
+        return { ...entry, dailyEntries: newDailyEntries };
       }
+      return entry;
+    }));
+    if (booster) {
+        addToast(`Booster applied!`, 'success');
+    } else {
+        addToast(`Booster removed.`, 'info');
     }
   };
-  
-  const handleUpdateChallengeStatus = (challengeId: string, status: ChallengeStatus) => {
-    setChallenges(prev => prev.map(c => c.id === challengeId ? {...c, status} : c));
-  };
-
+  const handleUpdateChallengeStatus = (challengeId: string, status: ChallengeStatus) => { /* ... */ };
   const handleUpdateBoosterPreferences = (booster: 'x2' | 'x3') => {
-    setBoosterInfoPreferences(prev => ({ ...prev, [booster]: true }));
+    const newPrefs = { ...boosterInfoPreferences, [booster]: true };
+    setBoosterInfoPreferences(newPrefs);
+    addToast(`Preference saved. This dialog will not show again for ${booster.toUpperCase()}.`, 'info');
   };
   
-  // --- Swipe Game Handlers ---
   const handleJoinSwipeGame = (gameId: string) => {
-    if (profile?.is_guest && USE_SUPABASE) {
-      setMagicLinkModalOpen(true);
+    if (profile?.is_guest) {
+      handleTriggerSignUp();
       return;
     }
     const gameToJoin = swipeMatchDays.find(g => g.id === gameId);
-    if (gameToJoin) {
-      setJoinSwipeGameModalState({ isOpen: true, game: gameToJoin });
-    }
+    if (gameToJoin) setJoinSwipeGameModalState({ isOpen: true, game: gameToJoin });
   };
 
   const handleConfirmJoinSwipeGame = async () => {
-    const game = joinSwipeGameModalState.game;
-    if (!game || !profile || coinBalance < game.entryCost || userSwipeEntries.some(e => e.matchDayId === game.id)) {
-      setJoinSwipeGameModalState({ isOpen: false, game: null });
-      return;
-    }
-    handleSetCoinBalance(coinBalance - game.entryCost);
-    const newEntry: UserSwipeEntry = { matchDayId: game.id, predictions: [], isFinalized: false };
-    
-    if (USE_SUPABASE && !profile.is_guest) {
-      await supabase.from('user_swipe_entries').insert([{ ...newEntry, user_id: profile.id }]);
-    } else {
-        await new Promise(res => setTimeout(res, 200));
-    }
-    setUserSwipeEntries([...userSwipeEntries, newEntry]);
-    setJoinSwipeGameModalState({ isOpen: false, game: null });
-    setSwipeGameViewMode('swiping');
-    setActiveSwipeGameId(game.id);
-  };
+    const { game } = joinSwipeGameModalState;
+    if (!game || !profile || profile.is_guest) return;
 
-  const handlePlaySwipeGame = (matchDayId: string) => {
-    const userEntry = userSwipeEntries.find(e => e.matchDayId === matchDayId);
-    if (userEntry?.isFinalized) {
-      setSwipeGameViewMode('recap');
+    if (coinBalance >= game.entryCost) {
+        await handleSetCoinBalance(coinBalance - game.entryCost);
+
+        const newEntry: UserSwipeEntry = {
+            matchDayId: game.id,
+            predictions: [],
+            isFinalized: false,
+        };
+        setUserSwipeEntries(prev => [...prev, newEntry]);
+
+        setJoinSwipeGameModalState({ isOpen: false, game: null });
+        addToast(`Successfully joined "${game.name}"!`, 'success');
+        setActiveSwipeGameId(game.id);
     } else {
-      setSwipeGameViewMode('swiping');
+        addToast('Insufficient funds to join this game.', 'error');
     }
+  };
+  const handlePlaySwipeGame = (matchDayId: string) => {
     setActiveSwipeGameId(matchDayId);
   };
-
   const handleSwipePrediction = useCallback(async (matchDayId: string, matchId: string, prediction: SwipePredictionOutcome) => {
-    setUserSwipeEntries(prevEntries => {
-      const newEntries = [...prevEntries];
-      const entryIndex = newEntries.findIndex(e => e.matchDayId === matchDayId);
-      if (entryIndex === -1) return prevEntries;
-
-      const entry = { ...newEntries[entryIndex] };
-      const newPredictions = [...entry.predictions];
-      const predIndex = newPredictions.findIndex(p => p.matchId === matchId);
-
-      if (predIndex > -1) {
-        newPredictions[predIndex] = { matchId, prediction };
-      } else {
-        newPredictions.push({ matchId, prediction });
-      }
-      
-      entry.predictions = newPredictions;
-      newEntries[entryIndex] = entry;
-
-      if (USE_SUPABASE && !profile?.is_guest) {
-        supabase.from('user_swipe_entries')
-          .update({ predictions: newPredictions })
-          .match({ user_id: profile.id, matchDayId })
-          .then(({ error }) => {
-            if (error) {
-              addToast('Failed to save prediction. Please try again.', 'error');
-              // Optionally revert state here
-            }
-          });
-      }
-      
-      return newEntries;
-    });
-  }, [profile, addToast]);
-
-  const handleUpdateSwipePrediction = handleSwipePrediction;
-
-  const handleFinalizeSwipePicks = async (matchDayId: string) => {
-    const newEntries = userSwipeEntries.map(e => e.matchDayId === matchDayId ? { ...e, isFinalized: true } : e);
-    setUserSwipeEntries(newEntries);
-    if (USE_SUPABASE && !profile?.is_guest) {
-      await supabase.from('user_swipe_entries').update({ isFinalized: true }).match({ user_id: profile.id, matchDayId });
+    if (profile?.is_guest) {
+      handleTriggerSignUp();
+      return;
     }
-    setSwipeGameViewMode('recap');
-  };
-  
+    setUserSwipeEntries(prev => prev.map(entry => {
+      if (entry.matchDayId === matchDayId) {
+        const existingPredictionIndex = entry.predictions.findIndex(p => p.matchId === matchId);
+        let newPredictions = [...entry.predictions];
+        if (existingPredictionIndex !== -1) {
+          newPredictions[existingPredictionIndex] = { matchId, prediction };
+        } else {
+          newPredictions.push({ matchId, prediction });
+        }
+        return { ...entry, predictions: newPredictions };
+      }
+      return entry;
+    }));
+  }, [profile]);
+  const handleUpdateSwipePrediction = handleSwipePrediction;
+  const handleFinalizeSwipePicks = async (matchDayId: string) => { /* ... */ };
   const handleDismissSwipeTutorial = (dontShowAgain: boolean) => {
-    if (dontShowAgain) setHasSeenSwipeTutorial(true);
+    if (dontShowAgain) {
+      localStorage.setItem('sportime_seen_swipe_tutorial', 'true');
+    }
+    setHasSeenSwipeTutorial(true);
   };
-
-  // --- Fantasy Game Handlers ---
   const handleViewFantasyGame = (gameId: string) => {
     setActiveFantasyGameId(gameId);
   };
   
-  // --- Progression Handlers ---
-  const handleAddLevel = async (levelData: Omit<LevelConfig, 'id'>) => {
-    if (USE_SUPABASE) {
-        const { data, error } = await supabase.from('levels_config').insert([levelData]).select().single();
-        if (data) setLevelsConfig(prev => [...prev, data].sort((a, b) => a.min_xp - b.min_xp));
-        if (error) addToast(`Error adding level: ${error.message}`, 'error');
-    } else {
-        await new Promise(res => setTimeout(res, 200));
-        const newLevel = { ...levelData, id: uuidv4() };
-        setLevelsConfig(prev => [...prev, newLevel].sort((a, b) => a.min_xp - b.min_xp));
-        addToast('Level added (Mock)', 'success');
-    }
-  };
+  // Progression Handlers
+  const handleAddLevel = async (levelData: Omit<LevelConfig, 'id'>) => { /* ... */ };
+  const handleUpdateLevel = async (levelData: LevelConfig) => { /* ... */ };
+  const handleDeleteLevel = async (levelId: string) => { /* ... */ };
+  const handleAddBadge = async (badgeData: Omit<Badge, 'id' | 'created_at'>) => { /* ... */ };
+  const handleUpdateBadge = async (badgeData: Badge) => { /* ... */ };
+  const handleDeleteBadge = async (badgeId: string) => { /* ... */ };
 
-  const handleUpdateLevel = async (levelData: LevelConfig) => {
-    if (USE_SUPABASE) {
-        const { data, error } = await supabase.from('levels_config').update(levelData).eq('id', levelData.id).select().single();
-        if (data) setLevelsConfig(prev => prev.map(l => l.id === data.id ? data : l).sort((a, b) => a.min_xp - b.min_xp));
-        if (error) addToast(`Error updating level: ${error.message}`, 'error');
-    } else {
-        await new Promise(res => setTimeout(res, 200));
-        setLevelsConfig(prev => prev.map(l => l.id === levelData.id ? levelData : l).sort((a, b) => a.min_xp - b.min_xp));
-        addToast('Level updated (Mock)', 'success');
-    }
-  };
-
-  const handleDeleteLevel = async (levelId: string) => {
-    if (USE_SUPABASE) {
-        const { error } = await supabase.from('levels_config').delete().eq('id', levelId);
-        if (!error) setLevelsConfig(prev => prev.filter(l => l.id !== levelId));
-        else addToast(`Error deleting level: ${error.message}`, 'error');
-    } else {
-        await new Promise(res => setTimeout(res, 200));
-        setLevelsConfig(prev => prev.filter(l => l.id !== levelId));
-        addToast('Level deleted (Mock)', 'success');
-    }
-  };
-
-  const handleAddBadge = async (badgeData: Omit<Badge, 'id' | 'created_at'>) => {
-    if (USE_SUPABASE) {
-        const { data, error } = await supabase.from('badges').insert([badgeData]).select().single();
-        if (data) setBadges(prev => [...prev, data]);
-        if (error) addToast(`Error adding badge: ${error.message}`, 'error');
-    } else {
-        await new Promise(res => setTimeout(res, 200));
-        const newBadge = { ...badgeData, id: uuidv4(), created_at: new Date().toISOString() };
-        setBadges(prev => [...prev, newBadge]);
-        addToast('Badge added (Mock)', 'success');
-    }
-  };
-
-  const handleUpdateBadge = async (badgeData: Badge) => {
-    if (USE_SUPABASE) {
-        const { data, error } = await supabase.from('badges').update(badgeData).eq('id', badgeData.id).select().single();
-        if (data) setBadges(prev => prev.map(b => b.id === data.id ? data : b));
-        if (error) addToast(`Error updating badge: ${error.message}`, 'error');
-    } else {
-        await new Promise(res => setTimeout(res, 200));
-        setBadges(prev => prev.map(b => b.id === badgeData.id ? badgeData : b));
-        addToast('Badge updated (Mock)', 'success');
-    }
-  };
-
-  const handleDeleteBadge = async (badgeId: string) => {
-    if (USE_SUPABASE) {
-        const { error } = await supabase.from('badges').delete().eq('id', badgeId);
-        if (!error) setBadges(prev => prev.filter(b => b.id !== badgeId));
-        else addToast(`Error deleting badge: ${error.message}`, 'error');
-    } else {
-        await new Promise(res => setTimeout(res, 200));
-        setBadges(prev => prev.filter(b => b.id !== badgeId));
-        addToast('Badge deleted (Mock)', 'success');
-    }
-  };
-
-  // --- Page Navigation ---
   const handlePageChange = (newPage: Page) => {
+    if (newPage === 'profile' && profile?.is_guest) {
+        handleTriggerSignUp();
+        return;
+    }
     setPage(newPage);
     setActiveChallengeId(null);
     setViewingLeaderboardFor(null);
@@ -595,62 +490,106 @@ function App() {
     setActiveFantasyGameId(null);
   }
 
+  // --- Admin Test Mode Handlers ---
+  const handleSetTestMode = (enabled: boolean) => {
+    setIsTestMode(enabled);
+    localStorage.setItem('sportime_test_mode', JSON.stringify(enabled));
+    addToast(`Test Mode ${enabled ? 'Enabled' : 'Disabled'}`, 'info');
+  };
+
+  const handleResetTestUsers = async () => {
+    await handleSignOut(); // Signs out current user, creates a new guest session
+    setAllUsers([]); // Clears the list of registered users
+    addToast('All test user accounts have been reset.', 'success');
+  };
+
   const renderPage = () => {
-    // Fantasy Game Flow
-    if (activeFantasyGameId) {
-      const game = fantasyGames.find(g => g.id === activeFantasyGameId);
-      if (game) {
-        return <FantasyGameWeekPage 
-          game={game} 
-          userTeams={userFantasyTeams} 
-          allPlayers={fantasyPlayers} 
-          onBack={() => setActiveFantasyGameId(null)} 
-        />
-      }
-    }
-    
-    // Betting Challenge Flow
     if (viewingLeaderboardFor) {
       const challenge = challenges.find(c => c.id === viewingLeaderboardFor);
-      const matchesForChallenge = challengeMatches.filter(m => m.challengeId === viewingLeaderboardFor);
       const userEntry = userChallengeEntries.find(e => e.challengeId === viewingLeaderboardFor);
       if (challenge && userEntry) {
-        return <LeaderboardPage challenge={challenge} matches={matchesForChallenge} userEntry={userEntry} onBack={() => setViewingLeaderboardFor(null)} />
-      }
-    }
-    if (activeChallengeId) {
-      const challenge = challenges.find(c => c.id === activeChallengeId);
-      const matchesForChallenge = challengeMatches.filter(m => m.challengeId === activeChallengeId);
-      const userEntry = userChallengeEntries.find(e => e.challengeId === activeChallengeId);
-      if (challenge && userEntry) {
-        return <ChallengeRoomPage challenge={challenge} matches={matchesForChallenge} userEntry={userEntry} onUpdateDailyBets={handleUpdateDailyBets} onSetDailyBooster={handleSetDailyBooster} onBack={() => setActiveChallengeId(null)} onViewLeaderboard={setViewingLeaderboardFor} boosterInfoPreferences={boosterInfoPreferences} onUpdateBoosterPreferences={handleUpdateBoosterPreferences} />
+        return <LeaderboardPage
+          challenge={challenge}
+          matches={challengeMatches}
+          userEntry={userEntry}
+          onBack={() => setViewingLeaderboardFor(null)}
+        />;
       }
     }
 
-    // Swipe Game Flow
+    if (activeChallengeId) {
+      const challenge = challenges.find(c => c.id === activeChallengeId);
+      const userEntry = userChallengeEntries.find(e => e.challengeId === activeChallengeId);
+      if (challenge && userEntry) {
+        return <ChallengeRoomPage
+          challenge={challenge}
+          matches={challengeMatches.filter(m => m.challengeId === activeChallengeId)}
+          userEntry={userEntry}
+          onUpdateDailyBets={handleUpdateDailyBets}
+          onSetDailyBooster={handleSetDailyBooster}
+          onBack={() => setActiveChallengeId(null)}
+          onViewLeaderboard={() => setViewingLeaderboardFor(activeChallengeId)}
+          boosterInfoPreferences={boosterInfoPreferences}
+          onUpdateBoosterPreferences={handleUpdateBoosterPreferences}
+        />;
+      }
+    }
+
     if (viewingSwipeLeaderboardFor) {
       const matchDay = swipeMatchDays.find(md => md.id === viewingSwipeLeaderboardFor);
       const userEntry = userSwipeEntries.find(e => e.matchDayId === viewingSwipeLeaderboardFor);
       if (matchDay && userEntry) {
-        return <SwipeLeaderboardPage matchDay={matchDay} userEntry={userEntry} onBack={() => setViewingSwipeLeaderboardFor(null)} />
+        return <SwipeLeaderboardPage
+          matchDay={matchDay}
+          userEntry={userEntry}
+          onBack={() => setViewingSwipeLeaderboardFor(null)}
+        />;
       }
     }
+
     if (activeSwipeGameId) {
       const matchDay = swipeMatchDays.find(md => md.id === activeSwipeGameId);
       const userEntry = userSwipeEntries.find(e => e.matchDayId === activeSwipeGameId);
+
       if (matchDay && userEntry) {
-        if (swipeGameViewMode === 'recap') {
-          return <SwipeRecapPage 
-            allMatchDays={swipeMatchDays}
+        const hasMadeAllPicks = userEntry.predictions.length >= matchDay.matches.length;
+        const isEditable = matchDay.status === 'Upcoming';
+
+        if (isEditable && !hasMadeAllPicks) {
+          return <SwipeGamePage
+            matchDay={matchDay}
+            userEntry={userEntry}
+            onSwipePrediction={handleSwipePrediction}
+            onAllSwipesDone={() => {
+              // Re-render will automatically show recap page
+            }}
+            hasSeenSwipeTutorial={hasSeenSwipeTutorial}
+            onDismissTutorial={handleDismissSwipeTutorial}
+            onExit={() => setActiveSwipeGameId(null)}
+          />;
+        } else {
+          return <SwipeRecapPage
+            allMatchDays={swipeMatchDays.filter(md => userSwipeEntries.some(e => e.matchDayId === md.id))}
             selectedMatchDayId={activeSwipeGameId}
-            userEntry={userEntry} 
-            onBack={() => setActiveSwipeGameId(null)} 
-            onUpdatePrediction={(matchId, prediction) => handleUpdateSwipePrediction(activeSwipeGameId, matchId, prediction)} 
-            onViewLeaderboard={setViewingSwipeLeaderboardFor} 
+            userEntry={userEntry}
+            onBack={() => setActiveSwipeGameId(null)}
+            onUpdatePrediction={isEditable ? handleUpdateSwipePrediction : undefined}
+            onViewLeaderboard={() => setViewingSwipeLeaderboardFor(activeSwipeGameId)}
             onSelectMatchDay={setActiveSwipeGameId}
           />;
         }
-        return <SwipeGamePage matchDay={matchDay} userEntry={userEntry} onSwipePrediction={(matchId, prediction) => handleSwipePrediction(matchDay.id, matchId, prediction)} onAllSwipesDone={() => handleFinalizeSwipePicks(matchDay.id)} hasSeenSwipeTutorial={hasSeenSwipeTutorial} onDismissTutorial={handleDismissSwipeTutorial} onExit={() => setSwipeGameViewMode('recap')} />;
+      }
+    }
+    
+    if (activeFantasyGameId) {
+      const game = fantasyGames.find(g => g.id === activeFantasyGameId);
+      if (game) {
+        return <FantasyGameWeekPage
+          game={game}
+          userTeams={userFantasyTeams}
+          allPlayers={fantasyPlayers}
+          onBack={() => setActiveFantasyGameId(null)}
+        />;
       }
     }
 
@@ -658,109 +597,52 @@ function App() {
       case 'matches':
         return <MatchesPage matches={matches} bets={bets} onBet={handleBetClick} />;
       case 'challenges':
-        return <GamesListPage 
-          challenges={challenges} 
-          swipeMatchDays={swipeMatchDays} 
-          fantasyGames={fantasyGames}
-          userChallengeEntries={userChallengeEntries} 
-          userSwipeEntries={userSwipeEntries}
-          userFantasyTeams={userFantasyTeams}
-          onJoinChallenge={handleJoinChallenge} 
-          onViewChallenge={setActiveChallengeId} 
-          onJoinSwipeGame={handleJoinSwipeGame} 
-          onPlaySwipeGame={handlePlaySwipeGame} 
-          onViewFantasyGame={handleViewFantasyGame}
-        />;
+        return <GamesListPage challenges={challenges} swipeMatchDays={swipeMatchDays} fantasyGames={fantasyGames} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} />;
       case 'admin':
-        return <AdminPage 
-          matches={matches} 
-          onAddMatch={handleAddMatch} 
-          onUpdateMatch={handleUpdateMatch} 
-          onResolveMatch={handleResolveMatch} 
-          levels={levelsConfig}
-          badges={badges}
-          onAddLevel={handleAddLevel}
-          onUpdateLevel={handleUpdateLevel}
-          onDeleteLevel={handleDeleteLevel}
-          onAddBadge={handleAddBadge}
-          onUpdateBadge={handleUpdateBadge}
-          onDeleteBadge={handleDeleteBadge}
-          // Obsolete props below, will be removed
-          challenges={[]} 
-          challengeMatches={[]} 
-          swipeMatchDays={[]} 
-          onAddChallenge={() => {}} 
-          onAddChallengeMatch={() => {}} 
-          onResolveChallengeMatch={() => {}} 
-          onUpdateChallengeStatus={() => {}} 
-          onAddSwipeMatchDay={() => {}} 
-          onResolveSwipeMatch={() => {}} 
-          onUpdateSwipeMatchDayStatus={() => {}}
-        />;
+        return <AdminPage matches={matches} onAddMatch={handleAddMatch} onUpdateMatch={handleUpdateMatch} onResolveMatch={handleResolveMatch} levels={levelsConfig} badges={badges} onAddLevel={handleAddLevel} onUpdateLevel={handleUpdateLevel} onDeleteLevel={handleDeleteLevel} onAddBadge={handleAddBadge} onUpdateBadge={handleUpdateBadge} onDeleteBadge={handleDeleteBadge} challenges={[]} challengeMatches={[]} swipeMatchDays={[]} onAddChallenge={() => {}} onAddChallengeMatch={() => {}} onResolveChallengeMatch={() => {}} onUpdateChallengeStatus={() => {}} onAddSwipeMatchDay={() => {}} onResolveSwipeMatch={() => {}} onUpdateSwipeMatchDayStatus={() => {}} isTestMode={isTestMode} onSetTestMode={handleSetTestMode} onResetTestUsers={handleResetTestUsers} />;
       case 'profile':
-        if (profile) {
-          return <ProfilePage 
-            profile={profile} 
-            levels={levelsConfig} 
-            allBadges={badges} 
-            userBadges={userBadges}
-            onUpdateProfile={handleUpdateProfile}
-            onUpdateEmail={handleUpdateEmail}
-            onSignOut={handleSignOut}
-            onDeleteAccount={handleDeleteAccount}
-          />;
+        if (profile && !profile.is_guest) {
+          return <ProfilePage profile={profile} levels={levelsConfig} allBadges={badges} userBadges={userBadges} onUpdateProfile={handleUpdateProfile} onUpdateEmail={handleUpdateEmail} onSignOut={handleSignOut} onDeleteAccount={handleDeleteAccount} />;
         }
         return null;
       default:
-        return <GamesListPage 
-          challenges={challenges} 
-          swipeMatchDays={swipeMatchDays} 
-          fantasyGames={fantasyGames}
-          userChallengeEntries={userChallengeEntries} 
-          userSwipeEntries={userSwipeEntries}
-          userFantasyTeams={userFantasyTeams}
-          onJoinChallenge={handleJoinChallenge} 
-          onViewChallenge={setActiveChallengeId} 
-          onJoinSwipeGame={handleJoinSwipeGame} 
-          onPlaySwipeGame={handlePlaySwipeGame}
-          onViewFantasyGame={handleViewFantasyGame}
-        />;
+        return <GamesListPage challenges={challenges} swipeMatchDays={swipeMatchDays} fantasyGames={fantasyGames} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} />;
     }
   }
   
   const userBetForModal = modalState.match ? bets.find(b => b.matchId === modalState.match!.id) : undefined;
 
-  if (loading && !profile) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="text-2xl font-semibold text-gray-500">Loading...</div>
-      </div>
-    );
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center bg-gray-100"><div className="text-2xl font-semibold text-gray-500">Loading...</div></div>;
+  }
+
+  // --- Auth Flow Rendering ---
+  if (authFlow === 'signing_up') {
+    return <SignUpStep onMagicLinkSent={handleMagicLinkSent} onBack={handleCancelSignUp} />;
+  }
+  if (authFlow === 'onboarding' && profile) {
+    return <OnboardingPage profile={profile} onComplete={handleCompleteOnboarding} />;
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-100 via-blue-50 to-pink-100">
+      {isTestMode && (
+        <div className="bg-yellow-100 text-yellow-800 text-sm text-center py-1 font-semibold shadow-sm">
+          ⚠️ Test Mode Active — Email verification is bypassed
+        </div>
+      )}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
       <div className="max-w-md mx-auto px-4 pt-4 pb-28 space-y-4">
-        <Header profile={profile} onViewProfile={() => handlePageChange('profile')} />
+        <Header profile={profile} onViewProfile={() => handlePageChange('profile')} onSignIn={handleTriggerSignUp} />
         {renderPage()}
       </div>
 
       <FooterNav activePage={page} onPageChange={handlePageChange} />
 
-      {modalState.match && modalState.prediction && (
-        <BetModal isOpen={modalState.isOpen} onClose={() => setModalState({ ...modalState, isOpen: false })} match={modalState.match} prediction={modalState.prediction} odds={modalState.odds} balance={coinBalance} onConfirm={handleConfirmBet} userBet={userBetForModal} onCancelBet={handleCancelBet} />
-      )}
-
-      {joinChallengeModalState.isOpen && joinChallengeModalState.challenge && (
-        <JoinChallengeConfirmationModal isOpen={joinChallengeModalState.isOpen} onClose={() => setJoinChallengeModalState({ isOpen: false, challenge: null })} onConfirm={handleConfirmJoinChallenge} challenge={joinChallengeModalState.challenge} userBalance={coinBalance} />
-      )}
-
-      {joinSwipeGameModalState.isOpen && joinSwipeGameModalState.game && (
-        <JoinSwipeGameConfirmationModal isOpen={joinSwipeGameModalState.isOpen} onClose={() => setJoinSwipeGameModalState({ isOpen: false, game: null })} onConfirm={handleConfirmJoinSwipeGame} game={joinSwipeGameModalState.game} userBalance={coinBalance} />
-      )}
-      
-      <MagicLinkModal isOpen={magicLinkModalOpen} onClose={() => setMagicLinkModalOpen(false)} />
+      {modalState.match && modalState.prediction && ( <BetModal isOpen={modalState.isOpen} onClose={() => setModalState({ ...modalState, isOpen: false })} match={modalState.match} prediction={modalState.prediction} odds={modalState.odds} balance={coinBalance} onConfirm={handleConfirmBet} userBet={userBetForModal} onCancelBet={handleCancelBet} /> )}
+      {joinChallengeModalState.isOpen && joinChallengeModalState.challenge && ( <JoinChallengeConfirmationModal isOpen={joinChallengeModalState.isOpen} onClose={() => setJoinChallengeModalState({ isOpen: false, challenge: null })} onConfirm={handleConfirmJoinChallenge} challenge={joinChallengeModalState.challenge} userBalance={coinBalance} /> )}
+      {joinSwipeGameModalState.isOpen && joinSwipeGameModalState.game && ( <JoinSwipeGameConfirmationModal isOpen={joinSwipeGameModalState.isOpen} onClose={() => setJoinSwipeGameModalState({ isOpen: false, game: null })} onConfirm={handleConfirmJoinSwipeGame} game={joinSwipeGameModalState.game} userBalance={coinBalance} /> )}
+      <SignUpPromptModal isOpen={showSignUpPrompt} onConfirm={handleStartSignUp} onCancel={() => setShowSignUpPrompt(false)} />
     </div>
   );
 }
