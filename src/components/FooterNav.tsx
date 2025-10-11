@@ -12,7 +12,8 @@ const NavItem: React.FC<{
   label: string;
   isActive: boolean;
   onClick: () => void;
-}> = ({ icon, label, isActive, onClick }) => (
+  badgeCount?: number;
+}> = ({ icon, label, isActive, onClick, badgeCount }) => (
   <button
     onClick={onClick}
     className={`flex-1 flex flex-col items-center justify-center gap-1 py-2 rounded-xl transition-all duration-300 ${
@@ -21,7 +22,14 @@ const NavItem: React.FC<{
         : 'text-gray-500 hover:text-purple-600'
     }`}
   >
-    {icon}
+    <div className="relative">
+      {icon}
+      {badgeCount && badgeCount > 0 && (
+        <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold min-w-[1rem] h-4 px-1 flex items-center justify-center rounded-full">
+          {badgeCount > 99 ? '99+' : badgeCount}
+        </span>
+      )}
+    </div>
     <span className={`text-xs font-semibold ${isActive ? 'text-purple-600' : ''}`}>{label}</span>
   </button>
 );

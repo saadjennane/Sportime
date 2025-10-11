@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Header } from './components/Header';
 import { BetModal } from './components/BetModal';
@@ -702,6 +702,27 @@ function App() {
     addToast('All test user accounts have been reset.', 'success');
   };
 
+  const myGamesCount = useMemo(() => {
+    if (profile?.is_guest) return 0;
+
+    const activeChallengeCount = userChallengeEntries.filter(entry => {
+        const challenge = challenges.find(c => c.id === entry.challengeId);
+        return challenge && (challenge.status === 'Upcoming' || challenge.status === 'Ongoing');
+    }).length;
+
+    const activeSwipeGameCount = userSwipeEntries.filter(entry => {
+        const game = swipeMatchDays.find(g => g.id === entry.matchDayId);
+        return game && (game.status === 'Upcoming' || game.status === 'Ongoing');
+    }).length;
+    
+    const myJoinedFantasyGames = new Set(userFantasyTeams.map(t => t.gameId));
+    const activeFantasyGameCount = fantasyGames.filter(game => 
+        myJoinedFantasyGames.has(game.id) && game.status === 'Ongoing'
+    ).length;
+
+    return activeChallengeCount + activeSwipeGameCount + activeFantasyGameCount;
+  }, [profile, userChallengeEntries, userSwipeEntries, userFantasyTeams, challenges, swipeMatchDays, fantasyGames]);
+
   const renderPage = () => {
     if (joinLeagueCode) {
         const leagueToJoin = userLeagues.find(l => l.invite_code === joinLeagueCode);
@@ -827,7 +848,7 @@ function App() {
       case 'matches':
         return <MatchesPage matches={matches} bets={bets} onBet={handleBetClick} />;
       case 'challenges':
-        return <GamesListPage challenges={challenges} swipeMatchDays={swipeMatchDays} fantasyGames={fantasyGames} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} />;
+        return <GamesListPage challenges={challenges} swipeMatchDays={swipeMatchDays} fantasyGames={fantasyGames} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} myGamesCount={myGamesCount} />;
       case 'leagues':
           if (!profile) return null;
           const userMemberOf = leagueMembers.filter(m => m.user_id === profile.id).map(m => m.league_id);
@@ -845,7 +866,7 @@ function App() {
         }
         return null;
       default:
-        return <GamesListPage challenges={challenges} swipeMatchDays={swipeMatchDays} fantasyGames={fantasyGames} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} />;
+        return <GamesListPage challenges={challenges} swipeMatchDays={swipeMatchDays} fantasyGames={fantasyGames} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} myGamesCount={myGamesCount} />;
     }
   }
   

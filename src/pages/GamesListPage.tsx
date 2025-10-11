@@ -20,6 +20,7 @@ interface GamesListPageProps {
   onJoinSwipeGame: (gameId: string) => void;
   onPlaySwipeGame: (matchDayId: string) => void;
   onViewFantasyGame: (gameId: string) => void;
+  myGamesCount: number;
 }
 
 const GamesListPage: React.FC<GamesListPageProps> = ({ 
@@ -34,6 +35,7 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
   onJoinSwipeGame,
   onPlaySwipeGame,
   onViewFantasyGame,
+  myGamesCount,
 }) => {
   const [activeTab, setActiveTab] = useState<'all' | 'my'>('all');
   const [isBettingRulesOpen, setIsBettingRulesOpen] = useState(false);
@@ -146,7 +148,15 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
             activeTab === 'my' ? 'bg-white shadow text-purple-700' : 'text-gray-600'
           }`}
         >
-          <UserCheck size={16} /> My Games
+          <UserCheck size={16} />
+          <span>My Games</span>
+          {myGamesCount > 0 && (
+            <span className={`ml-1.5 text-xs font-bold px-2 py-0.5 rounded-full transition-colors ${
+                activeTab === 'my' ? 'bg-purple-100 text-purple-700' : 'bg-gray-300 text-gray-600'
+            }`}>
+              {myGamesCount}
+            </span>
+          )}
         </button>
       </div>
 
