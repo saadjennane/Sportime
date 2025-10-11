@@ -29,12 +29,11 @@ import ProfilePage from './pages/ProfilePage';
 import { mockBadges, mockLevelsConfig, mockUserBadges } from './data/mockProgression';
 import MatchesPage from './pages/MatchesPage';
 import { FantasyGameWeekPage } from './pages/FantasyGameWeekPage';
+import { USE_SUPABASE } from './config/env';
+import { mockUser } from './data/mockUsers';
 
 
 export type Page = 'challenges' | 'matches' | 'profile' | 'admin';
-
-const MOCK_SIGNED_IN = true;
-const MOCK_EMAIL = 'saadjennane@gmail.com';
 
 // Pre-populate user entries for testing purposes
 const initialUserSwipeEntries: UserSwipeEntry[] = [
@@ -101,56 +100,75 @@ function App() {
   // Effect for static data (runs once)
   useEffect(() => {
     const fetchStaticData = async () => {
-      const { data: levelsData } = await supabase.from('levels_config').select('*');
-      const { data: badgesData } = await supabase.from('badges').select('*');
-      setLevelsConfig((levelsData && levelsData.length > 0) ? levelsData : mockLevelsConfig);
-      setBadges((badgesData && badgesData.length > 0) ? badgesData : mockBadges);
+      if (USE_SUPABASE) {
+        const { data: levelsData } = await supabase.from('levels_config').select('*');
+        const { data: badgesData } = await supabase.from('badges').select('*');
+        setLevelsConfig((levelsData && levelsData.length > 0) ? levelsData : mockLevelsConfig);
+        setBadges((badgesData && badgesData.length > 0) ? badgesData : mockBadges);
+      } else {
+        // Use mock data directly
+        setLevelsConfig(mockLevelsConfig);
+        setBadges(mockBadges);
+      }
     };
     fetchStaticData();
   }, []);
 
   // Main Auth Effect
   useEffect(() => {
-    if (MOCK_SIGNED_IN) {
-      setLoading(true);
-      const mockProfile: Profile = {
-        id: 'mock-user-saad-jennane',
-        email: MOCK_EMAIL,
-        username: MOCK_EMAIL.split('@')[0],
-        profile_picture_url: 'https://i.pravatar.cc/150?u=a042581f4e29026704e',
-        coins_balance: 50000,
-        created_at: new Date().toISOString(),
-        is_guest: false,
-        level: 'Pro',
-        xp: 2500,
-        is_admin: true,
-      };
-      setProfile(mockProfile);
-      setUserBadges(mockUserBadges);
-      setUserFantasyTeams(mockUserFantasyTeams);
-      setLoading(false);
-      return; // Skip real auth logic
-    }
-
-    setLoading(true);
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session);
-        // ... (real auth logic remains unchanged)
-      }
-    );
-    
-    const getInitialSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        setProfile({ id: uuidv4(), username: 'Guest', coins_balance: 1000, created_at: new Date().toISOString(), is_guest: true });
+    const setupAuth = async () => {
+      if (!USE_SUPABASE) {
+        setLoading(true);
+        await new Promise(res => setTimeout(res, 300)); // Simulate loading
+        setProfile(mockUser);
         setUserBadges(mockUserBadges);
+        setUserFantasyTeams(mockUserFantasyTeams);
         setLoading(false);
+        return () => {}; // Return an empty unsubscribe function for consistency
       }
-    };
-    getInitialSession();
 
-    return () => subscription.unsubscribe();
+      // --- Real Supabase Auth Logic ---
+      setLoading(true);
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        async (_event, session) => {
+          setSession(session);
+          if (session?.user) {
+            const { data: userProfile, error } = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', session.user.id)
+              .single();
+
+            if (error && error.code !== 'PGRST116') { // PGRST116: 0 rows
+              addToast(`Error fetching profile: ${error.message}`, 'error');
+            } else if (userProfile) {
+              setProfile(userProfile);
+              // Fetch user-specific data
+              const { data: userBadgesData } = await supabase.from('user_badges').select('*').eq('user_id', session.user.id);
+              setUserBadges(userBadgesData || []);
+            }
+          } else {
+            setProfile({ id: uuidv4(), username: 'Guest', coins_balance: 1000, created_at: new Date().toISOString(), is_guest: true });
+            setUserBadges([]);
+          }
+          setLoading(false);
+        }
+      );
+      
+      const getInitialSession = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          setProfile({ id: uuidv4(), username: 'Guest', coins_balance: 1000, created_at: new Date().toISOString(), is_guest: true });
+          setUserBadges([]);
+          setLoading(false);
+        }
+      };
+      getInitialSession();
+
+      return () => subscription.unsubscribe();
+    }
+    
+    setupAuth();
   }, [addToast]);
 
   const coinBalance = profile?.coins_balance ?? 0;
@@ -158,15 +176,18 @@ function App() {
   const handleSetCoinBalance = async (newBalance: number) => {
     if (profile) {
       setProfile({ ...profile, coins_balance: newBalance });
-      if (!profile.is_guest) {
+      if (USE_SUPABASE && !profile.is_guest) {
         await supabase.from('users').update({ coins_balance: newBalance }).eq('id', profile.id);
       }
     }
   };
 
   const handleSignOut = async () => {
-    // In a real app, you would call supabase.auth.signOut()
+    if (USE_SUPABASE) {
+        await supabase.auth.signOut();
+    }
     setProfile(null);
+    setSession(null);
     setPage('challenges');
     addToast('You have been signed out.', 'info');
   };
@@ -177,47 +198,51 @@ function App() {
     addToast('Updating profile...', 'info');
 
     let newProfilePictureUrl = profile.profile_picture_url;
+    let dbError: any = null;
 
-    if (updatedData.newProfilePic) {
-        try {
-            const file = updatedData.newProfilePic;
-            const fileExt = file.name.split('.').pop();
-            const filePath = `public/${profile.id}/${Date.now()}.${fileExt}`;
-            
-            const { error: uploadError } = await supabase.storage
-                .from('avatars')
-                .upload(filePath, file, { upsert: true });
+    if (USE_SUPABASE) {
+        if (updatedData.newProfilePic) {
+            try {
+                const file = updatedData.newProfilePic;
+                const fileExt = file.name.split('.').pop();
+                const filePath = `public/${profile.id}/${Date.now()}.${fileExt}`;
+                
+                const { error: uploadError } = await supabase.storage
+                    .from('avatars')
+                    .upload(filePath, file, { upsert: true });
 
-            if (uploadError) {
-                throw uploadError;
+                if (uploadError) throw uploadError;
+
+                const { data: urlData } = supabase.storage
+                    .from('avatars')
+                    .getPublicUrl(filePath);
+
+                newProfilePictureUrl = urlData.publicUrl;
+            } catch (error: any) {
+                addToast(`Error uploading image: ${error.message}`, 'error');
+                setLoading(false);
+                return;
             }
-
-            const { data: urlData } = supabase.storage
-                .from('avatars')
-                .getPublicUrl(filePath);
-
-            newProfilePictureUrl = urlData.publicUrl;
-        } catch (error: any) {
-            addToast(`Error uploading image: ${error.message}`, 'error');
-            setLoading(false);
-            return;
+        }
+        const { error } = await supabase.from('users').update({
+            username: updatedData.username,
+            profile_picture_url: newProfilePictureUrl,
+        }).eq('id', profile.id);
+        dbError = error;
+    } else {
+        await new Promise(res => setTimeout(res, 500)); // Simulate async
+        if (updatedData.newProfilePic) {
+            // For mock mode, create a temporary URL for the preview.
+            // This will be lost on page refresh.
+            newProfilePictureUrl = URL.createObjectURL(updatedData.newProfilePic);
         }
     }
-
-    const { error: dbError } = await supabase.from('users').update({
-        username: updatedData.username,
-        profile_picture_url: newProfilePictureUrl,
-    }).eq('id', profile.id).select().single();
 
     if (dbError) {
       addToast(`Error updating profile: ${dbError.message}`, 'error');
     } else {
-      setProfile({
-          ...profile,
-          username: updatedData.username,
-          profile_picture_url: newProfilePictureUrl,
-      });
-      addToast('Profile updated successfully!', 'success');
+      setProfile(p => p ? { ...p, username: updatedData.username, profile_picture_url: newProfilePictureUrl } : null);
+      addToast(`Profile updated successfully!${USE_SUPABASE ? '' : ' (Mock)'}`, 'success');
     }
     
     setLoading(false);
@@ -225,18 +250,26 @@ function App() {
 
   const handleUpdateEmail = async (newEmail: string) => {
     if (!profile || profile.is_guest) return;
-    const { error } = await supabase.auth.updateUser({ email: newEmail });
-    if (error) {
-      addToast(`Error: ${error.message}`, 'error');
+    if (USE_SUPABASE) {
+        const { error } = await supabase.auth.updateUser({ email: newEmail });
+        if (error) {
+            addToast(`Error: ${error.message}`, 'error');
+        } else {
+            addToast('A confirmation email has been sent to your new address.', 'info');
+        }
     } else {
-      addToast('A confirmation email has been sent to your new address.', 'info');
+        await new Promise(res => setTimeout(res, 500));
+        setProfile(p => p ? { ...p, email: newEmail } : null);
+        addToast(`Email change requested to ${newEmail}. (Mock)`, 'info');
     }
   };
 
   const handleDeleteAccount = async () => {
     if (!profile || profile.is_guest) return;
-    // In a real app, you would have a Supabase Edge Function to handle this
-    console.log("Account deletion initiated for user:", profile.id);
+    if (USE_SUPABASE) {
+        // In a real app, you would have a Supabase Edge Function to handle this
+        console.log("Account deletion initiated for user:", profile.id);
+    }
     addToast('Account deleted successfully. Signing out.', 'success');
     await handleSignOut();
   };
@@ -307,7 +340,7 @@ function App() {
 
   // --- Betting Challenge Handlers ---
   const handleJoinChallenge = (challengeId: string) => {
-    if (profile?.is_guest) {
+    if (profile?.is_guest && USE_SUPABASE) {
       setMagicLinkModalOpen(true);
       return;
     }
@@ -332,8 +365,10 @@ function App() {
     const dailyEntries: DailyChallengeEntry[] = Array.from({ length: numDays }, (_, i) => ({ day: i + 1, bets: [] }));
     const newEntry: UserChallengeEntry = { challengeId: challenge.id, dailyEntries };
 
-    if (!profile.is_guest) {
+    if (USE_SUPABASE && !profile.is_guest) {
       await supabase.from('user_challenge_entries').insert([{ ...newEntry, user_id: profile.id }]);
+    } else {
+        await new Promise(res => setTimeout(res, 200));
     }
     setUserChallengeEntries([...userChallengeEntries, newEntry]);
     setJoinChallengeModalState({ isOpen: false, challenge: null });
@@ -347,7 +382,7 @@ function App() {
         : entry
     );
     setUserChallengeEntries(newEntries);
-    if (!profile?.is_guest) {
+    if (USE_SUPABASE && !profile?.is_guest) {
       const entryToUpdate = newEntries.find(e => e.challengeId === challengeId);
       if (entryToUpdate) {
         await supabase.from('user_challenge_entries').update({ dailyEntries: entryToUpdate.dailyEntries }).match({ user_id: profile.id, challengeId });
@@ -362,7 +397,7 @@ function App() {
         : entry
     );
     setUserChallengeEntries(newEntries);
-    if (!profile?.is_guest) {
+    if (USE_SUPABASE && !profile?.is_guest) {
       const entryToUpdate = newEntries.find(e => e.challengeId === challengeId);
       if (entryToUpdate) {
         await supabase.from('user_challenge_entries').update({ dailyEntries: entryToUpdate.dailyEntries }).match({ user_id: profile.id, challengeId });
@@ -380,7 +415,7 @@ function App() {
   
   // --- Swipe Game Handlers ---
   const handleJoinSwipeGame = (gameId: string) => {
-    if (profile?.is_guest) {
+    if (profile?.is_guest && USE_SUPABASE) {
       setMagicLinkModalOpen(true);
       return;
     }
@@ -399,8 +434,10 @@ function App() {
     handleSetCoinBalance(coinBalance - game.entryCost);
     const newEntry: UserSwipeEntry = { matchDayId: game.id, predictions: [], isFinalized: false };
     
-    if (!profile.is_guest) {
+    if (USE_SUPABASE && !profile.is_guest) {
       await supabase.from('user_swipe_entries').insert([{ ...newEntry, user_id: profile.id }]);
+    } else {
+        await new Promise(res => setTimeout(res, 200));
     }
     setUserSwipeEntries([...userSwipeEntries, newEntry]);
     setJoinSwipeGameModalState({ isOpen: false, game: null });
@@ -437,7 +474,7 @@ function App() {
       entry.predictions = newPredictions;
       newEntries[entryIndex] = entry;
 
-      if (!profile?.is_guest) {
+      if (USE_SUPABASE && !profile?.is_guest) {
         supabase.from('user_swipe_entries')
           .update({ predictions: newPredictions })
           .match({ user_id: profile.id, matchDayId })
@@ -458,7 +495,7 @@ function App() {
   const handleFinalizeSwipePicks = async (matchDayId: string) => {
     const newEntries = userSwipeEntries.map(e => e.matchDayId === matchDayId ? { ...e, isFinalized: true } : e);
     setUserSwipeEntries(newEntries);
-    if (!profile?.is_guest) {
+    if (USE_SUPABASE && !profile?.is_guest) {
       await supabase.from('user_swipe_entries').update({ isFinalized: true }).match({ user_id: profile.id, matchDayId });
     }
     setSwipeGameViewMode('recap');
@@ -475,39 +512,77 @@ function App() {
   
   // --- Progression Handlers ---
   const handleAddLevel = async (levelData: Omit<LevelConfig, 'id'>) => {
-    const { data, error } = await supabase.from('levels_config').insert([levelData]).select().single();
-    if (data) setLevelsConfig(prev => [...prev, data].sort((a, b) => a.min_xp - b.min_xp));
-    if (error) addToast(`Error adding level: ${error.message}`, 'error');
+    if (USE_SUPABASE) {
+        const { data, error } = await supabase.from('levels_config').insert([levelData]).select().single();
+        if (data) setLevelsConfig(prev => [...prev, data].sort((a, b) => a.min_xp - b.min_xp));
+        if (error) addToast(`Error adding level: ${error.message}`, 'error');
+    } else {
+        await new Promise(res => setTimeout(res, 200));
+        const newLevel = { ...levelData, id: uuidv4() };
+        setLevelsConfig(prev => [...prev, newLevel].sort((a, b) => a.min_xp - b.min_xp));
+        addToast('Level added (Mock)', 'success');
+    }
   };
 
   const handleUpdateLevel = async (levelData: LevelConfig) => {
-    const { data, error } = await supabase.from('levels_config').update(levelData).eq('id', levelData.id).select().single();
-    if (data) setLevelsConfig(prev => prev.map(l => l.id === data.id ? data : l).sort((a, b) => a.min_xp - b.min_xp));
-    if (error) addToast(`Error updating level: ${error.message}`, 'error');
+    if (USE_SUPABASE) {
+        const { data, error } = await supabase.from('levels_config').update(levelData).eq('id', levelData.id).select().single();
+        if (data) setLevelsConfig(prev => prev.map(l => l.id === data.id ? data : l).sort((a, b) => a.min_xp - b.min_xp));
+        if (error) addToast(`Error updating level: ${error.message}`, 'error');
+    } else {
+        await new Promise(res => setTimeout(res, 200));
+        setLevelsConfig(prev => prev.map(l => l.id === levelData.id ? levelData : l).sort((a, b) => a.min_xp - b.min_xp));
+        addToast('Level updated (Mock)', 'success');
+    }
   };
 
   const handleDeleteLevel = async (levelId: string) => {
-    const { error } = await supabase.from('levels_config').delete().eq('id', levelId);
-    if (!error) setLevelsConfig(prev => prev.filter(l => l.id !== levelId));
-    else addToast(`Error deleting level: ${error.message}`, 'error');
+    if (USE_SUPABASE) {
+        const { error } = await supabase.from('levels_config').delete().eq('id', levelId);
+        if (!error) setLevelsConfig(prev => prev.filter(l => l.id !== levelId));
+        else addToast(`Error deleting level: ${error.message}`, 'error');
+    } else {
+        await new Promise(res => setTimeout(res, 200));
+        setLevelsConfig(prev => prev.filter(l => l.id !== levelId));
+        addToast('Level deleted (Mock)', 'success');
+    }
   };
 
   const handleAddBadge = async (badgeData: Omit<Badge, 'id' | 'created_at'>) => {
-    const { data, error } = await supabase.from('badges').insert([badgeData]).select().single();
-    if (data) setBadges(prev => [...prev, data]);
-    if (error) addToast(`Error adding badge: ${error.message}`, 'error');
+    if (USE_SUPABASE) {
+        const { data, error } = await supabase.from('badges').insert([badgeData]).select().single();
+        if (data) setBadges(prev => [...prev, data]);
+        if (error) addToast(`Error adding badge: ${error.message}`, 'error');
+    } else {
+        await new Promise(res => setTimeout(res, 200));
+        const newBadge = { ...badgeData, id: uuidv4(), created_at: new Date().toISOString() };
+        setBadges(prev => [...prev, newBadge]);
+        addToast('Badge added (Mock)', 'success');
+    }
   };
 
   const handleUpdateBadge = async (badgeData: Badge) => {
-    const { data, error } = await supabase.from('badges').update(badgeData).eq('id', badgeData.id).select().single();
-    if (data) setBadges(prev => prev.map(b => b.id === data.id ? data : b));
-    if (error) addToast(`Error updating badge: ${error.message}`, 'error');
+    if (USE_SUPABASE) {
+        const { data, error } = await supabase.from('badges').update(badgeData).eq('id', badgeData.id).select().single();
+        if (data) setBadges(prev => prev.map(b => b.id === data.id ? data : b));
+        if (error) addToast(`Error updating badge: ${error.message}`, 'error');
+    } else {
+        await new Promise(res => setTimeout(res, 200));
+        setBadges(prev => prev.map(b => b.id === badgeData.id ? badgeData : b));
+        addToast('Badge updated (Mock)', 'success');
+    }
   };
 
   const handleDeleteBadge = async (badgeId: string) => {
-    const { error } = await supabase.from('badges').delete().eq('id', badgeId);
-    if (!error) setBadges(prev => prev.filter(b => b.id !== badgeId));
-    else addToast(`Error deleting badge: ${error.message}`, 'error');
+    if (USE_SUPABASE) {
+        const { error } = await supabase.from('badges').delete().eq('id', badgeId);
+        if (!error) setBadges(prev => prev.filter(b => b.id !== badgeId));
+        else addToast(`Error deleting badge: ${error.message}`, 'error');
+    } else {
+        await new Promise(res => setTimeout(res, 200));
+        setBadges(prev => prev.filter(b => b.id !== badgeId));
+        addToast('Badge deleted (Mock)', 'success');
+    }
   };
 
   // --- Page Navigation ---
