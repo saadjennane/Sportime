@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { SwipeMatch, SwipePredictionOutcome } from '../types';
 import { motion, PanInfo, useMotionValue, useTransform } from 'framer-motion';
+import { SwipeMatch, SwipePredictionOutcome } from '../types';
+import { flushSync } from 'react-dom';
 
 interface SwipeCardProps {
   match: SwipeMatch;
@@ -25,6 +26,7 @@ const cardVariants = {
     return {
       x: exitX,
       y: exitY,
+      opacity: 0,
       transition: { duration: 0.3 }
     };
   }
@@ -59,8 +61,10 @@ export const SwipeCard: React.FC<SwipeCardProps> = ({ match, onSwipe, isTop, cur
     }
 
     if (direction && prediction) {
-      setExitDirection(direction);
-      setTimeout(() => onSwipe(match.id, prediction as SwipePredictionOutcome), 0);
+      flushSync(() => {
+        setExitDirection(direction);
+      });
+      onSwipe(match.id, prediction as SwipePredictionOutcome);
     }
   };
 

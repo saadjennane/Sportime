@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Match, ChallengeStatus, LevelConfig, Badge } from '../types';
+import { Match, ChallengeStatus, LevelConfig, Badge, Profile } from '../types';
 import { MatchForm } from '../components/MatchForm';
-import { ChevronDown, Edit2, ShieldCheck, Gamepad2, Settings, Star, DatabaseZap, Terminal, Trash2 } from 'lucide-react';
+import { ChevronDown, Edit2, ShieldCheck, Gamepad2, Settings, Star, DatabaseZap, Terminal, Trash2, Coins } from 'lucide-react';
 import { ProgressionAdmin } from '../components/ProgressionAdmin';
 import { ChallengesAdmin } from '../components/ChallengesAdmin';
 import { DataSyncAdmin } from '../components/DataSyncAdmin';
@@ -42,9 +42,10 @@ interface AdminPageProps {
   isTestMode: boolean;
   onSetTestMode: (enabled: boolean) => void;
   onResetTestUsers: () => void;
+  profile: Profile | null;
+  onSetCoinBalance: (newBalance: number) => void;
+  addToast: (message: string, type: 'success' | 'error' | 'info') => void;
 }
-
-type AdminSection = 'challenges' | 'progression' | 'datasync' | 'general' | 'developer';
 
 const AdminPage: React.FC<AdminPageProps> = (props) => {
   const [editingMatch, setEditingMatch] = useState<Match | null>(null);
@@ -186,6 +187,20 @@ const AdminPage: React.FC<AdminPageProps> = (props) => {
               isTestMode={props.isTestMode}
               onToggle={props.onSetTestMode}
             />
+            <button
+              onClick={() => {
+                if (props.profile) {
+                  const newBalance = props.profile.coins_balance + 50000;
+                  props.onSetCoinBalance(newBalance);
+                  addToast('Added 50,000 coins!', 'success');
+                } else {
+                  addToast('No active profile to add coins to.', 'error');
+                }
+              }}
+              className="w-full flex items-center justify-center gap-2 py-3 bg-green-100 text-green-700 rounded-xl font-semibold hover:bg-green-200 transition-colors"
+            >
+              <Coins size={16} /> Add 50,000 Coins
+            </button>
             <button
               onClick={props.onResetTestUsers}
               className="w-full flex items-center justify-center gap-2 py-3 bg-red-100 text-red-700 rounded-xl font-semibold hover:bg-red-200 transition-colors"

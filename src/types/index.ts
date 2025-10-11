@@ -274,6 +274,26 @@ export interface Toast {
   type: 'success' | 'error' | 'info';
 }
 
+// --- User-Created Leagues ---
+export interface UserLeague {
+  id: string;
+  name: string;
+  description?: string;
+  image_url?: string;
+  invite_code: string;
+  created_by: string; // user id
+  created_at: string;
+}
+
+export interface LeagueMember {
+  id: string;
+  league_id: string;
+  user_id: string;
+  role: 'admin' | 'member';
+  joined_at: string;
+}
+
+
 // --- API Football Types ---
 export interface ApiFootballResponse<T> {
   get: string;

@@ -7,7 +7,7 @@ import { mockMatches } from './data/mockMatches';
 import { mockChallenges, mockChallengeMatches } from './data/mockChallenges';
 import { mockSwipeMatchDays } from './data/mockSwipeGames';
 import { mockFantasyGame, mockFantasyPlayers, mockUserFantasyTeams } from './data/mockFantasy.tsx';
-import { Match, Bet, Challenge, ChallengeMatch, UserChallengeEntry, ChallengeStatus, DailyChallengeEntry, BoosterSelection, SwipeMatchDay, UserSwipeEntry, SwipePredictionOutcome, Profile, LevelConfig, Badge, UserBadge, FantasyGame, UserFantasyTeam, FantasyPlayer, ChallengeBet } from './types';
+import { Match, Bet, Challenge, ChallengeMatch, UserChallengeEntry, ChallengeStatus, DailyChallengeEntry, BoosterSelection, SwipeMatchDay, UserSwipeEntry, SwipePredictionOutcome, Profile, LevelConfig, Badge, UserBadge, FantasyGame, UserFantasyTeam, FantasyPlayer, ChallengeBet, UserLeague, LeagueMember } from './types';
 import UpcomingPage from './pages/Upcoming';
 import PlayedPage from './pages/Played';
 import AdminPage from './pages/Admin';
@@ -31,9 +31,16 @@ import { mockUsers } from './data/mockUsers';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { SignUpPromptModal } from './components/SignUpPromptModal';
 import { SignUpStep } from './pages/onboarding/SignUpStep';
+import LeaguesListPage from './pages/LeaguesListPage';
+import LeaguePage from './pages/LeaguePage';
+import LeagueJoinPage from './pages/LeagueJoinPage';
+import { CreateLeagueModal } from './components/leagues/CreateLeagueModal';
+import { ConfirmationModal } from './components/leagues/ConfirmationModal';
+import { mockUserLeagues } from './data/mockUserLeagues';
+import { mockLeagueMembers } from './data/mockLeagueMembers';
 
 
-export type Page = 'challenges' | 'matches' | 'profile' | 'admin';
+export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'leagues';
 type AuthFlowState = 'guest' | 'authenticated' | 'signing_up' | 'onboarding';
 
 // Pre-populate user entries for testing purposes
@@ -77,6 +84,14 @@ function App() {
   const [badges, setBadges] = useState<Badge[]>([]);
   const [userBadges, setUserBadges] = useState<UserBadge[]>(mockUserBadges);
 
+  // --- League State ---
+  const [userLeagues, setUserLeagues] = useState<UserLeague[]>(mockUserLeagues);
+  const [leagueMembers, setLeagueMembers] = useState<LeagueMember[]>(mockLeagueMembers);
+  const [activeLeagueId, setActiveLeagueId] = useState<string | null>(null);
+  const [joinLeagueCode, setJoinLeagueCode] = useState<string | null>(null);
+  const [showCreateLeagueModal, setShowCreateLeagueModal] = useState(false);
+  const [modalAction, setModalAction] = useState<{ type: 'leave' | 'delete', leagueId: string } | null>(null);
+
   // --- UI State ---
   const [activeChallengeId, setActiveChallengeId] = useState<string | null>(null);
   const [viewingLeaderboardFor, setViewingLeaderboardFor] = useState<string | null>(null);
@@ -108,6 +123,16 @@ function App() {
     if (storedTestMode) {
       setIsTestMode(JSON.parse(storedTestMode));
     }
+  }, []);
+
+  // Check for league join link on initial load
+  useEffect(() => {
+      const path = window.location.pathname;
+      const joinMatch = path.match(/\/join\/([a-zA-Z0-9]+)/);
+      if (joinMatch && joinMatch[1]) {
+          setJoinLeagueCode(joinMatch[1]);
+          window.history.replaceState({}, document.title, "/");
+      }
   }, []);
 
   // Main Auth Effect
@@ -151,6 +176,7 @@ function App() {
     };
     setupAuth();
   }, []); // Run only once on mount
+
 
   const coinBalance = profile?.coins_balance ?? 0;
 
@@ -430,34 +456,85 @@ function App() {
 
         setJoinSwipeGameModalState({ isOpen: false, game: null });
         addToast(`Successfully joined "${game.name}"!`, 'success');
+        setSwipeGameViewMode('swiping');
         setActiveSwipeGameId(game.id);
     } else {
         addToast('Insufficient funds to join this game.', 'error');
     }
   };
   const handlePlaySwipeGame = (matchDayId: string) => {
+    const matchDay = swipeMatchDays.find(md => md.id === matchDayId);
+    const userEntry = userSwipeEntries.find(e => e.matchDayId === matchDayId);
+    if (matchDay && userEntry) {
+        const hasMadeAllPicks = userEntry.predictions.length >= matchDay.matches.length;
+        const isEditable = matchDay.status === 'Upcoming';
+        if (isEditable && !hasMadeAllPicks) {
+            setSwipeGameViewMode('swiping');
+        } else {
+            setSwipeGameViewMode('recap');
+        }
+    } else {
+        setSwipeGameViewMode('swiping');
+    }
     setActiveSwipeGameId(matchDayId);
   };
-  const handleSwipePrediction = useCallback(async (matchDayId: string, matchId: string, prediction: SwipePredictionOutcome) => {
+  const handleSwipePrediction = (matchDayId: string, matchId: string, prediction: SwipePredictionOutcome) => {
     if (profile?.is_guest) {
-      handleTriggerSignUp();
-      return;
+        handleTriggerSignUp();
+        return;
     }
+    setUserSwipeEntries(prev => {
+        const oldEntry = prev.find(e => e.matchDayId === matchDayId);
+        const oldPredictionsCount = oldEntry?.predictions.length || 0;
+
+        const newEntries = prev.map(entry => {
+            if (entry.matchDayId === matchDayId) {
+                const existingPredictionIndex = entry.predictions.findIndex(p => p.matchId === matchId);
+                let newPredictions = [...entry.predictions];
+                if (existingPredictionIndex !== -1) {
+                    newPredictions[existingPredictionIndex] = { matchId, prediction };
+                } else {
+                    newPredictions.push({ matchId, prediction });
+                }
+
+                const matchDay = swipeMatchDays.find(md => md.id === matchDayId);
+                const totalMatches = matchDay?.matches.length || 0;
+                const newPredictionsCount = newPredictions.length;
+
+                // Only navigate to recap if we have just completed all predictions for the first time.
+                if (matchDay && newPredictionsCount >= totalMatches && oldPredictionsCount < totalMatches) {
+                    setTimeout(() => setSwipeGameViewMode('recap'), 350); // Allow animation to finish
+                }
+
+                return { ...entry, predictions: newPredictions };
+            }
+            return entry;
+        });
+        return newEntries;
+    });
+  };
+  const handleUpdateSwipePrediction = (matchDayId: string, matchId: string, prediction: SwipePredictionOutcome) => {
     setUserSwipeEntries(prev => prev.map(entry => {
-      if (entry.matchDayId === matchDayId) {
-        const existingPredictionIndex = entry.predictions.findIndex(p => p.matchId === matchId);
-        let newPredictions = [...entry.predictions];
-        if (existingPredictionIndex !== -1) {
-          newPredictions[existingPredictionIndex] = { matchId, prediction };
-        } else {
-          newPredictions.push({ matchId, prediction });
+        if (entry.matchDayId === matchDayId) {
+            const newPredictions = entry.predictions.map(p =>
+                p.matchId === matchId ? { ...p, prediction } : p
+            );
+            return { ...entry, predictions: newPredictions };
         }
-        return { ...entry, predictions: newPredictions };
-      }
-      return entry;
+        return entry;
     }));
-  }, [profile]);
-  const handleUpdateSwipePrediction = handleSwipePrediction;
+    addToast('Prediction updated!', 'info');
+  };
+  const handleEditSwipePicks = () => {
+    if (activeSwipeGameId) {
+      setSwipeGameViewMode('swiping');
+    }
+  };
+
+  const handleExitSwiping = () => {
+    setSwipeGameViewMode('recap');
+  };
+
   const handleFinalizeSwipePicks = async (matchDayId: string) => { /* ... */ };
   const handleDismissSwipeTutorial = (dontShowAgain: boolean) => {
     if (dontShowAgain) {
@@ -477,8 +554,128 @@ function App() {
   const handleUpdateBadge = async (badgeData: Badge) => { /* ... */ };
   const handleDeleteBadge = async (badgeId: string) => { /* ... */ };
 
+  // --- League Handlers ---
+  const handleCreateLeague = (name: string, description: string, image_url: string | null) => {
+      if (!profile || profile.is_guest) {
+          handleTriggerSignUp();
+          return;
+      }
+      const invite_code = Math.random().toString(36).substring(2, 10).toUpperCase();
+      const newLeague: UserLeague = {
+          id: uuidv4(),
+          name,
+          description: description || undefined,
+          image_url: image_url || undefined,
+          invite_code,
+          created_by: profile.id,
+          created_at: new Date().toISOString(),
+      };
+      const newAdminMember: LeagueMember = {
+          id: uuidv4(),
+          league_id: newLeague.id,
+          user_id: profile.id,
+          role: 'admin',
+          joined_at: new Date().toISOString(),
+      };
+      setUserLeagues(prev => [...prev, newLeague]);
+      setLeagueMembers(prev => [...prev, newAdminMember]);
+      addToast(`League "${name}" created!`, 'success');
+      setShowCreateLeagueModal(false);
+      setActiveLeagueId(newLeague.id);
+  };
+
+  const handleJoinLeague = (inviteCode: string) => {
+      if (!profile || profile.is_guest) {
+          handleTriggerSignUp();
+          return;
+      }
+      const league = userLeagues.find(l => l.invite_code === inviteCode);
+      if (!league) {
+          addToast('Invalid invite code.', 'error');
+          setJoinLeagueCode(null);
+          return;
+      }
+      const isAlreadyMember = leagueMembers.some(m => m.league_id === league.id && m.user_id === profile.id);
+      if (isAlreadyMember) {
+          addToast('You are already a member of this league.', 'info');
+          setActiveLeagueId(league.id);
+          setJoinLeagueCode(null);
+          return;
+      }
+      const newMember: LeagueMember = {
+          id: uuidv4(),
+          league_id: league.id,
+          user_id: profile.id,
+          role: 'member',
+          joined_at: new Date().toISOString(),
+      };
+      setLeagueMembers(prev => [...prev, newMember]);
+      addToast(`Welcome to ${league.name}!`, 'success');
+      setActiveLeagueId(league.id);
+      setJoinLeagueCode(null);
+  };
+
+  const handleLeaveLeague = (leagueId: string) => {
+      if (!profile) return;
+      const memberEntry = leagueMembers.find(m => m.league_id === leagueId && m.user_id === profile.id);
+      if (!memberEntry) return;
+
+      let updatedLeagues = [...userLeagues];
+      let updatedMembers = leagueMembers.filter(m => m.id !== memberEntry.id);
+
+      if (memberEntry.role === 'admin') {
+          const otherMembers = updatedMembers
+              .filter(m => m.league_id === leagueId)
+              .sort((a, b) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime());
+
+          if (otherMembers.length > 0) {
+              const newAdmin = otherMembers[0];
+              updatedMembers = updatedMembers.map(m => m.id === newAdmin.id ? { ...m, role: 'admin' } : m);
+              const league = userLeagues.find(l => l.id === leagueId);
+              if (league) {
+                  updatedLeagues = updatedLeagues.map(l => l.id === leagueId ? { ...l, created_by: newAdmin.user_id } : l);
+              }
+              addToast(`You left the league. Ownership transferred.`, 'info');
+          } else {
+              updatedLeagues = updatedLeagues.filter(l => l.id !== leagueId);
+              addToast('League deleted as you were the last member.', 'info');
+          }
+      } else {
+          addToast('You have left the league.', 'info');
+      }
+
+      setUserLeagues(updatedLeagues);
+      setLeagueMembers(updatedMembers);
+      setActiveLeagueId(null);
+      setModalAction(null);
+  };
+
+  const handleDeleteLeague = (leagueId: string) => {
+      setUserLeagues(prev => prev.filter(l => l.id !== leagueId));
+      setLeagueMembers(prev => prev.filter(m => m.league_id !== leagueId));
+      addToast('League deleted.', 'success');
+      setActiveLeagueId(null);
+      setModalAction(null);
+  };
+  
+  const handleUpdateLeagueDetails = (leagueId: string, name: string, description: string, image_url: string | null) => {
+      setUserLeagues(prev => prev.map(l => l.id === leagueId ? {...l, name, description: description || undefined, image_url: image_url || undefined} : l));
+      addToast('League details updated!', 'success');
+  };
+
+  const handleRemoveLeagueMember = (leagueId: string, userId: string) => {
+      setLeagueMembers(prev => prev.filter(m => !(m.league_id === leagueId && m.user_id === userId)));
+      addToast('Member removed.', 'info');
+  };
+
+  const handleResetInviteCode = (leagueId: string) => {
+      const newCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+      setUserLeagues(prev => prev.map(l => l.id === leagueId ? {...l, invite_code: newCode} : l));
+      addToast('Invite code has been reset.', 'success');
+  };
+
   const handlePageChange = (newPage: Page) => {
-    if (newPage === 'profile' && profile?.is_guest) {
+    if ((newPage === 'profile' || newPage === 'leagues') && profile?.is_guest) {
         handleTriggerSignUp();
         return;
     }
@@ -488,6 +685,8 @@ function App() {
     setActiveSwipeGameId(null);
     setViewingSwipeLeaderboardFor(null);
     setActiveFantasyGameId(null);
+    setActiveLeagueId(null);
+    setJoinLeagueCode(null);
   }
 
   // --- Admin Test Mode Handlers ---
@@ -504,6 +703,18 @@ function App() {
   };
 
   const renderPage = () => {
+    if (joinLeagueCode) {
+        const leagueToJoin = userLeagues.find(l => l.invite_code === joinLeagueCode);
+        const isMember = profile ? leagueMembers.some(m => m.league_id === leagueToJoin?.id && m.user_id === profile.id) : false;
+        return <LeagueJoinPage 
+            league={leagueToJoin || null}
+            isMember={isMember}
+            onJoin={() => handleJoinLeague(joinLeagueCode)}
+            onGoToLeague={() => { setActiveLeagueId(leagueToJoin!.id); setJoinLeagueCode(null); setPage('leagues'); }}
+            onCancel={() => setJoinLeagueCode(null)}
+        />
+    }
+    
     if (viewingLeaderboardFor) {
       const challenge = challenges.find(c => c.id === viewingLeaderboardFor);
       const userEntry = userChallengeEntries.find(e => e.challengeId === viewingLeaderboardFor);
@@ -552,20 +763,16 @@ function App() {
       const userEntry = userSwipeEntries.find(e => e.matchDayId === activeSwipeGameId);
 
       if (matchDay && userEntry) {
-        const hasMadeAllPicks = userEntry.predictions.length >= matchDay.matches.length;
         const isEditable = matchDay.status === 'Upcoming';
-
-        if (isEditable && !hasMadeAllPicks) {
+        
+        if (swipeGameViewMode === 'swiping' && isEditable) {
           return <SwipeGamePage
             matchDay={matchDay}
             userEntry={userEntry}
             onSwipePrediction={handleSwipePrediction}
-            onAllSwipesDone={() => {
-              // Re-render will automatically show recap page
-            }}
             hasSeenSwipeTutorial={hasSeenSwipeTutorial}
             onDismissTutorial={handleDismissSwipeTutorial}
-            onExit={() => setActiveSwipeGameId(null)}
+            onExit={handleExitSwiping}
           />;
         } else {
           return <SwipeRecapPage
@@ -575,7 +782,8 @@ function App() {
             onBack={() => setActiveSwipeGameId(null)}
             onUpdatePrediction={isEditable ? handleUpdateSwipePrediction : undefined}
             onViewLeaderboard={() => setViewingSwipeLeaderboardFor(activeSwipeGameId)}
-            onSelectMatchDay={setActiveSwipeGameId}
+            onSelectMatchDay={handlePlaySwipeGame}
+            onEditPicks={isEditable ? handleEditSwipePicks : undefined}
           />;
         }
       }
@@ -593,13 +801,44 @@ function App() {
       }
     }
 
+    if (activeLeagueId) {
+        const league = userLeagues.find(l => l.id === activeLeagueId);
+        if (league && profile) {
+            const membersOfLeague = leagueMembers.filter(m => m.league_id === league.id);
+            const memberProfiles = membersOfLeague.map(m => allUsers.find(u => u.id === m.user_id)).filter(Boolean) as Profile[];
+            const currentUserMembership = membersOfLeague.find(m => m.user_id === profile.id);
+            return <LeaguePage 
+                league={league}
+                members={memberProfiles}
+                memberRoles={membersOfLeague}
+                currentUserRole={currentUserMembership?.role || 'member'}
+                currentUserId={profile.id}
+                onBack={() => setActiveLeagueId(null)}
+                onUpdateDetails={handleUpdateLeagueDetails}
+                onRemoveMember={handleRemoveLeagueMember}
+                onResetInviteCode={handleResetInviteCode}
+                onLeave={() => setModalAction({type: 'leave', leagueId: league.id})}
+                onDelete={() => setModalAction({type: 'delete', leagueId: league.id})}
+            />;
+        }
+    }
+
     switch (page) {
       case 'matches':
         return <MatchesPage matches={matches} bets={bets} onBet={handleBetClick} />;
       case 'challenges':
         return <GamesListPage challenges={challenges} swipeMatchDays={swipeMatchDays} fantasyGames={fantasyGames} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} />;
+      case 'leagues':
+          if (!profile) return null;
+          const userMemberOf = leagueMembers.filter(m => m.user_id === profile.id).map(m => m.league_id);
+          const myLeagues = userLeagues.filter(l => userMemberOf.includes(l.id));
+          return <LeaguesListPage 
+              leagues={myLeagues}
+              onCreate={() => setShowCreateLeagueModal(true)}
+              onViewLeague={setActiveLeagueId}
+          />;
       case 'admin':
-        return <AdminPage matches={matches} onAddMatch={handleAddMatch} onUpdateMatch={handleUpdateMatch} onResolveMatch={handleResolveMatch} levels={levelsConfig} badges={badges} onAddLevel={handleAddLevel} onUpdateLevel={handleUpdateLevel} onDeleteLevel={handleDeleteLevel} onAddBadge={handleAddBadge} onUpdateBadge={handleUpdateBadge} onDeleteBadge={handleDeleteBadge} challenges={[]} challengeMatches={[]} swipeMatchDays={[]} onAddChallenge={() => {}} onAddChallengeMatch={() => {}} onResolveChallengeMatch={() => {}} onUpdateChallengeStatus={() => {}} onAddSwipeMatchDay={() => {}} onResolveSwipeMatch={() => {}} onUpdateSwipeMatchDayStatus={() => {}} isTestMode={isTestMode} onSetTestMode={handleSetTestMode} onResetTestUsers={handleResetTestUsers} />;
+        return <AdminPage matches={matches} onAddMatch={handleAddMatch} onUpdateMatch={handleUpdateMatch} onResolveMatch={handleResolveMatch} levels={levelsConfig} badges={badges} onAddLevel={handleAddLevel} onUpdateLevel={handleUpdateLevel} onDeleteLevel={handleDeleteLevel} onAddBadge={handleAddBadge} onUpdateBadge={handleUpdateBadge} onDeleteBadge={handleDeleteBadge} challenges={[]} challengeMatches={[]} swipeMatchDays={[]} onAddChallenge={() => {}} onAddChallengeMatch={() => {}} onResolveChallengeMatch={() => {}} onUpdateChallengeStatus={() => {}} onAddSwipeMatchDay={() => {}} onResolveSwipeMatch={() => {}} onUpdateSwipeMatchDayStatus={() => {}} isTestMode={isTestMode} onSetTestMode={handleSetTestMode} onResetTestUsers={handleResetTestUsers} profile={profile} onSetCoinBalance={handleSetCoinBalance} addToast={addToast} />;
       case 'profile':
         if (profile && !profile.is_guest) {
           return <ProfilePage profile={profile} levels={levelsConfig} allBadges={badges} userBadges={userBadges} onUpdateProfile={handleUpdateProfile} onUpdateEmail={handleUpdateEmail} onSignOut={handleSignOut} onDeleteAccount={handleDeleteAccount} />;
@@ -617,7 +856,7 @@ function App() {
   }
 
   // --- Auth Flow Rendering ---
-  if (authFlow === 'signing_up') {
+  if (authFlow === 'signing_up' || joinLeagueCode && profile?.is_guest) {
     return <SignUpStep onMagicLinkSent={handleMagicLinkSent} onBack={handleCancelSignUp} />;
   }
   if (authFlow === 'onboarding' && profile) {
@@ -643,6 +882,18 @@ function App() {
       {joinChallengeModalState.isOpen && joinChallengeModalState.challenge && ( <JoinChallengeConfirmationModal isOpen={joinChallengeModalState.isOpen} onClose={() => setJoinChallengeModalState({ isOpen: false, challenge: null })} onConfirm={handleConfirmJoinChallenge} challenge={joinChallengeModalState.challenge} userBalance={coinBalance} /> )}
       {joinSwipeGameModalState.isOpen && joinSwipeGameModalState.game && ( <JoinSwipeGameConfirmationModal isOpen={joinSwipeGameModalState.isOpen} onClose={() => setJoinSwipeGameModalState({ isOpen: false, game: null })} onConfirm={handleConfirmJoinSwipeGame} game={joinSwipeGameModalState.game} userBalance={coinBalance} /> )}
       <SignUpPromptModal isOpen={showSignUpPrompt} onConfirm={handleStartSignUp} onCancel={() => setShowSignUpPrompt(false)} />
+      <CreateLeagueModal isOpen={showCreateLeagueModal} onClose={() => setShowCreateLeagueModal(false)} onCreate={handleCreateLeague} />
+      {modalAction && (
+        <ConfirmationModal 
+            isOpen={!!modalAction}
+            onClose={() => setModalAction(null)}
+            onConfirm={() => modalAction.type === 'leave' ? handleLeaveLeague(modalAction.leagueId) : handleDeleteLeague(modalAction.leagueId)}
+            title={modalAction.type === 'leave' ? 'Leave League' : 'Delete League'}
+            message={modalAction.type === 'leave' ? 'Are you sure you want to leave this league?' : 'This action is irreversible and will delete the league for all members. Are you sure?'}
+            confirmText={modalAction.type === 'leave' ? 'Leave' : 'Delete'}
+            isDestructive={true}
+        />
+    )}
     </div>
   );
 }

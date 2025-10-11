@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { SwipeMatchDay, UserSwipeEntry, SwipePredictionOutcome } from '../types';
-import { ArrowLeft, CheckCircle2, XCircle, Trophy, Clock, ChevronDown, List, ScrollText } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, XCircle, Trophy, Clock, ChevronDown, List, ScrollText, Layers } from 'lucide-react';
 import { format } from 'date-fns';
 import { MatchDaySwitcher } from '../components/fantasy/MatchDaySwitcher';
 import { SwipeRulesModal } from '../components/SwipeRulesModal';
@@ -10,12 +10,13 @@ interface SwipeRecapPageProps {
   selectedMatchDayId: string;
   userEntry: UserSwipeEntry;
   onBack: () => void;
-  onUpdatePrediction?: (matchId: string, prediction: SwipePredictionOutcome) => void;
+  onUpdatePrediction?: (matchDayId: string, matchId: string, prediction: SwipePredictionOutcome) => void;
   onViewLeaderboard: (matchDayId: string) => void;
   onSelectMatchDay: (matchDayId: string) => void;
+  onEditPicks?: () => void;
 }
 
-export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = ({ allMatchDays, selectedMatchDayId, userEntry, onBack, onUpdatePrediction, onViewLeaderboard, onSelectMatchDay }) => {
+export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = ({ allMatchDays, selectedMatchDayId, userEntry, onBack, onUpdatePrediction, onViewLeaderboard, onSelectMatchDay, onEditPicks }) => {
   const [isPicksVisible, setIsPicksVisible] = useState(true);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
 
@@ -127,6 +128,12 @@ export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = ({ allMatchDays, se
                         }`}
                     />
                 </button>
+                {onEditPicks && isEditable && (
+                  <button onClick={onEditPicks} className="flex items-center gap-1.5 text-xs font-bold text-purple-600 bg-purple-100 px-3 py-1.5 rounded-lg hover:bg-purple-200 transition-colors">
+                    <Layers size={14} />
+                    <span>Swipe</span>
+                  </button>
+                )}
             </div>
             {isEditable ? (
               <div className="text-center mt-3">
@@ -167,7 +174,7 @@ export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = ({ allMatchDays, se
               const PredictionButton: React.FC<{outcome: SwipePredictionOutcome, label: string, odds: number}> = ({outcome, label, odds}) => (
                  <button 
                     disabled={!isEditable} 
-                    onClick={() => onUpdatePrediction?.(match.id, outcome)} 
+                    onClick={() => onUpdatePrediction?.(selectedMatchDay.id, match.id, outcome)} 
                     className={`p-2 rounded-lg text-sm font-semibold transition-colors flex flex-col items-center justify-center ${getButtonClass(outcome)}`}
                   >
                     <span>{label}</span>
