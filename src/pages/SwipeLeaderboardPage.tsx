@@ -5,6 +5,7 @@ import { LeaderboardLeagueSwitcher } from '../components/leagues/LeaderboardLeag
 import { useMockStore } from '../store/useMockStore';
 import { LeaderboardPeriodFilter } from '../components/leagues/LeaderboardPeriodFilter';
 import { format, parseISO, isWithinInterval } from 'date-fns';
+import { CelebrationModal } from '../components/leagues/CelebrationModal';
 
 interface SwipeLeaderboardPageProps {
   matchDay: SwipeMatchDay;
@@ -39,9 +40,10 @@ const getRankIcon = (rank: number) => {
 const SwipeLeaderboardPage: React.FC<SwipeLeaderboardPageProps> = (props) => {
   const { matchDay, userEntry, onBack, initialLeagueContext, allUsers, userLeagues, leagueMembers, leagueGames, currentUserId } = props;
   
-  const { updateLeagueGameLeaderboardPeriod } = useMockStore();
+  const { updateLeagueGameLeaderboardPeriod, celebrateWinners } = useMockStore();
   const [loading, setLoading] = useState(false);
   const [activeFilterLeagueId, setActiveFilterLeagueId] = useState<string | null>(initialLeagueContext?.leagueId || null);
+  const [isCelebrationModalOpen, setIsCelebrationModalOpen] = useState(false);
 
   const { leagueGame, currentLeague, isCurrentUserAdmin } = useMemo(() => {
     if (!activeFilterLeagueId) return { leagueGame: null, currentLeague: null, isCurrentUserAdmin: false };
@@ -52,7 +54,7 @@ const SwipeLeaderboardPage: React.FC<SwipeLeaderboardPageProps> = (props) => {
     return { leagueGame: lg, currentLeague: cl, isCurrentUserAdmin: isAdmin };
   }, [activeFilterLeagueId, leagueGames, matchDay.id, userLeagues, leagueMembers, currentUserId]);
 
-  const activePeriod: LeaderboardPeriod | null = useMemo(() => {
+  const activePeriod: LeaderboardPeriod = useMemo(() => {
     if (leagueGame?.leaderboard_period) return leagueGame.leaderboard_period;
     if (currentLeague) {
       return {
@@ -61,11 +63,14 @@ const SwipeLeaderboardPage: React.FC<SwipeLeaderboardPageProps> = (props) => {
         end_date: currentLeague.season_end_date || matchDay.endDate,
       };
     }
-    return null;
+    return {
+      start_type: 'season_start', end_type: 'season_end',
+      start_date: matchDay.startDate,
+      end_date: matchDay.endDate,
+    };
   }, [leagueGame, currentLeague, matchDay]);
 
   const isGameInPeriod = useMemo(() => {
-    if (!activePeriod) return true;
     const interval = { start: parseISO(activePeriod.start_date), end: parseISO(activePeriod.end_date) };
     return isWithinInterval(parseISO(matchDay.startDate), interval);
   }, [activePeriod, matchDay.startDate]);
@@ -105,6 +110,20 @@ const SwipeLeaderboardPage: React.FC<SwipeLeaderboardPageProps> = (props) => {
     }
   };
 
+  const handleConfirmCelebration = (message: string) => {
+    if (!activeFilterLeagueId) return;
+    setLoading(true);
+    const result = celebrateWinners(activeFilterLeagueId, matchDay, displayedLeaderboard, activePeriod, message, currentUserId);
+    if (result.success) {
+      // Potentially show a success toast
+    } else {
+      // Potentially show an error toast
+      console.error(result.error);
+    }
+    setLoading(false);
+    setIsCelebrationModalOpen(false);
+  };
+
   return (
     <div className="animate-scale-in space-y-4">
       <button onClick={onBack} className="flex items-center gap-2 text-text-secondary font-semibold hover:text-electric-blue">
@@ -120,7 +139,7 @@ const SwipeLeaderboardPage: React.FC<SwipeLeaderboardPageProps> = (props) => {
         onSelectLeague={setActiveFilterLeagueId}
       />
       
-      {activePeriod && !isCurrentUserAdmin && (
+      {!isCurrentUserAdmin && (
         <div className="text-xs text-center text-text-disabled bg-deep-navy/50 p-2 rounded-lg flex items-center justify-center gap-2">
           <Info size={14} />
           Showing results from {format(parseISO(activePeriod.start_date), 'MMM d')} to {format(parseISO(activePeriod.end_date), 'MMM d')}
@@ -155,6 +174,23 @@ const SwipeLeaderboardPage: React.FC<SwipeLeaderboardPageProps> = (props) => {
           ))}
         </div>
       </div>
+
+      {isCurrentUserAdmin && activeFilterLeagueId && (
+        <div className="pt-4">
+          <button onClick={() => setIsCelebrationModalOpen(true)} className="w-full flex items-center justify-center gap-2 py-3 bg-warm-yellow/20 text-warm-yellow rounded-xl font-semibold hover:bg-warm-yellow/30 transition-colors">
+            <Trophy size={16} /> Celebrate the Winners
+          </button>
+        </div>
+      )}
+
+      <CelebrationModal
+        isOpen={isCelebrationModalOpen}
+        onClose={() => setIsCelebrationModalOpen(false)}
+        onConfirm={handleConfirmCelebration}
+        leaderboard={displayedLeaderboard}
+        period={activePeriod}
+        loading={loading}
+      />
     </div>
   );
 };

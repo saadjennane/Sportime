@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { Challenge, ChallengeMatch, UserChallengeEntry, LeaderboardEntry, Profile, UserLeague, LeagueMember, LeagueGame, DailyChallengeEntry, LeaderboardPeriod } from '../types';
 import { Leaderboard } from '../components/Leaderboard';
-import { ArrowLeft, Info } from 'lucide-react';
+import { ArrowLeft, Info, Trophy } from 'lucide-react';
 import { LeaderboardLeagueSwitcher } from '../components/leagues/LeaderboardLeagueSwitcher';
 import { useMockStore } from '../store/useMockStore';
 import { LeaderboardPeriodFilter } from '../components/leagues/LeaderboardPeriodFilter';
 import { format, parseISO, isWithinInterval, addDays } from 'date-fns';
+import { CelebrationModal } from '../components/leagues/CelebrationModal';
 
 interface LeaderboardPageProps {
   challenge: Challenge;
@@ -47,9 +48,10 @@ const calculateChallengePoints = (entry: UserChallengeEntry, matches: ChallengeM
 const LeaderboardPage: React.FC<LeaderboardPageProps> = (props) => {
   const { challenge, matches, userEntry, onBack, initialLeagueContext, allUsers, userLeagues, leagueMembers, leagueGames, currentUserId } = props;
   
-  const { updateLeagueGameLeaderboardPeriod } = useMockStore();
+  const { updateLeagueGameLeaderboardPeriod, celebrateWinners } = useMockStore();
   const [loading, setLoading] = useState(false);
   const [activeFilterLeagueId, setActiveFilterLeagueId] = useState<string | null>(initialLeagueContext?.leagueId || null);
+  const [isCelebrationModalOpen, setIsCelebrationModalOpen] = useState(false);
 
   const { leagueGame, currentLeague, isCurrentUserAdmin } = useMemo(() => {
     if (!activeFilterLeagueId) return { leagueGame: null, currentLeague: null, isCurrentUserAdmin: false };
@@ -60,7 +62,7 @@ const LeaderboardPage: React.FC<LeaderboardPageProps> = (props) => {
     return { leagueGame: lg, currentLeague: cl, isCurrentUserAdmin: isAdmin };
   }, [activeFilterLeagueId, leagueGames, challenge.id, userLeagues, leagueMembers, currentUserId]);
 
-  const activePeriod: LeaderboardPeriod | null = useMemo(() => {
+  const activePeriod: LeaderboardPeriod = useMemo(() => {
     if (leagueGame?.leaderboard_period) return leagueGame.leaderboard_period;
     if (currentLeague) {
       return {
@@ -69,11 +71,14 @@ const LeaderboardPage: React.FC<LeaderboardPageProps> = (props) => {
         end_date: currentLeague.season_end_date || challenge.endDate,
       };
     }
-    return null;
+    return {
+      start_type: 'season_start', end_type: 'season_end',
+      start_date: challenge.startDate,
+      end_date: challenge.endDate,
+    };
   }, [leagueGame, currentLeague, challenge]);
 
   const filteredMatches = useMemo(() => {
-    if (!activePeriod) return matches;
     const interval = { start: parseISO(activePeriod.start_date), end: parseISO(activePeriod.end_date) };
     return matches.filter(match => {
       const matchDate = addDays(parseISO(challenge.startDate), match.day - 1);
@@ -127,6 +132,20 @@ const LeaderboardPage: React.FC<LeaderboardPageProps> = (props) => {
     }
   };
 
+  const handleConfirmCelebration = (message: string) => {
+    if (!activeFilterLeagueId) return;
+    setLoading(true);
+    const result = celebrateWinners(activeFilterLeagueId, challenge, displayedLeaderboard, activePeriod, message, currentUserId);
+    if (result.success) {
+      // Potentially show a success toast
+    } else {
+      // Potentially show an error toast
+      console.error(result.error);
+    }
+    setLoading(false);
+    setIsCelebrationModalOpen(false);
+  };
+
   const challengeEvents = useMemo(() => {
     const uniqueDays = [...new Set(matches.map(m => m.day))];
     return uniqueDays.map(day => ({
@@ -150,7 +169,7 @@ const LeaderboardPage: React.FC<LeaderboardPageProps> = (props) => {
         onSelectLeague={setActiveFilterLeagueId}
       />
       
-      {activePeriod && !isCurrentUserAdmin && (
+      {!isCurrentUserAdmin && (
         <div className="text-xs text-center text-text-disabled bg-deep-navy/50 p-2 rounded-lg flex items-center justify-center gap-2">
           <Info size={14} />
           Showing results from {format(parseISO(activePeriod.start_date), 'MMM d')} to {format(parseISO(activePeriod.end_date), 'MMM d')}
@@ -169,6 +188,23 @@ const LeaderboardPage: React.FC<LeaderboardPageProps> = (props) => {
       )}
 
       <Leaderboard challenge={challenge} leaderboard={displayedLeaderboard} />
+
+      {isCurrentUserAdmin && activeFilterLeagueId && (
+        <div className="pt-4">
+          <button onClick={() => setIsCelebrationModalOpen(true)} className="w-full flex items-center justify-center gap-2 py-3 bg-warm-yellow/20 text-warm-yellow rounded-xl font-semibold hover:bg-warm-yellow/30 transition-colors">
+            <Trophy size={16} /> Celebrate the Winners
+          </button>
+        </div>
+      )}
+
+      <CelebrationModal
+        isOpen={isCelebrationModalOpen}
+        onClose={() => setIsCelebrationModalOpen(false)}
+        onConfirm={handleConfirmCelebration}
+        leaderboard={displayedLeaderboard}
+        period={activePeriod}
+        loading={loading}
+      />
     </div>
   );
 };

@@ -324,6 +324,37 @@ export interface LeagueGame {
   leaderboard_period?: LeaderboardPeriod | null;
 }
 
+// --- League Feed & Snapshots ---
+export interface LeaderboardSnapshot {
+  id: string;
+  league_id: string;
+  game_id: string;
+  game_name: string;
+  game_type: Game['gameType'];
+  created_at: string;
+  created_by: string; // user id
+  data: (LeaderboardEntry | SwipeLeaderboardEntry | FantasyLeaderboardEntry)[];
+  message: string;
+  start_date: string;
+  end_date: string;
+}
+
+export interface LeagueFeedPost {
+  id: string;
+  league_id: string;
+  type: 'celebration' | 'new_member' | 'game_linked';
+  author_id: string;
+  created_at: string;
+  message: string;
+  metadata: {
+    snapshot_id?: string;
+    game_name?: string;
+    new_member_name?: string;
+    top_players?: { name: string; score: number }[];
+  };
+  likes: string[]; // array of user ids
+}
+
 
 // --- API Football Types ---
 export interface ApiFootballResponse<T> {

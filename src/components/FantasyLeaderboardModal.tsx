@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { X, Trophy, Medal, Award, Info } from 'lucide-react';
-import { FantasyLeaderboardEntry, Profile, UserLeague, LeagueMember, LeagueGame, FantasyGame, FantasyGameWeek, LeaderboardPeriod } from '../types';
+import { FantasyLeaderboardEntry, Profile, UserLeague, LeagueMember, LeagueGame, FantasyGame, FantasyGameWeek, LeaderboardPeriod, Game } from '../types';
 import { LeaderboardLeagueSwitcher } from './leagues/LeaderboardLeagueSwitcher';
 import { useMockStore } from '../store/useMockStore';
 import { LeaderboardPeriodFilter } from './leagues/LeaderboardPeriodFilter';
 import { format, parseISO, isWithinInterval } from 'date-fns';
+import { CelebrationModal } from './leagues/CelebrationModal';
 
 interface FantasyLeaderboardModalProps {
   isOpen: boolean;
@@ -37,8 +38,9 @@ const LeaderboardRow: React.FC<{ entry: FantasyLeaderboardEntry, isUser: boolean
 export const FantasyLeaderboardModal: React.FC<FantasyLeaderboardModalProps> = (props) => {
   const { isOpen, onClose, game, initialLeagueContext, allUsers, userLeagues, leagueMembers, leagueGames, currentUserId } = props;
   
-  const { leaderboardScores, updateLeagueGameLeaderboardPeriod } = useMockStore();
+  const { leaderboardScores, updateLeagueGameLeaderboardPeriod, celebrateWinners } = useMockStore();
   const [loading, setLoading] = useState(false);
+  const [isCelebrationModalOpen, setIsCelebrationModalOpen] = useState(false);
 
   const [activeFilterLeagueId, setActiveFilterLeagueId] = useState<string | null>(initialLeagueContext?.leagueId || null);
 
@@ -53,7 +55,7 @@ export const FantasyLeaderboardModal: React.FC<FantasyLeaderboardModalProps> = (
     return { leagueGame: lg, currentLeague: cl, isCurrentUserAdmin: isAdmin };
   }, [activeFilterLeagueId, leagueGames, game.id, userLeagues, leagueMembers, currentUserId]);
 
-  const activePeriod: LeaderboardPeriod | null = useMemo(() => {
+  const activePeriod: LeaderboardPeriod = useMemo(() => {
     if (leagueGame?.leaderboard_period) {
       return leagueGame.leaderboard_period;
     }
@@ -65,11 +67,15 @@ export const FantasyLeaderboardModal: React.FC<FantasyLeaderboardModalProps> = (
         end_date: currentLeague.season_end_date || game.endDate,
       };
     }
-    return null;
+    return {
+      start_type: 'season_start',
+      end_type: 'season_end',
+      start_date: game.startDate,
+      end_date: game.endDate,
+    };
   }, [leagueGame, currentLeague, game.startDate, game.endDate]);
 
   const filteredGameWeeks = useMemo(() => {
-    if (!activePeriod) return game.gameWeeks;
     const interval = { start: parseISO(activePeriod.start_date), end: parseISO(activePeriod.end_date) };
     return game.gameWeeks.filter(gw => isWithinInterval(parseISO(gw.startDate), interval));
   }, [game.gameWeeks, activePeriod]);
@@ -111,61 +117,93 @@ export const FantasyLeaderboardModal: React.FC<FantasyLeaderboardModalProps> = (
     }
   };
 
+  const handleConfirmCelebration = (message: string) => {
+    if (!activeFilterLeagueId) return;
+    setLoading(true);
+    const result = celebrateWinners(activeFilterLeagueId, game, displayedLeaderboard, activePeriod, message, currentUserId);
+    if (result.success) {
+      // Potentially show a success toast
+    } else {
+      // Potentially show an error toast
+      console.error(result.error);
+    }
+    setLoading(false);
+    setIsCelebrationModalOpen(false);
+  };
+
   if (!isOpen) return null;
 
   const userEntry = displayedLeaderboard.find(e => e.userId === currentUserId);
 
   return (
-    <div className="fixed inset-0 bg-deep-navy/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-scale-in">
-      <div className="modal-base w-full max-w-md h-[90vh] flex flex-col p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-text-primary">Leaderboard</h2>
-          <button onClick={onClose} className="p-2 text-text-secondary hover:bg-white/10 rounded-full">
-            <X size={24} />
-          </button>
-        </div>
-        <p className="text-center text-sm text-text-secondary -mt-2 mb-4">{game.name}</p>
-
-        <LeaderboardLeagueSwitcher
-            gameId={game.id}
-            userLeagues={userLeagues}
-            leagueGames={leagueGames}
-            leagueMembers={leagueMembers}
-            activeLeagueId={activeFilterLeagueId}
-            onSelectLeague={setActiveFilterLeagueId}
-        />
-
-        {activePeriod && !isCurrentUserAdmin && (
-          <div className="text-xs text-center text-text-disabled bg-deep-navy/50 p-2 rounded-lg mt-4 flex items-center justify-center gap-2">
-            <Info size={14} />
-            Showing results from {format(parseISO(activePeriod.start_date), 'MMM d')} to {format(parseISO(activePeriod.end_date), 'MMM d')}
+    <>
+      <div className="fixed inset-0 bg-deep-navy/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-scale-in">
+        <div className="modal-base w-full max-w-md h-[90vh] flex flex-col p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold text-text-primary">Leaderboard</h2>
+            <button onClick={onClose} className="p-2 text-text-secondary hover:bg-white/10 rounded-full">
+              <X size={24} />
+            </button>
           </div>
-        )}
+          <p className="text-center text-sm text-text-secondary -mt-2 mb-4">{game.name}</p>
 
-        {isCurrentUserAdmin && currentLeague && leagueGame && (
-          <div className="mt-4">
-            <LeaderboardPeriodFilter
-              league={currentLeague}
-              leagueGame={leagueGame}
-              members={leagueMembers.filter(m => m.league_id === currentLeague.id)}
-              events={game.gameWeeks}
-              onApply={handleApplyFilter}
-              loading={loading}
-            />
-          </div>
-        )}
+          <LeaderboardLeagueSwitcher
+              gameId={game.id}
+              userLeagues={userLeagues}
+              leagueGames={leagueGames}
+              leagueMembers={leagueMembers}
+              activeLeagueId={activeFilterLeagueId}
+              onSelectLeague={setActiveFilterLeagueId}
+          />
 
-        <div className="flex-1 overflow-y-auto space-y-2 pr-2 mt-4">
-          {userEntry && (
-            <div className="space-y-2 mb-4 sticky top-0 bg-navy-accent py-2 z-10">
-                <p className="text-xs text-center font-semibold text-text-disabled uppercase">Your Position</p>
-                <LeaderboardRow entry={userEntry} isUser={true} />
-                <hr className="border-dashed border-disabled my-2" />
+          {!isCurrentUserAdmin && (
+            <div className="text-xs text-center text-text-disabled bg-deep-navy/50 p-2 rounded-lg mt-4 flex items-center justify-center gap-2">
+              <Info size={14} />
+              Showing results from {format(parseISO(activePeriod.start_date), 'MMM d')} to {format(parseISO(activePeriod.end_date), 'MMM d')}
             </div>
           )}
-          {displayedLeaderboard.filter(e => e.userId !== currentUserId).map(entry => <LeaderboardRow key={entry.rank} entry={entry} isUser={false} />)}
+
+          {isCurrentUserAdmin && currentLeague && leagueGame && (
+            <div className="mt-4">
+              <LeaderboardPeriodFilter
+                league={currentLeague}
+                leagueGame={leagueGame}
+                members={leagueMembers.filter(m => m.league_id === currentLeague.id)}
+                events={game.gameWeeks}
+                onApply={handleApplyFilter}
+                loading={loading}
+              />
+            </div>
+          )}
+
+          <div className="flex-1 overflow-y-auto space-y-2 pr-2 mt-4">
+            {userEntry && (
+              <div className="space-y-2 mb-4 sticky top-0 bg-navy-accent py-2 z-10">
+                  <p className="text-xs text-center font-semibold text-text-disabled uppercase">Your Position</p>
+                  <LeaderboardRow entry={userEntry} isUser={true} />
+                  <hr className="border-dashed border-disabled my-2" />
+              </div>
+            )}
+            {displayedLeaderboard.filter(e => e.userId !== currentUserId).map(entry => <LeaderboardRow key={entry.rank} entry={entry} isUser={false} />)}
+          </div>
+
+          {isCurrentUserAdmin && activeFilterLeagueId && (
+            <div className="pt-4">
+              <button onClick={() => setIsCelebrationModalOpen(true)} className="w-full flex items-center justify-center gap-2 py-3 bg-warm-yellow/20 text-warm-yellow rounded-xl font-semibold hover:bg-warm-yellow/30 transition-colors">
+                <Trophy size={16} /> Celebrate the Winners
+              </button>
+            </div>
+          )}
         </div>
       </div>
-    </div>
+      <CelebrationModal
+        isOpen={isCelebrationModalOpen}
+        onClose={() => setIsCelebrationModalOpen(false)}
+        onConfirm={handleConfirmCelebration}
+        leaderboard={displayedLeaderboard}
+        period={activePeriod}
+        loading={loading}
+      />
+    </>
   );
 };

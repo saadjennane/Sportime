@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Profile, UserLeague, LeagueMember, Game, LeagueGame } from '../../types';
-import { ArrowLeft, Users, Settings, Link, Gamepad2, Plus, ChevronDown, Folder, FolderOpen } from 'lucide-react';
+import { Profile, UserLeague, LeagueMember, Game, LeagueGame, LeagueFeedPost, LeaderboardSnapshot } from '../../types';
+import { ArrowLeft, Users, Settings, Link, Gamepad2, Plus, ChevronDown, Folder, FolderOpen, Newspaper } from 'lucide-react';
 import { LeagueInviteModal } from '../components/leagues/LeagueInviteModal';
 import { LeagueManageModal } from '../components/leagues/LeagueManageModal';
 import { LeagueGameCard } from '../components/leagues/LeagueGameCard';
@@ -8,6 +8,8 @@ import { LinkGameModal } from '../components/leagues/LinkGameModal';
 import { useMockStore } from '../store/useMockStore';
 import { ConfirmationModal } from '../components/leagues/ConfirmationModal';
 import { AnimatePresence, motion } from 'framer-motion';
+import { LeagueFeed } from '../components/leagues/LeagueFeed';
+import { SnapshotModal } from '../components/leagues/SnapshotModal';
 
 interface LeaguePageProps {
   league: UserLeague;
@@ -29,6 +31,8 @@ interface LeaguePageProps {
   addToast: (message: string, type: 'success' | 'error' | 'info') => void;
 }
 
+type LeagueTab = 'feed' | 'games' | 'members';
+
 const TabButton: React.FC<{ icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void }> = ({ icon, label, isActive, onClick }) => (
   <button
     onClick={onClick}
@@ -43,13 +47,14 @@ const TabButton: React.FC<{ icon: React.ReactNode, label: string, isActive: bool
 const LeaguePage: React.FC<LeaguePageProps> = (props) => {
   const { league, members, memberRoles, currentUserRole, currentUserId, onBack, onUpdateDetails, onRemoveMember, onResetInviteCode, onLeave, onDelete, onViewGame, onLinkGame, leagueGames, allGames, linkableGames, addToast } = props;
   
-  const { unlinkGameFromLeague } = useMockStore();
-  const [activeTab, setActiveTab] = useState<'members' | 'games'>('games');
+  const { unlinkGameFromLeague, leagueFeed, toggleFeedPostLike } = useMockStore();
+  const [activeTab, setActiveTab] = useState<LeagueTab>('feed');
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
   const [isLinkGameModalOpen, setIsLinkGameModalOpen] = useState(false);
   const [gameToUnlink, setGameToUnlink] = useState<(LeagueGame & { status: Game['status'] }) | null>(null);
   const [isFinishedOpen, setIsFinishedOpen] = useState(false);
+  const [viewingSnapshot, setViewingSnapshot] = useState<LeaderboardSnapshot | null>(null);
 
   const adminProfile = members.find(m => m.id === league.created_by);
 
@@ -74,6 +79,15 @@ const LeaguePage: React.FC<LeaguePageProps> = (props) => {
       setGameToUnlink(null);
     }
   };
+
+  const feedForThisLeague = useMemo(() => {
+    return leagueFeed.filter(post => post.league_id === league.id);
+  }, [leagueFeed, league.id]);
+
+  const snapshotAuthor = useMemo(() => {
+    if (!viewingSnapshot) return undefined;
+    return members.find(m => m.id === viewingSnapshot.created_by);
+  }, [viewingSnapshot, members]);
 
   return (
     <div className="space-y-6">
@@ -109,12 +123,23 @@ const LeaguePage: React.FC<LeaguePageProps> = (props) => {
 
       {/* Tabs */}
       <div className="flex bg-navy-accent rounded-xl p-1 gap-1">
-        <TabButton label="Members" icon={<Users size={16} />} isActive={activeTab === 'members'} onClick={() => setActiveTab('members')} />
+        <TabButton label="Feed" icon={<Newspaper size={16} />} isActive={activeTab === 'feed'} onClick={() => setActiveTab('feed')} />
         <TabButton label="Games" icon={<Gamepad2 size={16} />} isActive={activeTab === 'games'} onClick={() => setActiveTab('games')} />
+        <TabButton label="Members" icon={<Users size={16} />} isActive={activeTab === 'members'} onClick={() => setActiveTab('members')} />
       </div>
 
       {/* Tab Content */}
       <div className="animate-scale-in">
+        {activeTab === 'feed' && (
+          <LeagueFeed
+            posts={feedForThisLeague}
+            members={members}
+            currentUserId={currentUserId}
+            onViewSnapshot={setViewingSnapshot}
+            onToggleLike={(postId) => toggleFeedPostLike(postId, currentUserId)}
+          />
+        )}
+
         {activeTab === 'members' && (
           <div className="card-base p-5">
             <h3 className="font-bold text-text-secondary mb-4">Members ({members.length})</h3>
@@ -191,6 +216,14 @@ const LeaguePage: React.FC<LeaguePageProps> = (props) => {
         isAdmin={currentUserRole === 'admin'}
         onReset={() => onResetInviteCode(league.id)}
       />
+      {viewingSnapshot && (
+        <SnapshotModal
+          isOpen={!!viewingSnapshot}
+          onClose={() => setViewingSnapshot(null)}
+          snapshot={viewingSnapshot}
+          author={snapshotAuthor}
+        />
+      )}
       {currentUserRole === 'admin' && (
         <>
           <LeagueManageModal

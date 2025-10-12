@@ -10,7 +10,13 @@ import {
   Game,
   Profile,
   LeaderboardPeriod,
+  LeaderboardSnapshot,
+  LeagueFeedPost,
+  LeaderboardEntry,
+  SwipeLeaderboardEntry,
+  FantasyLeaderboardEntry,
 } from '../types';
+import { isToday } from 'date-fns';
 
 // Import mock data
 import { mockChallenges } from '../data/mockChallenges';
@@ -29,6 +35,8 @@ interface MockDataState {
   leagueMembers: LeagueMember[];
   leagueGames: LeagueGame[];
   leaderboardScores: typeof mockScores;
+  leaderboardSnapshots: LeaderboardSnapshot[];
+  leagueFeed: LeagueFeedPost[];
 }
 
 interface MockDataActions {
@@ -37,6 +45,15 @@ interface MockDataActions {
   createLeagueAndLink: (name: string, description: string, gameToLink: Game, profile: Profile) => void;
   unlinkGameFromLeague: (gameId: string, leagueId: string) => void;
   updateLeagueGameLeaderboardPeriod: (leagueGameId: string, period: LeaderboardPeriod) => void;
+  celebrateWinners: (
+    leagueId: string, 
+    game: Game, 
+    leaderboard: (LeaderboardEntry | SwipeLeaderboardEntry | FantasyLeaderboardEntry)[], 
+    period: LeaderboardPeriod, 
+    message: string, 
+    adminId: string
+  ) => { success: boolean, error?: string };
+  toggleFeedPostLike: (postId: string, userId: string) => void;
 }
 
 export const useMockStore = create<MockDataState & MockDataActions>((set, get) => ({
@@ -48,6 +65,8 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
   leagueMembers: mockLeagueMembers,
   leagueGames: mockLeagueGames,
   leaderboardScores: mockScores,
+  leaderboardSnapshots: [],
+  leagueFeed: [],
 
   // Action to create a new league
   createLeague: (name, description, profile) => {
@@ -143,6 +162,78 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
       leagueGames: state.leagueGames.map(lg => 
         lg.id === leagueGameId ? { ...lg, leaderboard_period: period } : lg
       ),
+    }));
+  },
+
+  // Action to create a celebration snapshot and feed post
+  celebrateWinners: (leagueId, game, leaderboard, period, message, adminId) => {
+    const { leagueFeed, leaderboardSnapshots } = get();
+
+    // Optional: Prevent more than one celebration per day per league
+    const hasCelebratedToday = leagueFeed.some(
+      post => post.league_id === leagueId && post.type === 'celebration' && isToday(new Date(post.created_at))
+    );
+    if (hasCelebratedToday) {
+      return { success: false, error: 'You can only celebrate once per day for this league.' };
+    }
+
+    const snapshotId = uuidv4();
+    const newSnapshot: LeaderboardSnapshot = {
+      id: snapshotId,
+      league_id: leagueId,
+      game_id: game.id,
+      game_name: game.name,
+      game_type: game.gameType,
+      created_at: new Date().toISOString(),
+      created_by: adminId,
+      data: leaderboard,
+      message,
+      start_date: period.start_date,
+      end_date: period.end_date,
+    };
+
+    const topPlayers = leaderboard.slice(0, 3).map(p => ({
+      name: p.username,
+      score: 'points' in p ? p.points : p.totalPoints,
+    }));
+
+    const newFeedPost: LeagueFeedPost = {
+      id: uuidv4(),
+      league_id: leagueId,
+      type: 'celebration',
+      author_id: adminId,
+      created_at: new Date().toISOString(),
+      message,
+      metadata: {
+        snapshot_id: snapshotId,
+        top_players: topPlayers,
+      },
+      likes: [],
+    };
+
+    set({
+      leaderboardSnapshots: [...leaderboardSnapshots, newSnapshot],
+      leagueFeed: [newFeedPost, ...leagueFeed], // Add to the top of the feed
+    });
+
+    return { success: true };
+  },
+
+  // Action to toggle a like on a feed post
+  toggleFeedPostLike: (postId, userId) => {
+    set(state => ({
+      leagueFeed: state.leagueFeed.map(post => {
+        if (post.id === postId) {
+          const newLikes = new Set(post.likes);
+          if (newLikes.has(userId)) {
+            newLikes.delete(userId);
+          } else {
+            newLikes.add(userId);
+          }
+          return { ...post, likes: Array.from(newLikes) };
+        }
+        return post;
+      }),
     }));
   },
 }));
