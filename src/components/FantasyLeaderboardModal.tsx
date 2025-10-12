@@ -1,16 +1,20 @@
 import React, { useState, useMemo } from 'react';
-import { X, Trophy, Medal, Award, User, Users, Shield } from 'lucide-react';
-import { mockFantasyLeaderboard } from '../data/mockFantasy.tsx';
-import { FantasyLeaderboardEntry, Profile } from '../types';
+import { X, Trophy, Medal, Award } from 'lucide-react';
+import { FantasyLeaderboardEntry, Profile, UserLeague, LeagueMember, LeagueGame } from '../types';
+import { LeaderboardLeagueSwitcher } from './leagues/LeaderboardLeagueSwitcher';
 
 interface FantasyLeaderboardModalProps {
   isOpen: boolean;
   onClose: () => void;
   gameWeekName: string;
-  leagueContext?: { leagueId: string; leagueName: string; members: Profile[] };
+  initialLeagueContext?: { leagueId: string; leagueName: string; members: Profile[] };
+  allUsers: Profile[];
+  userLeagues: UserLeague[];
+  leagueMembers: LeagueMember[];
+  leagueGames: LeagueGame[];
+  currentUserId: string;
+  gameId: string;
 }
-
-type LeaderboardTab = 'global' | 'league' | 'friends';
 
 const getRankIcon = (rank: number) => {
   if (rank === 1) return <Trophy size={20} className="text-yellow-500" />;
@@ -28,22 +32,33 @@ const LeaderboardRow: React.FC<{ entry: FantasyLeaderboardEntry, isUser: boolean
   </div>
 );
 
-export const FantasyLeaderboardModal: React.FC<FantasyLeaderboardModalProps> = ({ isOpen, onClose, gameWeekName, leagueContext }) => {
-  const [activeTab, setActiveTab] = useState<LeaderboardTab>(leagueContext ? 'league' : 'global');
+export const FantasyLeaderboardModal: React.FC<FantasyLeaderboardModalProps> = (props) => {
+  const { isOpen, onClose, gameWeekName, initialLeagueContext, allUsers, userLeagues, leagueMembers, leagueGames, currentUserId, gameId } = props;
+  const [activeFilterLeagueId, setActiveFilterLeagueId] = useState<string | null>(initialLeagueContext?.leagueId || null);
+
+  const fullLeaderboard = useMemo(() => {
+    return allUsers.map((user, index) => ({
+      rank: index + 1,
+      username: user.id === currentUserId ? 'You' : user.username || `Player ${user.id}`,
+      userId: user.id,
+      avatar: user.profile_picture_url || `https://api.dicebear.com/8.x/bottts/svg?seed=${user.id}`,
+      totalPoints: 1250 - (index * 20) + Math.floor(Math.random() * 20),
+      boosterUsed: null,
+    })).sort((a, b) => b.totalPoints - a.totalPoints)
+     .map((entry, index) => ({ ...entry, rank: index + 1 }));
+  }, [allUsers, currentUserId]);
+
+  const displayedLeaderboard = useMemo(() => {
+    if (activeFilterLeagueId) {
+      const memberIds = new Set(leagueMembers.filter(m => m.league_id === activeFilterLeagueId).map(m => m.user_id));
+      return fullLeaderboard.filter(entry => memberIds.has(entry.userId!));
+    }
+    return fullLeaderboard;
+  }, [activeFilterLeagueId, leagueMembers, fullLeaderboard]);
 
   if (!isOpen) return null;
 
-  const userEntry = mockFantasyLeaderboard.find(e => e.username === 'saadjennane');
-  
-  const displayedLeaderboard = useMemo(() => {
-    if (activeTab === 'league' && leagueContext) {
-      const leagueUsernames = new Set(leagueContext.members.map(m => m.username));
-      leagueUsernames.add('saadjennane'); // Add current user
-      return mockFantasyLeaderboard.filter(entry => leagueUsernames.has(entry.username));
-    }
-    // For this mock, we'll just return top 10 for global
-    return mockFantasyLeaderboard.slice(0, 10);
-  }, [activeTab, leagueContext]);
+  const userEntry = displayedLeaderboard.find(e => e.userId === currentUserId);
 
   return (
     <div className="fixed inset-0 bg-deep-navy/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-scale-in">
@@ -56,29 +71,24 @@ export const FantasyLeaderboardModal: React.FC<FantasyLeaderboardModalProps> = (
         </div>
         <p className="text-center text-sm text-text-secondary -mt-2 mb-4">{gameWeekName}</p>
 
-        <div className="flex bg-deep-navy rounded-xl p-1 mb-4">
-          <button onClick={() => setActiveTab('global')} className={`flex-1 flex items-center justify-center gap-2 p-2 rounded-lg font-semibold text-xs transition-all ${activeTab === 'global' ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'}`}>
-            <Users size={14} /> Global
-          </button>
-          {leagueContext && (
-            <button onClick={() => setActiveTab('league')} className={`flex-1 flex items-center justify-center gap-2 p-2 rounded-lg font-semibold text-xs transition-all ${activeTab === 'league' ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'}`}>
-              <Shield size={14} /> {leagueContext.leagueName}
-            </button>
-          )}
-          <button onClick={() => {}} disabled className={`flex-1 flex items-center justify-center gap-2 p-2 rounded-lg font-semibold text-xs transition-all disabled:opacity-50`}>
-            <User size={14} /> Friends
-          </button>
-        </div>
+        <LeaderboardLeagueSwitcher
+            gameId={gameId}
+            userLeagues={userLeagues}
+            leagueGames={leagueGames}
+            leagueMembers={leagueMembers}
+            activeLeagueId={activeFilterLeagueId}
+            onSelectLeague={setActiveFilterLeagueId}
+        />
 
-        <div className="flex-1 overflow-y-auto space-y-2 pr-2">
-          {userEntry && (activeTab !== 'league') && (
-            <div className="space-y-2 mb-4">
+        <div className="flex-1 overflow-y-auto space-y-2 pr-2 mt-4">
+          {userEntry && (
+            <div className="space-y-2 mb-4 sticky top-0 bg-navy-accent py-2">
                 <p className="text-xs text-center font-semibold text-text-disabled uppercase">Your Position</p>
                 <LeaderboardRow entry={userEntry} isUser={true} />
                 <hr className="border-dashed border-disabled my-2" />
             </div>
           )}
-          {displayedLeaderboard.map(entry => <LeaderboardRow key={entry.rank} entry={entry} isUser={entry.username === 'saadjennane'} />)}
+          {displayedLeaderboard.filter(e => e.userId !== currentUserId).map(entry => <LeaderboardRow key={entry.rank} entry={entry} isUser={false} />)}
         </div>
       </div>
     </div>

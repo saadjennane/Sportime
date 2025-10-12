@@ -105,7 +105,7 @@ function App() {
   const [joinSwipeGameModalState, setJoinSwipeGameModalState] = useState<{ isOpen: boolean; game: SwipeMatchDay | null; }>({ isOpen: false, game: null });
   const [hasSeenSwipeTutorial, setHasSeenSwipeTutorial] = useState(false);
   const [swipeGameViewMode, setSwipeGameViewMode] = useState<'swiping' | 'recap'>('swiping');
-  const [leaderboardContext, setLeaderboardContext] = useState<{ leagueId: string, leagueName: string } | null>(null);
+  const [leaderboardContext, setLeaderboardContext] = useState<{ leagueId: string; leagueName: string; fromLeague?: boolean } | null>(null);
 
   // Effect for static data (runs once)
   useEffect(() => {
@@ -685,7 +685,7 @@ function App() {
   };
 
   const handleViewLeagueGame = (gameId: string, gameType: 'Fantasy' | 'Prediction' | 'Betting', leagueId: string, leagueName: string) => {
-    setLeaderboardContext({ leagueId, leagueName });
+    setLeaderboardContext({ leagueId, leagueName, fromLeague: true });
     if (gameType === 'Betting') {
       setViewingLeaderboardFor(gameId);
     } else if (gameType === 'Prediction') {
@@ -710,6 +710,21 @@ function App() {
     setJoinLeagueCode(null);
     setLeaderboardContext(null);
   }
+
+  const handleLeaderboardBack = () => {
+    const fromLeagueId = leaderboardContext?.leagueId;
+
+    // Reset all possible leaderboard states
+    setViewingLeaderboardFor(null);
+    setViewingSwipeLeaderboardFor(null);
+    setActiveFantasyGameId(null);
+    setLeaderboardContext(null);
+
+    // If we came from a league, navigate back to it
+    if (fromLeagueId) {
+        setActiveLeagueId(fromLeagueId);
+    }
+  };
 
   // --- Admin Test Mode Handlers ---
   const handleSetTestMode = (enabled: boolean) => {
@@ -750,6 +765,12 @@ function App() {
     return allOfficialGames.filter(g => g.is_linkable);
   }, [challenges, swipeMatchDays, fantasyGames]);
 
+  const myLeagues = useMemo(() => {
+    if (!profile) return [];
+    const userMemberOf = leagueMembers.filter(m => m.user_id === profile.id).map(m => m.league_id);
+    return userLeagues.filter(l => userMemberOf.includes(l.id));
+  }, [profile, leagueMembers, userLeagues]);
+
   const renderPage = () => {
     if (joinLeagueCode) {
         const leagueToJoin = userLeagues.find(l => l.invite_code === joinLeagueCode);
@@ -766,14 +787,18 @@ function App() {
     if (viewingLeaderboardFor) {
       const challenge = challenges.find(c => c.id === viewingLeaderboardFor);
       const userEntry = userChallengeEntries.find(e => e.challengeId === viewingLeaderboardFor);
-      if (challenge && userEntry) {
-        const leagueMembersForContext = leaderboardContext ? allUsers.filter(u => leagueMembers.some(lm => lm.league_id === leaderboardContext.leagueId && lm.user_id === u.id)) : [];
+      if (challenge && userEntry && profile) {
         return <LeaderboardPage
           challenge={challenge}
           matches={challengeMatches}
           userEntry={userEntry}
-          onBack={() => { setViewingLeaderboardFor(null); setLeaderboardContext(null); }}
-          leagueContext={leaderboardContext ? { ...leaderboardContext, members: leagueMembersForContext } : undefined}
+          onBack={handleLeaderboardBack}
+          initialLeagueContext={leaderboardContext}
+          allUsers={allUsers}
+          userLeagues={myLeagues}
+          leagueMembers={leagueMembers}
+          leagueGames={leagueGames}
+          currentUserId={profile.id}
         />;
       }
     }
@@ -799,13 +824,17 @@ function App() {
     if (viewingSwipeLeaderboardFor) {
       const matchDay = swipeMatchDays.find(md => md.id === viewingSwipeLeaderboardFor);
       const userEntry = userSwipeEntries.find(e => e.matchDayId === viewingSwipeLeaderboardFor);
-      if (matchDay && userEntry) {
-        const leagueMembersForContext = leaderboardContext ? allUsers.filter(u => leagueMembers.some(lm => lm.league_id === leaderboardContext.leagueId && lm.user_id === u.id)) : [];
+      if (matchDay && userEntry && profile) {
         return <SwipeLeaderboardPage
           matchDay={matchDay}
           userEntry={userEntry}
-          onBack={() => { setViewingSwipeLeaderboardFor(null); setLeaderboardContext(null); }}
-          leagueContext={leaderboardContext ? { ...leaderboardContext, members: leagueMembersForContext } : undefined}
+          onBack={handleLeaderboardBack}
+          initialLeagueContext={leaderboardContext}
+          allUsers={allUsers}
+          userLeagues={myLeagues}
+          leagueMembers={leagueMembers}
+          leagueGames={leagueGames}
+          currentUserId={profile.id}
         />;
       }
     }
@@ -843,14 +872,18 @@ function App() {
     
     if (activeFantasyGameId) {
       const game = fantasyGames.find(g => g.id === activeFantasyGameId);
-      if (game) {
-        const leagueMembersForContext = leaderboardContext ? allUsers.filter(u => leagueMembers.some(lm => lm.league_id === leaderboardContext.leagueId && lm.user_id === u.id)) : [];
+      if (game && profile) {
         return <FantasyGameWeekPage
           game={game}
           userTeams={userFantasyTeams}
           allPlayers={fantasyPlayers}
-          onBack={() => { setActiveFantasyGameId(null); setLeaderboardContext(null); }}
-          leagueContext={leaderboardContext ? { ...leaderboardContext, members: leagueMembersForContext } : undefined}
+          onBack={handleLeaderboardBack}
+          initialLeagueContext={leaderboardContext}
+          allUsers={allUsers}
+          userLeagues={myLeagues}
+          leagueMembers={leagueMembers}
+          leagueGames={leagueGames}
+          currentUserId={profile.id}
         />;
       }
     }
@@ -887,9 +920,6 @@ function App() {
       case 'challenges':
         return <GamesListPage challenges={challenges} swipeMatchDays={swipeMatchDays} fantasyGames={fantasyGames} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} myGamesCount={myGamesCount} />;
       case 'leagues':
-          if (!profile) return null;
-          const userMemberOf = leagueMembers.filter(m => m.user_id === profile.id).map(m => m.league_id);
-          const myLeagues = userLeagues.filter(l => userMemberOf.includes(l.id));
           return <LeaguesListPage 
               leagues={myLeagues}
               onCreate={() => setShowCreateLeagueModal(true)}

@@ -1,12 +1,18 @@
 import React, { useMemo, useState } from 'react';
-import { SwipeMatchDay, UserSwipeEntry, SwipeLeaderboardEntry, Profile } from '../types';
+import { SwipeMatchDay, UserSwipeEntry, SwipeLeaderboardEntry, Profile, UserLeague, LeagueMember, LeagueGame } from '../types';
 import { ArrowLeft, Trophy, Medal, Award } from 'lucide-react';
+import { LeaderboardLeagueSwitcher } from '../components/leagues/LeaderboardLeagueSwitcher';
 
 interface SwipeLeaderboardPageProps {
   matchDay: SwipeMatchDay;
   userEntry: UserSwipeEntry;
   onBack: () => void;
-  leagueContext?: { leagueId: string; leagueName: string; members: Profile[] };
+  initialLeagueContext?: { leagueId: string; leagueName: string; fromLeague?: boolean };
+  allUsers: Profile[];
+  userLeagues: UserLeague[];
+  leagueMembers: LeagueMember[];
+  leagueGames: LeagueGame[];
+  currentUserId: string;
 }
 
 const calculateSwipePoints = (entry: UserSwipeEntry, matchDay: SwipeMatchDay): number => {
@@ -27,68 +33,50 @@ const getRankIcon = (rank: number) => {
   return <span className="font-bold text-text-secondary w-5 text-center">{rank}</span>;
 };
 
-const SwipeLeaderboardPage: React.FC<SwipeLeaderboardPageProps> = ({ matchDay, userEntry, onBack, leagueContext }) => {
-  const [activeTab, setActiveTab] = useState<'global' | 'league'>(leagueContext ? 'league' : 'global');
+const SwipeLeaderboardPage: React.FC<SwipeLeaderboardPageProps> = (props) => {
+  const { matchDay, userEntry, onBack, initialLeagueContext, allUsers, userLeagues, leagueMembers, leagueGames, currentUserId } = props;
+  const [activeFilterLeagueId, setActiveFilterLeagueId] = useState<string | null>(initialLeagueContext?.leagueId || null);
 
   const fullLeaderboard = useMemo(() => {
-    const otherPlayers = Array.from({ length: 50 }, (_, i) => ({
-      username: `Player_${i + 2}`,
-      entry: {
-        ...userEntry,
-        predictions: matchDay.matches.map(m => ({
-          matchId: m.id,
-          prediction: ['teamA', 'draw', 'teamB'][Math.floor(Math.random() * 3)] as 'teamA'|'draw'|'teamB',
-        }))
-      }
-    }));
-
+    const otherUsers = allUsers.filter(u => u.id !== currentUserId);
     const userPoints = calculateSwipePoints(userEntry, matchDay);
 
     const allEntries: Omit<SwipeLeaderboardEntry, 'rank'>[] = [
-      { username: 'You', points: userPoints },
-      ...otherPlayers.map(player => ({
-        username: player.username,
-        points: calculateSwipePoints(player.entry, matchDay),
+      { username: 'You', points: userPoints, userId: currentUserId },
+      ...otherUsers.map(user => ({
+        username: user.username || 'Player',
+        points: Math.floor(Math.random() * (userPoints + 200)), // Mock points
+        userId: user.id
       }))
     ];
 
     return allEntries
       .sort((a, b) => b.points - a.points)
       .map((entry, index) => ({ ...entry, rank: index + 1 }));
-  }, [userEntry, matchDay]);
+  }, [userEntry, matchDay, allUsers, currentUserId]);
   
   const displayedLeaderboard = useMemo(() => {
-    if (activeTab === 'league' && leagueContext) {
-      const leagueUsernames = new Set(leagueContext.members.map(m => m.username));
-      leagueUsernames.add('You');
-      // This is a simulation. In a real app, you'd fetch the correct leaderboard entries.
-      return fullLeaderboard.filter(entry => leagueUsernames.has(entry.username) || entry.rank <= 5).slice(0, leagueContext.members.length);
+    if (activeFilterLeagueId) {
+      const memberIds = new Set(leagueMembers.filter(m => m.league_id === activeFilterLeagueId).map(m => m.user_id));
+      return fullLeaderboard.filter(entry => memberIds.has(entry.userId!));
     }
     return fullLeaderboard;
-  }, [activeTab, leagueContext, fullLeaderboard]);
+  }, [activeFilterLeagueId, leagueMembers, fullLeaderboard]);
 
   return (
     <div className="animate-scale-in space-y-4">
       <button onClick={onBack} className="flex items-center gap-2 text-text-secondary font-semibold hover:text-electric-blue">
-        <ArrowLeft size={20} /> Back to Game
+        <ArrowLeft size={20} /> Back
       </button>
 
-      {leagueContext && (
-        <div className="flex bg-navy-accent rounded-xl p-1">
-          <button
-            onClick={() => setActiveTab('global')}
-            className={`flex-1 p-2 rounded-lg font-semibold transition-all ${activeTab === 'global' ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'}`}
-          >
-            Global
-          </button>
-          <button
-            onClick={() => setActiveTab('league')}
-            className={`flex-1 p-2 rounded-lg font-semibold transition-all ${activeTab === 'league' ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'}`}
-          >
-            {leagueContext.leagueName}
-          </button>
-        </div>
-      )}
+      <LeaderboardLeagueSwitcher
+        gameId={matchDay.id}
+        userLeagues={userLeagues}
+        leagueGames={leagueGames}
+        leagueMembers={leagueMembers}
+        activeLeagueId={activeFilterLeagueId}
+        onSelectLeague={setActiveFilterLeagueId}
+      />
       
       <div className="card-base p-5 space-y-4">
         <div className="text-center">

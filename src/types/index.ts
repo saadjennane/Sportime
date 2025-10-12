@@ -102,6 +102,7 @@ export interface LeaderboardEntry {
   username: string;
   finalCoins: number;
   points: number;
+  userId?: string;
 }
 
 // --- Swipe Prediction Game Types ---
@@ -132,6 +133,7 @@ export interface SwipeLeaderboardEntry {
   rank: number;
   username: string;
   points: number;
+  userId?: string;
 }
 
 // --- Fantasy Football Types ---
@@ -207,6 +209,7 @@ export interface FantasyLeaderboardEntry {
   avatar: string;
   totalPoints: number;
   boosterUsed: Booster['id'] | null;
+  userId?: string;
 }
 
 export interface League {

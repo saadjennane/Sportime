@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { FantasyGame, UserFantasyTeam, FantasyPlayer, PlayerPosition, Booster, Profile } from '../../types';
+import { FantasyGame, UserFantasyTeam, FantasyPlayer, PlayerPosition, Booster, Profile, UserLeague, LeagueMember, LeagueGame } from '../../types';
 import { ScrollText, Trophy, X, Check, Target, ArrowLeft } from 'lucide-react';
 import { FantasyPlayerModal } from '../components/FantasyPlayerModal';
 import { FantasyLeaderboardModal } from '../components/FantasyLeaderboardModal';
@@ -23,17 +23,24 @@ interface FantasyGameWeekPageProps {
   userTeams: UserFantasyTeam[];
   allPlayers: FantasyPlayer[];
   onBack: () => void;
-  leagueContext?: { leagueId: string; leagueName: string; members: Profile[] };
+  initialLeagueContext?: { leagueId: string; leagueName: string; fromLeague?: boolean };
+  allUsers: Profile[];
+  userLeagues: UserLeague[];
+  leagueMembers: LeagueMember[];
+  leagueGames: LeagueGame[];
+  currentUserId: string;
 }
 
-export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = ({ game, userTeams: initialUserTeams, allPlayers: initialPlayers, onBack, leagueContext }) => {
+export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) => {
+  const { game, userTeams: initialUserTeams, allPlayers: initialPlayers, onBack, initialLeagueContext, allUsers, userLeagues, leagueMembers, leagueGames, currentUserId } = props;
+  
   const allPlayers = useMemo(() => updateAllPlayerStatuses(initialPlayers, mockPlayerLast10Stats), [initialPlayers]);
 
-  const [selectedMatchDayId, setSelectedMatchDayId] = useState(game.gameWeeks.find(gw => gw.status === 'live')?.id || game.gameWeeks.find(gw => gw.status === 'upcoming')?.id || game.gameWeeks[0].id);
+  const [selectedMatchDayId, setSelectedMatchDayId] = useState(initialLeagueContext ? game.id : (game.gameWeeks.find(gw => gw.status === 'live')?.id || game.gameWeeks.find(gw => gw.status === 'upcoming')?.id || game.gameWeeks[0].id));
   const [userTeams, setUserTeams] = useState(initialUserTeams);
 
   const [editingSlot, setEditingSlot] = useState<{ position: PlayerPosition; playerToReplaceId: string | null } | null>(null);
-  const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
+  const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(!!initialLeagueContext);
   const [isBoosterModalOpen, setIsBoosterModalOpen] = useState(false);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
   const [selectedForSwap, setSelectedForSwap] = useState<FantasyPlayer | null>(null);
@@ -194,7 +201,7 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = ({ game, 
     <div className="space-y-4 pb-28">
       <button onClick={onBack} className="flex items-center gap-2 text-sm text-text-secondary font-semibold hover:text-electric-blue">
         <ArrowLeft size={18} />
-        Back to Games
+        Back
       </button>
 
       {/* 1. TOP SECTION */}
@@ -325,7 +332,18 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = ({ game, 
         allPlayers={allPlayers} 
         onSelectPlayer={handleSelectPlayerFromModal} 
       />
-      <FantasyLeaderboardModal isOpen={isLeaderboardOpen} onClose={() => setIsLeaderboardOpen(false)} gameWeekName={selectedGameWeek.name} leagueContext={leagueContext} />
+      <FantasyLeaderboardModal 
+        isOpen={isLeaderboardOpen} 
+        onClose={() => setIsLeaderboardOpen(false)} 
+        gameWeekName={selectedGameWeek.name} 
+        initialLeagueContext={initialLeagueContext}
+        allUsers={allUsers}
+        userLeagues={userLeagues}
+        leagueMembers={leagueMembers}
+        leagueGames={leagueGames}
+        currentUserId={currentUserId}
+        gameId={game.id}
+      />
       <BoosterSelectionModal isOpen={isBoosterModalOpen} onClose={() => setIsBoosterModalOpen(false)} boosters={mockBoosters} onSelect={handleBoosterSelect} />
       <FantasyRulesModal isOpen={isRulesModalOpen} onClose={() => setIsRulesModalOpen(false)} />
     </div>
