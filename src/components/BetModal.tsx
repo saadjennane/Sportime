@@ -87,51 +87,51 @@ export const BetModal: React.FC<BetModalProps> = ({
         onClick={() => handlePredictionChange(predictionKey, currentOdds)}
         className={`flex-1 flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all duration-200 ${
           isActive
-            ? 'bg-purple-100 border-purple-500 shadow-inner'
-            : 'bg-slate-50 border-slate-200 hover:border-purple-300'
+            ? 'bg-electric-blue/10 border-electric-blue shadow-inner'
+            : 'bg-deep-navy border-disabled hover:border-electric-blue/50'
         }`}
       >
         <span className="text-2xl mb-1">{emoji}</span>
-        <span className="text-xs font-bold text-gray-800">{label}</span>
-        <span className="text-sm font-semibold text-purple-600">@{currentOdds.toFixed(2)}</span>
+        <span className="text-xs font-bold text-text-primary">{label}</span>
+        <span className="text-sm font-semibold text-electric-blue">@{currentOdds.toFixed(2)}</span>
       </button>
     );
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-scale-in">
-      <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-5">
+    <div className="fixed inset-0 bg-deep-navy/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-scale-in">
+      <div className="modal-base max-w-sm w-full p-6 space-y-5">
         
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">{userBet ? 'Modify Bet' : 'Place Bet'}</h2>
+          <h2 className="text-2xl font-bold text-text-primary">{userBet ? 'Modify Bet' : 'Place Bet'}</h2>
           <button
             onClick={onClose}
-            className="p-2 text-gray-500 hover:bg-gray-100 rounded-full transition-colors"
+            className="p-2 text-text-secondary hover:bg-white/10 rounded-full transition-colors"
           >
             <X className="w-6 h-6" />
           </button>
         </div>
 
-        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
-          <div className="flex justify-between items-center text-xs font-semibold text-slate-500 uppercase mb-2">
+        <div className="bg-deep-navy border border-disabled rounded-2xl p-4">
+          <div className="flex justify-between items-center text-xs font-semibold text-text-disabled uppercase mb-2">
             <span>Match</span>
             <span>{match.kickoffTime}</span>
           </div>
           <div className="flex items-center justify-center gap-4 text-center">
             <div className="flex-1">
               <div className="text-3xl mb-1">{match.teamA.emoji}</div>
-              <div className="text-sm font-bold text-gray-800">{match.teamA.name}</div>
+              <div className="text-sm font-bold text-text-primary">{match.teamA.name}</div>
             </div>
-            <div className="text-lg font-bold text-slate-400">vs</div>
+            <div className="text-lg font-bold text-disabled">vs</div>
             <div className="flex-1">
               <div className="text-3xl mb-1">{match.teamB.emoji}</div>
-              <div className="text-sm font-bold text-gray-800">{match.teamB.name}</div>
+              <div className="text-sm font-bold text-text-primary">{match.teamB.name}</div>
             </div>
           </div>
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase mb-2">
+          <label className="block text-xs font-semibold text-text-disabled uppercase mb-2">
             Your Prediction
           </label>
           <div className="flex gap-2">
@@ -157,17 +157,17 @@ export const BetModal: React.FC<BetModalProps> = ({
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase mb-2">
+          <label className="block text-xs font-semibold text-text-disabled uppercase mb-2">
             Bet Amount
           </label>
           <div className="relative">
-            <Coins className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-amber-500" />
+            <Coins className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-warm-yellow" />
             <input
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0"
-              className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-lg font-semibold focus:border-purple-500 focus:ring-purple-500 focus:outline-none transition-colors"
+              className="input-base pl-12 text-lg"
               min="0"
               max={balance}
             />
@@ -177,7 +177,7 @@ export const BetModal: React.FC<BetModalProps> = ({
               <button
                 key={quickAmount}
                 onClick={() => setAmount(quickAmount.toString())}
-                className="flex-1 py-2 px-2 bg-slate-100 hover:bg-purple-100 rounded-lg text-sm font-semibold text-slate-700 hover:text-purple-700 transition-colors"
+                className="flex-1 py-2 px-2 bg-deep-navy hover:bg-electric-blue/20 rounded-lg text-sm font-semibold text-text-secondary hover:text-electric-blue transition-colors"
               >
                 {formatQuickAmount(quickAmount)}
               </button>
@@ -185,13 +185,13 @@ export const BetModal: React.FC<BetModalProps> = ({
           </div>
         </div>
 
-        <div className="bg-green-50 border border-green-200 rounded-xl p-3">
+        <div className="bg-lime-glow/10 border border-lime-glow/20 rounded-xl p-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-green-600" />
-              <span className="text-sm font-medium text-green-800">Potential Win</span>
+              <TrendingUp className="w-5 h-5 text-lime-glow" />
+              <span className="text-sm font-medium text-lime-glow/90">Potential Win</span>
             </div>
-            <span className="text-xl font-bold text-green-700">
+            <span className="text-xl font-bold text-lime-glow">
               {potentialWin.toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </span>
           </div>
@@ -202,14 +202,14 @@ export const BetModal: React.FC<BetModalProps> = ({
             <div className="flex gap-3">
               <button
                 onClick={handleCancelBetClick}
-                className="flex-1 py-3.5 px-6 bg-red-100 hover:bg-red-200 rounded-xl font-bold text-red-700 transition-colors"
+                className="flex-1 py-3.5 px-6 bg-hot-red/20 hover:bg-hot-red/30 rounded-xl font-bold text-hot-red transition-colors"
               >
                 Cancel Bet
               </button>
               <button
                 onClick={handleConfirm}
                 disabled={isConfirmDisabled}
-                className="flex-1 py-3.5 px-6 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 text-white rounded-xl font-bold transition-all shadow-lg shadow-purple-500/30 hover:shadow-xl hover:shadow-purple-500/40"
+                className="primary-button flex-1"
               >
                 Modify Bet
               </button>
@@ -218,22 +218,22 @@ export const BetModal: React.FC<BetModalProps> = ({
             <div className="flex gap-3">
               <button
                 onClick={onClose}
-                className="flex-1 py-3.5 px-6 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-slate-700 transition-colors"
+                className="flex-1 py-3.5 px-6 bg-disabled hover:bg-disabled/80 rounded-xl font-bold text-text-secondary transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirm}
                 disabled={isConfirmDisabled}
-                className="flex-1 py-3.5 px-6 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-all shadow-lg shadow-purple-500/30 hover:shadow-xl hover:shadow-purple-500/40"
+                className="primary-button flex-1"
               >
                 Confirm Bet
               </button>
             </div>
           )}
           <div className="text-center">
-            <span className="text-sm text-gray-500">
-              Balance: <span className="font-semibold">{balance.toLocaleString()} coins</span>
+            <span className="text-sm text-text-secondary">
+              Balance: <span className="font-semibold text-warm-yellow">{balance.toLocaleString()} coins</span>
             </span>
           </div>
         </div>

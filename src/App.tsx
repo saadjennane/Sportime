@@ -873,7 +873,7 @@ function App() {
   const userBetForModal = modalState.match ? bets.find(b => b.matchId === modalState.match!.id) : undefined;
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-100"><div className="text-2xl font-semibold text-gray-500">Loading...</div></div>;
+    return <div className="min-h-screen flex items-center justify-center bg-deep-navy"><div className="text-2xl font-semibold text-text-secondary">Loading...</div></div>;
   }
 
   // --- Auth Flow Rendering ---
@@ -885,9 +885,9 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-100 via-blue-50 to-pink-100">
+    <div className="main-background">
       {isTestMode && (
-        <div className="bg-yellow-100 text-yellow-800 text-sm text-center py-1 font-semibold shadow-sm">
+        <div className="bg-warm-yellow text-deep-navy text-sm text-center py-1 font-semibold shadow-sm">
           ⚠️ Test Mode Active — Email verification is bypassed
         </div>
       )}

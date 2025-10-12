@@ -52,16 +52,15 @@ export const FantasyPitch: React.FC<FantasyPitchProps> = ({ starters, onSlotClic
 
   return (
     <div
-      className="rounded-2xl p-4 space-y-2 shadow-inner"
-      style={{
-        background: 'linear-gradient(to bottom, #16a34a, #15803d)',
-        backgroundImage: "url('https://www.transparenttextures.com/patterns/large-leather.png'), linear-gradient(to bottom, #16a34a, #15803d)",
-      }}
+      className="rounded-2xl p-4 space-y-2 shadow-inner bg-deep-navy relative overflow-hidden"
     >
-      {renderRow('Attacker', currentFormation.Attacker)}
-      {renderRow('Midfielder', currentFormation.Midfielder)}
-      {renderRow('Defender', currentFormation.Defender)}
-      {renderRow('Goalkeeper', currentFormation.Goalkeeper)}
+      <div className="absolute inset-0 bg-center bg-no-repeat bg-contain opacity-10" style={{backgroundImage: "url('https://i.imgur.com/sC4a7fD.png')"}}></div>
+      <div className="relative">
+        {renderRow('Attacker', currentFormation.Attacker)}
+        {renderRow('Midfielder', currentFormation.Midfielder)}
+        {renderRow('Defender', currentFormation.Defender)}
+        {renderRow('Goalkeeper', currentFormation.Goalkeeper)}
+      </div>
     </div>
   );
 };

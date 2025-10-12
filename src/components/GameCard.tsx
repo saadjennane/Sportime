@@ -13,9 +13,9 @@ interface GameCardProps {
 }
 
 const gameTypeDetails = {
-  betting: { tag: 'Betting', color: 'bg-purple-200 text-purple-800' },
-  prediction: { tag: 'Prediction', color: 'bg-blue-200 text-blue-800' },
-  fantasy: { tag: 'Fantasy', color: 'bg-emerald-200 text-emerald-800' },
+  betting: { tag: 'Betting', color: 'bg-electric-blue/20 text-electric-blue' },
+  prediction: { tag: 'Prediction', color: 'bg-neon-cyan/20 text-neon-cyan' },
+  fantasy: { tag: 'Fantasy', color: 'bg-lime-glow/20 text-lime-glow' },
 };
 
 export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoin, onPlay, onShowRules }) => {
@@ -33,46 +33,46 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoin, onPl
   const currentCta = ctaConfig[ctaState];
 
   const buttonStyles = {
-    primary: 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-md hover:shadow-lg',
-    secondary: 'bg-transparent border-2 border-purple-300 text-purple-700 hover:bg-purple-50',
-    disabled: 'bg-gray-200 text-gray-500 cursor-not-allowed',
+    primary: 'primary-button text-sm py-2 px-4',
+    secondary: 'bg-transparent border-2 border-warm-yellow/50 text-warm-yellow hover:bg-warm-yellow/10 text-sm py-2 px-4 rounded-lg',
+    disabled: 'bg-disabled text-text-disabled cursor-not-allowed text-sm py-2 px-4 rounded-lg',
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-4 space-y-3 transition-all hover:shadow-xl">
+    <div className="card-base p-4 space-y-3 transition-all hover:border-neon-cyan/50">
       {/* Top Section */}
       <div className="flex justify-between items-start">
         <div className="flex-1">
-          <h3 className="text-md font-bold text-gray-800 pr-2">{game.name}</h3>
+          <h3 className="text-md font-bold text-text-primary pr-2">{game.name}</h3>
           <div className="flex items-center gap-2 mt-1">
             <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${details.color}`}>
               {details.tag}
             </span>
           </div>
         </div>
-        <span className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${game.status === 'Upcoming' ? 'bg-blue-100 text-blue-800' : game.status === 'Ongoing' ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-700'}`}>
+        <span className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${game.status === 'Upcoming' ? 'bg-electric-blue/20 text-electric-blue' : game.status === 'Ongoing' ? 'bg-lime-glow/20 text-lime-glow' : 'bg-disabled text-text-disabled'}`}>
           {game.status}
         </span>
       </div>
 
       {/* Middle Section - Date & Players */}
-      <div className="flex items-center justify-between text-sm text-gray-500 border-t border-gray-100 pt-3">
+      <div className="flex items-center justify-between text-sm text-text-secondary border-t border-white/10 pt-3">
         <div className="flex items-center gap-2">
           <Calendar size={14} />
           <span>{format(parseISO(game.startDate), 'MMM d')} - {format(parseISO(game.endDate), 'MMM d')}</span>
         </div>
-        <div className="flex items-center gap-1 text-xs text-gray-500">
+        <div className="flex items-center gap-1 text-xs">
           <Users size={14} />
           <span>{game.totalPlayers.toLocaleString()} players</span>
         </div>
       </div>
       
       {/* Bottom Section - Actions */}
-      <div className="flex items-center justify-between border-t border-gray-100 pt-3 gap-2">
+      <div className="flex items-center justify-between border-t border-white/10 pt-3 gap-2">
         {onShowRules && (
           <button
             onClick={onShowRules}
-            className="flex items-center justify-center gap-2 font-semibold py-2 px-4 rounded-lg transition-all text-sm bg-gray-100 text-gray-600 hover:bg-gray-200"
+            className="flex items-center justify-center gap-2 font-semibold py-2 px-4 rounded-lg transition-all text-sm bg-navy-accent text-text-secondary hover:bg-white/10"
           >
             <Info size={16} />
             Rules
@@ -82,12 +82,12 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoin, onPl
         <button 
           onClick={currentCta.onClick} 
           disabled={currentCta.disabled} 
-          className={`flex-1 flex items-center justify-center gap-2 font-bold py-2 px-4 rounded-lg transition-all text-sm ${buttonStyles[currentCta.style]}`}
+          className={`flex-1 flex items-center justify-center gap-2 font-bold rounded-lg transition-all ${buttonStyles[currentCta.style]}`}
         >
           {ctaState === 'JOIN' ? (
             <>
               <span className="font-bold">{game.entryCost}</span>
-              <Coins size={16} className="text-amber-300" />
+              <Coins size={16} className="text-warm-yellow" />
               <span>to Join</span>
             </>
           ) : (

@@ -133,11 +133,11 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
 
   return (
     <div className="space-y-4">
-      <div className="flex bg-gray-200 rounded-xl p-1 mb-4">
+      <div className="flex bg-navy-accent rounded-xl p-1">
         <button
           onClick={() => setActiveTab('all')}
           className={`flex-1 flex items-center justify-center gap-2 p-2 rounded-lg font-semibold transition-all ${
-            activeTab === 'all' ? 'bg-white shadow text-purple-700' : 'text-gray-600'
+            activeTab === 'all' ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'
           }`}
         >
           <Gamepad2 size={16} /> All Games
@@ -145,14 +145,14 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
         <button
           onClick={() => setActiveTab('my')}
           className={`flex-1 flex items-center justify-center gap-2 p-2 rounded-lg font-semibold transition-all ${
-            activeTab === 'my' ? 'bg-white shadow text-purple-700' : 'text-gray-600'
+            activeTab === 'my' ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'
           }`}
         >
           <UserCheck size={16} />
           <span>My Games</span>
           {myGamesCount > 0 && (
             <span className={`ml-1.5 text-xs font-bold px-2 py-0.5 rounded-full transition-colors ${
-                activeTab === 'my' ? 'bg-purple-100 text-purple-700' : 'bg-gray-300 text-gray-600'
+                activeTab === 'my' ? 'bg-neon-cyan/20 text-neon-cyan' : 'bg-disabled text-text-disabled'
             }`}>
               {myGamesCount}
             </span>
@@ -161,13 +161,13 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
       </div>
 
       {baseFilteredGames.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-lg p-8 text-center animate-scale-in">
+        <div className="card-base p-8 text-center animate-scale-in">
           <div className="text-6xl mb-4">🤷</div>
-          <p className="text-gray-600 font-medium">
+          <p className="text-text-secondary font-medium">
             {activeTab === 'my' ? "You haven't played any games yet." : "No games available."}
           </p>
           {activeTab === 'my' && (
-            <p className="text-sm text-gray-500 mt-2">Go to "All Games" to join one!</p>
+            <p className="text-sm text-text-disabled mt-2">Go to "All Games" to join one!</p>
           )}
         </div>
       ) : (
@@ -179,25 +179,25 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
           )}
 
           {finishedGames.length > 0 && (
-            <div className="bg-white rounded-2xl shadow-lg p-4 mt-4">
+            <div className="card-base p-4 mt-4">
               <button
                 onClick={() => setIsFinishedVisible(!isFinishedVisible)}
                 className="w-full flex justify-between items-center text-left"
               >
                 <div className="flex items-center gap-3">
-                  <h3 className="text-lg font-bold text-gray-700">Finished Challenges</h3>
-                  <span className="bg-gray-200 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">
+                  <h3 className="text-lg font-bold text-text-secondary">Finished Challenges</h3>
+                  <span className="bg-disabled text-text-disabled text-xs font-bold px-2.5 py-1 rounded-full">
                     {finishedGames.length}
                   </span>
                 </div>
                 <ChevronDown
-                  className={`w-6 h-6 text-gray-500 transition-transform duration-300 ${
+                  className={`w-6 h-6 text-text-disabled transition-transform duration-300 ${
                     isFinishedVisible ? 'rotate-180' : ''
                   }`}
                 />
               </button>
               {isFinishedVisible && (
-                <div className="mt-4 space-y-4 border-t pt-4 animate-scale-in">
+                <div className="mt-4 space-y-4 border-t border-white/10 pt-4 animate-scale-in">
                   {finishedGames.map(renderGameCard)}
                 </div>
               )}
