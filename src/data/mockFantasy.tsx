@@ -37,6 +37,7 @@ export const mockFantasyGame: FantasyGame = {
   endDate: addDays(today, 2).toISOString(),
   entryCost: 1500,
   totalPlayers: 25000,
+  is_linkable: true,
   gameWeeks: [
     { 
       id: 'gw-past-4', 
@@ -95,7 +96,7 @@ export const mockFantasyGame: FantasyGame = {
 };
 
 const userFantasyTeam_GW1: UserFantasyTeam = {
-  userId: 'mock-user-saad-jennane',
+  userId: 'user-1',
   gameId: 'fantasy-1',
   gameWeekId: 'gw0', // MatchDay 5
   starters: ['p12', 'p3', 'p7', 'p9', 'p8', 'p10', 'p11'], // No stars for the bonus
@@ -106,7 +107,7 @@ const userFantasyTeam_GW1: UserFantasyTeam = {
 };
 
 const userFantasyTeam_GW2: UserFantasyTeam = {
-  userId: 'mock-user-saad-jennane',
+  userId: 'user-1',
   gameId: 'fantasy-1',
   gameWeekId: 'gw1', // MatchDay 6
   starters: ['p4', 'p3', 'p7', 'p9', 'p2', 'p5', 'p6'], // 1 GK, 3 DEF, 2 MID, 1 FWD

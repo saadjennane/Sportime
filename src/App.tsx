@@ -7,7 +7,7 @@ import { mockMatches } from './data/mockMatches';
 import { mockChallenges, mockChallengeMatches } from './data/mockChallenges';
 import { mockSwipeMatchDays } from './data/mockSwipeGames';
 import { mockFantasyGame, mockFantasyPlayers, mockUserFantasyTeams } from './data/mockFantasy.tsx';
-import { Match, Bet, Challenge, ChallengeMatch, UserChallengeEntry, ChallengeStatus, DailyChallengeEntry, BoosterSelection, SwipeMatchDay, UserSwipeEntry, SwipePredictionOutcome, Profile, LevelConfig, Badge, UserBadge, FantasyGame, UserFantasyTeam, FantasyPlayer, ChallengeBet, UserLeague, LeagueMember } from './types';
+import { Match, Bet, Challenge, ChallengeMatch, UserChallengeEntry, ChallengeStatus, DailyChallengeEntry, BoosterSelection, SwipeMatchDay, UserSwipeEntry, SwipePredictionOutcome, Profile, LevelConfig, Badge, UserBadge, FantasyGame, UserFantasyTeam, FantasyPlayer, ChallengeBet, UserLeague, LeagueMember, LeagueGame, Game } from './types';
 import UpcomingPage from './pages/Upcoming';
 import PlayedPage from './pages/Played';
 import AdminPage from './pages/Admin';
@@ -38,6 +38,7 @@ import { CreateLeagueModal } from './components/leagues/CreateLeagueModal';
 import { ConfirmationModal } from './components/leagues/ConfirmationModal';
 import { mockUserLeagues } from './data/mockUserLeagues';
 import { mockLeagueMembers } from './data/mockLeagueMembers';
+import { mockLeagueGames } from './data/mockLeagueGames';
 
 
 export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'leagues';
@@ -64,7 +65,7 @@ function App() {
   const [showSignUpPrompt, setShowSignUpPrompt] = useState(false);
   const [isTestMode, setIsTestMode] = useState(false);
 
-  const [page, setPage] = useState<Page>('challenges');
+  const [page, setPage] = useState<Page>('leagues');
   const [matches, setMatches] = useState<Match[]>(mockMatches);
   const [bets, setBets] = useState<Bet[]>([]);
   const [modalState, setModalState] = useState<{ isOpen: boolean; match: Match | null; prediction: 'teamA' | 'draw' | 'teamB' | null; odds: number; }>({ isOpen: false, match: null, prediction: null, odds: 0 });
@@ -87,6 +88,7 @@ function App() {
   // --- League State ---
   const [userLeagues, setUserLeagues] = useState<UserLeague[]>(mockUserLeagues);
   const [leagueMembers, setLeagueMembers] = useState<LeagueMember[]>(mockLeagueMembers);
+  const [leagueGames, setLeagueGames] = useState<LeagueGame[]>(mockLeagueGames);
   const [activeLeagueId, setActiveLeagueId] = useState<string | null>(null);
   const [joinLeagueCode, setJoinLeagueCode] = useState<string | null>(null);
   const [showCreateLeagueModal, setShowCreateLeagueModal] = useState(false);
@@ -103,6 +105,7 @@ function App() {
   const [joinSwipeGameModalState, setJoinSwipeGameModalState] = useState<{ isOpen: boolean; game: SwipeMatchDay | null; }>({ isOpen: false, game: null });
   const [hasSeenSwipeTutorial, setHasSeenSwipeTutorial] = useState(false);
   const [swipeGameViewMode, setSwipeGameViewMode] = useState<'swiping' | 'recap'>('swiping');
+  const [leaderboardContext, setLeaderboardContext] = useState<{ leagueId: string, leagueName: string } | null>(null);
 
   // Effect for static data (runs once)
   useEffect(() => {
@@ -148,24 +151,12 @@ function App() {
             const user: Profile = JSON.parse(storedUserJson);
             setProfile(user);
             setAuthFlow(user.is_guest ? 'guest' : 'authenticated');
-            if (!user.is_guest) {
-                const userInDb = allUsers.find(u => u.id === user.id);
-                if (!userInDb) setAllUsers(prev => [...prev, user]);
-            }
         } else {
-            const guestId = `guest-${uuidv4()}`;
-            const guestProfile: Profile = {
-                id: guestId,
-                username: 'Guest',
-                coins_balance: 1000,
-                created_at: new Date().toISOString(),
-                is_guest: true,
-                verified: false,
-                email: null,
-            };
-            localStorage.setItem('sportime_user', JSON.stringify(guestProfile));
-            setProfile(guestProfile);
-            setAuthFlow('guest');
+            // MODIFICATION FOR MVP: Default to an authenticated user for testing leagues
+            const defaultUser = mockUsers.find(u => u.id === 'user-1')!;
+            localStorage.setItem('sportime_user', JSON.stringify(defaultUser));
+            setProfile(defaultUser);
+            setAuthFlow('authenticated');
         }
         const seenTutorial = localStorage.getItem('sportime_seen_swipe_tutorial');
         if (seenTutorial) {
@@ -674,6 +665,36 @@ function App() {
       addToast('Invite code has been reset.', 'success');
   };
 
+  const handleLinkGameToLeague = (leagueId: string, game: Game) => {
+    if (!profile) return;
+    const membersOfLeague = leagueMembers.filter(m => m.league_id === leagueId);
+    const newLinkedGame: LeagueGame = {
+      id: `lg-${uuidv4()}`,
+      league_id: leagueId,
+      game_id: game.id,
+      game_name: game.name,
+      type: game.gameType === 'betting' ? 'Betting' : game.gameType === 'prediction' ? 'Prediction' : 'Fantasy',
+      members_joined: 1, // The admin just linked it
+      members_total: membersOfLeague.length,
+      user_rank_in_league: 1, // Placeholder
+      user_rank_global: game.totalPlayers + 1, // Placeholder
+      total_players_global: game.totalPlayers + 1,
+    };
+    setLeagueGames(prev => [...prev, newLinkedGame]);
+    addToast(`"${game.name}" linked to your league!`, 'success');
+  };
+
+  const handleViewLeagueGame = (gameId: string, gameType: 'Fantasy' | 'Prediction' | 'Betting', leagueId: string, leagueName: string) => {
+    setLeaderboardContext({ leagueId, leagueName });
+    if (gameType === 'Betting') {
+      setViewingLeaderboardFor(gameId);
+    } else if (gameType === 'Prediction') {
+      setViewingSwipeLeaderboardFor(gameId);
+    } else if (gameType === 'Fantasy') {
+      setActiveFantasyGameId(gameId);
+    }
+  };
+
   const handlePageChange = (newPage: Page) => {
     if ((newPage === 'profile' || newPage === 'leagues') && profile?.is_guest) {
         handleTriggerSignUp();
@@ -687,6 +708,7 @@ function App() {
     setActiveFantasyGameId(null);
     setActiveLeagueId(null);
     setJoinLeagueCode(null);
+    setLeaderboardContext(null);
   }
 
   // --- Admin Test Mode Handlers ---
@@ -723,6 +745,11 @@ function App() {
     return activeChallengeCount + activeSwipeGameCount + activeFantasyGameCount;
   }, [profile, userChallengeEntries, userSwipeEntries, userFantasyTeams, challenges, swipeMatchDays, fantasyGames]);
 
+  const linkableGames = useMemo(() => {
+    const allOfficialGames: Game[] = [...challenges, ...swipeMatchDays, ...fantasyGames];
+    return allOfficialGames.filter(g => g.is_linkable);
+  }, [challenges, swipeMatchDays, fantasyGames]);
+
   const renderPage = () => {
     if (joinLeagueCode) {
         const leagueToJoin = userLeagues.find(l => l.invite_code === joinLeagueCode);
@@ -740,11 +767,13 @@ function App() {
       const challenge = challenges.find(c => c.id === viewingLeaderboardFor);
       const userEntry = userChallengeEntries.find(e => e.challengeId === viewingLeaderboardFor);
       if (challenge && userEntry) {
+        const leagueMembersForContext = leaderboardContext ? allUsers.filter(u => leagueMembers.some(lm => lm.league_id === leaderboardContext.leagueId && lm.user_id === u.id)) : [];
         return <LeaderboardPage
           challenge={challenge}
           matches={challengeMatches}
           userEntry={userEntry}
-          onBack={() => setViewingLeaderboardFor(null)}
+          onBack={() => { setViewingLeaderboardFor(null); setLeaderboardContext(null); }}
+          leagueContext={leaderboardContext ? { ...leaderboardContext, members: leagueMembersForContext } : undefined}
         />;
       }
     }
@@ -771,10 +800,12 @@ function App() {
       const matchDay = swipeMatchDays.find(md => md.id === viewingSwipeLeaderboardFor);
       const userEntry = userSwipeEntries.find(e => e.matchDayId === viewingSwipeLeaderboardFor);
       if (matchDay && userEntry) {
+        const leagueMembersForContext = leaderboardContext ? allUsers.filter(u => leagueMembers.some(lm => lm.league_id === leaderboardContext.leagueId && lm.user_id === u.id)) : [];
         return <SwipeLeaderboardPage
           matchDay={matchDay}
           userEntry={userEntry}
-          onBack={() => setViewingSwipeLeaderboardFor(null)}
+          onBack={() => { setViewingSwipeLeaderboardFor(null); setLeaderboardContext(null); }}
+          leagueContext={leaderboardContext ? { ...leaderboardContext, members: leagueMembersForContext } : undefined}
         />;
       }
     }
@@ -813,11 +844,13 @@ function App() {
     if (activeFantasyGameId) {
       const game = fantasyGames.find(g => g.id === activeFantasyGameId);
       if (game) {
+        const leagueMembersForContext = leaderboardContext ? allUsers.filter(u => leagueMembers.some(lm => lm.league_id === leaderboardContext.leagueId && lm.user_id === u.id)) : [];
         return <FantasyGameWeekPage
           game={game}
           userTeams={userFantasyTeams}
           allPlayers={fantasyPlayers}
-          onBack={() => setActiveFantasyGameId(null)}
+          onBack={() => { setActiveFantasyGameId(null); setLeaderboardContext(null); }}
+          leagueContext={leaderboardContext ? { ...leaderboardContext, members: leagueMembersForContext } : undefined}
         />;
       }
     }
@@ -840,6 +873,10 @@ function App() {
                 onResetInviteCode={handleResetInviteCode}
                 onLeave={() => setModalAction({type: 'leave', leagueId: league.id})}
                 onDelete={() => setModalAction({type: 'delete', leagueId: league.id})}
+                leagueGames={leagueGames}
+                linkableGames={linkableGames}
+                onLinkGame={handleLinkGameToLeague}
+                onViewGame={(gameId, gameType) => handleViewLeagueGame(gameId, gameType, league.id, league.name)}
             />;
         }
     }

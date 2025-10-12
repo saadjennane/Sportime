@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { FantasyGame, UserFantasyTeam, FantasyPlayer, PlayerPosition, Booster } from '../types';
+import { FantasyGame, UserFantasyTeam, FantasyPlayer, PlayerPosition, Booster, Profile } from '../../types';
 import { ScrollText, Trophy, X, Check, Target, ArrowLeft } from 'lucide-react';
 import { FantasyPlayerModal } from '../components/FantasyPlayerModal';
 import { FantasyLeaderboardModal } from '../components/FantasyLeaderboardModal';
@@ -23,9 +23,10 @@ interface FantasyGameWeekPageProps {
   userTeams: UserFantasyTeam[];
   allPlayers: FantasyPlayer[];
   onBack: () => void;
+  leagueContext?: { leagueId: string; leagueName: string; members: Profile[] };
 }
 
-export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = ({ game, userTeams: initialUserTeams, allPlayers: initialPlayers, onBack }) => {
+export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = ({ game, userTeams: initialUserTeams, allPlayers: initialPlayers, onBack, leagueContext }) => {
   const allPlayers = useMemo(() => updateAllPlayerStatuses(initialPlayers, mockPlayerLast10Stats), [initialPlayers]);
 
   const [selectedMatchDayId, setSelectedMatchDayId] = useState(game.gameWeeks.find(gw => gw.status === 'live')?.id || game.gameWeeks.find(gw => gw.status === 'upcoming')?.id || game.gameWeeks[0].id);
@@ -191,7 +192,7 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = ({ game, 
 
   return (
     <div className="space-y-4 pb-28">
-      <button onClick={onBack} className="flex items-center gap-2 text-sm text-gray-600 font-semibold hover:text-purple-700">
+      <button onClick={onBack} className="flex items-center gap-2 text-sm text-text-secondary font-semibold hover:text-electric-blue">
         <ArrowLeft size={18} />
         Back to Games
       </button>
@@ -199,17 +200,17 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = ({ game, 
       {/* 1. TOP SECTION */}
       <div className="flex justify-between items-start">
         <div>
-          <h2 className="text-xl font-bold text-gray-800">{game.name}</h2>
-          <p className="text-sm font-semibold text-gray-500">{selectedGameWeek.name}</p>
+          <h2 className="text-xl font-bold text-text-primary">{game.name}</h2>
+          <p className="text-sm font-semibold text-text-secondary">{selectedGameWeek.name}</p>
           <div className="flex items-center gap-2 mt-1">
             {selectedLeagues.map(league => <img key={league.id} src={league.logo} alt={league.name} className="w-5 h-5" title={league.name} />)}
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setIsRulesModalOpen(true)} className="p-2 bg-white rounded-lg shadow-sm text-gray-600 hover:text-purple-600">
+          <button onClick={() => setIsRulesModalOpen(true)} className="p-2 bg-navy-accent rounded-lg shadow-sm text-text-secondary hover:text-electric-blue">
             <ScrollText size={20} />
           </button>
-          <button onClick={() => setIsLeaderboardOpen(true)} className="flex items-center gap-1.5 p-2 bg-white rounded-lg shadow-sm text-gray-600 hover:text-purple-600">
+          <button onClick={() => setIsLeaderboardOpen(true)} className="flex items-center gap-1.5 p-2 bg-navy-accent rounded-lg shadow-sm text-text-secondary hover:text-electric-blue">
             <Trophy size={20} />
             <span className="text-xs font-bold">3k/12k</span>
           </button>
@@ -227,20 +228,20 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = ({ game, 
 
       {/* 3. DEADLINE/LIVE INFOBULE */}
       {isLive ? (
-        <div className="text-center text-sm font-bold p-2 rounded-lg bg-red-100 text-red-600 flex items-center justify-center gap-2">
+        <div className="text-center text-sm font-bold p-2 rounded-lg bg-hot-red/20 text-hot-red flex items-center justify-center gap-2">
             <span className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-hot-red/70 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-hot-red"></span>
             </span>
             LIVE
         </div>
       ) : isFinished ? (
-         <div className="text-center text-sm font-bold p-2 rounded-lg bg-green-100 text-green-700 flex items-center justify-center gap-2">
+         <div className="text-center text-sm font-bold p-2 rounded-lg bg-lime-glow/20 text-lime-glow flex items-center justify-center gap-2">
             <Check size={16} />
             Game Week Finished
         </div>
       ) : (
-        <div className="text-center text-xs font-semibold p-2 rounded-lg bg-gray-100 text-gray-600">
+        <div className="text-center text-xs font-semibold p-2 rounded-lg bg-navy-accent text-text-secondary">
           Team edit available until deadline
         </div>
       )}
@@ -282,7 +283,7 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = ({ game, 
       {!isLiveOrFinished && (
         <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
           {selectedBooster ? (
-            <div className="flex items-center justify-center gap-2 font-semibold py-3 rounded-xl shadow-lg transition-all bg-gradient-to-r from-yellow-400 to-orange-500 text-white">
+            <div className="flex items-center justify-center gap-2 font-semibold py-3 rounded-xl shadow-lg transition-all bg-gradient-to-r from-warm-yellow to-orange-500 text-white">
               {React.cloneElement(selectedBooster.icon, { size: 20 })}
               <span>{selectedBooster.name}</span>
               <button 
@@ -298,7 +299,7 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = ({ game, 
             <button 
               onClick={() => setIsBoosterModalOpen(true)} 
               disabled={isLiveOrFinished || remainingBoosters.length === 0}
-              className="flex items-center justify-center gap-2 font-semibold py-3 rounded-xl shadow-lg transition-all disabled:bg-gray-200 disabled:text-gray-500 disabled:opacity-70 bg-white hover:bg-gray-50"
+              className="flex items-center justify-center gap-2 font-semibold py-3 rounded-xl shadow-lg transition-all disabled:bg-disabled disabled:text-text-disabled disabled:opacity-70 bg-navy-accent hover:bg-white/10"
             >
               <Target size={18} /> 
               <span>Booster ({remainingBoosters.length})</span>
@@ -309,7 +310,7 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = ({ game, 
               onClick={handleConfirmTeam}
               disabled={!areConditionsMet || isTeamConfirmed}
               title={!areConditionsMet ? "Complete all mandatory conditions first." : isTeamConfirmed ? "Your team is already confirmed." : "Submit your final team."}
-              className="flex-1 flex items-center justify-center gap-2 font-semibold py-3 rounded-xl shadow-lg transition-all bg-gradient-to-r from-purple-600 to-blue-600 text-white disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed"
+              className="flex-1 flex items-center justify-center gap-2 font-semibold py-3 rounded-xl shadow-lg transition-all primary-button"
           >
             {isTeamConfirmed ? <><Check size={18} /> Team Confirmed</> : <><Check size={18} /> Confirm Team</>}
           </button>
@@ -324,7 +325,7 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = ({ game, 
         allPlayers={allPlayers} 
         onSelectPlayer={handleSelectPlayerFromModal} 
       />
-      <FantasyLeaderboardModal isOpen={isLeaderboardOpen} onClose={() => setIsLeaderboardOpen(false)} gameWeekName={selectedGameWeek.name} />
+      <FantasyLeaderboardModal isOpen={isLeaderboardOpen} onClose={() => setIsLeaderboardOpen(false)} gameWeekName={selectedGameWeek.name} leagueContext={leagueContext} />
       <BoosterSelectionModal isOpen={isBoosterModalOpen} onClose={() => setIsBoosterModalOpen(false)} boosters={mockBoosters} onSelect={handleBoosterSelect} />
       <FantasyRulesModal isOpen={isRulesModalOpen} onClose={() => setIsRulesModalOpen(false)} />
     </div>

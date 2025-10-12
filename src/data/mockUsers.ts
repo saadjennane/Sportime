@@ -1,5 +1,42 @@
 import { Profile } from '../types';
 
-// This will now act as our "database" of registered users.
-// It starts empty, and users are added upon completing the Magic Link step.
-export const mockUsers: Profile[] = [];
+export const mockUsers: Profile[] = [
+    {
+        id: 'user-1',
+        username: 'saadjennane',
+        coins_balance: 5000,
+        created_at: new Date().toISOString(),
+        is_guest: false,
+        verified: true,
+        email: 'saad.jennane@example.com',
+        profile_picture_url: 'https://i.pravatar.cc/150?u=a042581f4e29026704e',
+        level: 'Pro',
+        xp: 2500,
+        favorite_club: 'team-1',
+        favorite_national_team: 'France',
+    },
+    {
+        id: 'user-2',
+        username: 'JaneDoe',
+        coins_balance: 2500,
+        created_at: new Date().toISOString(),
+        is_guest: false,
+        verified: true,
+        email: 'jane.doe@example.com',
+        profile_picture_url: 'https://i.pravatar.cc/150?u=a042581f4e29026704d',
+        level: 'Amateur',
+        xp: 500,
+    },
+    {
+        id: 'user-3',
+        username: 'AlexRay',
+        coins_balance: 10000,
+        created_at: new Date().toISOString(),
+        is_guest: false,
+        verified: true,
+        email: 'alex.ray@example.com',
+        profile_picture_url: 'https://i.pravatar.cc/150?u=a042581f4e29026704c',
+        level: 'Expert',
+        xp: 6000,
+    }
+];

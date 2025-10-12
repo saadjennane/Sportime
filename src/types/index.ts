@@ -44,6 +44,7 @@ export interface Game {
   entryCost: number;
   totalPlayers: number;
   gameType: 'betting' | 'prediction' | 'fantasy';
+  is_linkable?: boolean;
 }
 
 export interface BettingChallenge extends Game {
@@ -291,6 +292,19 @@ export interface LeagueMember {
   user_id: string;
   role: 'admin' | 'member';
   joined_at: string;
+}
+
+export interface LeagueGame {
+  id: string;
+  league_id: string;
+  game_id: string;
+  game_name: string;
+  type: 'Fantasy' | 'Prediction' | 'Betting';
+  members_joined: number;
+  members_total: number;
+  user_rank_in_league: number;
+  user_rank_global: number;
+  total_players_global: number;
 }
 
 

@@ -42,6 +42,7 @@ export const mockSwipeMatchDays: SwipeMatchDay[] = [
     startDate: '2025-08-01',
     endDate: '2025-08-01',
     totalPlayers: 8192,
+    is_linkable: true,
   },
   {
     id: 'swipe-2',

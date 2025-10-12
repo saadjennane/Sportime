@@ -11,6 +11,7 @@ export const mockChallenges: Challenge[] = [
     challengeBalance: 1000,
     status: 'Upcoming',
     totalPlayers: 5821,
+    is_linkable: true,
   },
   {
     id: 'challenge-1',
@@ -33,6 +34,7 @@ export const mockChallenges: Challenge[] = [
     challengeBalance: 1000,
     status: 'Ongoing',
     totalPlayers: 8254,
+    is_linkable: true,
   },
   {
     id: 'challenge-3',
