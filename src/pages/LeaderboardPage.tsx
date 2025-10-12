@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Challenge, ChallengeMatch, UserChallengeEntry, LeaderboardEntry, Profile, UserLeague, LeagueMember, LeagueGame } from '../types';
+import { Challenge, ChallengeMatch, UserChallengeEntry, LeaderboardEntry, Profile, UserLeague, LeagueMember, LeagueGame, DailyChallengeEntry } from '../types';
 import { Leaderboard } from '../components/Leaderboard';
 import { ArrowLeft } from 'lucide-react';
 import { LeaderboardLeagueSwitcher } from '../components/leagues/LeaderboardLeagueSwitcher';
@@ -7,7 +7,7 @@ import { LeaderboardLeagueSwitcher } from '../components/leagues/LeaderboardLeag
 interface LeaderboardPageProps {
   challenge: Challenge;
   matches: ChallengeMatch[];
-  userEntry: UserChallengeEntry;
+  userEntry?: UserChallengeEntry;
   onBack: () => void;
   initialLeagueContext?: { leagueId: string; leagueName: string; fromLeague?: boolean };
   allUsers: Profile[];
@@ -48,24 +48,28 @@ const LeaderboardPage: React.FC<LeaderboardPageProps> = (props) => {
 
   const fullLeaderboard = useMemo(() => {
     const otherUsers = allUsers.filter(u => u.id !== currentUserId);
-    const userPoints = calculateChallengePoints(userEntry, matches);
-    const userFinalCoins = challenge.challengeBalance + userPoints;
+    const allEntries: Omit<LeaderboardEntry, 'rank'>[] = [];
 
-    const allEntries: Omit<LeaderboardEntry, 'rank'>[] = [
-      { username: 'You', finalCoins: userFinalCoins, points: userPoints, userId: currentUserId },
-      ...otherUsers.map(user => {
+    if (userEntry) {
+      const userPoints = calculateChallengePoints(userEntry, matches);
+      const userFinalCoins = challenge.challengeBalance + userPoints;
+      allEntries.push({ username: 'You', finalCoins: userFinalCoins, points: userPoints, userId: currentUserId });
+    }
+
+    otherUsers.forEach(user => {
+        const mockDailyEntries: DailyChallengeEntry[] = challenge.status === 'Finished'
+            ? matches.map(m => ({ day: m.day, bets: [{ challengeMatchId: m.id, prediction: 'teamA', amount: 100 }] }))
+            : [];
+        
         const mockEntry: UserChallengeEntry = {
-          ...userEntry,
-          dailyEntries: userEntry.dailyEntries.map(de => ({
-            ...de,
-            bets: de.bets.map(b => ({ ...b, prediction: ['teamA', 'draw', 'teamB'][Math.floor(Math.random() * 3)] as 'teamA'|'draw'|'teamB' }))
-          }))
+            challengeId: challenge.id,
+            dailyEntries: mockDailyEntries.filter((value, index, self) => self.findIndex(t => t.day === value.day) === index)
         };
-        const points = calculateChallengePoints(mockEntry, matches);
+
+        const points = calculateChallengePoints(mockEntry, matches) + Math.floor(Math.random() * 500 - 250);
         const finalCoins = challenge.challengeBalance + points;
-        return { username: user.username || 'Player', finalCoins, points, userId: user.id };
-      })
-    ];
+        allEntries.push({ username: user.username || 'Player', finalCoins, points, userId: user.id });
+    });
 
     return allEntries
       .sort((a, b) => b.points - a.points)

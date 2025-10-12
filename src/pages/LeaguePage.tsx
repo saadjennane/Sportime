@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Profile, UserLeague, LeagueMember, Game, LeagueGame } from '../../types';
-import { ArrowLeft, Users, Settings, Link, Gamepad2, Plus } from 'lucide-react';
+import { ArrowLeft, Users, Settings, Link, Gamepad2, Plus, ChevronDown, Folder, FolderOpen } from 'lucide-react';
 import { LeagueInviteModal } from '../components/leagues/LeagueInviteModal';
 import { LeagueManageModal } from '../components/leagues/LeagueManageModal';
 import { LeagueGameCard } from '../components/leagues/LeagueGameCard';
 import { LinkGameModal } from '../components/leagues/LinkGameModal';
+import { useMockStore } from '../store/useMockStore';
+import { ConfirmationModal } from '../components/leagues/ConfirmationModal';
+import { AnimatePresence, motion } from 'framer-motion';
 
 interface LeaguePageProps {
   league: UserLeague;
@@ -21,7 +24,9 @@ interface LeaguePageProps {
   onViewGame: (gameId: string, gameType: 'Fantasy' | 'Prediction' | 'Betting') => void;
   onLinkGame: (leagueId: string, game: Game) => void;
   leagueGames: LeagueGame[];
+  allGames: Game[];
   linkableGames: Game[];
+  addToast: (message: string, type: 'success' | 'error' | 'info') => void;
 }
 
 const TabButton: React.FC<{ icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void }> = ({ icon, label, isActive, onClick }) => (
@@ -36,15 +41,39 @@ const TabButton: React.FC<{ icon: React.ReactNode, label: string, isActive: bool
 );
 
 const LeaguePage: React.FC<LeaguePageProps> = (props) => {
-  const { league, members, memberRoles, currentUserRole, currentUserId, onBack, onUpdateDetails, onRemoveMember, onResetInviteCode, onLeave, onDelete, onViewGame, onLinkGame, leagueGames, linkableGames } = props;
+  const { league, members, memberRoles, currentUserRole, currentUserId, onBack, onUpdateDetails, onRemoveMember, onResetInviteCode, onLeave, onDelete, onViewGame, onLinkGame, leagueGames, allGames, linkableGames, addToast } = props;
   
-  const [activeTab, setActiveTab] = useState<'members' | 'games'>('members');
+  const { unlinkGameFromLeague } = useMockStore();
+  const [activeTab, setActiveTab] = useState<'members' | 'games'>('games');
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
   const [isLinkGameModalOpen, setIsLinkGameModalOpen] = useState(false);
+  const [gameToUnlink, setGameToUnlink] = useState<(LeagueGame & { status: Game['status'] }) | null>(null);
+  const [isFinishedOpen, setIsFinishedOpen] = useState(false);
 
   const adminProfile = members.find(m => m.id === league.created_by);
-  const linkedGamesForThisLeague = leagueGames.filter(lg => lg.league_id === league.id);
+
+  const { activeLinkedGames, finishedLinkedGames } = useMemo(() => {
+    const allLinkedGames = leagueGames
+      .filter(lg => lg.league_id === league.id)
+      .map(lg => {
+        const gameDetails = allGames.find(g => g.id === lg.game_id);
+        return { ...lg, status: gameDetails?.status || 'Finished' as Game['status'] };
+      });
+
+    return {
+      activeLinkedGames: allLinkedGames.filter(g => g.status !== 'Finished'),
+      finishedLinkedGames: allLinkedGames.filter(g => g.status === 'Finished'),
+    };
+  }, [leagueGames, league.id, allGames]);
+
+  const handleConfirmUnlink = () => {
+    if (gameToUnlink) {
+      unlinkGameFromLeague(gameToUnlink.game_id, league.id);
+      addToast(`"${gameToUnlink.game_name}" unlinked from ${league.name}`, 'success');
+      setGameToUnlink(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -110,15 +139,44 @@ const LeaguePage: React.FC<LeaguePageProps> = (props) => {
                 <Plus size={16} /> Link a Game
               </button>
             )}
-            {linkedGamesForThisLeague.length > 0 ? (
-              linkedGamesForThisLeague.map(game => (
-                <LeagueGameCard key={game.id} game={game} onView={() => onViewGame(game.game_id, game.type)} />
+            {activeLinkedGames.length > 0 ? (
+              activeLinkedGames.map(game => (
+                <LeagueGameCard key={game.id} game={game} onView={() => onViewGame(game.game_id, game.type)} isAdmin={currentUserRole === 'admin'} onUnlink={() => setGameToUnlink(game)} />
               ))
             ) : (
                <div className="card-base p-8 text-center">
                 <div className="text-6xl mb-4">👾</div>
-                <p className="text-text-secondary font-medium">No games linked to this league yet.</p>
-                {currentUserRole === 'admin' && <p className="text-sm text-text-disabled mt-2">As an admin, you can link official games for your league to compete in!</p>}
+                <p className="text-text-secondary font-medium">No active games linked.</p>
+                {currentUserRole === 'admin' && <p className="text-sm text-text-disabled mt-2">Link a game for your league to compete in!</p>}
+              </div>
+            )}
+
+            {finishedLinkedGames.length > 0 && (
+              <div className="card-base p-4">
+                <button onClick={() => setIsFinishedOpen(!isFinishedOpen)} className="w-full flex justify-between items-center text-left">
+                  <div className="flex items-center gap-3">
+                    {isFinishedOpen ? <FolderOpen size={18} className="text-warm-yellow" /> : <Folder size={18} className="text-text-disabled" />}
+                    <h3 className="text-lg font-bold text-text-secondary">Finished Games</h3>
+                    <span className="bg-disabled text-text-disabled text-xs font-bold px-2.5 py-1 rounded-full">{finishedLinkedGames.length}</span>
+                  </div>
+                  <ChevronDown className={`w-6 h-6 text-text-disabled transition-transform duration-300 ${isFinishedOpen ? 'rotate-180' : ''}`} />
+                </button>
+                <AnimatePresence>
+                  {isFinishedOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-4 space-y-4 border-t border-white/10 pt-4">
+                        {finishedLinkedGames.map(game => (
+                          <LeagueGameCard key={game.id} game={game} onView={() => onViewGame(game.game_id, game.type)} isAdmin={false} />
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             )}
           </div>
@@ -150,7 +208,16 @@ const LeaguePage: React.FC<LeaguePageProps> = (props) => {
             onClose={() => setIsLinkGameModalOpen(false)}
             onLinkGame={(game) => onLinkGame(league.id, game)}
             linkableGames={linkableGames}
-            alreadyLinkedGameIds={linkedGamesForThisLeague.map(g => g.game_id)}
+            alreadyLinkedGameIds={leagueGames.filter(lg => lg.league_id === league.id).map(g => g.game_id)}
+          />
+          <ConfirmationModal
+            isOpen={!!gameToUnlink}
+            onClose={() => setGameToUnlink(null)}
+            onConfirm={handleConfirmUnlink}
+            title="Unlink Game"
+            message={`Are you sure you want to unlink "${gameToUnlink?.game_name}" from your league?`}
+            confirmText="Unlink"
+            isDestructive={true}
           />
         </>
       )}

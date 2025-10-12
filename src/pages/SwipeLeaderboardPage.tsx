@@ -5,7 +5,7 @@ import { LeaderboardLeagueSwitcher } from '../components/leagues/LeaderboardLeag
 
 interface SwipeLeaderboardPageProps {
   matchDay: SwipeMatchDay;
-  userEntry: UserSwipeEntry;
+  userEntry?: UserSwipeEntry;
   onBack: () => void;
   initialLeagueContext?: { leagueId: string; leagueName: string; fromLeague?: boolean };
   allUsers: Profile[];
@@ -39,16 +39,21 @@ const SwipeLeaderboardPage: React.FC<SwipeLeaderboardPageProps> = (props) => {
 
   const fullLeaderboard = useMemo(() => {
     const otherUsers = allUsers.filter(u => u.id !== currentUserId);
-    const userPoints = calculateSwipePoints(userEntry, matchDay);
+    
+    const allEntries: Omit<SwipeLeaderboardEntry, 'rank'>[] = [];
 
-    const allEntries: Omit<SwipeLeaderboardEntry, 'rank'>[] = [
-      { username: 'You', points: userPoints, userId: currentUserId },
-      ...otherUsers.map(user => ({
+    if (userEntry) {
+      const userPoints = calculateSwipePoints(userEntry, matchDay);
+      allEntries.push({ username: 'You', points: userPoints, userId: currentUserId });
+    }
+
+    otherUsers.forEach(user => {
+      allEntries.push({
         username: user.username || 'Player',
-        points: Math.floor(Math.random() * (userPoints + 200)), // Mock points
+        points: Math.floor(Math.random() * 500),
         userId: user.id
-      }))
-    ];
+      });
+    });
 
     return allEntries
       .sort((a, b) => b.points - a.points)
