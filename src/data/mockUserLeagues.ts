@@ -9,6 +9,8 @@ export const mockUserLeagues: UserLeague[] = [
         invite_code: 'WINNERS',
         created_by: 'user-1',
         created_at: new Date().toISOString(),
+        season_start_date: '2025-08-01T00:00:00.000Z',
+        season_end_date: '2026-05-30T00:00:00.000Z',
     },
     {
         id: 'l_002',
@@ -18,5 +20,7 @@ export const mockUserLeagues: UserLeague[] = [
         invite_code: 'CASAFANS',
         created_by: 'user-2',
         created_at: new Date().toISOString(),
+        season_start_date: '2025-08-01T00:00:00.000Z',
+        season_end_date: '2026-05-30T00:00:00.000Z',
     }
 ];

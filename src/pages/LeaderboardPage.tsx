@@ -1,8 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { Challenge, ChallengeMatch, UserChallengeEntry, LeaderboardEntry, Profile, UserLeague, LeagueMember, LeagueGame, DailyChallengeEntry } from '../types';
+import { Challenge, ChallengeMatch, UserChallengeEntry, LeaderboardEntry, Profile, UserLeague, LeagueMember, LeagueGame, DailyChallengeEntry, LeaderboardPeriod } from '../types';
 import { Leaderboard } from '../components/Leaderboard';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Info } from 'lucide-react';
 import { LeaderboardLeagueSwitcher } from '../components/leagues/LeaderboardLeagueSwitcher';
+import { useMockStore } from '../store/useMockStore';
+import { LeaderboardPeriodFilter } from '../components/leagues/LeaderboardPeriodFilter';
+import { format, parseISO, isWithinInterval, addDays } from 'date-fns';
 
 interface LeaderboardPageProps {
   challenge: Challenge;
@@ -44,21 +47,53 @@ const calculateChallengePoints = (entry: UserChallengeEntry, matches: ChallengeM
 const LeaderboardPage: React.FC<LeaderboardPageProps> = (props) => {
   const { challenge, matches, userEntry, onBack, initialLeagueContext, allUsers, userLeagues, leagueMembers, leagueGames, currentUserId } = props;
   
+  const { updateLeagueGameLeaderboardPeriod } = useMockStore();
+  const [loading, setLoading] = useState(false);
   const [activeFilterLeagueId, setActiveFilterLeagueId] = useState<string | null>(initialLeagueContext?.leagueId || null);
+
+  const { leagueGame, currentLeague, isCurrentUserAdmin } = useMemo(() => {
+    if (!activeFilterLeagueId) return { leagueGame: null, currentLeague: null, isCurrentUserAdmin: false };
+    const lg = leagueGames.find(lg => lg.league_id === activeFilterLeagueId && lg.game_id === challenge.id) || null;
+    const cl = userLeagues.find(ul => ul.id === activeFilterLeagueId) || null;
+    const membership = leagueMembers.find(m => m.league_id === activeFilterLeagueId && m.user_id === currentUserId);
+    const isAdmin = membership?.role === 'admin';
+    return { leagueGame: lg, currentLeague: cl, isCurrentUserAdmin: isAdmin };
+  }, [activeFilterLeagueId, leagueGames, challenge.id, userLeagues, leagueMembers, currentUserId]);
+
+  const activePeriod: LeaderboardPeriod | null = useMemo(() => {
+    if (leagueGame?.leaderboard_period) return leagueGame.leaderboard_period;
+    if (currentLeague) {
+      return {
+        start_type: 'season_start', end_type: 'season_end',
+        start_date: currentLeague.season_start_date || challenge.startDate,
+        end_date: currentLeague.season_end_date || challenge.endDate,
+      };
+    }
+    return null;
+  }, [leagueGame, currentLeague, challenge]);
+
+  const filteredMatches = useMemo(() => {
+    if (!activePeriod) return matches;
+    const interval = { start: parseISO(activePeriod.start_date), end: parseISO(activePeriod.end_date) };
+    return matches.filter(match => {
+      const matchDate = addDays(parseISO(challenge.startDate), match.day - 1);
+      return isWithinInterval(matchDate, interval);
+    });
+  }, [matches, activePeriod, challenge.startDate]);
 
   const fullLeaderboard = useMemo(() => {
     const otherUsers = allUsers.filter(u => u.id !== currentUserId);
     const allEntries: Omit<LeaderboardEntry, 'rank'>[] = [];
 
     if (userEntry) {
-      const userPoints = calculateChallengePoints(userEntry, matches);
+      const userPoints = calculateChallengePoints(userEntry, filteredMatches);
       const userFinalCoins = challenge.challengeBalance + userPoints;
       allEntries.push({ username: 'You', finalCoins: userFinalCoins, points: userPoints, userId: currentUserId });
     }
 
     otherUsers.forEach(user => {
         const mockDailyEntries: DailyChallengeEntry[] = challenge.status === 'Finished'
-            ? matches.map(m => ({ day: m.day, bets: [{ challengeMatchId: m.id, prediction: 'teamA', amount: 100 }] }))
+            ? filteredMatches.map(m => ({ day: m.day, bets: [{ challengeMatchId: m.id, prediction: 'teamA', amount: 100 }] }))
             : [];
         
         const mockEntry: UserChallengeEntry = {
@@ -66,7 +101,7 @@ const LeaderboardPage: React.FC<LeaderboardPageProps> = (props) => {
             dailyEntries: mockDailyEntries.filter((value, index, self) => self.findIndex(t => t.day === value.day) === index)
         };
 
-        const points = calculateChallengePoints(mockEntry, matches) + Math.floor(Math.random() * 500 - 250);
+        const points = calculateChallengePoints(mockEntry, filteredMatches) + Math.floor(Math.random() * 500 - 250);
         const finalCoins = challenge.challengeBalance + points;
         allEntries.push({ username: user.username || 'Player', finalCoins, points, userId: user.id });
     });
@@ -74,7 +109,7 @@ const LeaderboardPage: React.FC<LeaderboardPageProps> = (props) => {
     return allEntries
       .sort((a, b) => b.points - a.points)
       .map((entry, index) => ({ ...entry, rank: index + 1 }));
-  }, [userEntry, matches, challenge, allUsers, currentUserId]);
+  }, [userEntry, filteredMatches, challenge, allUsers, currentUserId]);
 
   const displayedLeaderboard = useMemo(() => {
     if (activeFilterLeagueId) {
@@ -83,6 +118,22 @@ const LeaderboardPage: React.FC<LeaderboardPageProps> = (props) => {
     }
     return fullLeaderboard;
   }, [activeFilterLeagueId, leagueMembers, fullLeaderboard]);
+  
+  const handleApplyFilter = (period: LeaderboardPeriod) => {
+    if (leagueGame) {
+      setLoading(true);
+      updateLeagueGameLeaderboardPeriod(leagueGame.id, period);
+      setTimeout(() => setLoading(false), 300);
+    }
+  };
+
+  const challengeEvents = useMemo(() => {
+    const uniqueDays = [...new Set(matches.map(m => m.day))];
+    return uniqueDays.map(day => ({
+      startDate: addDays(parseISO(challenge.startDate), day - 1).toISOString()
+    }));
+  }, [matches, challenge.startDate]);
+
 
   return (
     <div className="animate-scale-in space-y-4">
@@ -98,6 +149,24 @@ const LeaderboardPage: React.FC<LeaderboardPageProps> = (props) => {
         activeLeagueId={activeFilterLeagueId}
         onSelectLeague={setActiveFilterLeagueId}
       />
+      
+      {activePeriod && !isCurrentUserAdmin && (
+        <div className="text-xs text-center text-text-disabled bg-deep-navy/50 p-2 rounded-lg flex items-center justify-center gap-2">
+          <Info size={14} />
+          Showing results from {format(parseISO(activePeriod.start_date), 'MMM d')} to {format(parseISO(activePeriod.end_date), 'MMM d')}
+        </div>
+      )}
+
+      {isCurrentUserAdmin && currentLeague && leagueGame && (
+        <LeaderboardPeriodFilter
+          league={currentLeague}
+          leagueGame={leagueGame}
+          members={leagueMembers.filter(m => m.league_id === currentLeague.id)}
+          events={challengeEvents}
+          onApply={handleApplyFilter}
+          loading={loading}
+        />
+      )}
 
       <Leaderboard challenge={challenge} leaderboard={displayedLeaderboard} />
     </div>

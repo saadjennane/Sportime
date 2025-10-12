@@ -1,4 +1,7 @@
 import { LeagueGame } from '../types';
+import { subDays } from 'date-fns';
+
+const now = new Date();
 
 export const mockLeagueGames: LeagueGame[] = [
   {
@@ -11,7 +14,9 @@ export const mockLeagueGames: LeagueGame[] = [
     members_total: 3,
     user_rank_in_league: 1,
     user_rank_global: 358,
-    total_players_global: 25000
+    total_players_global: 25000,
+    linked_at: subDays(now, 20).toISOString(),
+    leaderboard_period: null,
   },
   {
     id: "lg_02",
@@ -23,7 +28,9 @@ export const mockLeagueGames: LeagueGame[] = [
     members_total: 3,
     user_rank_in_league: 2,
     user_rank_global: 421,
-    total_players_global: 8192
+    total_players_global: 8192,
+    linked_at: subDays(now, 10).toISOString(),
+    leaderboard_period: null,
   },
   {
     id: "lg_03",
@@ -35,6 +42,8 @@ export const mockLeagueGames: LeagueGame[] = [
     members_total: 2,
     user_rank_in_league: 2,
     user_rank_global: 358,
-    total_players_global: 25000
+    total_players_global: 25000,
+    linked_at: subDays(now, 5).toISOString(),
+    leaderboard_period: null,
   }
 ];

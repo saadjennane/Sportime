@@ -9,6 +9,7 @@ import {
   LeagueGame,
   Game,
   Profile,
+  LeaderboardPeriod,
 } from '../types';
 
 // Import mock data
@@ -18,6 +19,7 @@ import { mockFantasyGame } from '../data/mockFantasy.tsx';
 import { mockUserLeagues } from '../data/mockUserLeagues';
 import { mockLeagueMembers } from '../data/mockLeagueMembers';
 import { mockLeagueGames } from '../data/mockLeagueGames';
+import { mockScores } from '../data/mockLeaderboardScores';
 
 interface MockDataState {
   challenges: BettingChallenge[];
@@ -26,6 +28,7 @@ interface MockDataState {
   userLeagues: UserLeague[];
   leagueMembers: LeagueMember[];
   leagueGames: LeagueGame[];
+  leaderboardScores: typeof mockScores;
 }
 
 interface MockDataActions {
@@ -33,6 +36,7 @@ interface MockDataActions {
   linkGameToLeagues: (game: Game, leagueIds: string[]) => { linkedLeagueNames: string[] };
   createLeagueAndLink: (name: string, description: string, gameToLink: Game, profile: Profile) => void;
   unlinkGameFromLeague: (gameId: string, leagueId: string) => void;
+  updateLeagueGameLeaderboardPeriod: (leagueGameId: string, period: LeaderboardPeriod) => void;
 }
 
 export const useMockStore = create<MockDataState & MockDataActions>((set, get) => ({
@@ -43,6 +47,7 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
   userLeagues: mockUserLeagues,
   leagueMembers: mockLeagueMembers,
   leagueGames: mockLeagueGames,
+  leaderboardScores: mockScores,
 
   // Action to create a new league
   createLeague: (name, description, profile) => {
@@ -100,6 +105,8 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
         user_rank_in_league: 1, // Placeholder
         user_rank_global: game.totalPlayers + 1, // Placeholder
         total_players_global: game.totalPlayers + 1,
+        linked_at: new Date().toISOString(),
+        leaderboard_period: null,
       };
       newLeagueGames.push(newLinkedGame);
       linkedLeagueNames.push(league.name);
@@ -126,6 +133,15 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
     set((state) => ({
       leagueGames: state.leagueGames.filter(
         (lg) => !(lg.game_id === gameId && lg.league_id === leagueId)
+      ),
+    }));
+  },
+
+  // Action to update the leaderboard period for a specific league-game link
+  updateLeagueGameLeaderboardPeriod: (leagueGameId, period) => {
+    set((state) => ({
+      leagueGames: state.leagueGames.map(lg => 
+        lg.id === leagueGameId ? { ...lg, leaderboard_period: period } : lg
       ),
     }));
   },

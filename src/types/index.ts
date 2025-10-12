@@ -287,6 +287,8 @@ export interface UserLeague {
   invite_code: string;
   created_by: string; // user id
   created_at: string;
+  season_start_date?: string;
+  season_end_date?: string;
 }
 
 export interface LeagueMember {
@@ -295,6 +297,16 @@ export interface LeagueMember {
   user_id: string;
   role: 'admin' | 'member';
   joined_at: string;
+}
+
+export type LeaderboardPeriodStartType = 'season_start' | 'link_date' | 'last_member_joined' | 'custom';
+export type LeaderboardPeriodEndType = 'season_end' | 'custom';
+
+export interface LeaderboardPeriod {
+  start_type: LeaderboardPeriodStartType;
+  end_type: LeaderboardPeriodEndType;
+  start_date: string; // ISO string
+  end_date: string;   // ISO string
 }
 
 export interface LeagueGame {
@@ -308,6 +320,8 @@ export interface LeagueGame {
   user_rank_in_league: number;
   user_rank_global: number;
   total_players_global: number;
+  linked_at: string;
+  leaderboard_period?: LeaderboardPeriod | null;
 }
 
 

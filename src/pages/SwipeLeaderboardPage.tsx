@@ -1,7 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { SwipeMatchDay, UserSwipeEntry, SwipeLeaderboardEntry, Profile, UserLeague, LeagueMember, LeagueGame } from '../types';
-import { ArrowLeft, Trophy, Medal, Award } from 'lucide-react';
+import { SwipeMatchDay, UserSwipeEntry, SwipeLeaderboardEntry, Profile, UserLeague, LeagueMember, LeagueGame, LeaderboardPeriod } from '../types';
+import { ArrowLeft, Trophy, Medal, Award, Info } from 'lucide-react';
 import { LeaderboardLeagueSwitcher } from '../components/leagues/LeaderboardLeagueSwitcher';
+import { useMockStore } from '../store/useMockStore';
+import { LeaderboardPeriodFilter } from '../components/leagues/LeaderboardPeriodFilter';
+import { format, parseISO, isWithinInterval } from 'date-fns';
 
 interface SwipeLeaderboardPageProps {
   matchDay: SwipeMatchDay;
@@ -35,30 +38,56 @@ const getRankIcon = (rank: number) => {
 
 const SwipeLeaderboardPage: React.FC<SwipeLeaderboardPageProps> = (props) => {
   const { matchDay, userEntry, onBack, initialLeagueContext, allUsers, userLeagues, leagueMembers, leagueGames, currentUserId } = props;
+  
+  const { updateLeagueGameLeaderboardPeriod } = useMockStore();
+  const [loading, setLoading] = useState(false);
   const [activeFilterLeagueId, setActiveFilterLeagueId] = useState<string | null>(initialLeagueContext?.leagueId || null);
+
+  const { leagueGame, currentLeague, isCurrentUserAdmin } = useMemo(() => {
+    if (!activeFilterLeagueId) return { leagueGame: null, currentLeague: null, isCurrentUserAdmin: false };
+    const lg = leagueGames.find(lg => lg.league_id === activeFilterLeagueId && lg.game_id === matchDay.id) || null;
+    const cl = userLeagues.find(ul => ul.id === activeFilterLeagueId) || null;
+    const membership = leagueMembers.find(m => m.league_id === activeFilterLeagueId && m.user_id === currentUserId);
+    const isAdmin = membership?.role === 'admin';
+    return { leagueGame: lg, currentLeague: cl, isCurrentUserAdmin: isAdmin };
+  }, [activeFilterLeagueId, leagueGames, matchDay.id, userLeagues, leagueMembers, currentUserId]);
+
+  const activePeriod: LeaderboardPeriod | null = useMemo(() => {
+    if (leagueGame?.leaderboard_period) return leagueGame.leaderboard_period;
+    if (currentLeague) {
+      return {
+        start_type: 'season_start', end_type: 'season_end',
+        start_date: currentLeague.season_start_date || matchDay.startDate,
+        end_date: currentLeague.season_end_date || matchDay.endDate,
+      };
+    }
+    return null;
+  }, [leagueGame, currentLeague, matchDay]);
+
+  const isGameInPeriod = useMemo(() => {
+    if (!activePeriod) return true;
+    const interval = { start: parseISO(activePeriod.start_date), end: parseISO(activePeriod.end_date) };
+    return isWithinInterval(parseISO(matchDay.startDate), interval);
+  }, [activePeriod, matchDay.startDate]);
 
   const fullLeaderboard = useMemo(() => {
     const otherUsers = allUsers.filter(u => u.id !== currentUserId);
-    
     const allEntries: Omit<SwipeLeaderboardEntry, 'rank'>[] = [];
 
     if (userEntry) {
-      const userPoints = calculateSwipePoints(userEntry, matchDay);
+      const userPoints = isGameInPeriod ? calculateSwipePoints(userEntry, matchDay) : 0;
       allEntries.push({ username: 'You', points: userPoints, userId: currentUserId });
     }
 
     otherUsers.forEach(user => {
-      allEntries.push({
-        username: user.username || 'Player',
-        points: Math.floor(Math.random() * 500),
-        userId: user.id
-      });
+      const points = isGameInPeriod ? Math.floor(Math.random() * 500) : 0;
+      allEntries.push({ username: user.username || 'Player', points, userId: user.id });
     });
 
     return allEntries
       .sort((a, b) => b.points - a.points)
       .map((entry, index) => ({ ...entry, rank: index + 1 }));
-  }, [userEntry, matchDay, allUsers, currentUserId]);
+  }, [userEntry, matchDay, allUsers, currentUserId, isGameInPeriod]);
   
   const displayedLeaderboard = useMemo(() => {
     if (activeFilterLeagueId) {
@@ -67,6 +96,14 @@ const SwipeLeaderboardPage: React.FC<SwipeLeaderboardPageProps> = (props) => {
     }
     return fullLeaderboard;
   }, [activeFilterLeagueId, leagueMembers, fullLeaderboard]);
+
+  const handleApplyFilter = (period: LeaderboardPeriod) => {
+    if (leagueGame) {
+      setLoading(true);
+      updateLeagueGameLeaderboardPeriod(leagueGame.id, period);
+      setTimeout(() => setLoading(false), 300);
+    }
+  };
 
   return (
     <div className="animate-scale-in space-y-4">
@@ -82,6 +119,24 @@ const SwipeLeaderboardPage: React.FC<SwipeLeaderboardPageProps> = (props) => {
         activeLeagueId={activeFilterLeagueId}
         onSelectLeague={setActiveFilterLeagueId}
       />
+      
+      {activePeriod && !isCurrentUserAdmin && (
+        <div className="text-xs text-center text-text-disabled bg-deep-navy/50 p-2 rounded-lg flex items-center justify-center gap-2">
+          <Info size={14} />
+          Showing results from {format(parseISO(activePeriod.start_date), 'MMM d')} to {format(parseISO(activePeriod.end_date), 'MMM d')}
+        </div>
+      )}
+
+      {isCurrentUserAdmin && currentLeague && leagueGame && (
+        <LeaderboardPeriodFilter
+          league={currentLeague}
+          leagueGame={leagueGame}
+          members={leagueMembers.filter(m => m.league_id === currentLeague.id)}
+          events={[matchDay]}
+          onApply={handleApplyFilter}
+          loading={loading}
+        />
+      )}
       
       <div className="card-base p-5 space-y-4">
         <div className="text-center">

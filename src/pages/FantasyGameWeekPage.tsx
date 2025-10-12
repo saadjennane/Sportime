@@ -39,7 +39,7 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
   
   const allPlayers = useMemo(() => updateAllPlayerStatuses(initialPlayers, mockPlayerLast10Stats), [initialPlayers]);
 
-  const [selectedMatchDayId, setSelectedMatchDayId] = useState(initialLeagueContext ? game.id : (game.gameWeeks.find(gw => gw.status === 'live')?.id || game.gameWeeks.find(gw => gw.status === 'upcoming')?.id || game.gameWeeks[0].id));
+  const [selectedMatchDayId, setSelectedMatchDayId] = useState(initialLeagueContext ? game.gameWeeks[game.gameWeeks.length - 1].id : (game.gameWeeks.find(gw => gw.status === 'live')?.id || game.gameWeeks.find(gw => gw.status === 'upcoming')?.id || game.gameWeeks[0].id));
   const [userTeams, setUserTeams] = useState(initialUserTeams);
 
   const [editingSlot, setEditingSlot] = useState<{ position: PlayerPosition; playerToReplaceId: string | null } | null>(null);
@@ -347,14 +347,13 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
       <FantasyLeaderboardModal 
         isOpen={isLeaderboardOpen} 
         onClose={() => setIsLeaderboardOpen(false)} 
-        gameWeekName={selectedGameWeek.name} 
+        game={game}
         initialLeagueContext={initialLeagueContext}
         allUsers={allUsers}
         userLeagues={userLeagues}
         leagueMembers={leagueMembers}
         leagueGames={leagueGames}
         currentUserId={currentUserId}
-        gameId={game.id}
       />
       <BoosterSelectionModal isOpen={isBoosterModalOpen} onClose={() => setIsBoosterModalOpen(false)} boosters={mockBoosters} onSelect={handleBoosterSelect} />
       <FantasyRulesModal isOpen={isRulesModalOpen} onClose={() => setIsRulesModalOpen(false)} />
