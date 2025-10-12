@@ -96,26 +96,33 @@ const LeaguePage: React.FC<LeaguePageProps> = (props) => {
       </button>
 
       {/* Header */}
-      <div className="card-base p-5 text-center space-y-3">
-        <div className="w-24 h-24 bg-deep-navy rounded-full mx-auto flex items-center justify-center border-2 border-neon-cyan/20">
+      <div className="card-base p-4 flex items-center gap-4">
+        {/* League Image */}
+        <div className="w-16 h-16 bg-deep-navy rounded-lg flex-shrink-0 flex items-center justify-center border-2 border-neon-cyan/20">
           {league.image_url ? (
-            <img src={league.image_url} alt={league.name} className="w-full h-full object-cover rounded-full" />
+            <img src={league.image_url} alt={league.name} className="w-full h-full object-cover rounded-lg" />
           ) : (
-            <Users className="w-12 h-12 text-neon-cyan/50" />
+            <Users className="w-8 h-8 text-neon-cyan/50" />
           )}
         </div>
-        <div>
-          <h2 className="text-2xl font-bold text-text-primary">{league.name}</h2>
-          {league.description && <p className="text-sm text-text-secondary mt-1">{league.description}</p>}
-          <p className="text-xs text-text-disabled mt-2">Created by {adminProfile?.username || '...'} on {new Date(league.created_at).toLocaleDateString()}</p>
+
+        {/* League Info */}
+        <div className="flex-grow min-w-0">
+          <h2 className="text-xl font-bold text-text-primary truncate">{league.name}</h2>
+          {league.description && <p className="text-sm text-text-secondary truncate">{league.description}</p>}
+          <p className="text-xs text-text-disabled mt-1">
+            Created by {adminProfile?.username || '...'}
+          </p>
         </div>
-        <div className="flex justify-center gap-2 pt-2 border-t border-white/10">
-          <button onClick={() => setIsInviteModalOpen(true)} className="flex-1 flex items-center justify-center gap-2 text-sm font-semibold bg-navy-accent text-text-secondary px-4 py-2 rounded-lg hover:bg-white/10">
-            <Link size={16} /> Invite
+
+        {/* Action Buttons */}
+        <div className="flex-shrink-0 flex items-center gap-2">
+          <button onClick={() => setIsInviteModalOpen(true)} className="p-2 bg-deep-navy rounded-lg text-text-secondary hover:bg-white/10" title="Invite">
+            <Link size={18} />
           </button>
           {currentUserRole === 'admin' && (
-            <button onClick={() => setIsManageModalOpen(true)} className="flex-1 flex items-center justify-center gap-2 text-sm font-semibold bg-navy-accent text-text-secondary px-4 py-2 rounded-lg hover:bg-white/10">
-              <Settings size={16} /> Manage
+            <button onClick={() => setIsManageModalOpen(true)} className="p-2 bg-deep-navy rounded-lg text-text-secondary hover:bg-white/10" title="Manage">
+              <Settings size={18} />
             </button>
           )}
         </div>
