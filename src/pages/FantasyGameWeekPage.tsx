@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { FantasyGame, UserFantasyTeam, FantasyPlayer, PlayerPosition, Booster, Profile, UserLeague, LeagueMember, LeagueGame } from '../../types';
+import { FantasyGame, UserFantasyTeam, FantasyPlayer, PlayerPosition, Booster, Profile, UserLeague, LeagueMember, LeagueGame, Game } from '../../types';
 import { ScrollText, Trophy, X, Check, Target, ArrowLeft } from 'lucide-react';
 import { FantasyPlayerModal } from '../components/FantasyPlayerModal';
 import { FantasyLeaderboardModal } from '../components/FantasyLeaderboardModal';
@@ -16,6 +16,7 @@ import { FantasyPitch } from '../components/fantasy/FantasyPitch';
 import { Bench } from '../components/fantasy/Bench';
 import { MatchDaySwitcher } from '../components/fantasy/MatchDaySwitcher';
 import { LivePointsBreakdown } from '../components/fantasy/LivePointsBreakdown';
+import { LinkGameButton } from '../components/leagues/LinkGameButton';
 
 
 interface FantasyGameWeekPageProps {
@@ -29,10 +30,12 @@ interface FantasyGameWeekPageProps {
   leagueMembers: LeagueMember[];
   leagueGames: LeagueGame[];
   currentUserId: string;
+  onLinkGame: (game: Game) => void;
+  profile: Profile;
 }
 
 export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) => {
-  const { game, userTeams: initialUserTeams, allPlayers: initialPlayers, onBack, initialLeagueContext, allUsers, userLeagues, leagueMembers, leagueGames, currentUserId } = props;
+  const { game, userTeams: initialUserTeams, allPlayers: initialPlayers, onBack, initialLeagueContext, allUsers, userLeagues, leagueMembers, leagueGames, currentUserId, onLinkGame, profile } = props;
   
   const allPlayers = useMemo(() => updateAllPlayerStatuses(initialPlayers, mockPlayerLast10Stats), [initialPlayers]);
 
@@ -214,6 +217,15 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <LinkGameButton
+            game={game}
+            userId={profile.id}
+            userLeagues={userLeagues}
+            leagueMembers={leagueMembers}
+            leagueGames={leagueGames}
+            onLink={onLinkGame}
+            loading={false}
+          />
           <button onClick={() => setIsRulesModalOpen(true)} className="p-2 bg-navy-accent rounded-lg shadow-sm text-text-secondary hover:text-electric-blue">
             <ScrollText size={20} />
           </button>

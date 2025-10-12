@@ -39,6 +39,9 @@ import { ConfirmationModal } from './components/leagues/ConfirmationModal';
 import { mockUserLeagues } from './data/mockUserLeagues';
 import { mockLeagueMembers } from './data/mockLeagueMembers';
 import { mockLeagueGames } from './data/mockLeagueGames';
+import { NoLeaguesModal } from './components/leagues/NoLeaguesModal';
+import { MiniCreateLeagueModal } from './components/leagues/MiniCreateLeagueModal';
+import { SelectLeaguesToLinkModal } from './components/leagues/SelectLeaguesToLinkModal';
 
 
 export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'leagues';
@@ -106,6 +109,13 @@ function App() {
   const [hasSeenSwipeTutorial, setHasSeenSwipeTutorial] = useState(false);
   const [swipeGameViewMode, setSwipeGameViewMode] = useState<'swiping' | 'recap'>('swiping');
   const [leaderboardContext, setLeaderboardContext] = useState<{ leagueId: string; leagueName: string; fromLeague?: boolean } | null>(null);
+
+  // --- In-Game Linking State ---
+  const [linkingGame, setLinkingGame] = useState<Game | null>(null);
+  const [isLinkingLoading, setIsLinkingLoading] = useState(false);
+  const [showNoLeaguesModal, setShowNoLeaguesModal] = useState(false);
+  const [showSelectLeaguesModal, setShowSelectLeaguesModal] = useState(false);
+  const [showMiniCreateLeagueModal, setShowMiniCreateLeagueModal] = useState(false);
 
   // Effect for static data (runs once)
   useEffect(() => {
@@ -573,6 +583,7 @@ function App() {
       addToast(`League "${name}" created!`, 'success');
       setShowCreateLeagueModal(false);
       setActiveLeagueId(newLeague.id);
+      return newLeague;
   };
 
   const handleJoinLeague = (inviteCode: string) => {
@@ -695,6 +706,66 @@ function App() {
     }
   };
 
+  // --- In-Game Linking Handlers ---
+  const myAdminLeagues = useMemo(() => {
+    if (!profile) return [];
+    const adminOfLeagueIds = new Set(leagueMembers.filter(m => m.user_id === profile.id && m.role === 'admin').map(m => m.league_id));
+    return userLeagues.filter(l => adminOfLeagueIds.has(l.id));
+  }, [profile, leagueMembers, userLeagues]);
+
+  const handleOpenLinkGameFlow = (game: Game) => {
+    if (profile?.is_guest) {
+      handleTriggerSignUp();
+      return;
+    }
+    setLinkingGame(game);
+    if (myAdminLeagues.length === 0) {
+      setShowNoLeaguesModal(true);
+    } else {
+      setShowSelectLeaguesModal(true);
+    }
+  };
+
+  const handleCloseLinkGameModals = () => {
+    setLinkingGame(null);
+    setShowNoLeaguesModal(false);
+    setShowSelectLeaguesModal(false);
+    setShowMiniCreateLeagueModal(false);
+  };
+
+  const handleCreateLeagueAndLink = async (name: string, description: string) => {
+    if (!profile || profile.is_guest || !linkingGame) return;
+    setIsLinkingLoading(true);
+    
+    const newLeague = handleCreateLeague(name, description, null);
+    if(newLeague) {
+      handleLinkGameToLeague(newLeague.id, linkingGame);
+    }
+    
+    addToast(`League "${name}" created and linked successfully! 🎉`, 'success');
+    handleCloseLinkGameModals();
+    setIsLinkingLoading(false);
+  };
+
+  const handleLinkToSelectedLeagues = (leagueIds: string[]) => {
+    if (!linkingGame || !profile) return;
+    setIsLinkingLoading(true);
+
+    const linkedLeagueNames: string[] = [];
+    leagueIds.forEach(leagueId => {
+      const league = userLeagues.find(l => l.id === leagueId);
+      if (league) {
+        handleLinkGameToLeague(leagueId, linkingGame);
+        linkedLeagueNames.push(league.name);
+      }
+    });
+
+    addToast(`Game linked to ${linkedLeagueNames.join(', ')} ✅`, 'success');
+    handleCloseLinkGameModals();
+    setIsLinkingLoading(false);
+  };
+
+
   const handlePageChange = (newPage: Page) => {
     if ((newPage === 'profile' || newPage === 'leagues') && profile?.is_guest) {
         handleTriggerSignUp();
@@ -806,7 +877,7 @@ function App() {
     if (activeChallengeId) {
       const challenge = challenges.find(c => c.id === activeChallengeId);
       const userEntry = userChallengeEntries.find(e => e.challengeId === activeChallengeId);
-      if (challenge && userEntry) {
+      if (challenge && userEntry && profile) {
         return <ChallengeRoomPage
           challenge={challenge}
           matches={challengeMatches.filter(m => m.challengeId === activeChallengeId)}
@@ -817,6 +888,11 @@ function App() {
           onViewLeaderboard={() => setViewingLeaderboardFor(activeChallengeId)}
           boosterInfoPreferences={boosterInfoPreferences}
           onUpdateBoosterPreferences={handleUpdateBoosterPreferences}
+          onLinkGame={handleOpenLinkGameFlow}
+          profile={profile}
+          userLeagues={myLeagues}
+          leagueMembers={leagueMembers}
+          leagueGames={leagueGames}
         />;
       }
     }
@@ -843,7 +919,7 @@ function App() {
       const matchDay = swipeMatchDays.find(md => md.id === activeSwipeGameId);
       const userEntry = userSwipeEntries.find(e => e.matchDayId === activeSwipeGameId);
 
-      if (matchDay && userEntry) {
+      if (matchDay && userEntry && profile) {
         const isEditable = matchDay.status === 'Upcoming';
         
         if (swipeGameViewMode === 'swiping' && isEditable) {
@@ -865,6 +941,11 @@ function App() {
             onViewLeaderboard={() => setViewingSwipeLeaderboardFor(activeSwipeGameId)}
             onSelectMatchDay={handlePlaySwipeGame}
             onEditPicks={isEditable ? handleEditSwipePicks : undefined}
+            onLinkGame={handleOpenLinkGameFlow}
+            profile={profile}
+            userLeagues={myLeagues}
+            leagueMembers={leagueMembers}
+            leagueGames={leagueGames}
           />;
         }
       }
@@ -884,6 +965,8 @@ function App() {
           leagueMembers={leagueMembers}
           leagueGames={leagueGames}
           currentUserId={profile.id}
+          onLinkGame={handleOpenLinkGameFlow}
+          profile={profile}
         />;
       }
     }
@@ -982,6 +1065,28 @@ function App() {
             isDestructive={true}
         />
     )}
+    <NoLeaguesModal 
+        isOpen={showNoLeaguesModal}
+        onClose={handleCloseLinkGameModals}
+        onCreateLeague={() => {
+            setShowNoLeaguesModal(false);
+            setShowMiniCreateLeagueModal(true);
+        }}
+    />
+    <MiniCreateLeagueModal
+        isOpen={showMiniCreateLeagueModal}
+        onClose={handleCloseLinkGameModals}
+        onCreate={handleCreateLeagueAndLink}
+        loading={isLinkingLoading}
+    />
+    <SelectLeaguesToLinkModal
+        isOpen={showSelectLeaguesModal}
+        onClose={handleCloseLinkGameModals}
+        onLink={handleLinkToSelectedLeagues}
+        adminLeagues={myAdminLeagues}
+        alreadyLinkedLeagueIds={linkingGame ? leagueGames.filter(lg => lg.game_id === linkingGame.id).map(lg => lg.league_id) : []}
+        loading={isLinkingLoading}
+    />
     </div>
   );
 }

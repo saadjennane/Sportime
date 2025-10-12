@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Challenge, ChallengeMatch, UserChallengeEntry, ChallengeBet, BoosterSelection, DailyChallengeEntry, LeaderboardEntry } from '../types';
+import { Challenge, ChallengeMatch, UserChallengeEntry, ChallengeBet, BoosterSelection, DailyChallengeEntry, LeaderboardEntry, Profile, UserLeague, LeagueMember, LeagueGame, Game } from '../types';
 import { ArrowLeft, Coins, ShieldAlert, Trophy, ScrollText } from 'lucide-react';
 import { ChallengeBetController } from '../components/ChallengeBetController';
 import { BoosterSelector } from '../components/BoosterSelector';
@@ -7,6 +7,7 @@ import { BoosterInfoModal } from '../components/BoosterInfoModal';
 import { MatchDaySwitcher } from '../components/fantasy/MatchDaySwitcher';
 import { addDays, parseISO, isBefore } from 'date-fns';
 import { RulesModal } from '../components/RulesModal';
+import { LinkGameButton } from '../components/leagues/LinkGameButton';
 
 interface ChallengeRoomPageProps {
   challenge: Challenge;
@@ -18,6 +19,11 @@ interface ChallengeRoomPageProps {
   onViewLeaderboard: (challengeId: string) => void;
   boosterInfoPreferences: { x2: boolean, x3: boolean };
   onUpdateBoosterPreferences: (booster: 'x2' | 'x3') => void;
+  onLinkGame: (game: Game) => void;
+  profile: Profile;
+  userLeagues: UserLeague[];
+  leagueMembers: LeagueMember[];
+  leagueGames: LeagueGame[];
 }
 
 const calculateChallengePoints = (entry: UserChallengeEntry, matches: ChallengeMatch[]): number => {
@@ -44,7 +50,8 @@ const calculateChallengePoints = (entry: UserChallengeEntry, matches: ChallengeM
   return Math.round(totalPoints);
 };
 
-const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = ({ challenge, matches, userEntry, onUpdateDailyBets, onSetDailyBooster, onBack, onViewLeaderboard, boosterInfoPreferences, onUpdateBoosterPreferences }) => {
+const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
+  const { challenge, matches, userEntry, onUpdateDailyBets, onSetDailyBooster, onBack, onViewLeaderboard, boosterInfoPreferences, onUpdateBoosterPreferences, onLinkGame, profile, userLeagues, leagueMembers, leagueGames } = props;
   const betsLocked = challenge.status === 'Ongoing' || challenge.status === 'Finished';
 
   const [selectedDay, setSelectedDay] = useState<number>(() => {
@@ -197,19 +204,28 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = ({ challenge, matche
 
   return (
     <div className="space-y-6">
-      <button onClick={onBack} className="flex items-center gap-2 text-gray-600 font-semibold hover:text-purple-600">
-        <ArrowLeft size={20} /> Back to Challenges
+      <button onClick={onBack} className="flex items-center gap-2 text-text-secondary font-semibold hover:text-electric-blue">
+        <ArrowLeft size={20} /> Back to Games
       </button>
 
       <div className="flex justify-between items-start">
         <div>
-            <h2 className="text-2xl font-bold text-gray-800">{challenge.name}</h2>
+            <h2 className="text-2xl font-bold text-text-primary">{challenge.name}</h2>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setIsRulesModalOpen(true)} className="p-2 bg-white rounded-lg shadow-sm text-gray-600 hover:text-purple-600">
+          <LinkGameButton
+            game={challenge}
+            userId={profile.id}
+            userLeagues={userLeagues}
+            leagueMembers={leagueMembers}
+            leagueGames={leagueGames}
+            onLink={onLinkGame}
+            loading={false}
+          />
+          <button onClick={() => setIsRulesModalOpen(true)} className="p-2 bg-navy-accent rounded-lg shadow-sm text-text-secondary hover:text-electric-blue">
             <ScrollText size={20} />
           </button>
-          <button onClick={() => onViewLeaderboard(challenge.id)} className="flex items-center gap-1.5 p-2 bg-white rounded-lg shadow-sm text-gray-600 hover:text-purple-600">
+          <button onClick={() => onViewLeaderboard(challenge.id)} className="flex items-center gap-1.5 p-2 bg-navy-accent rounded-lg shadow-sm text-text-secondary hover:text-electric-blue">
             <Trophy size={20} />
             <span className="text-xs font-bold">{formatNumberShort(rank)}/{formatNumberShort(totalPlayers)}</span>
           </button>
@@ -224,15 +240,15 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = ({ challenge, matche
         />
       </div>
 
-      <div className="bg-white rounded-2xl shadow-lg p-4 text-center animate-scale-in">
-        <p className="text-sm font-semibold text-gray-500">{pointsLabel}</p>
-        <p className={`text-3xl font-bold ${points >= 0 ? 'text-purple-700' : 'text-red-600'}`}>
+      <div className="card-base p-4 text-center animate-scale-in">
+        <p className="text-sm font-semibold text-text-secondary">{pointsLabel}</p>
+        <p className={`text-3xl font-bold ${points >= 0 ? 'text-lime-glow' : 'text-hot-red'}`}>
             {points >= 0 ? `+${points.toLocaleString()}` : points.toLocaleString()}
         </p>
       </div>
 
       {betsLocked && (
-        <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-r-lg">
+        <div className="bg-warm-yellow/10 border-l-4 border-warm-yellow text-warm-yellow p-4 rounded-r-lg">
           <div className="flex">
             <div className="py-1"><ShieldAlert size={20} className="mr-3" /></div>
             <div>
@@ -252,8 +268,8 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = ({ challenge, matche
           const remainingDayBalance = dailyBalance - totalBetOnDay;
 
           return (
-            <div key={dailyEntry.day} className="bg-white rounded-2xl shadow-lg p-4 space-y-4 animate-scale-in">
-              <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+            <div key={dailyEntry.day} className="card-base p-4 space-y-4 animate-scale-in">
+              <div className="flex justify-between items-center border-b border-white/10 pb-3">
                 <div className="flex items-baseline gap-3">
                   {!betsLocked && <BoosterSelector
                     day={dailyEntry.day}
@@ -263,16 +279,16 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = ({ challenge, matche
                     onCancel={() => handleCancelBooster(dailyEntry.day)}
                   />}
                 </div>
-                <div className="flex items-center gap-2 bg-purple-50 px-3 py-1.5 rounded-lg">
-                  <Coins size={16} className="text-purple-600" />
-                  <span className="font-bold text-purple-700">{remainingDayBalance.toLocaleString()}</span>
-                  <span className="text-xs text-purple-500">left</span>
+                <div className="flex items-center gap-2 bg-deep-navy px-3 py-1.5 rounded-lg">
+                  <Coins size={16} className="text-warm-yellow" />
+                  <span className="font-bold text-text-primary">{remainingDayBalance.toLocaleString()}</span>
+                  <span className="text-xs text-text-disabled">left</span>
                 </div>
               </div>
               
               {armingBooster?.day === dailyEntry.day && !dailyEntry.booster && (
-                <div className="bg-yellow-100 border border-yellow-300 p-3 rounded-lg text-center">
-                  <p className="text-sm font-semibold text-yellow-800">
+                <div className="bg-warm-yellow/10 border border-warm-yellow/20 p-3 rounded-lg text-center">
+                  <p className="text-sm font-semibold text-warm-yellow">
                     Select a match below to apply the <span className="font-bold">{armingBooster.type.toUpperCase()}</span> booster.
                   </p>
                 </div>

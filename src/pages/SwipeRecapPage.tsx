@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { SwipeMatchDay, UserSwipeEntry, SwipePredictionOutcome } from '../types';
+import { SwipeMatchDay, UserSwipeEntry, SwipePredictionOutcome, Profile, UserLeague, LeagueMember, LeagueGame, Game } from '../types';
 import { ArrowLeft, CheckCircle2, XCircle, Trophy, Clock, ChevronDown, List, ScrollText, Layers } from 'lucide-react';
 import { format } from 'date-fns';
 import { MatchDaySwitcher } from '../components/fantasy/MatchDaySwitcher';
 import { SwipeRulesModal } from '../components/SwipeRulesModal';
+import { LinkGameButton } from '../components/leagues/LinkGameButton';
 
 interface SwipeRecapPageProps {
   allMatchDays: SwipeMatchDay[];
@@ -14,9 +15,15 @@ interface SwipeRecapPageProps {
   onViewLeaderboard: (matchDayId: string) => void;
   onSelectMatchDay: (matchDayId: string) => void;
   onEditPicks?: () => void;
+  onLinkGame: (game: Game) => void;
+  profile: Profile;
+  userLeagues: UserLeague[];
+  leagueMembers: LeagueMember[];
+  leagueGames: LeagueGame[];
 }
 
-export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = ({ allMatchDays, selectedMatchDayId, userEntry, onBack, onUpdatePrediction, onViewLeaderboard, onSelectMatchDay, onEditPicks }) => {
+export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = (props) => {
+  const { allMatchDays, selectedMatchDayId, userEntry, onBack, onUpdatePrediction, onViewLeaderboard, onSelectMatchDay, onEditPicks, onLinkGame, profile, userLeagues, leagueMembers, leagueGames } = props;
   const [isPicksVisible, setIsPicksVisible] = useState(true);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
 
@@ -25,8 +32,8 @@ export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = ({ allMatchDays, se
   if (!selectedMatchDay) {
     return (
       <div className="space-y-4 text-center p-8">
-        <p className="font-semibold text-gray-700">Match day not found.</p>
-        <button onClick={onBack} className="text-purple-600 font-semibold hover:underline">
+        <p className="font-semibold text-text-secondary">Match day not found.</p>
+        <button onClick={onBack} className="text-electric-blue font-semibold hover:underline">
           Return to Games
         </button>
       </div>
@@ -86,14 +93,23 @@ export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = ({ allMatchDays, se
   return (
     <div className="space-y-4">
       <header className="flex items-center justify-between">
-        <button onClick={onBack} className="flex items-center gap-2 text-gray-600 font-semibold hover:text-purple-600">
+        <button onClick={onBack} className="flex items-center gap-2 text-text-secondary font-semibold hover:text-electric-blue">
           <ArrowLeft size={20} /> Back
         </button>
         <div className="flex items-center gap-2">
-          <button onClick={() => setIsRulesModalOpen(true)} className="p-2 bg-white rounded-lg shadow-sm text-gray-600 hover:text-purple-600">
+          <LinkGameButton
+            game={selectedMatchDay}
+            userId={profile.id}
+            userLeagues={userLeagues}
+            leagueMembers={leagueMembers}
+            leagueGames={leagueGames}
+            onLink={onLinkGame}
+            loading={false}
+          />
+          <button onClick={() => setIsRulesModalOpen(true)} className="p-2 bg-navy-accent rounded-lg shadow-sm text-text-secondary hover:text-electric-blue">
             <ScrollText size={20} />
           </button>
-          <button onClick={() => onViewLeaderboard(selectedMatchDay.id)} className="flex items-center gap-1.5 p-2 bg-white rounded-lg shadow-sm text-gray-600 hover:text-purple-600">
+          <button onClick={() => onViewLeaderboard(selectedMatchDay.id)} className="flex items-center gap-1.5 p-2 bg-navy-accent rounded-lg shadow-sm text-text-secondary hover:text-electric-blue">
             <Trophy size={20} />
             <span className="text-xs font-bold">{formatNumberShort(rank)}/{formatNumberShort(totalPlayers)}</span>
           </button>
@@ -109,7 +125,7 @@ export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = ({ allMatchDays, se
       </div>
 
       {isEditable && deadline && (
-        <div className="bg-yellow-100 border border-yellow-300 text-yellow-800 p-3 rounded-xl flex items-center justify-center gap-3">
+        <div className="bg-warm-yellow/10 border border-warm-yellow/20 text-warm-yellow p-3 rounded-xl flex items-center justify-center gap-3">
           <Clock size={20} />
           <p className="text-sm font-semibold text-center">
             You can edit your picks until <span className="font-bold">{deadline}</span>
@@ -117,19 +133,19 @@ export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = ({ allMatchDays, se
         </div>
       )}
       
-      <div className="bg-white rounded-2xl shadow-lg p-4">
+      <div className="card-base p-4">
         <div className="mb-4">
             <div className="flex justify-between items-center text-left">
                 <button onClick={() => setIsPicksVisible(!isPicksVisible)} className="flex items-center gap-2">
-                    <h3 className="text-lg font-bold text-gray-700">{selectedMatchDay.name}</h3>
+                    <h3 className="text-lg font-bold text-text-primary">{selectedMatchDay.name}</h3>
                     <ChevronDown
-                        className={`w-5 h-5 text-gray-500 transition-transform duration-300 ${
+                        className={`w-5 h-5 text-text-secondary transition-transform duration-300 ${
                         isPicksVisible ? 'rotate-180' : ''
                         }`}
                     />
                 </button>
                 {onEditPicks && isEditable && (
-                  <button onClick={onEditPicks} className="flex items-center gap-1.5 text-xs font-bold text-purple-600 bg-purple-100 px-3 py-1.5 rounded-lg hover:bg-purple-200 transition-colors">
+                  <button onClick={onEditPicks} className="flex items-center gap-1.5 text-xs font-bold text-electric-blue bg-electric-blue/20 px-3 py-1.5 rounded-lg hover:bg-electric-blue/30 transition-colors">
                     <Layers size={14} />
                     <span>Swipe</span>
                   </button>
@@ -137,19 +153,19 @@ export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = ({ allMatchDays, se
             </div>
             {isEditable ? (
               <div className="text-center mt-3">
-                <p className="text-xs font-semibold text-gray-500 flex items-center justify-center gap-1">Potential Points</p>
-                <p className="text-2xl font-bold text-purple-600">{potentialPoints.toFixed(0)}</p>
+                <p className="text-xs font-semibold text-text-secondary flex items-center justify-center gap-1">Potential Points</p>
+                <p className="text-2xl font-bold text-electric-blue">{potentialPoints.toFixed(0)}</p>
               </div>
             ) : (
               <div className="text-center mt-3">
-                <p className="text-xs font-semibold text-gray-500 flex items-center justify-center gap-1">Final Points</p>
-                <p className="text-2xl font-bold text-purple-600">{totalPoints.toFixed(0)}</p>
+                <p className="text-xs font-semibold text-text-secondary flex items-center justify-center gap-1">Final Points</p>
+                <p className="text-2xl font-bold text-lime-glow">{totalPoints.toFixed(0)}</p>
               </div>
             )}
         </div>
 
         {isPicksVisible && (
-          <div className="space-y-3 border-t pt-4 animate-scale-in">
+          <div className="space-y-3 border-t border-white/10 pt-4 animate-scale-in">
             {selectedMatchDay.matches.map(match => {
               const prediction = userEntry.predictions.find(p => p.matchId === match.id);
               
@@ -160,15 +176,15 @@ export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = ({ allMatchDays, se
                 const isSelected = prediction?.prediction === outcome;
                 if (!isEditable) { // Results view
                   if (isSelected) {
-                    return isCorrect ? 'bg-green-500 text-white' : 'bg-red-500 text-white';
+                    return isCorrect ? 'bg-lime-glow text-deep-navy' : 'bg-hot-red text-white';
                   }
                   if (match.result === outcome) {
-                    return 'bg-green-200 text-green-800';
+                    return 'bg-lime-glow/20 text-lime-glow';
                   }
-                  return 'bg-gray-200 text-gray-500';
+                  return 'bg-disabled text-text-disabled';
                 }
                 // Editable view
-                return isSelected ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-purple-200';
+                return isSelected ? 'bg-gradient-to-r from-electric-blue to-neon-cyan text-white' : 'bg-deep-navy text-text-secondary hover:bg-navy-accent';
               };
 
               const PredictionButton: React.FC<{outcome: SwipePredictionOutcome, label: string, odds: number}> = ({outcome, label, odds}) => (
@@ -183,11 +199,11 @@ export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = ({ allMatchDays, se
               );
 
               return (
-                <div key={match.id} className="bg-gray-50 rounded-xl p-3 space-y-3">
+                <div key={match.id} className="bg-deep-navy rounded-xl p-3 space-y-3">
                   <div className="flex justify-between items-center text-sm">
-                    <p className="font-bold text-gray-700">{match.teamA.name} vs {match.teamB.name}</p>
+                    <p className="font-bold text-text-primary">{match.teamA.name} vs {match.teamB.name}</p>
                     {!isEditable && prediction && (
-                      <div className={`flex items-center gap-1 font-bold ${isCorrect ? 'text-green-600' : 'text-red-600'}`}>
+                      <div className={`flex items-center gap-1 font-bold ${isCorrect ? 'text-lime-glow' : 'text-hot-red'}`}>
                         {isCorrect ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
                         <span>{isCorrect ? `+${points.toFixed(0)} pts` : '0 pts'}</span>
                       </div>
