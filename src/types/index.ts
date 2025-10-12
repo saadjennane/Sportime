@@ -216,6 +216,7 @@ export interface League {
   id: string;
   name: string;
   logo: string;
+  remaining_matchdays: number;
 }
 
 
@@ -314,7 +315,7 @@ export interface LeagueGame {
   league_id: string;
   game_id: string;
   game_name: string;
-  type: 'Fantasy' | 'Prediction' | 'Betting';
+  type: 'Fantasy' | 'Prediction' | 'Betting' | 'Private';
   members_joined: number;
   members_total: number;
   user_rank_in_league: number;
@@ -353,6 +354,30 @@ export interface LeagueFeedPost {
     top_players?: { name: string; score: number }[];
   };
   likes: string[]; // array of user ids
+}
+
+// --- Private League Game Wizard ---
+export type PrivateGameFormat = 'championship' | 'championship_knockout' | 'knockout';
+export type KnockoutType = 'single' | 'double';
+
+export interface PrivateLeagueGameConfig {
+  competition_id: string;
+  format_type: PrivateGameFormat;
+  player_count: number;
+  selected_matchdays: number;
+  knockout_type: KnockoutType | null;
+  include_third_place: boolean;
+  tie_advantage: 'higher_seed';
+  honorary_title: boolean;
+  auto_rest_week: boolean;
+  pairing_rule: '1vs4_2vs3';
+}
+
+export interface PrivateLeagueGame {
+  id: string;
+  league_id: string;
+  config: PrivateLeagueGameConfig;
+  created_at: string;
 }
 
 

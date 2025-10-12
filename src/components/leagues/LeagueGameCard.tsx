@@ -14,6 +14,7 @@ const gameTypeDetails = {
   Betting: { color: 'bg-electric-blue/20 text-electric-blue' },
   Prediction: { color: 'bg-neon-cyan/20 text-neon-cyan' },
   Fantasy: { color: 'bg-lime-glow/20 text-lime-glow' },
+  Private: { color: 'bg-warm-yellow/20 text-warm-yellow' },
 };
 
 export const LeagueGameCard: React.FC<LeagueGameCardProps> = ({ game, onView, isAdmin, onUnlink }) => {
@@ -94,8 +95,12 @@ export const LeagueGameCard: React.FC<LeagueGameCardProps> = ({ game, onView, is
       <div className="flex items-center justify-between border-t border-white/10 pt-3 gap-4">
         <div className="text-sm text-text-secondary">
           <span>You are <b className="text-text-primary">{formatRank(game.user_rank_in_league)}</b> in your league</span>
-          <br />
-          <span className="text-xs">(Global: #{game.user_rank_global.toLocaleString()} / {game.total_players_global.toLocaleString()})</span>
+          {game.type !== 'Private' && (
+            <br />
+          )}
+          {game.type !== 'Private' && (
+            <span className="text-xs">(Global: #{game.user_rank_global.toLocaleString()} / {game.total_players_global.toLocaleString()})</span>
+          )}
         </div>
         
         <button 

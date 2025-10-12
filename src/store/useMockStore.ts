@@ -15,6 +15,8 @@ import {
   LeaderboardEntry,
   SwipeLeaderboardEntry,
   FantasyLeaderboardEntry,
+  PrivateLeagueGame,
+  PrivateLeagueGameConfig,
 } from '../types';
 import { isToday } from 'date-fns';
 
@@ -37,6 +39,7 @@ interface MockDataState {
   leaderboardScores: typeof mockScores;
   leaderboardSnapshots: LeaderboardSnapshot[];
   leagueFeed: LeagueFeedPost[];
+  privateLeagueGames: PrivateLeagueGame[];
 }
 
 interface MockDataActions {
@@ -54,6 +57,7 @@ interface MockDataActions {
     adminId: string
   ) => { success: boolean, error?: string };
   toggleFeedPostLike: (postId: string, userId: string) => void;
+  createPrivateLeagueGame: (leagueId: string, config: PrivateLeagueGameConfig) => void;
 }
 
 export const useMockStore = create<MockDataState & MockDataActions>((set, get) => ({
@@ -67,6 +71,7 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
   leaderboardScores: mockScores,
   leaderboardSnapshots: [],
   leagueFeed: [],
+  privateLeagueGames: [],
 
   // Action to create a new league
   createLeague: (name, description, profile) => {
@@ -235,5 +240,39 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
         return post;
       }),
     }));
+  },
+
+  // Action to create a new private league game
+  createPrivateLeagueGame: (leagueId, config) => {
+    const { privateLeagueGames, leagueGames } = get();
+    
+    // 1. Create the detailed configuration object
+    const newPrivateGame: PrivateLeagueGame = {
+      id: uuidv4(),
+      league_id: leagueId,
+      config: config,
+      created_at: new Date().toISOString(),
+    };
+
+    // 2. Create the summary/display object for the UI
+    const newLeagueGame: LeagueGame = {
+      id: `lg-${uuidv4()}`,
+      league_id: leagueId,
+      game_id: newPrivateGame.id, // Link to the private game config
+      game_name: `Private: ${config.format_type.replace('_', ' + ').replace(/\b\w/g, l => l.toUpperCase())}`,
+      type: 'Private',
+      members_joined: 1, // The creator
+      members_total: config.player_count,
+      user_rank_in_league: 1, // Placeholder
+      user_rank_global: 0, // Not applicable
+      total_players_global: config.player_count,
+      linked_at: new Date().toISOString(),
+      leaderboard_period: null,
+    };
+
+    set({
+      privateLeagueGames: [...privateLeagueGames, newPrivateGame],
+      leagueGames: [...leagueGames, newLeagueGame],
+    });
   },
 }));
