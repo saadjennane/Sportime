@@ -42,6 +42,9 @@ import { useMockStore } from './store/useMockStore';
 import LiveGameSetupPage from './pages/live-game/LiveGameSetupPage';
 import LiveGamePlayPage from './pages/live-game/LiveGamePlayPage';
 import LiveGameResultsPage from './pages/live-game/LiveGameResultsPage';
+import LiveGameBettingSetupPage from './pages/live-game/betting/LiveGameBettingSetupPage';
+import LiveGameBettingPlayPage from './pages/live-game/betting/LiveGameBettingPlayPage';
+import LiveGameBettingResultsPage from './pages/live-game/betting/LiveGameBettingResultsPage';
 
 
 export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'leagues';
@@ -85,6 +88,8 @@ function App() {
     createLiveGame,
     submitLiveGamePrediction,
     editLiveGamePrediction,
+    placeLiveBet,
+    tickLiveGame,
   } = useMockStore();
 
   // --- Local Game State ---
@@ -900,14 +905,26 @@ function App() {
       const game = liveGames.find(g => g.id === activeLiveGame.id);
       if (game && profile) {
         const playerEntry = game.players.find(p => p.user_id === profile.id);
-        if (activeLiveGame.status === 'Upcoming') {
-          return <LiveGameSetupPage game={game} onBack={() => setActiveLiveGame(null)} onSubmit={submitLiveGamePrediction} playerEntry={playerEntry} />;
-        }
-        if (activeLiveGame.status === 'Ongoing') {
-          return <LiveGamePlayPage game={game} onBack={() => setActiveLiveGame(null)} onEdit={editLiveGamePrediction} playerEntry={playerEntry} />;
-        }
-        if (activeLiveGame.status === 'Finished') {
-          return <LiveGameResultsPage game={game} onBack={() => setActiveLiveGame(null)} />;
+        if (game.mode === 'prediction') {
+          if (activeLiveGame.status === 'Upcoming') {
+            return <LiveGameSetupPage game={game} onBack={() => setActiveLiveGame(null)} onSubmit={submitLiveGamePrediction} playerEntry={playerEntry} />;
+          }
+          if (activeLiveGame.status === 'Ongoing') {
+            return <LiveGamePlayPage game={game} onBack={() => setActiveLiveGame(null)} onEdit={editLiveGamePrediction} playerEntry={playerEntry} />;
+          }
+          if (activeLiveGame.status === 'Finished') {
+            return <LiveGameResultsPage game={game} onBack={() => setActiveLiveGame(null)} />;
+          }
+        } else { // Betting Mode
+          if (activeLiveGame.status === 'Upcoming') {
+            return <LiveGameBettingSetupPage game={game} onBack={() => setActiveLiveGame(null)} playerEntry={playerEntry} onPlaceBet={placeLiveBet} />;
+          }
+           if (activeLiveGame.status === 'Ongoing') {
+            return <LiveGameBettingPlayPage game={game} onBack={() => setActiveLiveGame(null)} playerEntry={playerEntry} onPlaceBet={placeLiveBet} onTick={tickLiveGame} />;
+          }
+          if (activeLiveGame.status === 'Finished') {
+            return <LiveGameBettingResultsPage game={game} onBack={() => setActiveLiveGame(null)} playerEntry={playerEntry} />;
+          }
         }
       }
     }

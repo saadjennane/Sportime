@@ -388,13 +388,24 @@ export interface BonusQuestion {
   answer: string;
 }
 
+export interface LiveBet {
+  market_id: string;
+  option: string;
+  amount: number;
+  odds: number;
+  phase: 'pre-match' | 'live';
+  status: 'pending' | 'won' | 'lost';
+  gain: number;
+}
+
 export interface LiveGamePlayerEntry {
   user_id: string;
-  predicted_score: { home: number; away: number };
-  bonus_answers: { question_id: string; choice: string }[];
-  midtime_edit: boolean;
   submitted_at: string;
-  // Calculated fields
+  
+  // Prediction Mode
+  predicted_score?: { home: number; away: number };
+  bonus_answers?: { question_id: string; choice: string }[];
+  midtime_edit?: boolean;
   result_points?: number;
   gd_points?: number;
   team_points?: number;
@@ -402,6 +413,26 @@ export interface LiveGamePlayerEntry {
   score_final?: number;
   bonus_total?: number;
   total_points?: number;
+
+  // Betting Mode
+  betting_state?: {
+    pre_match_balance: number;
+    live_balance: number;
+    bets: LiveBet[];
+    total_gain: number;
+  };
+}
+
+export interface LiveGameMarket {
+  id: string;
+  minute: number;
+  type: string; // e.g., 'first_goal', 'drama_last_goal'
+  title: string;
+  emotion_factor: number;
+  odds: { option: string; adjusted: number }[];
+  expires_at: string; // ISO string
+  status: 'open' | 'closed' | 'resolved';
+  winning_option?: string;
 }
 
 export interface LiveGame {
@@ -411,7 +442,15 @@ export interface LiveGame {
   match_details: Match;
   created_by: string;
   status: 'Upcoming' | 'Ongoing' | 'Finished';
+  mode: 'prediction' | 'betting';
+  
+  // Prediction Mode
   bonus_questions: BonusQuestion[];
+  
+  // Betting Mode
+  markets: LiveGameMarket[];
+  simulated_minute: number;
+
   players: LiveGamePlayerEntry[];
 }
 

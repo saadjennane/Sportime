@@ -1,15 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Match } from '../../../types';
-import { X, Radio } from 'lucide-react';
+import { X, Radio, Gamepad2, ShieldCheck } from 'lucide-react';
 
 interface LiveGameSetupModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (match: Match) => void;
+  onCreate: (match: Match, mode: 'prediction' | 'betting') => void;
   matches: Match[];
 }
 
 export const LiveGameSetupModal: React.FC<LiveGameSetupModalProps> = ({ isOpen, onClose, onCreate, matches }) => {
+  const [mode, setMode] = useState<'prediction' | 'betting'>('prediction');
+  
   if (!isOpen) return null;
 
   return (
@@ -23,13 +25,24 @@ export const LiveGameSetupModal: React.FC<LiveGameSetupModalProps> = ({ isOpen, 
             <X size={24} />
           </button>
         </div>
-        <p className="text-sm text-text-secondary">Select an upcoming match to create a live prediction game for your league.</p>
+        
+        {/* Mode Selector */}
+        <div className="bg-deep-navy/50 p-2 rounded-xl grid grid-cols-2 gap-2">
+          <button onClick={() => setMode('prediction')} className={`flex items-center justify-center gap-2 p-2 rounded-lg font-semibold transition-all ${mode === 'prediction' ? 'bg-electric-blue text-white' : 'text-text-secondary'}`}>
+            <Gamepad2 size={16} /> Prediction
+          </button>
+          <button onClick={() => setMode('betting')} className={`flex items-center justify-center gap-2 p-2 rounded-lg font-semibold transition-all ${mode === 'betting' ? 'bg-electric-blue text-white' : 'text-text-secondary'}`}>
+            <ShieldCheck size={16} /> Betting
+          </button>
+        </div>
+
+        <p className="text-sm text-text-secondary">Select an upcoming match to create a live game for your league.</p>
 
         <div className="flex-1 overflow-y-auto space-y-2 pr-2">
           {matches.length > 0 ? matches.map(match => (
             <button
               key={match.id}
-              onClick={() => onCreate(match)}
+              onClick={() => onCreate(match, mode)}
               className="w-full flex items-center gap-3 p-3 text-left rounded-xl transition-colors bg-navy-accent/50 hover:bg-navy-accent"
             >
               <div className="text-2xl">{match.teamA.emoji}</div>

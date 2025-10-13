@@ -21,6 +21,7 @@ import {
   Match,
   BonusQuestion,
   LiveGamePlayerEntry,
+  LiveBet,
 } from '../types';
 import { isToday } from 'date-fns';
 
@@ -34,6 +35,7 @@ import { mockLeagueGames } from '../data/mockLeagueGames';
 import { mockScores } from '../data/mockLeaderboardScores';
 import { mockLiveGames } from '../data/mockLiveGames';
 import { mockFantasyPlayers } from '../data/mockFantasy.tsx';
+import { mockPreMatchMarkets } from '../data/mockLiveGameMarkets';
 
 interface MockDataState {
   challenges: BettingChallenge[];
@@ -66,9 +68,11 @@ interface MockDataActions {
   toggleFeedPostLike: (postId: string, userId: string) => void;
   createPrivateLeagueGame: (leagueId: string, config: PrivateLeagueGameConfig) => void;
   // Live Game Actions
-  createLiveGame: (leagueId: string, match: Match) => void;
+  createLiveGame: (leagueId: string, match: Match, mode: 'prediction' | 'betting') => void;
   submitLiveGamePrediction: (gameId: string, userId: string, prediction: Omit<LiveGamePlayerEntry, 'user_id' | 'submitted_at'>) => void;
   editLiveGamePrediction: (gameId: string, userId: string, newScore: { home: number; away: number }) => void;
+  placeLiveBet: (gameId: string, userId: string, marketId: string, option: string, amount: number, odds: number) => void;
+  tickLiveGame: (gameId: string) => void;
 }
 
 const generateBonusQuestions = (predictedScore: { home: number, away: number }): BonusQuestion[] => {
@@ -317,18 +321,40 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
   },
 
   // --- Live Game Actions ---
-  createLiveGame: (leagueId, match) => {
+  createLiveGame: (leagueId, match, mode) => {
     const { liveGames } = get();
-    const newLiveGame: LiveGame = {
-      id: `live-${uuidv4()}`,
-      league_id: leagueId,
-      match_id: match.id,
-      match_details: match,
-      created_by: 'user-1', // Assuming current user is admin
-      status: 'Upcoming',
-      bonus_questions: [], // Generated on first prediction
-      players: [],
-    };
+    let newLiveGame: LiveGame;
+
+    if (mode === 'betting') {
+      newLiveGame = {
+        id: `live-${uuidv4()}`,
+        league_id: leagueId,
+        match_id: match.id,
+        match_details: match,
+        created_by: 'user-1',
+        status: 'Upcoming',
+        mode: 'betting',
+        markets: mockPreMatchMarkets,
+        simulated_minute: 0,
+        bonus_questions: [],
+        players: [],
+      };
+    } else { // prediction mode
+      newLiveGame = {
+        id: `live-${uuidv4()}`,
+        league_id: leagueId,
+        match_id: match.id,
+        match_details: match,
+        created_by: 'user-1',
+        status: 'Upcoming',
+        mode: 'prediction',
+        bonus_questions: [],
+        markets: [],
+        simulated_minute: 0,
+        players: [],
+      };
+    }
+    
     set({ liveGames: [...liveGames, newLiveGame] });
   },
 
@@ -342,7 +368,7 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
             submitted_at: new Date().toISOString(),
           };
           // Generate bonus questions based on the first player's prediction
-          const bonus_questions = game.bonus_questions.length > 0 ? game.bonus_questions : generateBonusQuestions(prediction.predicted_score);
+          const bonus_questions = game.bonus_questions.length > 0 ? game.bonus_questions : generateBonusQuestions(prediction.predicted_score!);
           return { ...game, players: [...game.players, playerEntry], bonus_questions };
         }
         return game;
@@ -364,6 +390,95 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
           };
         }
         return game;
+      }),
+    }));
+  },
+  
+  placeLiveBet: (gameId, userId, marketId, option, amount, odds) => {
+    set(state => ({
+      liveGames: state.liveGames.map(game => {
+        if (game.id !== gameId) return game;
+
+        let playerExists = false;
+        const updatedPlayers = game.players.map(p => {
+          if (p.user_id !== userId) return p;
+          
+          playerExists = true;
+          const newBet: LiveBet = { market_id: marketId, option, amount, odds, phase: game.status === 'Upcoming' ? 'pre-match' : 'live', status: 'pending', gain: 0 };
+          
+          const currentBettingState = p.betting_state || {
+            pre_match_balance: 1000,
+            live_balance: 1000,
+            bets: [],
+            total_gain: 0,
+          };
+
+          const newBalance = (game.status === 'Upcoming' ? currentBettingState.pre_match_balance : currentBettingState.live_balance) - amount;
+
+          return {
+            ...p,
+            betting_state: {
+              ...currentBettingState,
+              pre_match_balance: game.status === 'Upcoming' ? newBalance : currentBettingState.pre_match_balance,
+              live_balance: game.status !== 'Upcoming' ? newBalance : currentBettingState.live_balance,
+              bets: [...currentBettingState.bets, newBet],
+            },
+          };
+        });
+        
+        if (!playerExists) {
+          const newBet: LiveBet = { market_id: marketId, option, amount, odds, phase: game.status === 'Upcoming' ? 'pre-match' : 'live', status: 'pending', gain: 0 };
+          const newPlayerEntry: LiveGamePlayerEntry = {
+            user_id: userId,
+            submitted_at: new Date().toISOString(),
+            betting_state: {
+              pre_match_balance: game.status === 'Upcoming' ? 1000 - amount : 1000,
+              live_balance: game.status !== 'Upcoming' ? 1000 - amount : 1000,
+              bets: [newBet],
+              total_gain: 0,
+            }
+          };
+          updatedPlayers.push(newPlayerEntry);
+        }
+
+        return { ...game, players: updatedPlayers };
+      }),
+    }));
+  },
+
+  tickLiveGame: (gameId) => {
+    set(state => ({
+      liveGames: state.liveGames.map(game => {
+        if (game.id !== gameId || game.status !== 'Ongoing') return game;
+
+        const newMinute = game.simulated_minute + 1;
+        
+        // Mock score change
+        let newScore = game.match_details.score || { teamA: 0, teamB: 0 };
+        if (newMinute === 25) newScore = { teamA: 1, teamB: 0 };
+        if (newMinute === 60) newScore = { teamA: 1, teamB: 1 };
+
+        // Mock market generation
+        let newMarkets = [...game.markets];
+        if (newMinute === 10) {
+            // newMarkets.push(...)
+        }
+
+        // Mock market resolution
+        newMarkets = newMarkets.map(m => {
+            if (m.status === 'open' && new Date(m.expires_at) < new Date()) {
+                // In a real app, resolve based on real events
+                return { ...m, status: 'closed' };
+            }
+            return m;
+        });
+
+        return { 
+          ...game, 
+          simulated_minute: newMinute,
+          match_details: { ...game.match_details, score: newScore },
+          markets: newMarkets,
+        };
       }),
     }));
   },
