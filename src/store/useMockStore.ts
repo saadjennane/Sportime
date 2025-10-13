@@ -75,7 +75,7 @@ interface MockDataActions {
   tickLiveGame: (gameId: string) => void;
 }
 
-const generateBonusQuestions = (predictedScore: { home: number, away: number }): BonusQuestion[] => {
+export const generateBonusQuestions = (predictedScore: { home: number, away: number }): BonusQuestion[] => {
     const totalGoals = predictedScore.home + predictedScore.away;
     const isDraw = predictedScore.home === predictedScore.away;
 

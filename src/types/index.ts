@@ -413,6 +413,7 @@ export interface LiveGamePlayerEntry {
   score_final?: number;
   bonus_total?: number;
   total_points?: number;
+  goal_diff_error?: number;
 
   // Betting Mode
   betting_state?: {
@@ -443,6 +444,10 @@ export interface LiveGame {
   created_by: string;
   status: 'Upcoming' | 'Ongoing' | 'Finished';
   mode: 'prediction' | 'betting';
+  last_known_state?: {
+    minute: number;
+    score: { home: number, away: number };
+  };
   
   // Prediction Mode
   bonus_questions: BonusQuestion[];

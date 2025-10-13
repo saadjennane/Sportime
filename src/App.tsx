@@ -910,10 +910,10 @@ function App() {
             return <LiveGameSetupPage game={game} onBack={() => setActiveLiveGame(null)} onSubmit={submitLiveGamePrediction} playerEntry={playerEntry} />;
           }
           if (activeLiveGame.status === 'Ongoing') {
-            return <LiveGamePlayPage game={game} onBack={() => setActiveLiveGame(null)} onEdit={editLiveGamePrediction} playerEntry={playerEntry} />;
+            return <LiveGamePlayPage game={game} onBack={() => setActiveLiveGame(null)} onEdit={editLiveGamePrediction} playerEntry={playerEntry} onTick={tickLiveGame} />;
           }
           if (activeLiveGame.status === 'Finished') {
-            return <LiveGameResultsPage game={game} onBack={() => setActiveLiveGame(null)} />;
+            return <LiveGameResultsPage game={game} onBack={() => setActiveLiveGame(null)} playerEntry={playerEntry} currentUserId={profile.id} leagueMembers={leagueMembers} />;
           }
         } else { // Betting Mode
           if (activeLiveGame.status === 'Upcoming') {

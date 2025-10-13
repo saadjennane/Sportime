@@ -1,19 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LiveGame, LiveGamePlayerEntry } from '../../types';
 import { ArrowLeft, Edit, Trophy, User } from 'lucide-react';
-import { calculateLiveGameScores } from '../../lib/liveGameEngine';
 
 interface LiveGamePlayPageProps {
   game: LiveGame;
   playerEntry?: LiveGamePlayerEntry;
   onBack: () => void;
   onEdit: (gameId: string, userId: string, newScore: { home: number; away: number }) => void;
+  onTick: (gameId: string) => void;
 }
 
-const LiveGamePlayPage: React.FC<LiveGamePlayPageProps> = ({ game, playerEntry, onBack, onEdit }) => {
+const LiveGamePlayPage: React.FC<LiveGamePlayPageProps> = ({ game, playerEntry, onBack, onEdit, onTick }) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [homeScore, setHomeScore] = useState<number | ''>(playerEntry?.predicted_score.home ?? '');
-  const [awayScore, setAwayScore] = useState<number | ''>(playerEntry?.predicted_score.away ?? '');
+  const [homeScore, setHomeScore] = useState<number | ''>(playerEntry?.predicted_score?.home ?? '');
+  const [awayScore, setAwayScore] = useState<number | ''>(playerEntry?.predicted_score?.away ?? '');
+
+  useEffect(() => {
+    if (game.status !== 'Ongoing') return;
+    const interval = setInterval(() => {
+      onTick(game.id);
+    }, 15000); // Refresh every 15 seconds
+    return () => clearInterval(interval);
+  }, [game.id, game.status, onTick]);
 
   const handleEditConfirm = () => {
     if (homeScore !== '' && awayScore !== '') {
@@ -22,8 +30,15 @@ const LiveGamePlayPage: React.FC<LiveGamePlayPageProps> = ({ game, playerEntry, 
     }
   };
 
-  const scoredGame = calculateLiveGameScores(game);
-  const sortedPlayers = [...scoredGame.players].sort((a, b) => (b.total_points || 0) - (a.total_points || 0));
+  const sortedPlayers = [...game.players].sort((a, b) => {
+    if ((b.total_points ?? 0) !== (a.total_points ?? 0)) {
+      return (b.total_points ?? 0) - (a.total_points ?? 0);
+    }
+    if ((a.goal_diff_error ?? 99) !== (b.goal_diff_error ?? 99)) {
+      return (a.goal_diff_error ?? 99) - (b.goal_diff_error ?? 99);
+    }
+    return new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime();
+  });
 
   return (
     <div className="space-y-4">
@@ -34,7 +49,7 @@ const LiveGamePlayPage: React.FC<LiveGamePlayPageProps> = ({ game, playerEntry, 
       <div className="card-base p-4 flex items-center gap-4">
         <div className="text-4xl">{game.match_details.teamA.emoji}</div>
         <div className="flex-1 text-center">
-          <p className="text-sm text-hot-red font-bold animate-pulse">LIVE</p>
+          <p className="text-sm text-hot-red font-bold animate-pulse">LIVE - {game.simulated_minute}'</p>
           <h2 className="text-3xl font-bold text-text-primary">
             {game.match_details.score?.teamA ?? 0} - {game.match_details.score?.teamB ?? 0}
           </h2>
@@ -47,7 +62,7 @@ const LiveGamePlayPage: React.FC<LiveGamePlayPageProps> = ({ game, playerEntry, 
         <div className="card-base p-4">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-bold text-text-primary flex items-center gap-2"><User size={18} /> Your Prediction</h3>
-            {!playerEntry.midtime_edit && game.match_details.status === 'upcoming' /* Should be halftime */ && (
+            {!playerEntry.midtime_edit && game.simulated_minute >= 45 && game.simulated_minute < 60 && (
               <button onClick={() => setIsEditing(true)} className="flex items-center gap-1.5 text-xs font-bold text-warm-yellow bg-warm-yellow/10 px-3 py-1.5 rounded-lg">
                 <Edit size={14} /> Edit
               </button>
@@ -65,7 +80,7 @@ const LiveGamePlayPage: React.FC<LiveGamePlayPageProps> = ({ game, playerEntry, 
             </div>
           ) : (
             <p className="text-center text-4xl font-bold text-electric-blue mt-2">
-              {playerEntry.predicted_score.home} - {playerEntry.predicted_score.away}
+              {playerEntry.predicted_score?.home} - {playerEntry.predicted_score?.away}
             </p>
           )}
         </div>

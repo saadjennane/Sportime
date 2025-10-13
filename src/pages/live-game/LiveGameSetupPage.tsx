@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { LiveGame, LiveGamePlayerEntry, BonusQuestion } from '../../types';
-import { ArrowLeft, Check, Clock, Info } from 'lucide-react';
+import { ArrowLeft, Check, Clock } from 'lucide-react';
 import { BonusQuestionSet } from '../../components/leagues/live-game/BonusQuestionSet';
+import { generateBonusQuestions } from '../../store/useMockStore';
 
 interface LiveGameSetupPageProps {
   game: LiveGame;
@@ -11,10 +12,10 @@ interface LiveGameSetupPageProps {
 }
 
 const LiveGameSetupPage: React.FC<LiveGameSetupPageProps> = ({ game, playerEntry, onBack, onSubmit }) => {
-  const [homeScore, setHomeScore] = useState<number | ''>(playerEntry?.predicted_score.home ?? '');
-  const [awayScore, setAwayScore] = useState<number | ''>(playerEntry?.predicted_score.away ?? '');
+  const [homeScore, setHomeScore] = useState<number | ''>(playerEntry?.predicted_score?.home ?? '');
+  const [awayScore, setAwayScore] = useState<number | ''>(playerEntry?.predicted_score?.away ?? '');
   const [bonusAnswers, setBonusAnswers] = useState<Record<string, string>>(
-    playerEntry?.bonus_answers.reduce((acc, ans) => ({ ...acc, [ans.question_id]: ans.choice }), {}) || {}
+    playerEntry?.bonus_answers?.reduce((acc, ans) => ({ ...acc, [ans.question_id]: ans.choice }), {}) || {}
   );
   
   const hasSubmitted = !!playerEntry;
@@ -23,17 +24,9 @@ const LiveGameSetupPage: React.FC<LiveGameSetupPageProps> = ({ game, playerEntry
     if (hasSubmitted) {
       return game.bonus_questions;
     }
-    // Dynamically generate questions based on current input
     const predictedScore = { home: Number(homeScore), away: Number(awayScore) };
-    const totalGoals = predictedScore.home + predictedScore.away;
-    if (totalGoals === 0) {
-      return [{ id: 'q1', question: 'Team with highest possession?', options: [game.match_details.teamA.name, game.match_details.teamB.name], answer: '' }];
-    } else if (totalGoals < 3) {
-      return [{ id: 'q1', question: 'Which team scores first?', options: [game.match_details.teamA.name, game.match_details.teamB.name, 'No Goal'], answer: '' }];
-    } else {
-      return [{ id: 'q1', question: 'Which team opens the score?', options: [game.match_details.teamA.name, game.match_details.teamB.name], answer: '' }];
-    }
-  }, [homeScore, awayScore, hasSubmitted, game.bonus_questions, game.match_details]);
+    return generateBonusQuestions(predictedScore);
+  }, [homeScore, awayScore, hasSubmitted, game.bonus_questions]);
 
   const isSubmitDisabled = homeScore === '' || awayScore === '' || Object.keys(bonusAnswers).length < bonusQuestions.length;
 
