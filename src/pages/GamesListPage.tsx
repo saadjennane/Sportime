@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { BettingChallenge, PredictionGame, FantasyGame, UserChallengeEntry, UserSwipeEntry, UserFantasyTeam } from '../types';
+import React, { useState, useMemo } from 'react';
+import { BettingChallenge, PredictionGame, FantasyGame, UserChallengeEntry, UserSwipeEntry, UserFantasyTeam, Profile, UserTicket } from '../types';
 import { GameCard } from '../components/GameCard';
 import { RulesModal } from '../components/RulesModal';
 import { Gamepad2, UserCheck, ChevronDown } from 'lucide-react';
 import { SwipeRulesModal } from '../components/SwipeRulesModal';
+import { isBefore, parseISO } from 'date-fns';
 
 type Game = BettingChallenge | PredictionGame | FantasyGame;
 export type CtaState = 'JOIN' | 'PLAY' | 'SUBMITTED' | 'AWAITING' | 'RESULTS' | 'VIEW_TEAM';
@@ -15,12 +16,14 @@ interface GamesListPageProps {
   userChallengeEntries: UserChallengeEntry[];
   userSwipeEntries: UserSwipeEntry[];
   userFantasyTeams: UserFantasyTeam[];
-  onJoinChallenge: (challengeId: string) => void;
+  onJoinChallenge: (challenge: BettingChallenge) => void;
   onViewChallenge: (challengeId: string) => void;
   onJoinSwipeGame: (gameId: string) => void;
   onPlaySwipeGame: (matchDayId: string) => void;
   onViewFantasyGame: (gameId: string) => void;
   myGamesCount: number;
+  profile: Profile | null;
+  userTickets: UserTicket[];
 }
 
 const GamesListPage: React.FC<GamesListPageProps> = ({ 
@@ -36,6 +39,8 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
   onPlaySwipeGame,
   onViewFantasyGame,
   myGamesCount,
+  profile,
+  userTickets,
 }) => {
   const [activeTab, setActiveTab] = useState<'all' | 'my'>('all');
   const [isBettingRulesOpen, setIsBettingRulesOpen] = useState(false);
@@ -124,9 +129,11 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
         key={game.id}
         game={game}
         ctaState={ctaState}
-        onJoin={() => game.gameType === 'betting' ? onJoinChallenge(game.id) : onJoinSwipeGame(game.id)}
+        onJoinClick={() => game.gameType === 'betting' ? onJoinChallenge(game as BettingChallenge) : onJoinSwipeGame(game.id)}
         onPlay={onPlayAction}
         onShowRules={() => game.gameType === 'betting' ? setIsBettingRulesOpen(true) : setIsSwipeRulesOpen(true)}
+        profile={profile}
+        userTickets={userTickets}
       />
     );
   };

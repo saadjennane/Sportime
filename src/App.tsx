@@ -13,7 +13,7 @@ import AdminPage from './pages/Admin';
 import GamesListPage from './pages/GamesListPage';
 import ChallengeRoomPage from './pages/ChallengeRoomPage';
 import LeaderboardPage from './pages/LeaderboardPage';
-import { JoinChallengeConfirmationModal } from './components/JoinChallengeConfirmationModal';
+import { ChooseEntryMethodModal } from './components/ChooseEntryMethodModal';
 import { SwipeGamePage } from './pages/SwipeGamePage';
 import { SwipeRecapPage } from './pages/SwipeRecapPage';
 import { JoinSwipeGameConfirmationModal } from './components/JoinSwipeGameConfirmationModal';
@@ -128,7 +128,7 @@ function App() {
   const [activeFantasyGameId, setActiveFantasyGameId] = useState<string | null>(null);
   const [activeLiveGame, setActiveLiveGame] = useState<{ id: string; status: 'Upcoming' | 'Ongoing' | 'Finished' } | null>(null);
   const [boosterInfoPreferences, setBoosterInfoPreferences] = useState<{ x2: boolean, x3: boolean }>({ x2: false, x3: false });
-  const [joinChallengeModalState, setJoinChallengeModalState] = useState<{ isOpen: boolean; challenge: Game | null; availableTicket?: UserTicket; }>({ isOpen: false, challenge: null });
+  const [challengeToJoin, setChallengeToJoin] = useState<BettingChallenge | null>(null);
   const [joinSwipeGameModalState, setJoinSwipeGameModalState] = useState<{ isOpen: boolean; game: Game | null; }>({ isOpen: false, game: null });
   const [hasSeenSwipeTutorial, setHasSeenSwipeTutorial] = useState(false);
   const [swipeGameViewMode, setSwipeGameViewMode] = useState<'swiping' | 'recap'>('swiping');
@@ -382,44 +382,50 @@ function App() {
     setMatches(updatedMatches);
   };
 
-  const handleJoinChallenge = (challengeId: string) => {
+  const handleJoinChallenge = (challenge: BettingChallenge) => {
     if (profile?.is_guest) {
       handleTriggerSignUp();
       return;
     }
-    const challengeToJoin = challenges.find(c => c.id === challengeId);
-    if (challengeToJoin && profile) {
-      const availableTicket = userTickets.find(ticket => 
-        ticket.user_id === profile.id &&
-        ticket.type === challengeToJoin.tournament_type &&
-        !ticket.is_used &&
-        isBefore(new Date(), parseISO(ticket.expires_at))
-      );
-      setJoinChallengeModalState({ isOpen: true, challenge: challengeToJoin, availableTicket });
+    if (!profile) return;
+
+    const hasTicket = userTickets.some(ticket => 
+      ticket.user_id === profile.id &&
+      ticket.type === challenge.tournament_type &&
+      !ticket.is_used &&
+      isBefore(new Date(), parseISO(ticket.expires_at))
+    );
+    const hasEnoughCoins = profile.coins_balance >= challenge.entryCost;
+
+    if (hasTicket && hasEnoughCoins) {
+      setChallengeToJoin(challenge);
+    } else if (hasTicket) {
+      handleConfirmJoinChallenge(challenge.id, 'ticket');
+    } else if (hasEnoughCoins) {
+      handleConfirmJoinChallenge(challenge.id, 'coins');
+    } else {
+      addToast('Not enough coins or tickets to join.', 'error');
     }
   };
 
-  const handleConfirmJoinChallenge = async () => {
-    const { challenge } = joinChallengeModalState;
-    if (!challenge || !profile) return;
-
-    const result = joinChallengeAction(challenge.id, profile.id);
-
+  const handleConfirmJoinChallenge = (challengeId: string, method: 'coins' | 'ticket') => {
+    if (!profile) return;
+    const result = joinChallengeAction(challengeId, profile.id, method);
     if (result.success) {
       addToast(result.message, 'success');
-      
       const newEntry: UserChallengeEntry = {
-        challengeId: challenge.id,
-        dailyEntries: [...new Set(mockChallengeMatches.filter(m => m.challengeId === challenge.id).map(m => m.day))]
+        challengeId: challengeId,
+        dailyEntries: [...new Set(mockChallengeMatches.filter(m => m.challengeId === challengeId).map(m => m.day))]
           .map(day => ({ day, bets: [] })),
       };
       setUserChallengeEntries(prev => [...prev, newEntry]);
-      setActiveChallengeId(challenge.id);
+      setActiveChallengeId(challengeId);
     } else {
       addToast(result.message, 'error');
     }
-    setJoinChallengeModalState({ isOpen: false, challenge: null });
+    setChallengeToJoin(null);
   };
+  
   const handleUpdateDailyBets = async (challengeId: string, day: number, newBets: ChallengeBet[]) => {
     setUserChallengeEntries(prev => prev.map(entry => {
       if (entry.challengeId === challengeId) {
@@ -1018,7 +1024,7 @@ function App() {
       case 'matches':
         return <MatchesPage matches={matches} bets={bets} onBet={handleBetClick} />;
       case 'challenges':
-        return <GamesListPage challenges={challenges} swipeMatchDays={swipeMatchDays} fantasyGames={fantasyGames} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} myGamesCount={myGamesCount} />;
+        return <GamesListPage challenges={challenges} swipeMatchDays={swipeMatchDays} fantasyGames={fantasyGames} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} />;
       case 'leagues':
           return <LeaguesListPage 
               leagues={myLeagues}
@@ -1033,7 +1039,7 @@ function App() {
         }
         return null;
       default:
-        return <GamesListPage challenges={challenges} swipeMatchDays={swipeMatchDays} fantasyGames={fantasyGames} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} myGamesCount={myGamesCount} />;
+        return <GamesListPage challenges={challenges} swipeMatchDays={swipeMatchDays} fantasyGames={fantasyGames} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} />;
     }
   }
   
@@ -1067,7 +1073,14 @@ function App() {
       <FooterNav activePage={page} onPageChange={handlePageChange} />
 
       {modalState.match && modalState.prediction && ( <BetModal isOpen={modalState.isOpen} onClose={() => setModalState({ ...modalState, isOpen: false })} match={modalState.match} prediction={modalState.prediction} odds={modalState.odds} balance={coinBalance} onConfirm={handleConfirmBet} userBet={userBetForModal} onCancelBet={handleCancelBet} /> )}
-      {joinChallengeModalState.isOpen && joinChallengeModalState.challenge && ( <JoinChallengeConfirmationModal isOpen={joinChallengeModalState.isOpen} onClose={() => setJoinChallengeModalState({ isOpen: false, challenge: null })} onConfirm={handleConfirmJoinChallenge} challenge={joinChallengeModalState.challenge as BettingChallenge} userBalance={coinBalance} availableTicket={joinChallengeModalState.availableTicket} /> )}
+      {challengeToJoin && (
+        <ChooseEntryMethodModal
+          isOpen={!!challengeToJoin}
+          onClose={() => setChallengeToJoin(null)}
+          onSelectMethod={(method) => handleConfirmJoinChallenge(challengeToJoin.id, method)}
+          challenge={challengeToJoin}
+        />
+      )}
       {joinSwipeGameModalState.isOpen && joinSwipeGameModalState.game && ( <JoinSwipeGameConfirmationModal isOpen={joinSwipeGameModalState.isOpen} onClose={() => setJoinSwipeGameModalState({ isOpen: false, game: null })} onConfirm={handleConfirmJoinSwipeGame} game={joinSwipeGameModalState.game} userBalance={coinBalance} /> )}
       <SignUpPromptModal isOpen={showSignUpPrompt} onConfirm={handleStartSignUp} onCancel={() => setShowSignUpPrompt(false)} />
       <CreateLeagueModal isOpen={showCreateLeagueModal} onClose={() => setShowCreateLeagueModal(false)} onCreate={handleCreateLeague} />

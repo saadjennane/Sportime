@@ -1,15 +1,17 @@
-import React from 'react';
-import { Game, TournamentType } from '../types';
-import { format, parseISO } from 'date-fns';
-import { Calendar, Coins, Info, ArrowRight, Check, Clock, Users, Ticket } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Game, TournamentType, Profile, UserTicket } from '../types';
+import { format, parseISO, isBefore } from 'date-fns';
+import { Calendar, Coins, Info, ArrowRight, Check, Clock, Users, Ticket, ShieldAlert } from 'lucide-react';
 import { CtaState } from '../pages/GamesListPage';
 
 interface GameCardProps {
   game: Game;
   ctaState: CtaState;
-  onJoin: () => void;
+  onJoinClick: () => void;
   onPlay: () => void;
   onShowRules?: () => void;
+  profile: Profile | null;
+  userTickets: UserTicket[];
 }
 
 const gameTypeDetails = {
@@ -24,12 +26,42 @@ const tournamentTierDetails: Record<TournamentType, { label: string; color: stri
   elite: { label: 'Elite', color: 'bg-hot-red/20 text-hot-red' },
 };
 
-export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoin, onPlay, onShowRules }) => {
+export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick, onPlay, onShowRules, profile, userTickets }) => {
   const details = gameTypeDetails[game.gameType as keyof typeof gameTypeDetails];
   const tierDetails = game.tournament_type ? tournamentTierDetails[game.tournament_type] : null;
 
+  const { hasTicket, hasEnoughCoins } = useMemo(() => {
+    if (!profile || game.gameType !== 'betting') return { hasTicket: false, hasEnoughCoins: false };
+    const validTicket = userTickets.find(t => 
+      t.user_id === profile.id &&
+      t.type === game.tournament_type &&
+      !t.is_used &&
+      isBefore(new Date(), parseISO(t.expires_at))
+    );
+    return {
+      hasTicket: !!validTicket,
+      hasEnoughCoins: profile.coins_balance >= game.entryCost,
+    };
+  }, [profile, userTickets, game]);
+
+  const joinButtonContent = () => {
+    if (!hasTicket && !hasEnoughCoins) {
+      return <><ShieldAlert size={16} /> Not enough funds</>;
+    }
+    if (hasTicket && !hasEnoughCoins) {
+      return <><Ticket size={16} className="text-lime-glow" /> Join with Ticket</>;
+    }
+    if (!hasTicket && hasEnoughCoins) {
+      return <><Coins size={16} className="text-warm-yellow" /> Join ({game.entryCost.toLocaleString()})</>;
+    }
+    // Has both
+    return <>Choose Entry Method</>;
+  };
+
+  const isJoinDisabled = ctaState === 'JOIN' && !hasTicket && !hasEnoughCoins;
+
   const ctaConfig = {
-    JOIN: { onClick: onJoin, disabled: game.status !== 'Upcoming', style: 'primary' },
+    JOIN: { onClick: onJoinClick, disabled: isJoinDisabled, style: 'primary', content: joinButtonContent() },
     PLAY: { text: game.gameType === 'betting' ? 'Place Bets' : 'Make Picks', onClick: onPlay, disabled: false, style: 'primary', icon: <ArrowRight size={16} /> },
     SUBMITTED: { text: game.gameType === 'betting' ? 'Bets Submitted' : 'Picks Submitted', onClick: onPlay, disabled: false, style: 'secondary', icon: <Check size={16} /> },
     AWAITING: { text: 'Matches Awaiting', onClick: () => {}, disabled: true, style: 'disabled', icon: <Clock size={16} /> },
@@ -97,13 +129,7 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoin, onPl
           className={`flex-1 flex items-center justify-center gap-2 font-bold rounded-lg transition-all ${buttonStyles[currentCta.style]}`}
         >
           {ctaState === 'JOIN' ? (
-            <>
-              <span className="font-bold">{game.entryCost.toLocaleString()}</span>
-              <Coins size={16} className="text-warm-yellow" />
-              <span className="text-xs text-text-disabled mx-1">or</span>
-              <Ticket size={16} className="text-lime-glow" />
-              <span className="font-bold">Join</span>
-            </>
+            currentCta.content
           ) : (
             <>
               <span>{currentCta.text}</span>
