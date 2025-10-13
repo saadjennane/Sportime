@@ -6,7 +6,7 @@ import { FooterNav } from './components/FooterNav';
 import { mockMatches } from './data/mockMatches';
 import { mockChallengeMatches } from './data/mockChallenges';
 import { mockFantasyPlayers, mockUserFantasyTeams } from './data/mockFantasy.tsx';
-import { Match, Bet, UserChallengeEntry, ChallengeStatus, DailyChallengeEntry, BoosterSelection, UserSwipeEntry, SwipePredictionOutcome, Profile, LevelConfig, Badge, UserBadge, FantasyPlayer, ChallengeBet, UserLeague, LeagueMember, LeagueGame, Game, PrivateLeagueGameConfig, LiveGamePlayerEntry } from './types';
+import { Match, Bet, UserChallengeEntry, ChallengeStatus, DailyChallengeEntry, BoosterSelection, UserSwipeEntry, SwipePredictionOutcome, Profile, LevelConfig, Badge, UserBadge, FantasyPlayer, ChallengeBet, UserLeague, LeagueMember, LeagueGame, Game, PrivateLeagueGameConfig, LiveGamePlayerEntry, UserFantasyTeam } from './types';
 import UpcomingPage from './pages/Upcoming';
 import PlayedPage from './pages/Played';
 import AdminPage from './pages/Admin';
@@ -45,6 +45,10 @@ import LiveGameResultsPage from './pages/live-game/LiveGameResultsPage';
 import LiveGameBettingSetupPage from './pages/live-game/betting/LiveGameBettingSetupPage';
 import LiveGameBettingPlayPage from './pages/live-game/betting/LiveGameBettingPlayPage';
 import LiveGameBettingResultsPage from './pages/live-game/betting/LiveGameBettingResultsPage';
+import PredictionChallengeOverviewPage from './pages/prediction/PredictionChallengeOverviewPage';
+import FantasyLiveTeamSelectionPage from './pages/live-game/FantasyLiveTeamSelectionPage';
+import FantasyLiveGamePage from './pages/live-game/FantasyLiveGamePage';
+import { OnboardingFlow } from './components/OnboardingFlow';
 
 
 export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'leagues';
@@ -55,7 +59,7 @@ const initialUserSwipeEntries: UserSwipeEntry[] = [
   {
     matchDayId: 'swipe-2',
     predictions: [],
-    isFinalized: true,
+    submitted_at: new Date().toISOString(),
   }
 ];
 
@@ -67,6 +71,7 @@ function App() {
   const [authFlow, setAuthFlow] = useState<AuthFlowState>('guest');
   const [showSignUpPrompt, setShowSignUpPrompt] = useState(false);
   const [isTestMode, setIsTestMode] = useState(false);
+  const [showOnboardingTest, setShowOnboardingTest] = useState(false);
 
   const [page, setPage] = useState<Page>('leagues');
   const [matches, setMatches] = useState<Match[]>(mockMatches);
@@ -82,6 +87,7 @@ function App() {
     leagueMembers,
     leagueGames,
     liveGames,
+    predictionChallenges,
     createLeague,
     linkGameToLeagues,
     createLeagueAndLink,
@@ -121,6 +127,7 @@ function App() {
   const [hasSeenSwipeTutorial, setHasSeenSwipeTutorial] = useState(false);
   const [swipeGameViewMode, setSwipeGameViewMode] = useState<'swiping' | 'recap'>('swiping');
   const [leaderboardContext, setLeaderboardContext] = useState<{ leagueId: string; leagueName: string; fromLeague?: boolean } | null>(null);
+  const [viewingPredictionChallenge, setViewingPredictionChallenge] = useState<string | null>(null);
 
   // --- In-Game Linking State ---
   const [linkingGame, setLinkingGame] = useState<Game | null>(null);
@@ -463,7 +470,7 @@ function App() {
         const newEntry: UserSwipeEntry = {
             matchDayId: game.id,
             predictions: [],
-            isFinalized: false,
+            submitted_at: null,
         };
         setUserSwipeEntries(prev => [...prev, newEntry]);
 
@@ -518,8 +525,11 @@ function App() {
                 if (matchDay && newPredictionsCount >= totalMatches && oldPredictionsCount < totalMatches) {
                     setTimeout(() => setSwipeGameViewMode('recap'), 350); // Allow animation to finish
                 }
+                
+                // Finalize submission on last pick
+                const submitted_at = newPredictionsCount >= totalMatches ? new Date().toISOString() : entry.submitted_at;
 
-                return { ...entry, predictions: newPredictions };
+                return { ...entry, predictions: newPredictions, submitted_at };
             }
             return entry;
         });
@@ -708,6 +718,7 @@ function App() {
     setJoinLeagueCode(null);
     setLeaderboardContext(null);
     setActiveLiveGame(null);
+    setViewingPredictionChallenge(null);
   }
 
   const handleLeaderboardBack = () => {
@@ -718,6 +729,7 @@ function App() {
     setViewingSwipeLeaderboardFor(null);
     setActiveFantasyGameId(null);
     setLeaderboardContext(null);
+    setViewingPredictionChallenge(null);
 
     // If we came from a league, navigate back to it
     if (fromLeagueId) {
@@ -736,6 +748,10 @@ function App() {
     await handleSignOut(); // Signs out current user, creates a new guest session
     setAllUsers([]); // Clears the list of registered users
     addToast('All test user accounts have been reset.', 'success');
+  };
+
+  const handleTestOnboarding = () => {
+    setShowOnboardingTest(true);
   };
 
   const myGamesCount = useMemo(() => {
@@ -827,6 +843,20 @@ function App() {
       }
     }
 
+    if (viewingPredictionChallenge) {
+      const challenge = predictionChallenges.find(c => c.id === viewingPredictionChallenge);
+      if (challenge && profile) {
+        return <PredictionChallengeOverviewPage 
+          challenge={challenge}
+          onBack={handleLeaderboardBack}
+          allUsers={allUsers}
+          userSwipeEntries={userSwipeEntries}
+          swipeMatchDays={swipeMatchDays}
+          currentUserId={profile.id}
+        />
+      }
+    }
+
     if (viewingSwipeLeaderboardFor) {
       const matchDay = swipeMatchDays.find(md => md.id === viewingSwipeLeaderboardFor);
       if (matchDay && profile) {
@@ -835,6 +865,7 @@ function App() {
           matchDay={matchDay}
           userEntry={userEntry}
           onBack={handleLeaderboardBack}
+          onViewChallenge={() => setViewingPredictionChallenge(matchDay.challengeId || null)}
           initialLeagueContext={leaderboardContext}
           allUsers={allUsers}
           userLeagues={myLeagues}
@@ -886,8 +917,7 @@ function App() {
       if (game && profile) {
         return <FantasyGameWeekPage
           game={game}
-          userTeams={userFantasyTeams}
-          allPlayers={fantasyPlayers}
+          allPlayers={mockFantasyPlayers}
           onBack={handleLeaderboardBack}
           initialLeagueContext={leaderboardContext}
           allUsers={allUsers}
@@ -915,7 +945,7 @@ function App() {
           if (activeLiveGame.status === 'Finished') {
             return <LiveGameResultsPage game={game} onBack={() => setActiveLiveGame(null)} playerEntry={playerEntry} currentUserId={profile.id} leagueMembers={leagueMembers} />;
           }
-        } else { // Betting Mode
+        } else if (game.mode === 'betting') {
           if (activeLiveGame.status === 'Upcoming') {
             return <LiveGameBettingSetupPage game={game} onBack={() => setActiveLiveGame(null)} playerEntry={playerEntry} onPlaceBet={placeLiveBet} />;
           }
@@ -923,8 +953,15 @@ function App() {
             return <LiveGameBettingPlayPage game={game} onBack={() => setActiveLiveGame(null)} playerEntry={playerEntry} onPlaceBet={placeLiveBet} onTick={tickLiveGame} />;
           }
           if (activeLiveGame.status === 'Finished') {
-            return <LiveGameBettingResultsPage game={game} onBack={() => setActiveLiveGame(null)} playerEntry={playerEntry} />;
+            return <LiveGameBettingResultsPage game={game} onBack={() => setActiveLiveGame(null)} playerEntry={playerEntry} currentUserId={profile.id} leagueMembers={leagueMembers} />;
           }
+        } else if (game.mode === 'fantasy-live') {
+            if (activeLiveGame.status === 'Upcoming') {
+                return <FantasyLiveTeamSelectionPage game={game} onBack={() => setActiveLiveGame(null)} />;
+            }
+            if (activeLiveGame.status === 'Ongoing' || activeLiveGame.status === 'Finished') {
+                return <FantasyLiveGamePage game={game} onBack={() => setActiveLiveGame(null)} />;
+            }
         }
       }
     }
@@ -970,7 +1007,7 @@ function App() {
               onViewLeague={setActiveLeagueId}
           />;
       case 'admin':
-        return <AdminPage matches={matches} onAddMatch={handleAddMatch} onUpdateMatch={handleUpdateMatch} onResolveMatch={handleResolveMatch} levels={levelsConfig} badges={badges} onAddLevel={handleAddLevel} onUpdateLevel={handleUpdateLevel} onDeleteLevel={handleDeleteLevel} onAddBadge={handleAddBadge} onUpdateBadge={handleUpdateBadge} onDeleteBadge={handleDeleteBadge} challenges={[]} challengeMatches={[]} swipeMatchDays={[]} onAddChallenge={() => {}} onAddChallengeMatch={() => {}} onResolveChallengeMatch={() => {}} onUpdateChallengeStatus={() => {}} onAddSwipeMatchDay={() => {}} onResolveSwipeMatch={() => {}} onUpdateSwipeMatchDayStatus={() => {}} isTestMode={isTestMode} onSetTestMode={handleSetTestMode} onResetTestUsers={handleResetTestUsers} profile={profile} onSetCoinBalance={handleSetCoinBalance} addToast={addToast} />;
+        return <AdminPage matches={matches} onAddMatch={handleAddMatch} onUpdateMatch={handleUpdateMatch} onResolveMatch={handleResolveMatch} levels={levelsConfig} badges={badges} onAddLevel={handleAddLevel} onUpdateLevel={handleUpdateLevel} onDeleteLevel={handleDeleteLevel} onAddBadge={handleAddBadge} onUpdateBadge={handleUpdateBadge} onDeleteBadge={handleDeleteBadge} challenges={[]} challengeMatches={[]} swipeMatchDays={[]} onAddChallenge={() => {}} onAddChallengeMatch={() => {}} onResolveChallengeMatch={() => {}} onUpdateChallengeStatus={() => {}} onAddSwipeMatchDay={() => {}} onResolveSwipeMatch={() => {}} onUpdateSwipeMatchDayStatus={() => {}} isTestMode={isTestMode} onSetTestMode={handleSetTestMode} onResetTestUsers={handleResetTestUsers} profile={profile} onSetCoinBalance={handleSetCoinBalance} addToast={addToast} onTestOnboarding={handleTestOnboarding} />;
       case 'profile':
         if (profile && !profile.is_guest) {
           return <ProfilePage profile={profile} levels={levelsConfig} allBadges={badges} userBadges={userBadges} onUpdateProfile={handleUpdateProfile} onUpdateEmail={handleUpdateEmail} onSignOut={handleSignOut} onDeleteAccount={handleDeleteAccount} />;
@@ -1048,6 +1085,10 @@ function App() {
         adminLeagues={myAdminLeagues}
         alreadyLinkedLeagueIds={linkingGame ? leagueGames.filter(lg => lg.game_id === linkingGame.id).map(lg => lg.league_id) : []}
         loading={isLinkingLoading}
+    />
+    <OnboardingFlow 
+      isOpen={showOnboardingTest}
+      onClose={() => setShowOnboardingTest(false)}
     />
     </div>
   );

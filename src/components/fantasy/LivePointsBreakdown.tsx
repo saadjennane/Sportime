@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ChevronDown, BarChart2, Check } from 'lucide-react';
+import { ChevronDown, BarChart2, Check, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GameWeekSimulationResult } from '../../services/fantasyService';
 import { FantasyPlayer } from '../../types';
@@ -99,6 +99,12 @@ export const LivePointsBreakdown: React.FC<LivePointsBreakdownProps> = ({ player
                     </div>
                   );
                 })}
+                {teamResult.boosterStatus && (
+                  <div className="flex justify-between text-sm items-center text-blue-600 bg-blue-50 p-2 rounded-md">
+                    <div className="flex items-center gap-1"><Info size={14}/><span>Booster Note</span></div>
+                    <span className="font-semibold text-right">{teamResult.boosterStatus}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-md font-bold mt-2 pt-2 border-t">
                   <span>Final Score</span>
                   <span>{teamResult.totalPoints.toFixed(1)}</span>

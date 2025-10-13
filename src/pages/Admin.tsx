@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Match, ChallengeStatus, LevelConfig, Badge, Profile } from '../types';
+import { Match, ChallengeStatus, LevelConfig, Badge, Profile } from '../../types';
 import { MatchForm } from '../components/MatchForm';
-import { ChevronDown, Edit2, ShieldCheck, Gamepad2, Settings, Star, DatabaseZap, Terminal, Trash2, Coins } from 'lucide-react';
+import { ChevronDown, Edit2, ShieldCheck, Gamepad2, Settings, Star, DatabaseZap, Terminal, Trash2, Coins, Play } from 'lucide-react';
 import { ProgressionAdmin } from '../components/ProgressionAdmin';
 import { ChallengesAdmin } from '../components/ChallengesAdmin';
 import { DataSyncAdmin } from '../components/DataSyncAdmin';
@@ -46,6 +46,7 @@ interface AdminPageProps {
   profile: Profile | null;
   onSetCoinBalance: (newBalance: number) => void;
   addToast: (message: string, type: 'success' | 'error' | 'info') => void;
+  onTestOnboarding: () => void;
 }
 
 const AdminPage: React.FC<AdminPageProps> = (props) => {
@@ -172,6 +173,12 @@ const AdminPage: React.FC<AdminPageProps> = (props) => {
               isTestMode={props.isTestMode}
               onToggle={props.onSetTestMode}
             />
+            <button
+              onClick={props.onTestOnboarding}
+              className="w-full flex items-center justify-center gap-2 py-3 bg-electric-blue/20 text-electric-blue rounded-xl font-semibold hover:bg-electric-blue/30 transition-colors"
+            >
+              <Play size={16} /> Test Onboarding Flow
+            </button>
             <button
               onClick={() => {
                 if (props.profile) {

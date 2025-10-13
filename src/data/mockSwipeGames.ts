@@ -43,6 +43,7 @@ export const mockSwipeMatchDays: SwipeMatchDay[] = [
     endDate: '2025-08-01',
     totalPlayers: 8192,
     is_linkable: true,
+    challengeId: 'pred-challenge-1', // Link to parent
   },
   {
     id: 'swipe-2',
@@ -54,5 +55,6 @@ export const mockSwipeMatchDays: SwipeMatchDay[] = [
     startDate: '2025-07-20',
     endDate: '2025-07-20',
     totalPlayers: 11432,
+    challengeId: 'pred-challenge-1', // Link to parent
   },
 ];

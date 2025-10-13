@@ -109,7 +109,7 @@ const LeaguePage: React.FC<LeaguePageProps> = (props) => {
     setIsWizardOpen(false);
   };
   
-  const handleCreateLiveGame = (match: Match, mode: 'prediction' | 'betting') => {
+  const handleCreateLiveGame = (match: Match, mode: 'prediction' | 'betting' | 'fantasy-live') => {
     createLiveGame(league.id, match, mode);
     setIsLiveGameSetupOpen(false);
     addToast('Live Game created successfully!', 'success');

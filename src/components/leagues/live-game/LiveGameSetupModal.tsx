@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
 import { Match } from '../../../types';
-import { X, Radio, Gamepad2, ShieldCheck } from 'lucide-react';
+import { X, Radio, Gamepad2, ShieldCheck, Star } from 'lucide-react';
 
 interface LiveGameSetupModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (match: Match, mode: 'prediction' | 'betting') => void;
+  onCreate: (match: Match, mode: 'prediction' | 'betting' | 'fantasy-live') => void;
   matches: Match[];
 }
 
 export const LiveGameSetupModal: React.FC<LiveGameSetupModalProps> = ({ isOpen, onClose, onCreate, matches }) => {
-  const [mode, setMode] = useState<'prediction' | 'betting'>('prediction');
+  const [mode, setMode] = useState<'prediction' | 'betting' | 'fantasy-live'>('prediction');
   
   if (!isOpen) return null;
 
@@ -27,12 +27,15 @@ export const LiveGameSetupModal: React.FC<LiveGameSetupModalProps> = ({ isOpen, 
         </div>
         
         {/* Mode Selector */}
-        <div className="bg-deep-navy/50 p-2 rounded-xl grid grid-cols-2 gap-2">
+        <div className="bg-deep-navy/50 p-2 rounded-xl grid grid-cols-3 gap-2">
           <button onClick={() => setMode('prediction')} className={`flex items-center justify-center gap-2 p-2 rounded-lg font-semibold transition-all ${mode === 'prediction' ? 'bg-electric-blue text-white' : 'text-text-secondary'}`}>
             <Gamepad2 size={16} /> Prediction
           </button>
           <button onClick={() => setMode('betting')} className={`flex items-center justify-center gap-2 p-2 rounded-lg font-semibold transition-all ${mode === 'betting' ? 'bg-electric-blue text-white' : 'text-text-secondary'}`}>
             <ShieldCheck size={16} /> Betting
+          </button>
+          <button onClick={() => setMode('fantasy-live')} className={`flex items-center justify-center gap-2 p-2 rounded-lg font-semibold transition-all ${mode === 'fantasy-live' ? 'bg-electric-blue text-white' : 'text-text-secondary'}`}>
+            <Star size={16} /> Fantasy
           </button>
         </div>
 

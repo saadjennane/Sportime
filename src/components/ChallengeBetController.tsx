@@ -41,14 +41,14 @@ export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ 
     onBetChange(selectedPrediction, newAmount);
   };
 
-  const potentialProfit = useMemo(() => {
+  const potentialGain = useMemo(() => {
     if (bet && bet.amount > 0 && bet.prediction) {
-      let profit = (bet.amount * match.odds[bet.prediction]) - bet.amount;
+      let gain = (bet.amount * match.odds[bet.prediction]);
       if (isBoosted) {
-          if (boosterType === 'x2') profit *= 2;
-          if (boosterType === 'x3') profit *= 3;
+          if (boosterType === 'x2') gain *= 2;
+          if (boosterType === 'x3') gain *= 3;
       }
-      return profit;
+      return gain;
     }
     return 0;
   }, [bet, match.odds, isBoosted, boosterType]);
@@ -130,11 +130,11 @@ export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ 
           </div>
         )}
       </div>
-      {potentialProfit > 0 && !disabled && (
+      {potentialGain > 0 && !disabled && (
         <div className="flex items-center justify-end gap-2 text-green-700">
           <TrendingUp size={14} />
           <span className="text-xs font-semibold">
-            Potential Profit: +{potentialProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            Potential Gain: +{potentialGain.toLocaleString(undefined, { maximumFractionDigits: 0 })}
           </span>
         </div>
       )}

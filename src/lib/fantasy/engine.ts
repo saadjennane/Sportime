@@ -12,7 +12,7 @@ import {
 export const FANTASY_CONFIG: FantasyConfig = {
   fatigue: { star: 0.2, key: 0.1, rest: 0.1 },
   bonuses: { no_star: 1.25, crazy: 1.4, vintage: 1.2 },
-  boosters: { double_impact: 2.2, golden_game: 1.2 },
+  boosters: { double_impact: 2.0, golden_game: 1.2 },
   captain_passive: 1.1,
 };
 
@@ -84,6 +84,7 @@ export function calculateFatigue(
     fatigueReduction = FANTASY_CONFIG.fatigue.key;
   }
 
+  // No lower clamp as per v1.4 requirements
   return currentFatigue - fatigueReduction;
 }
 
@@ -154,8 +155,7 @@ export function computePlayerPoints(
     if(captainPassiveBonus !== 0) breakdown['Captain Bonus'] = captainPassiveBonus;
 
     if (isDoubleImpactActive) {
-      // The total multiplier is 2.2. We've already applied 1.1, so we apply the rest.
-      const doubleImpactMultiplier = FANTASY_CONFIG.boosters.double_impact / FANTASY_CONFIG.captain_passive;
+      const doubleImpactMultiplier = FANTASY_CONFIG.boosters.double_impact;
       const doubleImpactBonus = finalPoints * (doubleImpactMultiplier - 1);
       finalPoints += doubleImpactBonus;
       if(doubleImpactBonus !== 0) breakdown['Double Impact'] = doubleImpactBonus;

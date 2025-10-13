@@ -9,11 +9,12 @@ interface PlayerCircleProps {
   onClick: () => void;
   isCaptain: boolean;
   isSelectedForSwap: boolean;
+  isBoosterTarget?: boolean;
   size?: 'normal' | 'small';
   isLive: boolean;
 }
 
-export const PlayerCircle: React.FC<PlayerCircleProps> = ({ player, onClick, isCaptain, isSelectedForSwap, size = 'normal', isLive }) => {
+export const PlayerCircle: React.FC<PlayerCircleProps> = ({ player, onClick, isCaptain, isSelectedForSwap, isBoosterTarget, size = 'normal', isLive }) => {
   const containerSize = size === 'normal' ? 'w-20' : 'w-16';
   const photoSize = size === 'normal' ? 'w-20 h-20' : 'w-16 h-16';
   const clubLogoSize = size === 'normal' ? 'w-6 h-6' : 'w-5 h-5';
@@ -48,7 +49,7 @@ export const PlayerCircle: React.FC<PlayerCircleProps> = ({ player, onClick, isC
   return (
     <div className={`flex flex-col items-center gap-1 group cursor-pointer ${containerSize} ${liveStatusClass} transition-all`} onClick={onClick}>
       <div className="relative">
-        <div className={`absolute -inset-1 rounded-full transition-all duration-300 ${isSelectedForSwap && !isLive ? 'ring-4 ring-yellow-400' : ''}`} />
+        <div className={`absolute -inset-1 rounded-full transition-all duration-300 ${isSelectedForSwap && !isLive ? 'ring-4 ring-yellow-400' : ''} ${isBoosterTarget ? 'ring-4 ring-lime-glow animate-pulse' : ''}`} />
         <img
           src={player.photo}
           alt={player.name}

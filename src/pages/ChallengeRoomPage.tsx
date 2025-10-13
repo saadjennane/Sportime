@@ -36,12 +36,12 @@ const calculateChallengePoints = (entry: UserChallengeEntry, matches: ChallengeM
       const isWin = match.result === bet.prediction;
       const isBoosted = booster?.matchId === bet.challengeMatchId;
       if (isWin) {
-        let profit = (bet.amount * match.odds[bet.prediction]) - bet.amount;
+        let gain = (bet.amount * match.odds[bet.prediction]);
         if (isBoosted) {
-          if (booster?.type === 'x2') profit *= 2;
-          else if (booster?.type === 'x3') profit *= 3;
+          if (booster?.type === 'x2') gain *= 2;
+          else if (booster?.type === 'x3') gain *= 3;
         }
-        totalPoints += profit;
+        totalPoints += gain;
       } else if (isBoosted && booster?.type === 'x3') {
         totalPoints -= 200;
       }
@@ -175,12 +175,12 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
             const match = dayMatches.find(m => m.id === bet.challengeMatchId);
             if (match && match.result) {
                 if (match.result === bet.prediction) {
-                    let profit = (bet.amount * match.odds[bet.prediction]) - bet.amount;
+                    let gain = (bet.amount * match.odds[bet.prediction]);
                     if (dayEntry.booster?.matchId === bet.challengeMatchId) {
-                        if (dayEntry.booster.type === 'x2') profit *= 2;
-                        if (dayEntry.booster.type === 'x3') profit *= 3;
+                        if (dayEntry.booster.type === 'x2') gain *= 2;
+                        if (dayEntry.booster.type === 'x3') gain *= 3;
                     }
-                    finalPoints += profit;
+                    finalPoints += gain;
                 } else {
                     if (dayEntry.booster?.matchId === bet.challengeMatchId && dayEntry.booster.type === 'x3') {
                         finalPoints -= 200;
@@ -193,7 +193,7 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
         const potentialPoints = dayEntry.bets.reduce((total, bet) => {
             const match = dayMatches.find(m => m.id === bet.challengeMatchId);
             if (match) {
-                total += (bet.amount * match.odds[bet.prediction]) - bet.amount;
+                total += (bet.amount * match.odds[bet.prediction]);
             }
             return total;
         }, 0);

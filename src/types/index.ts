@@ -55,6 +55,7 @@ export interface BettingChallenge extends Game {
 export interface PredictionGame extends Game {
   gameType: 'prediction';
   matches: SwipeMatch[];
+  challengeId?: string; // New: Link to parent challenge
 }
 
 // Deprecated types, will be removed later
@@ -126,7 +127,7 @@ export interface UserSwipeEntry {
   user_id?: string;
   matchDayId: string;
   predictions: UserSwipePrediction[];
-  isFinalized: boolean;
+  submitted_at: string | null; // Changed from isFinalized
 }
 
 export interface SwipeLeaderboardEntry {
@@ -134,6 +135,18 @@ export interface SwipeLeaderboardEntry {
   username: string;
   points: number;
   userId?: string;
+  correct_picks: number;
+  submission_timestamp?: number;
+}
+
+// New: Parent entity for multi-day prediction challenges
+export interface PredictionChallenge {
+  id: string;
+  title: string;
+  season?: string;
+  leagueId?: string;
+  matchDayIds: string[];
+  createdAt: string;
 }
 
 // --- Fantasy Football Types ---
@@ -177,6 +190,7 @@ export interface UserFantasyTeam {
   substitutes: string[];
   fatigue_state: Record<string, number>; 
   booster_used: number | null;
+  booster_target_id?: string | null;
   captain_id: string;
 }
 
@@ -380,6 +394,20 @@ export interface PrivateLeagueGame {
   created_at: string;
 }
 
+// --- Fantasy Live Types ---
+export interface FantasyLiveBooster {
+  id: number;
+  name: string;
+  description: string;
+  type: 'individual' | 'team';
+  duration: number; // in minutes, 0 for instant
+  effect: string;
+  malus?: string;
+  icon: React.ReactNode;
+  used: boolean;
+  active_until?: string;
+}
+
 // --- Live Game ---
 export interface BonusQuestion {
   id: string;
@@ -421,6 +449,13 @@ export interface LiveGamePlayerEntry {
     live_balance: number;
     bets: LiveBet[];
     total_gain: number;
+    last_gain_time?: string;
+  };
+
+  // Fantasy Live Mode
+  fantasy_team?: {
+    players: FantasyPlayer[];
+    captain_id: string;
   };
 }
 
@@ -443,7 +478,7 @@ export interface LiveGame {
   match_details: Match;
   created_by: string;
   status: 'Upcoming' | 'Ongoing' | 'Finished';
-  mode: 'prediction' | 'betting';
+  mode: 'prediction' | 'betting' | 'fantasy-live';
   last_known_state?: {
     minute: number;
     score: { home: number, away: number };
@@ -455,6 +490,9 @@ export interface LiveGame {
   // Betting Mode
   markets: LiveGameMarket[];
   simulated_minute: number;
+
+  // Fantasy Live Mode
+  boosters?: FantasyLiveBooster[];
 
   players: LiveGamePlayerEntry[];
 }
@@ -612,4 +650,15 @@ export interface PlayerGameWeekStats {
   fouls_suffered: number;
   rating: number;
   clean_sheet: boolean;
+}
+
+// --- Onboarding ---
+export interface OnboardingSlide {
+  slide_number: number;
+  title: string;
+  subtitle: string;
+  visual_description: string;
+  cta_text: string | { primary: string; secondary: string };
+  emotion: string;
+  progress_visual: string;
 }

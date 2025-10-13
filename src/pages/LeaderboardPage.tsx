@@ -31,12 +31,12 @@ const calculateChallengePoints = (entry: UserChallengeEntry, matches: ChallengeM
       const isWin = match.result === bet.prediction;
       const isBoosted = booster?.matchId === bet.challengeMatchId;
       if (isWin) {
-        let profit = (bet.amount * match.odds[bet.prediction]) - bet.amount;
+        let gain = (bet.amount * match.odds[bet.prediction]);
         if (isBoosted) {
-          if (booster?.type === 'x2') profit *= 2;
-          else if (booster?.type === 'x3') profit *= 3;
+          if (booster?.type === 'x2') gain *= 2;
+          else if (booster?.type === 'x3') gain *= 3;
         }
-        totalPoints += profit;
+        totalPoints += gain;
       } else if (isBoosted && booster?.type === 'x3') {
         totalPoints -= 200;
       }

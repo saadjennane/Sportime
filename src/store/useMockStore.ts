@@ -22,13 +22,17 @@ import {
   BonusQuestion,
   LiveGamePlayerEntry,
   LiveBet,
+  LiveGameMarket,
+  UserFantasyTeam,
+  PredictionChallenge,
+  FantasyLiveBooster,
 } from '../types';
-import { isToday } from 'date-fns';
+import { isToday, addMinutes } from 'date-fns';
 
 // Import mock data
 import { mockChallenges } from '../data/mockChallenges';
 import { mockSwipeMatchDays } from '../data/mockSwipeGames';
-import { mockFantasyGame } from '../data/mockFantasy.tsx';
+import { mockFantasyGame, mockUserFantasyTeams } from '../data/mockFantasy.tsx';
 import { mockUserLeagues } from '../data/mockUserLeagues';
 import { mockLeagueMembers } from '../data/mockLeagueMembers';
 import { mockLeagueGames } from '../data/mockLeagueGames';
@@ -36,6 +40,9 @@ import { mockScores } from '../data/mockLeaderboardScores';
 import { mockLiveGames } from '../data/mockLiveGames';
 import { mockFantasyPlayers } from '../data/mockFantasy.tsx';
 import { mockPreMatchMarkets } from '../data/mockLiveGameMarkets';
+import { marketTemplates } from '../data/marketTemplates';
+import { mockUsers } from '../data/mockUsers';
+import { mockFantasyLiveBoosters } from '../data/mockFantasyLive.tsx';
 
 interface MockDataState {
   challenges: BettingChallenge[];
@@ -49,6 +56,9 @@ interface MockDataState {
   leagueFeed: LeagueFeedPost[];
   privateLeagueGames: PrivateLeagueGame[];
   liveGames: LiveGame[];
+  predictionChallenges: PredictionChallenge[];
+  userFantasyTeams: UserFantasyTeam[];
+  allUsers: Profile[];
 }
 
 interface MockDataActions {
@@ -68,11 +78,13 @@ interface MockDataActions {
   toggleFeedPostLike: (postId: string, userId: string) => void;
   createPrivateLeagueGame: (leagueId: string, config: PrivateLeagueGameConfig) => void;
   // Live Game Actions
-  createLiveGame: (leagueId: string, match: Match, mode: 'prediction' | 'betting') => void;
+  createLiveGame: (leagueId: string, match: Match, mode: 'prediction' | 'betting' | 'fantasy-live') => void;
   submitLiveGamePrediction: (gameId: string, userId: string, prediction: Omit<LiveGamePlayerEntry, 'user_id' | 'submitted_at'>) => void;
   editLiveGamePrediction: (gameId: string, userId: string, newScore: { home: number; away: number }) => void;
   placeLiveBet: (gameId: string, userId: string, marketId: string, option: string, amount: number, odds: number) => void;
   tickLiveGame: (gameId: string) => void;
+  // Fantasy Actions
+  updateUserFantasyTeam: (team: UserFantasyTeam) => void;
 }
 
 export const generateBonusQuestions = (predictedScore: { home: number, away: number }): BonusQuestion[] => {
@@ -116,6 +128,15 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
   leagueFeed: [],
   privateLeagueGames: [],
   liveGames: mockLiveGames,
+  predictionChallenges: [{
+    id: 'pred-challenge-1',
+    title: 'Match Day Challenge – Season (mock)',
+    season: '2025/26',
+    matchDayIds: ['swipe-1', 'swipe-2'],
+    createdAt: new Date().toISOString(),
+  }],
+  userFantasyTeams: mockUserFantasyTeams,
+  allUsers: mockUsers,
 
   // Action to create a new league
   createLeague: (name, description, profile) => {
@@ -339,6 +360,21 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
         bonus_questions: [],
         players: [],
       };
+    } else if (mode === 'fantasy-live') {
+      newLiveGame = {
+        id: `live-${uuidv4()}`,
+        league_id: leagueId,
+        match_id: match.id,
+        match_details: match,
+        created_by: 'user-1',
+        status: 'Upcoming',
+        mode: 'fantasy-live',
+        bonus_questions: [],
+        markets: [],
+        simulated_minute: 0,
+        players: [],
+        boosters: mockFantasyLiveBoosters,
+      };
     } else { // prediction mode
       newLiveGame = {
         id: `live-${uuidv4()}`,
@@ -355,7 +391,7 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
       };
     }
     
-    set({ liveGames: [...liveGames, newLiveGame] });
+    set({ liveGames: [newLiveGame, ...liveGames] });
   },
 
   submitLiveGamePrediction: (gameId, userId, prediction) => {
@@ -451,35 +487,98 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
       liveGames: state.liveGames.map(game => {
         if (game.id !== gameId || game.status !== 'Ongoing') return game;
 
-        const newMinute = game.simulated_minute + 1;
-        
-        // Mock score change
+        const newMinute = game.simulated_minute + 5;
         let newScore = game.match_details.score || { teamA: 0, teamB: 0 };
-        if (newMinute === 25) newScore = { teamA: 1, teamB: 0 };
-        if (newMinute === 60) newScore = { teamA: 1, teamB: 1 };
-
-        // Mock market generation
+        let lastKnownState = game.last_known_state || { minute: 0, score: { home: 0, away: 0 } };
         let newMarkets = [...game.markets];
-        if (newMinute === 10) {
-            // newMarkets.push(...)
+        let updatedPlayers = [...game.players];
+
+        // --- Event Simulation ---
+        const events = [
+          { minute: 25, score: { teamA: 1, teamB: 0 }, trigger: 'goal_event' },
+          { minute: 60, score: { teamA: 1, teamB: 1 }, trigger: 'equalizer_event' },
+          { minute: 88, score: { teamA: 2, teamB: 1 }, trigger: 'goal_event' },
+        ];
+        
+        const event = events.find(e => newMinute >= e.minute && lastKnownState.minute < e.minute);
+        if (event) {
+            newScore = event.score;
         }
 
-        // Mock market resolution
-        newMarkets = newMarkets.map(m => {
-            if (m.status === 'open' && new Date(m.expires_at) < new Date()) {
-                // In a real app, resolve based on real events
-                return { ...m, status: 'closed' };
+        // --- Market Resolution ---
+        const marketsToResolve = newMarkets.filter(m => m.status === 'open' && new Date(m.expires_at) < new Date());
+        const winningOptions: Record<string, string> = {
+            'pre-mkt-1': 'E. Haaland',
+            'pre-mkt-2': 'Draw',
+            'live-mkt-1': event && event.trigger === 'goal_event' ? 'Yes' : 'No',
+        };
+
+        if (marketsToResolve.length > 0) {
+            updatedPlayers = updatedPlayers.map(player => {
+                let newBettingState = player.betting_state ? { ...player.betting_state } : undefined;
+                if (newBettingState) {
+                    marketsToResolve.forEach(market => {
+                        const winningOption = winningOptions[market.id];
+                        if (winningOption) {
+                            const betIndex = newBettingState.bets.findIndex(b => b.market_id === market.id && b.status === 'pending');
+                            if (betIndex > -1) {
+                                const bet = newBettingState.bets[betIndex];
+                                if (bet.option === winningOption) {
+                                    const gain = Math.round(bet.amount * bet.odds);
+                                    newBettingState.total_gain += gain;
+                                    newBettingState.last_gain_time = new Date().toISOString();
+                                    newBettingState.bets[betIndex] = { ...bet, status: 'won', gain };
+                                } else {
+                                    newBettingState.bets[betIndex] = { ...bet, status: 'lost', gain: 0 };
+                                }
+                            }
+                        }
+                    });
+                }
+                return { ...player, betting_state: newBettingState };
+            });
+            newMarkets = newMarkets.map(m => marketsToResolve.find(mr => mr.id === m.id) ? { ...m, status: 'resolved', winning_option: winningOptions[m.id] } : m);
+        }
+        
+        // --- New Market Generation ---
+        const hasActiveMarket = newMarkets.some(m => m.status === 'open');
+        if (!hasActiveMarket) {
+            const getEmotionFactor = () => (newMinute > 70 ? 1.3 : 1.0);
+            const trigger = event?.trigger || (newMinute > 70 ? 'tension_builds' : null);
+            const template = trigger ? marketTemplates[trigger] : null;
+            if (template) {
+                const newMarket: LiveGameMarket = {
+                    id: `live-mkt-${newMinute}`,
+                    minute: newMinute,
+                    type: trigger!,
+                    title: template.title,
+                    emotion_factor: getEmotionFactor(),
+                    odds: template.options.map(opt => ({ option: opt, adjusted: (Math.random() * 2 + 1.5) * getEmotionFactor() })),
+                    expires_at: addMinutes(new Date(), 2).toISOString(),
+                    status: 'open',
+                };
+                newMarkets.push(newMarket);
             }
-            return m;
-        });
+        }
 
         return { 
           ...game, 
           simulated_minute: newMinute,
           match_details: { ...game.match_details, score: newScore },
+          last_known_state: { minute: newMinute, score: { home: newScore.teamA, away: newScore.teamB } },
           markets: newMarkets,
+          players: updatedPlayers,
         };
       }),
+    }));
+  },
+
+  // --- Fantasy Actions ---
+  updateUserFantasyTeam: (team) => {
+    set(state => ({
+      userFantasyTeams: state.userFantasyTeams.map(t => 
+        t.gameWeekId === team.gameWeekId && t.userId === team.userId ? team : t
+      ),
     }));
   },
 }));
