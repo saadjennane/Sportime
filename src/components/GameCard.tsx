@@ -1,7 +1,7 @@
 import React from 'react';
-import { Game } from '../types';
+import { Game, TournamentType } from '../types';
 import { format, parseISO } from 'date-fns';
-import { Calendar, Coins, Info, ArrowRight, Check, Clock, Users } from 'lucide-react';
+import { Calendar, Coins, Info, ArrowRight, Check, Clock, Users, Ticket } from 'lucide-react';
 import { CtaState } from '../pages/GamesListPage';
 
 interface GameCardProps {
@@ -18,8 +18,15 @@ const gameTypeDetails = {
   fantasy: { tag: 'Fantasy', color: 'bg-lime-glow/20 text-lime-glow' },
 };
 
+const tournamentTierDetails: Record<TournamentType, { label: string; color: string }> = {
+  rookie: { label: 'Rookie', color: 'bg-lime-glow/20 text-lime-glow' },
+  pro: { label: 'Pro', color: 'bg-warm-yellow/20 text-warm-yellow' },
+  elite: { label: 'Elite', color: 'bg-hot-red/20 text-hot-red' },
+};
+
 export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoin, onPlay, onShowRules }) => {
   const details = gameTypeDetails[game.gameType as keyof typeof gameTypeDetails];
+  const tierDetails = game.tournament_type ? tournamentTierDetails[game.tournament_type] : null;
 
   const ctaConfig = {
     JOIN: { onClick: onJoin, disabled: game.status !== 'Upcoming', style: 'primary' },
@@ -48,6 +55,11 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoin, onPl
             <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${details.color}`}>
               {details.tag}
             </span>
+            {tierDetails && (
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${tierDetails.color}`}>
+                {tierDetails.label}
+              </span>
+            )}
           </div>
         </div>
         <span className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${game.status === 'Upcoming' ? 'bg-electric-blue/20 text-electric-blue' : game.status === 'Ongoing' ? 'bg-lime-glow/20 text-lime-glow' : 'bg-disabled text-text-disabled'}`}>
@@ -86,9 +98,11 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoin, onPl
         >
           {ctaState === 'JOIN' ? (
             <>
-              <span className="font-bold">{game.entryCost}</span>
+              <span className="font-bold">{game.entryCost.toLocaleString()}</span>
               <Coins size={16} className="text-warm-yellow" />
-              <span>to Join</span>
+              <span className="text-xs text-text-disabled mx-1">or</span>
+              <Ticket size={16} className="text-lime-glow" />
+              <span className="font-bold">Join</span>
             </>
           ) : (
             <>

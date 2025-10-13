@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Match, ChallengeStatus, LevelConfig, Badge, Profile } from '../../types';
+import { Match, ChallengeStatus, LevelConfig, Badge, Profile, BettingChallenge } from '../../types';
 import { MatchForm } from '../components/MatchForm';
 import { ChevronDown, Edit2, ShieldCheck, Gamepad2, Settings, Star, DatabaseZap, Terminal, Trash2, Coins, Play } from 'lucide-react';
 import { ProgressionAdmin } from '../components/ProgressionAdmin';
@@ -27,17 +27,9 @@ interface AdminPageProps {
   onUpdateBadge: (badge: Badge) => void;
   onDeleteBadge: (badgeId: string) => void;
 
-  // Obsolete challenge props - will be removed once ChallengesAdmin is self-sufficient
-  challenges: any[];
-  challengeMatches: any[];
-  swipeMatchDays: any[];
-  onAddChallenge: (challenge: any) => void;
-  onAddChallengeMatch: (challengeMatch: any) => void;
-  onResolveChallengeMatch: (challengeMatchId: string, result: 'teamA' | 'draw' | 'teamB') => void;
-  onUpdateChallengeStatus: (challengeId: string, status: ChallengeStatus) => void;
-  onAddSwipeMatchDay: (matchDay: any) => void;
-  onResolveSwipeMatch: (matchId: string, result: any) => void;
-  onUpdateSwipeMatchDayStatus: (matchDayId: string, status: 'Ongoing' | 'Finished') => void;
+  // Challenge props
+  challenges: BettingChallenge[];
+  onAddChallenge: (challenge: Omit<BettingChallenge, 'id' | 'status' | 'totalPlayers' | 'gameType' | 'is_linkable'>) => void;
 
   // Developer props
   isTestMode: boolean;
@@ -90,7 +82,7 @@ const AdminPage: React.FC<AdminPageProps> = (props) => {
 
       {activeSection === 'challenges' && (
         <div className="animate-scale-in">
-          <ChallengesAdmin addToast={addToast}/>
+          <ChallengesAdmin addToast={addToast} onAddChallenge={props.onAddChallenge} />
         </div>
       )}
 

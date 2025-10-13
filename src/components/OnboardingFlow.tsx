@@ -115,11 +115,10 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ isOpen, onClose 
               <button onClick={onClose} className="w-full py-3 text-sm font-semibold text-text-secondary hover:bg-white/10 rounded-xl">
                 {typeof currentSlide.cta_text !== 'string' && currentSlide.cta_text.secondary}
               </button>
-              <div className="text-center pt-2">
-                <button onClick={handleBack} className="flex items-center gap-2 mx-auto text-sm text-text-disabled hover:text-text-secondary">
-                    <ArrowLeft size={16} /> Go Back
-                </button>
-              </div>
+              <button onClick={handleBack} className="w-full py-3 text-sm font-semibold text-text-disabled hover:text-text-secondary rounded-xl flex items-center justify-center gap-2">
+                <ArrowLeft size={16} />
+                Go Back
+              </button>
             </div>
           )}
         </div>

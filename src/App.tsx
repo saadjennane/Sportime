@@ -6,7 +6,7 @@ import { FooterNav } from './components/FooterNav';
 import { mockMatches } from './data/mockMatches';
 import { mockChallengeMatches } from './data/mockChallenges';
 import { mockFantasyPlayers, mockUserFantasyTeams } from './data/mockFantasy.tsx';
-import { Match, Bet, UserChallengeEntry, ChallengeStatus, DailyChallengeEntry, BoosterSelection, UserSwipeEntry, SwipePredictionOutcome, Profile, LevelConfig, Badge, UserBadge, FantasyPlayer, ChallengeBet, UserLeague, LeagueMember, LeagueGame, Game, PrivateLeagueGameConfig, LiveGamePlayerEntry, UserFantasyTeam } from './types';
+import { Match, Bet, UserChallengeEntry, ChallengeStatus, DailyChallengeEntry, BoosterSelection, UserSwipeEntry, SwipePredictionOutcome, Profile, LevelConfig, Badge, UserBadge, FantasyPlayer, ChallengeBet, UserLeague, LeagueMember, LeagueGame, Game, PrivateLeagueGameConfig, LiveGamePlayerEntry, UserFantasyTeam, UserTicket, BettingChallenge } from './types';
 import UpcomingPage from './pages/Upcoming';
 import PlayedPage from './pages/Played';
 import AdminPage from './pages/Admin';
@@ -49,6 +49,8 @@ import PredictionChallengeOverviewPage from './pages/prediction/PredictionChalle
 import FantasyLiveTeamSelectionPage from './pages/live-game/FantasyLiveTeamSelectionPage';
 import FantasyLiveGamePage from './pages/live-game/FantasyLiveGamePage';
 import { OnboardingFlow } from './components/OnboardingFlow';
+import { isBefore, parseISO } from 'date-fns';
+import { TicketWalletModal } from './components/TicketWalletModal';
 
 
 export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'leagues';
@@ -72,6 +74,7 @@ function App() {
   const [showSignUpPrompt, setShowSignUpPrompt] = useState(false);
   const [isTestMode, setIsTestMode] = useState(false);
   const [showOnboardingTest, setShowOnboardingTest] = useState(false);
+  const [isTicketWalletOpen, setIsTicketWalletOpen] = useState(false);
 
   const [page, setPage] = useState<Page>('leagues');
   const [matches, setMatches] = useState<Match[]>(mockMatches);
@@ -88,6 +91,8 @@ function App() {
     leagueGames,
     liveGames,
     predictionChallenges,
+    userTickets,
+    addChallenge,
     createLeague,
     linkGameToLeagues,
     createLeagueAndLink,
@@ -96,6 +101,7 @@ function App() {
     editLiveGamePrediction,
     placeLiveBet,
     tickLiveGame,
+    joinChallenge: joinChallengeAction,
   } = useMockStore();
 
   // --- Local Game State ---
@@ -122,7 +128,7 @@ function App() {
   const [activeFantasyGameId, setActiveFantasyGameId] = useState<string | null>(null);
   const [activeLiveGame, setActiveLiveGame] = useState<{ id: string; status: 'Upcoming' | 'Ongoing' | 'Finished' } | null>(null);
   const [boosterInfoPreferences, setBoosterInfoPreferences] = useState<{ x2: boolean, x3: boolean }>({ x2: false, x3: false });
-  const [joinChallengeModalState, setJoinChallengeModalState] = useState<{ isOpen: boolean; challenge: Game | null; }>({ isOpen: false, challenge: null });
+  const [joinChallengeModalState, setJoinChallengeModalState] = useState<{ isOpen: boolean; challenge: Game | null; availableTicket?: UserTicket; }>({ isOpen: false, challenge: null });
   const [joinSwipeGameModalState, setJoinSwipeGameModalState] = useState<{ isOpen: boolean; game: Game | null; }>({ isOpen: false, game: null });
   const [hasSeenSwipeTutorial, setHasSeenSwipeTutorial] = useState(false);
   const [swipeGameViewMode, setSwipeGameViewMode] = useState<'swiping' | 'recap'>('swiping');
@@ -382,33 +388,37 @@ function App() {
       return;
     }
     const challengeToJoin = challenges.find(c => c.id === challengeId);
-    if (challengeToJoin) setJoinChallengeModalState({ isOpen: true, challenge: challengeToJoin });
+    if (challengeToJoin && profile) {
+      const availableTicket = userTickets.find(ticket => 
+        ticket.user_id === profile.id &&
+        ticket.type === challengeToJoin.tournament_type &&
+        !ticket.is_used &&
+        isBefore(new Date(), parseISO(ticket.expires_at))
+      );
+      setJoinChallengeModalState({ isOpen: true, challenge: challengeToJoin, availableTicket });
+    }
   };
 
   const handleConfirmJoinChallenge = async () => {
     const { challenge } = joinChallengeModalState;
-    if (!challenge || !profile || profile.is_guest) return;
+    if (!challenge || !profile) return;
 
-    if (coinBalance >= challenge.entryCost) {
-        await handleSetCoinBalance(coinBalance - challenge.entryCost);
+    const result = joinChallengeAction(challenge.id, profile.id);
 
-        const challengeDays = [...new Set(mockChallengeMatches.filter(m => m.challengeId === challenge.id).map(m => m.day))];
-        
-        const newEntry: UserChallengeEntry = {
-            challengeId: challenge.id,
-            dailyEntries: challengeDays.map(day => ({
-                day: day,
-                bets: [],
-            })),
-        };
-
-        setUserChallengeEntries(prev => [...prev, newEntry]);
-        setJoinChallengeModalState({ isOpen: false, challenge: null });
-        addToast(`Successfully joined "${challenge.name}"!`, 'success');
-        setActiveChallengeId(challenge.id);
+    if (result.success) {
+      addToast(result.message, 'success');
+      
+      const newEntry: UserChallengeEntry = {
+        challengeId: challenge.id,
+        dailyEntries: [...new Set(mockChallengeMatches.filter(m => m.challengeId === challenge.id).map(m => m.day))]
+          .map(day => ({ day, bets: [] })),
+      };
+      setUserChallengeEntries(prev => [...prev, newEntry]);
+      setActiveChallengeId(challenge.id);
     } else {
-        addToast('Insufficient funds to join this challenge.', 'error');
+      addToast(result.message, 'error');
     }
+    setJoinChallengeModalState({ isOpen: false, challenge: null });
   };
   const handleUpdateDailyBets = async (challengeId: string, day: number, newBets: ChallengeBet[]) => {
     setUserChallengeEntries(prev => prev.map(entry => {
@@ -787,6 +797,15 @@ function App() {
     const userMemberOf = leagueMembers.filter(m => m.user_id === profile.id).map(m => m.league_id);
     return userLeagues.filter(l => userMemberOf.includes(l.id));
   }, [profile, leagueMembers, userLeagues]);
+  
+  const ticketCount = useMemo(() => {
+    if (!profile) return 0;
+    return userTickets.filter(t => 
+        t.user_id === profile.id && 
+        !t.is_used && 
+        isBefore(new Date(), parseISO(t.expires_at))
+    ).length;
+  }, [userTickets, profile]);
 
   const renderPage = () => {
     if (joinLeagueCode) {
@@ -1007,7 +1026,7 @@ function App() {
               onViewLeague={setActiveLeagueId}
           />;
       case 'admin':
-        return <AdminPage matches={matches} onAddMatch={handleAddMatch} onUpdateMatch={handleUpdateMatch} onResolveMatch={handleResolveMatch} levels={levelsConfig} badges={badges} onAddLevel={handleAddLevel} onUpdateLevel={handleUpdateLevel} onDeleteLevel={handleDeleteLevel} onAddBadge={handleAddBadge} onUpdateBadge={handleUpdateBadge} onDeleteBadge={handleDeleteBadge} challenges={[]} challengeMatches={[]} swipeMatchDays={[]} onAddChallenge={() => {}} onAddChallengeMatch={() => {}} onResolveChallengeMatch={() => {}} onUpdateChallengeStatus={() => {}} onAddSwipeMatchDay={() => {}} onResolveSwipeMatch={() => {}} onUpdateSwipeMatchDayStatus={() => {}} isTestMode={isTestMode} onSetTestMode={handleSetTestMode} onResetTestUsers={handleResetTestUsers} profile={profile} onSetCoinBalance={handleSetCoinBalance} addToast={addToast} onTestOnboarding={handleTestOnboarding} />;
+        return <AdminPage matches={matches} onAddMatch={handleAddMatch} onUpdateMatch={handleUpdateMatch} onResolveMatch={handleResolveMatch} levels={levelsConfig} badges={badges} onAddLevel={handleAddLevel} onUpdateLevel={handleUpdateLevel} onDeleteLevel={handleDeleteLevel} onAddBadge={handleAddBadge} onUpdateBadge={handleUpdateBadge} onDeleteBadge={handleDeleteBadge} challenges={challenges} onAddChallenge={addChallenge} isTestMode={isTestMode} onSetTestMode={handleSetTestMode} onResetTestUsers={handleResetTestUsers} profile={profile} onSetCoinBalance={handleSetCoinBalance} addToast={addToast} onTestOnboarding={handleTestOnboarding} />;
       case 'profile':
         if (profile && !profile.is_guest) {
           return <ProfilePage profile={profile} levels={levelsConfig} allBadges={badges} userBadges={userBadges} onUpdateProfile={handleUpdateProfile} onUpdateEmail={handleUpdateEmail} onSignOut={handleSignOut} onDeleteAccount={handleDeleteAccount} />;
@@ -1041,14 +1060,14 @@ function App() {
       )}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
       <div className="max-w-md mx-auto px-4 pt-4 pb-28 space-y-4">
-        <Header profile={profile} onViewProfile={() => handlePageChange('profile')} onSignIn={handleTriggerSignUp} />
+        <Header profile={profile} ticketCount={ticketCount} onViewProfile={() => handlePageChange('profile')} onSignIn={handleTriggerSignUp} onViewTickets={() => setIsTicketWalletOpen(true)} />
         {renderPage()}
       </div>
 
       <FooterNav activePage={page} onPageChange={handlePageChange} />
 
       {modalState.match && modalState.prediction && ( <BetModal isOpen={modalState.isOpen} onClose={() => setModalState({ ...modalState, isOpen: false })} match={modalState.match} prediction={modalState.prediction} odds={modalState.odds} balance={coinBalance} onConfirm={handleConfirmBet} userBet={userBetForModal} onCancelBet={handleCancelBet} /> )}
-      {joinChallengeModalState.isOpen && joinChallengeModalState.challenge && ( <JoinChallengeConfirmationModal isOpen={joinChallengeModalState.isOpen} onClose={() => setJoinChallengeModalState({ isOpen: false, challenge: null })} onConfirm={handleConfirmJoinChallenge} challenge={joinChallengeModalState.challenge} userBalance={coinBalance} /> )}
+      {joinChallengeModalState.isOpen && joinChallengeModalState.challenge && ( <JoinChallengeConfirmationModal isOpen={joinChallengeModalState.isOpen} onClose={() => setJoinChallengeModalState({ isOpen: false, challenge: null })} onConfirm={handleConfirmJoinChallenge} challenge={joinChallengeModalState.challenge as BettingChallenge} userBalance={coinBalance} availableTicket={joinChallengeModalState.availableTicket} /> )}
       {joinSwipeGameModalState.isOpen && joinSwipeGameModalState.game && ( <JoinSwipeGameConfirmationModal isOpen={joinSwipeGameModalState.isOpen} onClose={() => setJoinSwipeGameModalState({ isOpen: false, game: null })} onConfirm={handleConfirmJoinSwipeGame} game={joinSwipeGameModalState.game} userBalance={coinBalance} /> )}
       <SignUpPromptModal isOpen={showSignUpPrompt} onConfirm={handleStartSignUp} onCancel={() => setShowSignUpPrompt(false)} />
       <CreateLeagueModal isOpen={showCreateLeagueModal} onClose={() => setShowCreateLeagueModal(false)} onCreate={handleCreateLeague} />
@@ -1089,6 +1108,11 @@ function App() {
     <OnboardingFlow 
       isOpen={showOnboardingTest}
       onClose={() => setShowOnboardingTest(false)}
+    />
+    <TicketWalletModal
+      isOpen={isTicketWalletOpen}
+      onClose={() => setIsTicketWalletOpen(false)}
+      tickets={profile ? userTickets.filter(t => t.user_id === profile.id) : []}
     />
     </div>
   );

@@ -1,13 +1,16 @@
-import { Challenge, ChallengeMatch } from '../types';
+import { BettingChallenge, ChallengeMatch } from '../types';
+import { TOURNAMENT_COSTS } from '../config/constants';
 
-export const mockChallenges: Challenge[] = [
+export const mockChallenges: BettingChallenge[] = [
   {
     id: 'challenge-new',
     gameType: 'betting',
     name: 'Summer Showdown',
+    tournament_type: 'rookie',
+    duration_type: 'mini',
     startDate: '2025-07-25',
     endDate: '2025-07-26',
-    entryCost: 500,
+    entryCost: TOURNAMENT_COSTS.rookie.base * TOURNAMENT_COSTS.rookie.multipliers.mini,
     challengeBalance: 1000,
     status: 'Upcoming',
     totalPlayers: 5821,
@@ -17,9 +20,11 @@ export const mockChallenges: Challenge[] = [
     id: 'challenge-1',
     gameType: 'betting',
     name: 'Weekend Premier League',
+    tournament_type: 'pro',
+    duration_type: 'season',
     startDate: '2025-07-18',
     endDate: '2025-07-20',
-    entryCost: 1000,
+    entryCost: TOURNAMENT_COSTS.pro.base * TOURNAMENT_COSTS.pro.multipliers.season,
     challengeBalance: 1000,
     status: 'Ongoing',
     totalPlayers: 13476,
@@ -28,9 +33,11 @@ export const mockChallenges: Challenge[] = [
     id: 'challenge-2',
     gameType: 'betting',
     name: 'Champions League Knockouts',
+    tournament_type: 'elite',
+    duration_type: 'daily',
     startDate: '2025-07-15',
     endDate: '2025-07-17',
-    entryCost: 500,
+    entryCost: TOURNAMENT_COSTS.elite.base * TOURNAMENT_COSTS.elite.multipliers.daily,
     challengeBalance: 1000,
     status: 'Ongoing',
     totalPlayers: 8254,
@@ -40,9 +47,11 @@ export const mockChallenges: Challenge[] = [
     id: 'challenge-3',
     gameType: 'betting',
     name: 'International Friendlies',
+    tournament_type: 'rookie',
+    duration_type: 'daily',
     startDate: '2025-07-01',
     endDate: '2025-07-03',
-    entryCost: 250,
+    entryCost: TOURNAMENT_COSTS.rookie.base * TOURNAMENT_COSTS.rookie.multipliers.daily,
     challengeBalance: 1000,
     status: 'Finished',
     totalPlayers: 5123,

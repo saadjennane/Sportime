@@ -1,14 +1,16 @@
 import React from 'react';
-import { Coins, LogIn } from 'lucide-react';
+import { Coins, LogIn, Ticket } from 'lucide-react';
 import { Profile } from '../types';
 
 interface HeaderProps {
   profile: Profile | null;
+  ticketCount: number;
   onViewProfile: () => void;
   onSignIn: () => void;
+  onViewTickets: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ profile, onViewProfile, onSignIn }) => {
+export const Header: React.FC<HeaderProps> = ({ profile, ticketCount, onViewProfile, onSignIn, onViewTickets }) => {
   const isGuest = profile?.is_guest;
 
   return (
@@ -20,12 +22,22 @@ export const Header: React.FC<HeaderProps> = ({ profile, onViewProfile, onSignIn
       </div>
 
       {/* Right side: Coin Balance & Profile */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         {profile && (
-          <div className="flex items-center gap-2 bg-navy-accent/70 backdrop-blur-sm px-4 py-2 rounded-full shadow-sm border border-neon-cyan/20">
-            <Coins className="w-5 h-5 text-warm-yellow" />
-            <span className="font-bold text-text-primary text-sm">{profile.coins_balance.toLocaleString()}</span>
-          </div>
+          <>
+            <div className="flex items-center gap-2 bg-navy-accent/70 backdrop-blur-sm px-3 py-2 rounded-full shadow-sm border border-neon-cyan/20">
+              <Coins className="w-5 h-5 text-warm-yellow" />
+              <span className="font-bold text-text-primary text-sm">{profile.coins_balance.toLocaleString()}</span>
+            </div>
+            <button 
+              onClick={onViewTickets} 
+              className="flex items-center gap-2 bg-navy-accent/70 backdrop-blur-sm px-3 py-2 rounded-full shadow-sm border border-neon-cyan/20 transition-colors hover:bg-white/10"
+              aria-label="View ticket wallet"
+            >
+              <Ticket className="w-5 h-5 text-lime-glow" />
+              <span className="font-bold text-text-primary text-sm">{ticketCount}</span>
+            </button>
+          </>
         )}
         <button 
           onClick={isGuest ? onSignIn : onViewProfile}

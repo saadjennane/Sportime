@@ -26,8 +26,9 @@ import {
   UserFantasyTeam,
   PredictionChallenge,
   FantasyLiveBooster,
+  UserTicket,
 } from '../types';
-import { isToday, addMinutes } from 'date-fns';
+import { isToday, addMinutes, isBefore, parseISO } from 'date-fns';
 
 // Import mock data
 import { mockChallenges } from '../data/mockChallenges';
@@ -43,6 +44,7 @@ import { mockPreMatchMarkets } from '../data/mockLiveGameMarkets';
 import { marketTemplates } from '../data/marketTemplates';
 import { mockUsers } from '../data/mockUsers';
 import { mockFantasyLiveBoosters } from '../data/mockFantasyLive.tsx';
+import { mockUserTickets } from '../data/mockTickets';
 
 interface MockDataState {
   challenges: BettingChallenge[];
@@ -59,9 +61,11 @@ interface MockDataState {
   predictionChallenges: PredictionChallenge[];
   userFantasyTeams: UserFantasyTeam[];
   allUsers: Profile[];
+  userTickets: UserTicket[];
 }
 
 interface MockDataActions {
+  addChallenge: (challengeData: Omit<BettingChallenge, 'id' | 'status' | 'totalPlayers' | 'gameType' | 'is_linkable'>) => void;
   createLeague: (name: string, description: string, profile: Profile) => UserLeague;
   linkGameToLeagues: (game: Game, leagueIds: string[]) => { linkedLeagueNames: string[] };
   createLeagueAndLink: (name: string, description: string, gameToLink: Game, profile: Profile) => void;
@@ -85,6 +89,8 @@ interface MockDataActions {
   tickLiveGame: (gameId: string) => void;
   // Fantasy Actions
   updateUserFantasyTeam: (team: UserFantasyTeam) => void;
+  // Challenge/Ticket Actions
+  joinChallenge: (challengeId: string, userId: string) => { success: boolean; message: string; method: 'ticket' | 'coins' | 'none' };
 }
 
 export const generateBonusQuestions = (predictedScore: { home: number, away: number }): BonusQuestion[] => {
@@ -137,6 +143,62 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
   }],
   userFantasyTeams: mockUserFantasyTeams,
   allUsers: mockUsers,
+  userTickets: mockUserTickets,
+
+  addChallenge: (challengeData) => {
+    const newChallenge: BettingChallenge = {
+        ...challengeData,
+        id: `challenge-${uuidv4()}`,
+        status: 'Upcoming',
+        totalPlayers: Math.floor(Math.random() * 5000) + 1000,
+        gameType: 'betting',
+        is_linkable: true,
+    };
+    set(state => ({ challenges: [newChallenge, ...state.challenges] }));
+  },
+
+  joinChallenge: (challengeId, userId) => {
+    const { challenges, userTickets, allUsers } = get();
+    const challenge = challenges.find(c => c.id === challengeId);
+    const user = allUsers.find(u => u.id === userId);
+
+    if (!challenge || !user) {
+      return { success: false, message: 'Challenge or user not found.', method: 'none' };
+    }
+
+    // 1. Check for a valid ticket
+    const validTicketIndex = userTickets.findIndex(ticket => 
+      ticket.user_id === userId &&
+      ticket.type === challenge.tournament_type &&
+      !ticket.is_used &&
+      isBefore(new Date(), parseISO(ticket.expires_at))
+    );
+
+    if (validTicketIndex > -1) {
+      // Use ticket
+      const newTickets = [...userTickets];
+      newTickets[validTicketIndex] = {
+        ...newTickets[validTicketIndex],
+        is_used: true,
+        used_at: new Date().toISOString(),
+      };
+      set({ userTickets: newTickets });
+      // Logic to add user to challenge would go here
+      return { success: true, message: `Joined using a ${challenge.tournament_type} ticket!`, method: 'ticket' };
+    }
+
+    // 2. Check coin balance
+    if (user.coins_balance >= challenge.entryCost) {
+      const newBalance = user.coins_balance - challenge.entryCost;
+      const updatedUsers = allUsers.map(u => u.id === userId ? { ...u, coins_balance: newBalance } : u);
+      set({ allUsers: updatedUsers });
+      // Logic to add user to challenge would go here
+      return { success: true, message: `Joined for ${challenge.entryCost} coins!`, method: 'coins' };
+    }
+
+    // 3. Insufficient funds
+    return { success: false, message: 'Not enough coins or tickets.', method: 'none' };
+  },
 
   // Action to create a new league
   createLeague: (name, description, profile) => {
