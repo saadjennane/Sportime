@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Profile, UserLeague, LeagueMember, Game, LeagueGame, LeagueFeedPost, LeaderboardSnapshot, PrivateLeagueGameConfig } from '../../types';
-import { ArrowLeft, Users, Settings, Link, Gamepad2, Plus, ChevronDown, Folder, FolderOpen, Newspaper, Trophy } from 'lucide-react';
+import { Profile, UserLeague, LeagueMember, Game, LeagueGame, LeagueFeedPost, LeaderboardSnapshot, PrivateLeagueGameConfig, Match } from '../../types';
+import { ArrowLeft, Users, Settings, Link, Gamepad2, Plus, ChevronDown, Folder, FolderOpen, Newspaper, Trophy, Radio } from 'lucide-react';
 import { LeagueInviteModal } from '../components/leagues/LeagueInviteModal';
 import { LeagueManageModal } from '../components/leagues/LeagueManageModal';
 import { LeagueGameCard } from '../components/leagues/LeagueGameCard';
@@ -11,6 +11,9 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { LeagueFeed } from '../components/leagues/LeagueFeed';
 import { SnapshotModal } from '../components/leagues/SnapshotModal';
 import { CreatePrivateLeagueWizard } from '../components/leagues/wizard/CreatePrivateLeagueWizard';
+import { LiveGameSetupModal } from '../components/leagues/live-game/LiveGameSetupModal';
+import { LiveGameCard } from '../components/leagues/live-game/LiveGameCard';
+import { mockMatches } from '../data/mockMatches';
 
 interface LeaguePageProps {
   league: UserLeague;
@@ -25,6 +28,7 @@ interface LeaguePageProps {
   onLeave: () => void;
   onDelete: () => void;
   onViewGame: (gameId: string, gameType: 'Fantasy' | 'Prediction' | 'Betting') => void;
+  onViewLiveGame: (gameId: string, status: 'Upcoming' | 'Ongoing' | 'Finished') => void;
   onLinkGame: (leagueId: string, game: Game) => void;
   leagueGames: LeagueGame[];
   allGames: Game[];
@@ -32,7 +36,7 @@ interface LeaguePageProps {
   addToast: (message: string, type: 'success' | 'error' | 'info') => void;
 }
 
-type LeagueTab = 'feed' | 'games' | 'members';
+type LeagueTab = 'feed' | 'games' | 'live' | 'members';
 
 const TabButton: React.FC<{ icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void }> = ({ icon, label, isActive, onClick }) => (
   <button
@@ -46,14 +50,15 @@ const TabButton: React.FC<{ icon: React.ReactNode, label: string, isActive: bool
 );
 
 const LeaguePage: React.FC<LeaguePageProps> = (props) => {
-  const { league, members, memberRoles, currentUserRole, currentUserId, onBack, onUpdateDetails, onRemoveMember, onResetInviteCode, onLeave, onDelete, onViewGame, onLinkGame, leagueGames, allGames, linkableGames, addToast } = props;
+  const { league, members, memberRoles, currentUserRole, currentUserId, onBack, onUpdateDetails, onRemoveMember, onResetInviteCode, onLeave, onDelete, onViewGame, onViewLiveGame, onLinkGame, leagueGames, allGames, linkableGames, addToast } = props;
   
-  const { unlinkGameFromLeague, leagueFeed, toggleFeedPostLike, createPrivateLeagueGame } = useMockStore();
-  const [activeTab, setActiveTab] = useState<LeagueTab>('feed');
+  const { unlinkGameFromLeague, leagueFeed, toggleFeedPostLike, createPrivateLeagueGame, liveGames, createLiveGame } = useMockStore();
+  const [activeTab, setActiveTab] = useState<LeagueTab>('live');
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
   const [isLinkGameModalOpen, setIsLinkGameModalOpen] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [isLiveGameSetupOpen, setIsLiveGameSetupOpen] = useState(false);
   const [gameToUnlink, setGameToUnlink] = useState<(LeagueGame & { status: Game['status'] }) | null>(null);
   const [isFinishedOpen, setIsFinishedOpen] = useState(false);
   const [viewingSnapshot, setViewingSnapshot] = useState<LeaderboardSnapshot | null>(null);
@@ -77,6 +82,10 @@ const LeaguePage: React.FC<LeaguePageProps> = (props) => {
     };
   }, [leagueGames, league.id, allGames]);
 
+  const liveGamesForThisLeague = useMemo(() => {
+    return liveGames.filter(lg => lg.league_id === league.id);
+  }, [liveGames, league.id]);
+
   const handleConfirmUnlink = () => {
     if (gameToUnlink) {
       unlinkGameFromLeague(gameToUnlink.game_id, league.id);
@@ -98,6 +107,12 @@ const LeaguePage: React.FC<LeaguePageProps> = (props) => {
     createPrivateLeagueGame(leagueId, config);
     addToast(`Private game created in your league!`, 'success');
     setIsWizardOpen(false);
+  };
+  
+  const handleCreateLiveGame = (match: Match) => {
+    createLiveGame(league.id, match);
+    setIsLiveGameSetupOpen(false);
+    addToast('Live Game created successfully!', 'success');
   };
 
   return (
@@ -143,6 +158,7 @@ const LeaguePage: React.FC<LeaguePageProps> = (props) => {
       <div className="flex bg-navy-accent rounded-xl p-1 gap-1">
         <TabButton label="Feed" icon={<Newspaper size={16} />} isActive={activeTab === 'feed'} onClick={() => setActiveTab('feed')} />
         <TabButton label="Games" icon={<Gamepad2 size={16} />} isActive={activeTab === 'games'} onClick={() => setActiveTab('games')} />
+        <TabButton label="Live" icon={<Radio size={16} />} isActive={activeTab === 'live'} onClick={() => setActiveTab('live')} />
         <TabButton label="Members" icon={<Users size={16} />} isActive={activeTab === 'members'} onClick={() => setActiveTab('members')} />
       </div>
 
@@ -252,6 +268,31 @@ const LeaguePage: React.FC<LeaguePageProps> = (props) => {
             )}
           </div>
         )}
+
+        {activeTab === 'live' && (
+          <div className="space-y-4">
+            {currentUserRole === 'admin' && (
+              <button onClick={() => setIsLiveGameSetupOpen(true)} className="w-full flex items-center justify-center gap-2 text-sm font-semibold bg-hot-red/20 text-hot-red px-4 py-3 rounded-lg hover:bg-hot-red/30 transition-colors border-2 border-dashed border-hot-red/30">
+                <Radio size={16} /> Create Live Game
+              </button>
+            )}
+            {liveGamesForThisLeague.length > 0 ? (
+              liveGamesForThisLeague.map(game => (
+                <LiveGameCard 
+                  key={game.id}
+                  game={game}
+                  onView={() => onViewLiveGame(game.id, game.status)}
+                />
+              ))
+            ) : (
+              <div className="card-base p-8 text-center">
+                <div className="text-6xl mb-4">📡</div>
+                <p className="text-text-secondary font-medium">No live games here.</p>
+                {currentUserRole === 'admin' && <p className="text-sm text-text-disabled mt-2">Create one to start the fun!</p>}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Modals */}
@@ -260,6 +301,12 @@ const LeaguePage: React.FC<LeaguePageProps> = (props) => {
         onClose={() => setIsWizardOpen(false)}
         league={league}
         onCreate={handleCreatePrivateGame}
+      />
+      <LiveGameSetupModal
+        isOpen={isLiveGameSetupOpen}
+        onClose={() => setIsLiveGameSetupOpen(false)}
+        onCreate={handleCreateLiveGame}
+        matches={mockMatches.filter(m => m.status === 'upcoming')}
       />
       <LeagueInviteModal 
         isOpen={isInviteModalOpen}

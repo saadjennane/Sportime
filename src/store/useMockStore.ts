@@ -17,6 +17,10 @@ import {
   FantasyLeaderboardEntry,
   PrivateLeagueGame,
   PrivateLeagueGameConfig,
+  LiveGame,
+  Match,
+  BonusQuestion,
+  LiveGamePlayerEntry,
 } from '../types';
 import { isToday } from 'date-fns';
 
@@ -28,6 +32,8 @@ import { mockUserLeagues } from '../data/mockUserLeagues';
 import { mockLeagueMembers } from '../data/mockLeagueMembers';
 import { mockLeagueGames } from '../data/mockLeagueGames';
 import { mockScores } from '../data/mockLeaderboardScores';
+import { mockLiveGames } from '../data/mockLiveGames';
+import { mockFantasyPlayers } from '../data/mockFantasy.tsx';
 
 interface MockDataState {
   challenges: BettingChallenge[];
@@ -40,6 +46,7 @@ interface MockDataState {
   leaderboardSnapshots: LeaderboardSnapshot[];
   leagueFeed: LeagueFeedPost[];
   privateLeagueGames: PrivateLeagueGame[];
+  liveGames: LiveGame[];
 }
 
 interface MockDataActions {
@@ -58,7 +65,39 @@ interface MockDataActions {
   ) => { success: boolean, error?: string };
   toggleFeedPostLike: (postId: string, userId: string) => void;
   createPrivateLeagueGame: (leagueId: string, config: PrivateLeagueGameConfig) => void;
+  // Live Game Actions
+  createLiveGame: (leagueId: string, match: Match) => void;
+  submitLiveGamePrediction: (gameId: string, userId: string, prediction: Omit<LiveGamePlayerEntry, 'user_id' | 'submitted_at'>) => void;
+  editLiveGamePrediction: (gameId: string, userId: string, newScore: { home: number; away: number }) => void;
 }
+
+const generateBonusQuestions = (predictedScore: { home: number, away: number }): BonusQuestion[] => {
+    const totalGoals = predictedScore.home + predictedScore.away;
+    const isDraw = predictedScore.home === predictedScore.away;
+
+    if (isDraw && totalGoals === 0) { // 0-0
+        return [
+            { id: 'q1', question: 'Team with highest possession?', options: ['Team A', 'Team B'], answer: 'Team A' },
+            { id: 'q2', question: 'Team with most shots on target?', options: ['Team A', 'Team B'], answer: 'Team B' },
+            { id: 'q3', question: 'Over/Under 5 yellow cards?', options: ['Over', 'Under'], answer: 'Under' },
+            { id: 'q4', question: 'Man of the Match?', options: mockFantasyPlayers.slice(0, 5).map(p => p.name), answer: 'L. Messi' },
+        ];
+    } else if (totalGoals < 3) { // Tight win
+        return [
+            { id: 'q1', question: 'Which team scores first?', options: ['Team A', 'Team B', 'No Goal'], answer: 'Team A' },
+            { id: 'q2', question: 'Period of first goal?', options: ['1-30', '31-60', '61-90'], answer: '31-60' },
+            { id: 'q3', question: 'First goal scorer?', options: mockFantasyPlayers.slice(0, 5).map(p => p.name), answer: 'K. De Bruyne' },
+            { id: 'q4', question: 'Team with highest possession?', options: ['Team A', 'Team B'], answer: 'Team A' },
+        ];
+    } else { // High-scoring
+        return [
+            { id: 'q1', question: 'Which team opens the score?', options: ['Team A', 'Team B'], answer: 'Team B' },
+            { id: 'q2', question: 'Minute of first goal?', options: ['1-15', '16-45', '46-75', '76-90'], answer: '16-45' },
+            { id: 'q3', question: 'First goal scorer?', options: mockFantasyPlayers.slice(0, 5).map(p => p.name), answer: 'E. Haaland' },
+            { id: 'q4', question: 'Team with most shots on target?', options: ['Team A', 'Team B'], answer: 'Team B' },
+        ];
+    }
+};
 
 export const useMockStore = create<MockDataState & MockDataActions>((set, get) => ({
   // Initial State from mock files
@@ -72,6 +111,7 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
   leaderboardSnapshots: [],
   leagueFeed: [],
   privateLeagueGames: [],
+  liveGames: mockLiveGames,
 
   // Action to create a new league
   createLeague: (name, description, profile) => {
@@ -274,5 +314,57 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
       privateLeagueGames: [...privateLeagueGames, newPrivateGame],
       leagueGames: [...leagueGames, newLeagueGame],
     });
+  },
+
+  // --- Live Game Actions ---
+  createLiveGame: (leagueId, match) => {
+    const { liveGames } = get();
+    const newLiveGame: LiveGame = {
+      id: `live-${uuidv4()}`,
+      league_id: leagueId,
+      match_id: match.id,
+      match_details: match,
+      created_by: 'user-1', // Assuming current user is admin
+      status: 'Upcoming',
+      bonus_questions: [], // Generated on first prediction
+      players: [],
+    };
+    set({ liveGames: [...liveGames, newLiveGame] });
+  },
+
+  submitLiveGamePrediction: (gameId, userId, prediction) => {
+    set(state => ({
+      liveGames: state.liveGames.map(game => {
+        if (game.id === gameId) {
+          const playerEntry: LiveGamePlayerEntry = {
+            ...prediction,
+            user_id: userId,
+            submitted_at: new Date().toISOString(),
+          };
+          // Generate bonus questions based on the first player's prediction
+          const bonus_questions = game.bonus_questions.length > 0 ? game.bonus_questions : generateBonusQuestions(prediction.predicted_score);
+          return { ...game, players: [...game.players, playerEntry], bonus_questions };
+        }
+        return game;
+      }),
+    }));
+  },
+
+  editLiveGamePrediction: (gameId, userId, newScore) => {
+    set(state => ({
+      liveGames: state.liveGames.map(game => {
+        if (game.id === gameId) {
+          return {
+            ...game,
+            players: game.players.map(p =>
+              p.user_id === userId
+                ? { ...p, predicted_score: newScore, midtime_edit: true }
+                : p
+            ),
+          };
+        }
+        return game;
+      }),
+    }));
   },
 }));

@@ -380,6 +380,41 @@ export interface PrivateLeagueGame {
   created_at: string;
 }
 
+// --- Live Game ---
+export interface BonusQuestion {
+  id: string;
+  question: string;
+  options?: string[];
+  answer: string;
+}
+
+export interface LiveGamePlayerEntry {
+  user_id: string;
+  predicted_score: { home: number; away: number };
+  bonus_answers: { question_id: string; choice: string }[];
+  midtime_edit: boolean;
+  submitted_at: string;
+  // Calculated fields
+  result_points?: number;
+  gd_points?: number;
+  team_points?: number;
+  exact_points?: number;
+  score_final?: number;
+  bonus_total?: number;
+  total_points?: number;
+}
+
+export interface LiveGame {
+  id: string;
+  league_id: string;
+  match_id: string;
+  match_details: Match;
+  created_by: string;
+  status: 'Upcoming' | 'Ongoing' | 'Finished';
+  bonus_questions: BonusQuestion[];
+  players: LiveGamePlayerEntry[];
+}
+
 
 // --- API Football Types ---
 export interface ApiFootballResponse<T> {

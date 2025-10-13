@@ -6,7 +6,7 @@ import { FooterNav } from './components/FooterNav';
 import { mockMatches } from './data/mockMatches';
 import { mockChallengeMatches } from './data/mockChallenges';
 import { mockFantasyPlayers, mockUserFantasyTeams } from './data/mockFantasy.tsx';
-import { Match, Bet, UserChallengeEntry, ChallengeStatus, DailyChallengeEntry, BoosterSelection, UserSwipeEntry, SwipePredictionOutcome, Profile, LevelConfig, Badge, UserBadge, FantasyPlayer, ChallengeBet, UserLeague, LeagueMember, LeagueGame, Game, PrivateLeagueGameConfig } from './types';
+import { Match, Bet, UserChallengeEntry, ChallengeStatus, DailyChallengeEntry, BoosterSelection, UserSwipeEntry, SwipePredictionOutcome, Profile, LevelConfig, Badge, UserBadge, FantasyPlayer, ChallengeBet, UserLeague, LeagueMember, LeagueGame, Game, PrivateLeagueGameConfig, LiveGamePlayerEntry } from './types';
 import UpcomingPage from './pages/Upcoming';
 import PlayedPage from './pages/Played';
 import AdminPage from './pages/Admin';
@@ -39,6 +39,9 @@ import { NoLeaguesModal } from './components/leagues/NoLeaguesModal';
 import { MiniCreateLeagueModal } from './components/leagues/MiniCreateLeagueModal';
 import { SelectLeaguesToLinkModal } from './components/leagues/SelectLeaguesToLinkModal';
 import { useMockStore } from './store/useMockStore';
+import LiveGameSetupPage from './pages/live-game/LiveGameSetupPage';
+import LiveGamePlayPage from './pages/live-game/LiveGamePlayPage';
+import LiveGameResultsPage from './pages/live-game/LiveGameResultsPage';
 
 
 export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'leagues';
@@ -75,9 +78,13 @@ function App() {
     userLeagues,
     leagueMembers,
     leagueGames,
+    liveGames,
     createLeague,
     linkGameToLeagues,
     createLeagueAndLink,
+    createLiveGame,
+    submitLiveGamePrediction,
+    editLiveGamePrediction,
   } = useMockStore();
 
   // --- Local Game State ---
@@ -102,6 +109,7 @@ function App() {
   const [activeSwipeGameId, setActiveSwipeGameId] = useState<string | null>(null);
   const [viewingSwipeLeaderboardFor, setViewingSwipeLeaderboardFor] = useState<string | null>(null);
   const [activeFantasyGameId, setActiveFantasyGameId] = useState<string | null>(null);
+  const [activeLiveGame, setActiveLiveGame] = useState<{ id: string; status: 'Upcoming' | 'Ongoing' | 'Finished' } | null>(null);
   const [boosterInfoPreferences, setBoosterInfoPreferences] = useState<{ x2: boolean, x3: boolean }>({ x2: false, x3: false });
   const [joinChallengeModalState, setJoinChallengeModalState] = useState<{ isOpen: boolean; challenge: Game | null; }>({ isOpen: false, challenge: null });
   const [joinSwipeGameModalState, setJoinSwipeGameModalState] = useState<{ isOpen: boolean; game: Game | null; }>({ isOpen: false, game: null });
@@ -624,6 +632,10 @@ function App() {
     }
   };
 
+  const handleViewLiveGame = (gameId: string, status: 'Upcoming' | 'Ongoing' | 'Finished') => {
+    setActiveLiveGame({ id: gameId, status });
+  };
+
   // --- In-Game Linking Handlers ---
   const myAdminLeagues = useMemo(() => {
     if (!profile) return [];
@@ -690,6 +702,7 @@ function App() {
     setActiveLeagueId(null);
     setJoinLeagueCode(null);
     setLeaderboardContext(null);
+    setActiveLiveGame(null);
   }
 
   const handleLeaderboardBack = () => {
@@ -883,6 +896,22 @@ function App() {
       }
     }
 
+    if (activeLiveGame) {
+      const game = liveGames.find(g => g.id === activeLiveGame.id);
+      if (game && profile) {
+        const playerEntry = game.players.find(p => p.user_id === profile.id);
+        if (activeLiveGame.status === 'Upcoming') {
+          return <LiveGameSetupPage game={game} onBack={() => setActiveLiveGame(null)} onSubmit={submitLiveGamePrediction} playerEntry={playerEntry} />;
+        }
+        if (activeLiveGame.status === 'Ongoing') {
+          return <LiveGamePlayPage game={game} onBack={() => setActiveLiveGame(null)} onEdit={editLiveGamePrediction} playerEntry={playerEntry} />;
+        }
+        if (activeLiveGame.status === 'Finished') {
+          return <LiveGameResultsPage game={game} onBack={() => setActiveLiveGame(null)} />;
+        }
+      }
+    }
+
     if (activeLeagueId) {
         const league = userLeagues.find(l => l.id === activeLeagueId);
         if (league && profile) {
@@ -906,6 +935,7 @@ function App() {
                 linkableGames={linkableGames}
                 onLinkGame={handleLinkGameToLeague}
                 onViewGame={(gameId, gameType) => handleViewLeagueGame(gameId, gameType, league.id, league.name)}
+                onViewLiveGame={handleViewLiveGame}
                 addToast={addToast}
             />;
         }
