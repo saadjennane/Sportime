@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Match, ChallengeStatus, LevelConfig, Badge, Profile, BettingChallenge } from '../../types';
+import { Match, ChallengeStatus, LevelConfig, Badge, Profile, SportimeGame } from '../../types';
 import { MatchForm } from '../components/MatchForm';
 import { ChevronDown, Edit2, ShieldCheck, Gamepad2, Settings, Star, DatabaseZap, Terminal, Trash2, Coins, Play } from 'lucide-react';
 import { ProgressionAdmin } from '../components/ProgressionAdmin';
@@ -11,7 +11,7 @@ import { TestModeToggle } from '../components/TestModeToggle';
 type AdminSection = 'challenges' | 'progression' | 'datasync' | 'general' | 'developer';
 
 interface AdminPageProps {
-  // These props are becoming obsolete but kept for now to avoid breaking single matches
+  // Legacy props
   matches: Match[];
   onAddMatch: (match: Omit<Match, 'id' | 'status'>) => void;
   onUpdateMatch: (match: Match) => void;
@@ -27,9 +27,9 @@ interface AdminPageProps {
   onUpdateBadge: (badge: Badge) => void;
   onDeleteBadge: (badgeId: string) => void;
 
-  // Challenge props
-  challenges: BettingChallenge[];
-  onAddChallenge: (challenge: Omit<BettingChallenge, 'id' | 'status' | 'totalPlayers' | 'gameType' | 'is_linkable'>) => void;
+  // Unified Game props
+  games: SportimeGame[];
+  onCreateGame: (config: Omit<SportimeGame, 'id' | 'status' | 'totalPlayers' | 'participants'>) => void;
   onProcessChallengeStart: (challengeId: string) => { success: boolean, message: string };
 
   // Developer props
@@ -78,7 +78,7 @@ const AdminPage: React.FC<AdminPageProps> = (props) => {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-3 sm:grid-cols-5 bg-navy-accent rounded-xl p-1 gap-1">
-        <AdminSectionButton section="challenges" icon={<Gamepad2 size={16} />} label="Challenges" />
+        <AdminSectionButton section="challenges" icon={<Gamepad2 size={16} />} label="Games" />
         <AdminSectionButton section="progression" icon={<Star size={16} />} label="Progression" />
         <AdminSectionButton section="datasync" icon={<DatabaseZap size={16} />} label="Data Sync" />
         <AdminSectionButton section="general" icon={<Settings size={16} />} label="General" />
@@ -87,7 +87,7 @@ const AdminPage: React.FC<AdminPageProps> = (props) => {
 
       {activeSection === 'challenges' && (
         <div className="animate-scale-in">
-          <ChallengesAdmin challenges={props.challenges} onProcessChallengeStart={handleStartChallenge} />
+          <ChallengesAdmin games={props.games} onCreateGame={props.onCreateGame} onProcessChallengeStart={handleStartChallenge} />
         </div>
       )}
 

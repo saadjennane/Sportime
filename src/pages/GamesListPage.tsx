@@ -1,22 +1,18 @@
 import React, { useState, useMemo } from 'react';
-import { BettingChallenge, PredictionGame, FantasyGame, UserChallengeEntry, UserSwipeEntry, UserFantasyTeam, Profile, UserTicket } from '../types';
+import { SportimeGame, UserChallengeEntry, UserSwipeEntry, UserFantasyTeam, Profile, UserTicket } from '../types';
 import { GameCard } from '../components/GameCard';
 import { RulesModal } from '../components/RulesModal';
 import { Gamepad2, UserCheck, ChevronDown } from 'lucide-react';
 import { SwipeRulesModal } from '../components/SwipeRulesModal';
-import { isBefore, parseISO } from 'date-fns';
 
-type Game = BettingChallenge | PredictionGame | FantasyGame;
-export type CtaState = 'JOIN' | 'PLAY' | 'SUBMITTED' | 'AWAITING' | 'RESULTS' | 'VIEW_TEAM';
+type CtaState = 'JOIN' | 'PLAY' | 'SUBMITTED' | 'AWAITING' | 'RESULTS' | 'VIEW_TEAM';
 
 interface GamesListPageProps {
-  challenges: BettingChallenge[];
-  swipeMatchDays: PredictionGame[];
-  fantasyGames: FantasyGame[];
+  games: SportimeGame[];
   userChallengeEntries: UserChallengeEntry[];
   userSwipeEntries: UserSwipeEntry[];
   userFantasyTeams: UserFantasyTeam[];
-  onJoinChallenge: (challenge: BettingChallenge) => void;
+  onJoinChallenge: (challenge: SportimeGame) => void;
   onViewChallenge: (challengeId: string) => void;
   onJoinSwipeGame: (gameId: string) => void;
   onPlaySwipeGame: (matchDayId: string) => void;
@@ -27,9 +23,7 @@ interface GamesListPageProps {
 }
 
 const GamesListPage: React.FC<GamesListPageProps> = ({ 
-  challenges, 
-  swipeMatchDays, 
-  fantasyGames,
+  games,
   userChallengeEntries, 
   userSwipeEntries,
   userFantasyTeams,
@@ -47,41 +41,31 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
   const [isSwipeRulesOpen, setIsSwipeRulesOpen] = useState(false);
   const [isFinishedVisible, setIsFinishedVisible] = useState(false);
 
-  const myChallengeIds = userChallengeEntries.map(entry => entry.challengeId);
-  const mySwipeGameIds = userSwipeEntries.map(entry => entry.matchDayId);
-  const myFantasyGameIds = userFantasyTeams.map(entry => entry.gameId);
+  const myGameIds = useMemo(() => {
+    if (!profile) return new Set();
+    const ids = new Set<string>();
+    userChallengeEntries.forEach(e => ids.add(e.challengeId));
+    userSwipeEntries.forEach(e => ids.add(e.matchDayId));
+    userFantasyTeams.forEach(e => ids.add(e.gameId));
+    return ids;
+  }, [userChallengeEntries, userSwipeEntries, userFantasyTeams, profile]);
 
-  const allGames: Game[] = [...challenges, ...swipeMatchDays, ...fantasyGames].sort((a, b) => {
-    const statusOrder = { Upcoming: 0, Ongoing: 1, Finished: 2, Cancelled: 3, Pending: 0 };
+
+  const sortedGames = useMemo(() => [...games].sort((a, b) => {
+    const statusOrder = { Upcoming: 0, Pending: 0, Ongoing: 1, Finished: 2, Cancelled: 3 };
     return statusOrder[a.status] - statusOrder[b.status];
-  });
+  }), [games]);
 
   const baseFilteredGames = activeTab === 'all'
-    ? allGames
-    : allGames.filter(game => 
-        (game.gameType === 'betting' && myChallengeIds.includes(game.id)) ||
-        (game.gameType === 'prediction' && mySwipeGameIds.includes(game.id)) ||
-        (game.gameType === 'fantasy' && myFantasyGameIds.includes(game.id))
-      );
+    ? sortedGames
+    : sortedGames.filter(game => myGameIds.has(game.id));
 
   const activeGames = baseFilteredGames.filter(g => g.status !== 'Finished' && g.status !== 'Cancelled');
   const pastGames = baseFilteredGames.filter(g => g.status === 'Finished' || g.status === 'Cancelled');
 
-  const getCtaState = (game: Game): CtaState => {
-    let hasJoined = false;
-    let userEntry: any = undefined;
-
-    if (game.gameType === 'betting') {
-      hasJoined = myChallengeIds.includes(game.id);
-      userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
-    } else if (game.gameType === 'prediction') {
-      hasJoined = mySwipeGameIds.includes(game.id);
-      userEntry = userSwipeEntries.find(e => e.matchDayId === game.id);
-    } else if (game.gameType === 'fantasy') {
-      hasJoined = myFantasyGameIds.includes(game.id);
-      userEntry = userFantasyTeams.find(t => t.gameId === game.id);
-    }
-
+  const getCtaState = (game: SportimeGame): CtaState => {
+    const hasJoined = myGameIds.has(game.id);
+    
     if (!hasJoined) {
         return 'JOIN';
     }
@@ -89,8 +73,8 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
     if (game.status === 'Finished' || game.status === 'Cancelled') {
         return 'RESULTS';
     }
-
-    if (game.gameType === 'fantasy') {
+    
+    if (game.game_type === 'fantasy') {
       return 'VIEW_TEAM';
     }
 
@@ -99,39 +83,39 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
     }
 
     // Status is 'Upcoming'
-    if (game.gameType === 'betting') {
-        const challenge = game as BettingChallenge;
+    if (game.game_type === 'betting') {
+        const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
         if (!userEntry) return 'PLAY';
         const isComplete = userEntry.dailyEntries.every((daily: any) => {
             const totalBet = daily.bets.reduce((sum: number, b: any) => sum + b.amount, 0);
-            return totalBet >= challenge.challengeBalance;
+            return totalBet >= (game.challengeBalance || 1000);
         });
         return isComplete ? 'SUBMITTED' : 'PLAY';
 
     } else { // prediction
-        const swipeGame = game as PredictionGame;
+        const userEntry = userSwipeEntries.find(e => e.matchDayId === game.id);
         if (!userEntry) return 'PLAY';
-        const isComplete = userEntry.predictions.length >= swipeGame.matches.length;
+        const isComplete = userEntry.predictions.length >= (game.matches?.length || 0);
         return isComplete ? 'SUBMITTED' : 'PLAY';
     }
   };
 
-  const renderGameCard = (game: Game) => {
+  const renderGameCard = (game: SportimeGame) => {
     const ctaState = getCtaState(game);
     
     let onPlayAction = () => {};
-    if (game.gameType === 'betting') onPlayAction = () => onViewChallenge(game.id);
-    if (game.gameType === 'prediction') onPlayAction = () => onPlaySwipeGame(game.id);
-    if (game.gameType === 'fantasy') onPlayAction = () => onViewFantasyGame(game.id);
+    if (game.game_type === 'betting') onPlayAction = () => onViewChallenge(game.id);
+    if (game.game_type === 'prediction') onPlayAction = () => onPlaySwipeGame(game.id);
+    if (game.game_type === 'fantasy') onPlayAction = () => onViewFantasyGame(game.id);
 
     return (
       <GameCard
         key={game.id}
         game={game}
         ctaState={ctaState}
-        onJoinClick={() => game.gameType === 'betting' ? onJoinChallenge(game as BettingChallenge) : onJoinSwipeGame(game.id)}
+        onJoinClick={() => game.game_type === 'betting' ? onJoinChallenge(game) : onJoinSwipeGame(game.id)}
         onPlay={onPlayAction}
-        onShowRules={() => game.gameType === 'betting' ? setIsBettingRulesOpen(true) : setIsSwipeRulesOpen(true)}
+        onShowRules={() => game.game_type === 'betting' ? setIsBettingRulesOpen(true) : setIsSwipeRulesOpen(true)}
         profile={profile}
         userTickets={userTickets}
       />

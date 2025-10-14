@@ -6,7 +6,7 @@ import { FooterNav } from './components/FooterNav';
 import { mockMatches } from './data/mockMatches';
 import { mockChallengeMatches } from './data/mockChallenges';
 import { mockFantasyPlayers, mockUserFantasyTeams } from './data/mockFantasy.tsx';
-import { Match, Bet, UserChallengeEntry, ChallengeStatus, DailyChallengeEntry, BoosterSelection, UserSwipeEntry, SwipePredictionOutcome, Profile, LevelConfig, Badge, UserBadge, FantasyPlayer, ChallengeBet, UserLeague, LeagueMember, LeagueGame, Game, PrivateLeagueGameConfig, LiveGamePlayerEntry, UserFantasyTeam, UserTicket, BettingChallenge } from './types';
+import { Match, Bet, UserChallengeEntry, ChallengeStatus, DailyChallengeEntry, BoosterSelection, UserSwipeEntry, SwipePredictionOutcome, Profile, LevelConfig, Badge, UserBadge, FantasyPlayer, ChallengeBet, UserLeague, LeagueMember, LeagueGame, Game, PrivateLeagueGameConfig, LiveGamePlayerEntry, UserFantasyTeam, UserTicket, BettingChallenge, SportimeGame } from './types';
 import UpcomingPage from './pages/Upcoming';
 import PlayedPage from './pages/Played';
 import AdminPage from './pages/Admin';
@@ -82,9 +82,7 @@ function App() {
 
   // --- Game State (from Zustand Store) ---
   const {
-    challenges,
-    swipeMatchDays,
-    fantasyGames,
+    games,
     userLeagues,
     leagueMembers,
     leagueGames,
@@ -93,7 +91,7 @@ function App() {
     userTickets,
     userStreaks,
     allUsers,
-    addChallenge,
+    createGame,
     createLeague,
     linkGameToLeagues,
     createLeagueAndLink,
@@ -131,7 +129,7 @@ function App() {
   const [activeFantasyGameId, setActiveFantasyGameId] = useState<string | null>(null);
   const [activeLiveGame, setActiveLiveGame] = useState<{ id: string; status: 'Upcoming' | 'Ongoing' | 'Finished' } | null>(null);
   const [boosterInfoPreferences, setBoosterInfoPreferences] = useState<{ x2: boolean, x3: boolean }>({ x2: false, x3: false });
-  const [challengeToJoin, setChallengeToJoin] = useState<BettingChallenge | null>(null);
+  const [challengeToJoin, setChallengeToJoin] = useState<SportimeGame | null>(null);
   const [joinSwipeGameModalState, setJoinSwipeGameModalState] = useState<{ isOpen: boolean; game: Game | null; }>({ isOpen: false, game: null });
   const [hasSeenSwipeTutorial, setHasSeenSwipeTutorial] = useState(false);
   const [swipeGameViewMode, setSwipeGameViewMode] = useState<'swiping' | 'recap'>('swiping');
@@ -386,7 +384,7 @@ function App() {
     setMatches(updatedMatches);
   };
 
-  const handleJoinChallenge = (challenge: BettingChallenge) => {
+  const handleJoinChallenge = (challenge: SportimeGame) => {
     if (profile?.is_guest) {
       handleTriggerSignUp();
       return;
@@ -395,11 +393,11 @@ function App() {
 
     const hasTicket = userTickets.some(ticket => 
       ticket.user_id === profile.id &&
-      ticket.type === challenge.tournament_type &&
+      ticket.type === challenge.tier &&
       !ticket.is_used &&
       isBefore(new Date(), parseISO(ticket.expires_at))
     );
-    const hasEnoughCoins = profile.coins_balance >= challenge.entryCost;
+    const hasEnoughCoins = profile.coins_balance >= challenge.entry_cost;
 
     if (hasTicket && hasEnoughCoins) {
       setChallengeToJoin(challenge);
@@ -474,7 +472,7 @@ function App() {
       handleTriggerSignUp();
       return;
     }
-    const gameToJoin = swipeMatchDays.find(g => g.id === gameId);
+    const gameToJoin = games.find(g => g.id === gameId);
     if (gameToJoin) setJoinSwipeGameModalState({ isOpen: true, game: gameToJoin });
   };
 
@@ -482,8 +480,8 @@ function App() {
     const { game } = joinSwipeGameModalState;
     if (!game || !profile || profile.is_guest) return;
 
-    if (coinBalance >= game.entryCost) {
-        await handleSetCoinBalance(coinBalance - game.entryCost);
+    if (coinBalance >= game.entry_cost) {
+        await handleSetCoinBalance(coinBalance - game.entry_cost);
 
         const newEntry: UserSwipeEntry = {
             matchDayId: game.id,
@@ -501,10 +499,10 @@ function App() {
     }
   };
   const handlePlaySwipeGame = (matchDayId: string) => {
-    const matchDay = swipeMatchDays.find(md => md.id === matchDayId);
+    const matchDay = games.find(md => md.id === matchDayId && md.game_type === 'prediction');
     const userEntry = userSwipeEntries.find(e => e.matchDayId === matchDayId);
     if (matchDay && userEntry) {
-        const hasMadeAllPicks = userEntry.predictions.length >= matchDay.matches.length;
+        const hasMadeAllPicks = userEntry.predictions.length >= (matchDay.matches?.length || 0);
         const isEditable = matchDay.status === 'Upcoming';
         if (isEditable && !hasMadeAllPicks) {
             setSwipeGameViewMode('swiping');
@@ -535,8 +533,8 @@ function App() {
                     newPredictions.push({ matchId, prediction });
                 }
 
-                const matchDay = swipeMatchDays.find(md => md.id === matchDayId);
-                const totalMatches = matchDay?.matches.length || 0;
+                const matchDay = games.find(md => md.id === matchDayId);
+                const totalMatches = matchDay?.matches?.length || 0;
                 const newPredictionsCount = newPredictions.length;
 
                 // Only navigate to recap if we have just completed all predictions for the first time.
@@ -774,32 +772,16 @@ function App() {
   };
 
   const myGamesCount = useMemo(() => {
-    if (profile?.is_guest) return 0;
+    if (!profile || profile.is_guest) return 0;
+    const myJoinedGameIds = new Set([
+      ...userChallengeEntries.map(e => e.challengeId),
+      ...userSwipeEntries.map(e => e.matchDayId),
+      ...userFantasyTeams.map(t => t.gameId),
+    ]);
+    return games.filter(g => myJoinedGameIds.has(g.id) && (g.status === 'Upcoming' || g.status === 'Ongoing')).length;
+  }, [profile, games, userChallengeEntries, userSwipeEntries, userFantasyTeams]);
 
-    const activeChallengeCount = userChallengeEntries.filter(entry => {
-        const challenge = challenges.find(c => c.id === entry.challengeId);
-        return challenge && (challenge.status === 'Upcoming' || challenge.status === 'Ongoing');
-    }).length;
-
-    const activeSwipeGameCount = userSwipeEntries.filter(entry => {
-        const game = swipeMatchDays.find(g => g.id === entry.matchDayId);
-        return game && (game.status === 'Upcoming' || game.status === 'Ongoing');
-    }).length;
-    
-    const myJoinedFantasyGames = new Set(userFantasyTeams.map(t => t.gameId));
-    const activeFantasyGameCount = fantasyGames.filter(game => 
-        myJoinedFantasyGames.has(game.id) && game.status === 'Ongoing'
-    ).length;
-
-    return activeChallengeCount + activeSwipeGameCount + activeFantasyGameCount;
-  }, [profile, userChallengeEntries, userSwipeEntries, userFantasyTeams, challenges, swipeMatchDays, fantasyGames]);
-
-  const allGames = useMemo(() => {
-    const allOfficialGames: Game[] = [...challenges, ...swipeMatchDays, ...fantasyGames];
-    return allOfficialGames;
-  }, [challenges, swipeMatchDays, fantasyGames]);
-
-  const linkableGames = useMemo(() => allGames.filter(g => g.is_linkable), [allGames]);
+  const linkableGames = useMemo(() => games.filter(g => g.is_linkable), [games]);
 
   const myLeagues = useMemo(() => {
     if (!profile) return [];
@@ -830,11 +812,11 @@ function App() {
     }
     
     if (viewingLeaderboardFor) {
-      const challenge = challenges.find(c => c.id === viewingLeaderboardFor);
+      const challenge = games.find(c => c.id === viewingLeaderboardFor && c.game_type === 'betting');
       if (challenge && profile) {
         const userEntry = userChallengeEntries.find(e => e.challengeId === viewingLeaderboardFor && e.user_id === profile.id);
         return <LeaderboardPage
-          challenge={challenge}
+          challenge={challenge as BettingChallenge}
           matches={mockChallengeMatches}
           userEntry={userEntry}
           onBack={handleLeaderboardBack}
@@ -849,11 +831,11 @@ function App() {
     }
 
     if (activeChallengeId) {
-      const challenge = challenges.find(c => c.id === activeChallengeId);
+      const challenge = games.find(c => c.id === activeChallengeId && c.game_type === 'betting');
       const userEntry = userChallengeEntries.find(e => e.challengeId === activeChallengeId && e.user_id === profile.id);
       if (challenge && userEntry && profile) {
         return <ChallengeRoomPage
-          challenge={challenge}
+          challenge={challenge as BettingChallenge}
           matches={mockChallengeMatches.filter(m => m.challengeId === activeChallengeId)}
           userEntry={userEntry}
           onUpdateDailyBets={handleUpdateDailyBets}
@@ -879,14 +861,14 @@ function App() {
           onBack={handleLeaderboardBack}
           allUsers={allUsers}
           userSwipeEntries={userSwipeEntries}
-          swipeMatchDays={swipeMatchDays}
+          swipeMatchDays={games.filter(g => g.game_type === 'prediction')}
           currentUserId={profile.id}
         />
       }
     }
 
     if (viewingSwipeLeaderboardFor) {
-      const matchDay = swipeMatchDays.find(md => md.id === viewingSwipeLeaderboardFor);
+      const matchDay = games.find(md => md.id === viewingSwipeLeaderboardFor && md.game_type === 'prediction');
       if (matchDay && profile) {
         const userEntry = userSwipeEntries.find(e => e.matchDayId === viewingSwipeLeaderboardFor);
         return <SwipeLeaderboardPage
@@ -905,7 +887,7 @@ function App() {
     }
 
     if (activeSwipeGameId) {
-      const matchDay = swipeMatchDays.find(md => md.id === activeSwipeGameId);
+      const matchDay = games.find(md => md.id === activeSwipeGameId && md.game_type === 'prediction');
       const userEntry = userSwipeEntries.find(e => e.matchDayId === activeSwipeGameId);
 
       if (matchDay && userEntry && profile) {
@@ -922,7 +904,7 @@ function App() {
           />;
         } else {
           return <SwipeRecapPage
-            allMatchDays={swipeMatchDays.filter(md => userSwipeEntries.some(e => e.matchDayId === md.id))}
+            allMatchDays={games.filter(g => g.game_type === 'prediction' && userSwipeEntries.some(e => e.matchDayId === g.id))}
             selectedMatchDayId={activeSwipeGameId}
             userEntry={userEntry}
             onBack={() => setActiveSwipeGameId(null)}
@@ -941,7 +923,7 @@ function App() {
     }
     
     if (activeFantasyGameId) {
-      const game = fantasyGames.find(g => g.id === activeFantasyGameId);
+      const game = games.find(g => g.id === activeFantasyGameId && g.game_type === 'fantasy');
       if (game && profile) {
         return <FantasyGameWeekPage
           game={game}
@@ -1015,6 +997,9 @@ function App() {
                 onViewGame={(gameId, gameType) => handleViewLeagueGame(gameId, gameType, league.id, league.name)}
                 onViewLiveGame={handleViewLiveGame}
                 addToast={addToast}
+                leagueGames={leagueGames}
+                allGames={games}
+                linkableGames={linkableGames}
             />;
         }
     }
@@ -1023,7 +1008,7 @@ function App() {
       case 'matches':
         return <MatchesPage matches={matches} bets={bets} onBet={handleBetClick} />;
       case 'challenges':
-        return <GamesListPage challenges={challenges} swipeMatchDays={swipeMatchDays} fantasyGames={fantasyGames} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} />;
+        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} />;
       case 'leagues':
           return <LeaguesListPage 
               leagues={myLeagues}
@@ -1031,14 +1016,14 @@ function App() {
               onViewLeague={setActiveLeagueId}
           />;
       case 'admin':
-        return <AdminPage matches={matches} onAddMatch={handleAddMatch} onUpdateMatch={handleUpdateMatch} onResolveMatch={handleResolveMatch} levels={levelsConfig} badges={badges} onAddLevel={handleAddLevel} onUpdateLevel={handleUpdateLevel} onDeleteLevel={handleDeleteLevel} onAddBadge={handleAddBadge} onUpdateBadge={handleUpdateBadge} onDeleteBadge={handleDeleteBadge} challenges={challenges} onAddChallenge={addChallenge} isTestMode={isTestMode} onSetTestMode={handleSetTestMode} onResetTestUsers={handleResetTestUsers} profile={profile} onSetCoinBalance={handleSetCoinBalance} addToast={addToast} onTestOnboarding={handleTestOnboarding} onProcessChallengeStart={processChallengeStart} />;
+        return <AdminPage matches={matches} onAddMatch={handleAddMatch} onUpdateMatch={handleUpdateMatch} onResolveMatch={handleResolveMatch} levels={levelsConfig} badges={badges} onAddLevel={handleAddLevel} onUpdateLevel={handleUpdateLevel} onDeleteLevel={handleDeleteLevel} onAddBadge={handleAddBadge} onUpdateBadge={handleUpdateBadge} onDeleteBadge={handleDeleteBadge} games={games} onCreateGame={createGame} isTestMode={isTestMode} onSetTestMode={handleSetTestMode} onResetTestUsers={handleResetTestUsers} profile={profile} onSetCoinBalance={handleSetCoinBalance} addToast={addToast} onTestOnboarding={handleTestOnboarding} onProcessChallengeStart={processChallengeStart} />;
       case 'profile':
         if (profile && !profile.is_guest) {
           return <ProfilePage profile={profile} levels={levelsConfig} allBadges={badges} userBadges={userBadges} onUpdateProfile={handleUpdateProfile} onUpdateEmail={handleUpdateEmail} onSignOut={handleSignOut} onDeleteAccount={handleDeleteAccount} userStreaks={userStreaks} />;
         }
         return null;
       default:
-        return <GamesListPage challenges={challenges} swipeMatchDays={swipeMatchDays} fantasyGames={fantasyGames} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} />;
+        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} />;
     }
   }
   
@@ -1077,10 +1062,10 @@ function App() {
           isOpen={!!challengeToJoin}
           onClose={() => setChallengeToJoin(null)}
           onSelectMethod={(method) => handleConfirmJoinChallenge(challengeToJoin.id, method)}
-          challenge={challengeToJoin}
+          challenge={challengeToJoin as BettingChallenge}
         />
       )}
-      {joinSwipeGameModalState.isOpen && joinSwipeGameModalState.game && ( <JoinSwipeGameConfirmationModal isOpen={joinSwipeGameModalState.isOpen} onClose={() => setJoinSwipeGameModalState({ isOpen: false, game: null })} onConfirm={handleConfirmJoinSwipeGame} game={joinSwipeGameModalState.game} userBalance={coinBalance} /> )}
+      {joinSwipeGameModalState.isOpen && joinSwipeGameModalState.game && ( <JoinSwipeGameConfirmationModal isOpen={joinSwipeGameModalState.isOpen} onClose={() => setJoinSwipeGameModalState({ isOpen: false, game: null })} onConfirm={handleConfirmJoinSwipeGame} game={joinSwipeGameModalState.game as SwipeMatchDay} userBalance={coinBalance} /> )}
       <SignUpPromptModal isOpen={showSignUpPrompt} onConfirm={handleStartSignUp} onCancel={() => setShowSignUpPrompt(false)} />
       <CreateLeagueModal isOpen={showCreateLeagueModal} onClose={() => setShowCreateLeagueModal(false)} onCreate={handleCreateLeague} />
       

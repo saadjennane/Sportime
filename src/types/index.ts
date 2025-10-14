@@ -34,45 +34,54 @@ export interface Bet {
 export type ChallengeStatus = 'Upcoming' | 'Ongoing' | 'Finished' | 'Cancelled' | 'Pending';
 export type TournamentType = 'rookie' | 'pro' | 'elite';
 export type DurationType = 'daily' | 'mini' | 'season';
+export type GameType = 'betting' | 'prediction' | 'fantasy';
+export type GameFormat = 'leaderboard' | 'knockout' | 'championship' | 'battle_royale';
+export type RewardTier = 'tier1' | 'tier2' | 'tier3';
+export type ConditionsLogic = 'and' | 'or';
 
-// --- GENERIC GAME TYPES ---
-// Base interface for all game modes
-export interface Game {
+// Unified Game Type
+export interface SportimeGame {
   id: string;
   name: string;
-  status: ChallengeStatus;
-  startDate: string;
-  endDate: string;
-  entryCost: number;
-  totalPlayers: number;
-  gameType: 'betting' | 'prediction' | 'fantasy';
-  is_linkable?: boolean;
-  tournament_type?: TournamentType;
-}
-
-export interface BettingChallenge extends Game {
-  gameType: 'betting';
-  challengeBalance: number;
-  duration_type: DurationType;
-  // V1.1 Fields
+  description?: string;
+  league_id?: string;
+  start_date: string;
+  end_date: string;
+  game_type: GameType;
+  tier: TournamentType;
+  entry_cost: number;
+  custom_entry_cost_enabled?: boolean;
+  is_linkable: boolean;
+  reward_tier?: RewardTier;
+  format?: GameFormat;
+  requires_subscription: boolean;
+  minimum_level: string;
+  required_badges: string[];
+  conditions_logic?: ConditionsLogic;
   minimum_players: number;
   maximum_players: number;
-  requires_subscription: boolean;
-  required_badges: string[];
-  minimum_level: string;
-  participants: UserChallengeEntry[];
-  custom_entry_cost?: number;
+  status: ChallengeStatus;
+  totalPlayers: number;
+  participants: string[];
+
+  // Game-specific fields
+  // For betting
+  challengeBalance?: number;
+  duration_type?: DurationType;
+  // For prediction
+  matches?: SwipeMatch[];
+  challengeId?: string;
+  // For fantasy
+  gameWeeks?: FantasyGameWeek[];
 }
 
-export interface PredictionGame extends Game {
-  gameType: 'prediction';
-  matches: SwipeMatch[];
-  challengeId?: string; // New: Link to parent challenge
-}
-
-// Deprecated types, will be removed later
-export type Challenge = BettingChallenge;
+// --- DEPRECATED TYPES (to be removed) ---
+export type Game = SportimeGame;
+export type BettingChallenge = SportimeGame & { game_type: 'betting' };
+export type PredictionGame = SportimeGame & { game_type: 'prediction' };
+export type FantasyGame = SportimeGame & { game_type: 'fantasy' };
 export type SwipeMatchDay = PredictionGame;
+// --- END DEPRECATED ---
 
 
 export interface ChallengeMatch {
@@ -104,7 +113,7 @@ export interface DailyChallengeEntry {
 }
 
 export interface UserChallengeEntry {
-  user_id: string; // Changed to mandatory
+  user_id: string;
   challengeId: string;
   dailyEntries: DailyChallengeEntry[];
   finalPoints?: number;
@@ -120,7 +129,6 @@ export interface LeaderboardEntry {
   userId?: string;
 }
 
-// --- Swipe Prediction Game Types ---
 export type SwipePredictionOutcome = 'teamA' | 'draw' | 'teamB';
 
 export interface SwipeMatch {
@@ -141,7 +149,7 @@ export interface UserSwipeEntry {
   user_id?: string;
   matchDayId: string;
   predictions: UserSwipePrediction[];
-  submitted_at: string | null; // Changed from isFinalized
+  submitted_at: string | null;
 }
 
 export interface SwipeLeaderboardEntry {
@@ -153,7 +161,6 @@ export interface SwipeLeaderboardEntry {
   submission_timestamp?: number;
 }
 
-// New: Parent entity for multi-day prediction challenges
 export interface PredictionChallenge {
   id: string;
   title: string;
@@ -163,7 +170,6 @@ export interface PredictionChallenge {
   createdAt: string;
 }
 
-// --- Fantasy Football Types ---
 export type PlayerCategory = 'Star' | 'Key' | 'Wild';
 export type PlayerPosition = 'Goalkeeper' | 'Defender' | 'Midfielder' | 'Attacker';
 export type PlayerLiveStatus = 'playing' | 'not_yet_played' | 'dnp' | 'finished';
@@ -189,7 +195,6 @@ export interface FantasyPlayer {
   pgs: number; 
   status: PlayerCategory;
   playtime_ratio?: number;
-  // Live mode fields
   liveStatus?: PlayerLiveStatus;
   isSubbedIn?: boolean;
   livePoints?: number;
@@ -216,7 +221,7 @@ export interface GameWeekCondition {
 
 export interface FantasyGameWeek {
   id: string;
-  name: string; // e.g., "MatchDay 1"
+  name: string;
   startDate: string;
   endDate: string;
   leagues: string[];
@@ -226,29 +231,6 @@ export interface FantasyGameWeek {
   theme?: string;
 }
 
-export interface FantasyGame extends Game {
-  gameType: 'fantasy';
-  gameWeeks: FantasyGameWeek[];
-}
-
-export interface FantasyLeaderboardEntry {
-  rank: number;
-  username: string;
-  avatar: string;
-  totalPoints: number;
-  boosterUsed: Booster['id'] | null;
-  userId?: string;
-}
-
-export interface League {
-  id: string;
-  name: string;
-  logo: string;
-  remaining_matchdays: number;
-}
-
-
-// --- Supabase Profile Type ---
 export interface Profile {
   id: string;
   email: string | null;
@@ -261,14 +243,14 @@ export interface Profile {
   coins_balance: number;
   created_at: string;
   is_admin?: boolean;
-  is_subscriber?: boolean; // V1.1
+  is_subscriber?: boolean;
   badges?: string[];
-  favorite_club?: string; // club ID
-  favorite_national_team?: string; // country name
+  favorite_club?: string;
+  favorite_national_team?: string;
   sports_preferences?: {
     football?: {
-      club?: string; // club ID
-      national_team?: string; // country name
+      club?: string;
+      national_team?: string;
     },
     nba?: { team?: string },
     f1?: { team?: string, driver?: string },
@@ -276,7 +258,6 @@ export interface Profile {
   }
 }
 
-// --- Progression System Types ---
 export interface Badge {
   id: string;
   name: string;
@@ -302,21 +283,19 @@ export interface LevelConfig {
   level_icon_url: string;
 }
 
-// --- Toast Notification Type ---
 export interface Toast {
   id: string;
   message: string;
   type: 'success' | 'error' | 'info';
 }
 
-// --- User-Created Leagues ---
 export interface UserLeague {
   id: string;
   name: string;
   description?: string;
   image_url?: string;
   invite_code: string;
-  created_by: string; // user id
+  created_by: string;
   created_at: string;
   season_start_date?: string;
   season_end_date?: string;
@@ -336,8 +315,8 @@ export type LeaderboardPeriodEndType = 'season_end' | 'custom';
 export interface LeaderboardPeriod {
   start_type: LeaderboardPeriodStartType;
   end_type: LeaderboardPeriodEndType;
-  start_date: string; // ISO string
-  end_date: string;   // ISO string
+  start_date: string;
+  end_date: string;
 }
 
 export interface LeagueGame {
@@ -355,15 +334,14 @@ export interface LeagueGame {
   leaderboard_period?: LeaderboardPeriod | null;
 }
 
-// --- League Feed & Snapshots ---
 export interface LeaderboardSnapshot {
   id: string;
   league_id: string;
   game_id: string;
   game_name: string;
-  game_type: Game['gameType'];
+  game_type: GameType;
   created_at: string;
-  created_by: string; // user id
+  created_by: string;
   data: (LeaderboardEntry | SwipeLeaderboardEntry | FantasyLeaderboardEntry)[];
   message: string;
   start_date: string;
@@ -383,10 +361,9 @@ export interface LeagueFeedPost {
     new_member_name?: string;
     top_players?: { name: string; score: number }[];
   };
-  likes: string[]; // array of user ids
+  likes: string[];
 }
 
-// --- Private League Game Wizard ---
 export type PrivateGameFormat = 'championship' | 'championship_knockout' | 'knockout';
 export type KnockoutType = 'single' | 'double';
 
@@ -410,13 +387,12 @@ export interface PrivateLeagueGame {
   created_at: string;
 }
 
-// --- Fantasy Live Types ---
 export interface FantasyLiveBooster {
   id: number;
   name: string;
   description: string;
   type: 'individual' | 'team';
-  duration: number; // in minutes, 0 for instant
+  duration: number;
   effect: string;
   malus?: string;
   icon: React.ReactNode;
@@ -424,7 +400,6 @@ export interface FantasyLiveBooster {
   active_until?: string;
 }
 
-// --- Live Game ---
 export interface BonusQuestion {
   id: string;
   question: string;
@@ -445,8 +420,6 @@ export interface LiveBet {
 export interface LiveGamePlayerEntry {
   user_id: string;
   submitted_at: string;
-  
-  // Prediction Mode
   predicted_score?: { home: number; away: number };
   bonus_answers?: { question_id: string; choice: string }[];
   midtime_edit?: boolean;
@@ -458,8 +431,6 @@ export interface LiveGamePlayerEntry {
   bonus_total?: number;
   total_points?: number;
   goal_diff_error?: number;
-
-  // Betting Mode
   betting_state?: {
     pre_match_balance: number;
     live_balance: number;
@@ -467,8 +438,6 @@ export interface LiveGamePlayerEntry {
     total_gain: number;
     last_gain_time?: string;
   };
-
-  // Fantasy Live Mode
   fantasy_team?: {
     players: FantasyPlayer[];
     captain_id: string;
@@ -478,11 +447,11 @@ export interface LiveGamePlayerEntry {
 export interface LiveGameMarket {
   id: string;
   minute: number;
-  type: string; // e.g., 'first_goal', 'drama_last_goal'
+  type: string;
   title: string;
   emotion_factor: number;
   odds: { option: string; adjusted: number }[];
-  expires_at: string; // ISO string
+  expires_at: string;
   status: 'open' | 'closed' | 'resolved';
   winning_option?: string;
 }
@@ -499,22 +468,13 @@ export interface LiveGame {
     minute: number;
     score: { home: number, away: number };
   };
-  
-  // Prediction Mode
   bonus_questions: BonusQuestion[];
-  
-  // Betting Mode
   markets: LiveGameMarket[];
   simulated_minute: number;
-
-  // Fantasy Live Mode
   boosters?: FantasyLiveBooster[];
-
   players: LiveGamePlayerEntry[];
 }
 
-
-// --- API Football Types ---
 export interface ApiFootballResponse<T> {
   get: string;
   parameters: Record<string, string>;
@@ -528,108 +488,38 @@ export interface ApiFootballResponse<T> {
 }
 
 export interface ApiLeagueInfo {
-  league: {
-    id: number;
-    name: string;
-    type: string;
-    logo: string;
-  };
-  country: {
-    name: string;
-    code: string;
-    flag: string;
-  };
-  seasons: {
-    year: number;
-    start: string;
-    end: string;
-    current: boolean;
-  }[];
+  league: { id: number; name: string; type: string; logo: string; };
+  country: { name: string; code: string; flag: string; };
+  seasons: { year: number; start: string; end: string; current: boolean; }[];
 }
 
 export interface ApiTeamInfo {
-  team: {
-    id: number;
-    name: string;
-    country: string;
-    logo: string;
-  };
+  team: { id: number; name: string; country: string; logo: string; };
 }
 
 export interface ApiPlayerInfo {
-  player: {
-    id: number;
-    name: string;
-    firstname: string;
-    lastname: string;
-    age: number;
-    birth: {
-      date: string;
-      place: string;
-      country: string;
-    };
-    nationality: string;
-    height: string;
-    weight: string;
-    photo: string;
-  };
-  statistics: {
-    team: {
-      id: number;
-    };
-    games: {
-      position: string;
-    };
-  }[];
+  player: { id: number; name: string; firstname: string; lastname: string; age: number; birth: { date: string; place: string; country: string; }; nationality: string; height: string; weight: string; photo: string; };
+  statistics: { team: { id: number; }; games: { position: string; }; }[];
 }
 
 export interface ApiFixtureInfo {
-  fixture: {
-    id: number;
-    date: string;
-    status: {
-      long: string;
-      short: string;
-      elapsed: number;
-    };
-  };
-  league: {
-    id: number;
-    season: number;
-  };
-  teams: {
-    home: { id: number; winner: boolean | null };
-    away: { id: number; winner: boolean | null };
-  };
-  goals: {
-    home: number | null;
-    away: number | null;
-  };
+  fixture: { id: number; date: string; status: { long: string; short: string; elapsed: number; }; };
+  league: { id: number; season: number; };
+  teams: { home: { id: number; winner: boolean | null }; away: { id: number; winner: boolean | null }; };
+  goals: { home: number | null; away: number | null; };
 }
 
 export interface ApiOddsInfo {
-  fixture: {
-    id: number;
-  };
-  bookmakers: {
-    name: string;
-    bets: {
-      name: string; // "Match Winner"
-      values: {
-        value: string; // "Home", "Draw", "Away"
-        odd: string;
-      }[];
-    }[];
-  }[];
+  fixture: { id: number; };
+  bookmakers: { name: string; bets: { name: string; values: { value: string; odd: string; }[]; }[]; }[];
 }
 
 export interface ApiSyncConfig {
-  id: string; // endpoint name e.g., 'fixtures'
+  id: string;
   frequency: string;
   last_sync_at: string | null;
 }
 
-// --- FANTASY ENGINE V2 TYPES ---
 export interface FantasyConfig {
   fatigue: { star: number; key: number; rest: number };
   bonuses: { no_star: number; crazy: number; vintage: number };
@@ -638,11 +528,11 @@ export interface FantasyConfig {
 }
 
 export interface PlayerLast10Stats {
-  rating: number; // avg
-  impact: number; // avg
-  consistency: number; // avg
-  minutes_played: number; // total
-  total_possible_minutes: number; // total
+  rating: number;
+  impact: number;
+  consistency: number;
+  minutes_played: number;
+  total_possible_minutes: number;
 }
 
 export interface PlayerGameWeekStats {
@@ -668,7 +558,6 @@ export interface PlayerGameWeekStats {
   clean_sheet: boolean;
 }
 
-// --- Onboarding ---
 export interface OnboardingSlide {
   slide_number: number;
   title: string;
@@ -679,11 +568,10 @@ export interface OnboardingSlide {
   progress_visual: string;
 }
 
-// --- V1.1 Economy Types ---
 export interface UserStreak {
   user_id: string;
   current_day: number;
-  last_claimed_at: string; // ISO string
+  last_claimed_at: string;
   total_cycles_completed: number;
 }
 
@@ -692,7 +580,7 @@ export interface UserTicket {
   user_id: string;
   type: TournamentType;
   is_used: boolean;
-  created_at: string; // V1.2
+  created_at: string;
   expires_at: string;
   used_at?: string;
 }
