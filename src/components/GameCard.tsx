@@ -27,20 +27,20 @@ const tournamentTierDetails: Record<TournamentType, { label: string; color: stri
 };
 
 export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick, onPlay, onShowRules, profile, userTickets }) => {
-  const details = gameTypeDetails[game.gameType as keyof typeof gameTypeDetails];
-  const tierDetails = game.tournament_type ? tournamentTierDetails[game.tournament_type] : null;
+  const details = gameTypeDetails[game.game_type as keyof typeof gameTypeDetails];
+  const tierDetails = game.tier ? tournamentTierDetails[game.tier] : null;
 
   const { hasTicket, hasEnoughCoins } = useMemo(() => {
-    if (!profile || game.gameType !== 'betting') return { hasTicket: false, hasEnoughCoins: false };
+    if (!profile || game.game_type !== 'betting') return { hasTicket: false, hasEnoughCoins: false };
     const validTicket = userTickets.find(t => 
       t.user_id === profile.id &&
-      t.type === game.tournament_type &&
+      t.type === game.tier &&
       !t.is_used &&
       isBefore(new Date(), parseISO(t.expires_at))
     );
     return {
       hasTicket: !!validTicket,
-      hasEnoughCoins: profile.coins_balance >= game.entryCost,
+      hasEnoughCoins: profile.coins_balance >= game.entry_cost,
     };
   }, [profile, userTickets, game]);
 
@@ -52,7 +52,7 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
       return <><Ticket size={16} className="text-lime-glow" /> Join with Ticket</>;
     }
     if (!hasTicket && hasEnoughCoins) {
-      return <><Coins size={16} className="text-warm-yellow" /> Join ({game.entryCost.toLocaleString()})</>;
+      return <><Coins size={16} className="text-warm-yellow" /> Join ({game.entry_cost.toLocaleString()})</>;
     }
     // Has both
     return <>Choose Entry</>;
@@ -63,8 +63,8 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
 
   const ctaConfig = {
     JOIN: { onClick: onJoinClick, disabled: isJoinDisabled, style: 'primary', content: joinButtonContent() },
-    PLAY: { text: game.gameType === 'betting' ? 'Place Bets' : 'Make Picks', onClick: onPlay, disabled: false, style: 'primary', icon: <ArrowRight size={16} /> },
-    SUBMITTED: { text: game.gameType === 'betting' ? 'Bets Submitted' : 'Picks Submitted', onClick: onPlay, disabled: false, style: 'secondary', icon: <Check size={16} /> },
+    PLAY: { text: game.game_type === 'betting' ? 'Place Bets' : 'Make Picks', onClick: onPlay, disabled: false, style: 'primary', icon: <ArrowRight size={16} /> },
+    SUBMITTED: { text: game.game_type === 'betting' ? 'Bets Submitted' : 'Picks Submitted', onClick: onPlay, disabled: false, style: 'secondary', icon: <Check size={16} /> },
     AWAITING: { text: 'Matches Awaiting', onClick: () => {}, disabled: true, style: 'disabled', icon: <Clock size={16} /> },
     RESULTS: { text: 'View Results', onClick: onPlay, disabled: false, style: 'primary', icon: <ArrowRight size={16} /> },
     VIEW_TEAM: { text: 'View Team', onClick: onPlay, disabled: false, style: 'primary', icon: <ArrowRight size={16} /> },
@@ -114,7 +114,7 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
       <div className="flex items-center justify-between text-sm text-text-secondary border-t border-white/10 pt-3">
         <div className="flex items-center gap-2">
           <Calendar size={14} />
-          <span>{format(parseISO(game.startDate), 'MMM d')} - {format(parseISO(game.endDate), 'MMM d')}</span>
+          <span>{format(parseISO(game.start_date), 'MMM d')} - {format(parseISO(game.end_date), 'MMM d')}</span>
         </div>
         <div className="flex items-center gap-1 text-xs">
           <Users size={14} />
