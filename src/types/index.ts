@@ -31,7 +31,9 @@ export interface Bet {
   winAmount?: number;
 }
 
-export type ChallengeStatus = 'Upcoming' | 'Ongoing' | 'Finished';
+export type ChallengeStatus = 'Upcoming' | 'Ongoing' | 'Finished' | 'Cancelled' | 'Pending';
+export type TournamentType = 'rookie' | 'pro' | 'elite';
+export type DurationType = 'daily' | 'mini' | 'season';
 
 // --- GENERIC GAME TYPES ---
 // Base interface for all game modes
@@ -45,11 +47,21 @@ export interface Game {
   totalPlayers: number;
   gameType: 'betting' | 'prediction' | 'fantasy';
   is_linkable?: boolean;
+  tournament_type?: TournamentType;
 }
 
 export interface BettingChallenge extends Game {
   gameType: 'betting';
   challengeBalance: number;
+  duration_type: DurationType;
+  // V1.1 Fields
+  minimum_players: number;
+  maximum_players: number;
+  requires_subscription: boolean;
+  required_badges: string[];
+  minimum_level: string;
+  participants: UserChallengeEntry[];
+  custom_entry_cost?: number;
 }
 
 export interface PredictionGame extends Game {
@@ -92,10 +104,12 @@ export interface DailyChallengeEntry {
 }
 
 export interface UserChallengeEntry {
-  user_id?: string;
+  user_id: string; // Changed to mandatory
   challengeId: string;
   dailyEntries: DailyChallengeEntry[];
   finalPoints?: number;
+  entryMethod: 'coins' | 'ticket';
+  ticketId?: string;
 }
 
 export interface LeaderboardEntry {
@@ -191,7 +205,7 @@ export interface UserFantasyTeam {
   fatigue_state: Record<string, number>; 
   booster_used: number | null;
   booster_target_id?: string | null;
-  captain_id: string;
+  booster_refunded?: boolean;
 }
 
 export interface GameWeekCondition {
@@ -247,6 +261,8 @@ export interface Profile {
   coins_balance: number;
   created_at: string;
   is_admin?: boolean;
+  is_subscriber?: boolean; // V1.1
+  badges?: string[];
   favorite_club?: string; // club ID
   favorite_national_team?: string; // country name
   sports_preferences?: {
@@ -661,4 +677,22 @@ export interface OnboardingSlide {
   cta_text: string | { primary: string; secondary: string };
   emotion: string;
   progress_visual: string;
+}
+
+// --- V1.1 Economy Types ---
+export interface UserStreak {
+  user_id: string;
+  current_day: number;
+  last_claimed_at: string; // ISO string
+  total_cycles_completed: number;
+}
+
+export interface UserTicket {
+  id: string;
+  user_id: string;
+  type: TournamentType;
+  is_used: boolean;
+  created_at: string; // V1.2
+  expires_at: string;
+  used_at?: string;
 }

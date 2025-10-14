@@ -1,7 +1,7 @@
 import React from 'react';
 import { UserTicket, TournamentType } from '../types';
 import { X, Ticket } from 'lucide-react';
-import { differenceInDays, parseISO, isBefore } from 'date-fns';
+import { differenceInDays, parseISO, isBefore, format } from 'date-fns';
 
 interface TicketWalletModalProps {
   isOpen: boolean;
@@ -18,7 +18,13 @@ const tierDetails = {
 export const TicketWalletModal: React.FC<TicketWalletModalProps> = ({ isOpen, onClose, tickets }) => {
   if (!isOpen) return null;
 
-  const validTickets = tickets.filter(t => !t.is_used && isBefore(new Date(), parseISO(t.expires_at)));
+  const now = new Date();
+  const validTickets = tickets.filter(t => !t.is_used && isBefore(now, parseISO(t.expires_at)));
+  const expiredTickets = tickets.filter(t => 
+    !t.is_used && 
+    !isBefore(now, parseISO(t.expires_at)) &&
+    differenceInDays(now, parseISO(t.expires_at)) <= 7
+  );
 
   const ticketSummary = {
     rookie: validTickets.filter(t => t.type === 'rookie'),
@@ -29,7 +35,7 @@ export const TicketWalletModal: React.FC<TicketWalletModalProps> = ({ isOpen, on
   const getOldestExpiry = (ticketGroup: UserTicket[]) => {
     if (ticketGroup.length === 0) return null;
     const oldest = ticketGroup.sort((a, b) => parseISO(a.expires_at).getTime() - parseISO(b.expires_at).getTime())[0];
-    return differenceInDays(parseISO(oldest.expires_at), new Date());
+    return differenceInDays(parseISO(oldest.expires_at), now);
   };
 
   const TicketTier: React.FC<{ type: TournamentType }> = ({ type }) => {
@@ -64,7 +70,7 @@ export const TicketWalletModal: React.FC<TicketWalletModalProps> = ({ isOpen, on
           </button>
         </div>
         
-        {validTickets.length === 0 ? (
+        {validTickets.length === 0 && expiredTickets.length === 0 ? (
           <div className="text-center py-8">
             <Ticket size={48} className="mx-auto text-text-disabled mb-4" />
             <h3 className="font-bold text-text-primary text-lg">No Tickets Yet!</h3>
@@ -74,9 +80,29 @@ export const TicketWalletModal: React.FC<TicketWalletModalProps> = ({ isOpen, on
           </div>
         ) : (
           <div className="space-y-3">
+            <h3 className="font-bold text-text-primary">Active Tickets</h3>
             <TicketTier type="rookie" />
             <TicketTier type="pro" />
             <TicketTier type="elite" />
+            
+            {expiredTickets.length > 0 && (
+              <div className="pt-4 mt-4 border-t border-disabled">
+                <h3 className="font-bold text-text-disabled mb-2">Expired Tickets</h3>
+                <div className="space-y-2 opacity-60">
+                  {expiredTickets.map(ticket => {
+                    const details = tierDetails[ticket.type];
+                    return (
+                      <div key={ticket.id} className={`p-3 rounded-xl ${details.bg}`}>
+                        <div className="flex justify-between items-center">
+                          <h4 className={`font-semibold text-md ${details.color}`}>{details.label}</h4>
+                          <p className="text-xs text-text-disabled">Expired on: {format(parseISO(ticket.expires_at), 'dd/MM/yyyy')}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

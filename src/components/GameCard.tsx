@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Game, TournamentType, Profile, UserTicket } from '../types';
 import { format, parseISO, isBefore } from 'date-fns';
-import { Calendar, Coins, Info, ArrowRight, Check, Clock, Users, Ticket, ShieldAlert } from 'lucide-react';
+import { Calendar, Coins, Info, ArrowRight, Check, Clock, Users, Ticket, Ban } from 'lucide-react';
 import { CtaState } from '../pages/GamesListPage';
 
 interface GameCardProps {
@@ -46,7 +46,7 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
 
   const joinButtonContent = () => {
     if (!hasTicket && !hasEnoughCoins) {
-      return <><ShieldAlert size={16} /> Not enough funds</>;
+      return <>Not enough funds</>;
     }
     if (hasTicket && !hasEnoughCoins) {
       return <><Ticket size={16} className="text-lime-glow" /> Join with Ticket</>;
@@ -55,9 +55,10 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
       return <><Coins size={16} className="text-warm-yellow" /> Join ({game.entryCost.toLocaleString()})</>;
     }
     // Has both
-    return <>Choose Entry Method</>;
+    return <>Choose Entry</>;
   };
 
+  const isCancelled = game.status === 'Cancelled';
   const isJoinDisabled = ctaState === 'JOIN' && !hasTicket && !hasEnoughCoins;
 
   const ctaConfig = {
@@ -78,7 +79,7 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
   };
 
   return (
-    <div className="card-base p-4 space-y-3 transition-all hover:border-neon-cyan/50">
+    <div className={`card-base p-4 space-y-3 transition-all hover:border-neon-cyan/50 ${isCancelled ? 'opacity-60' : ''}`}>
       {/* Top Section */}
       <div className="flex justify-between items-start">
         <div className="flex-1">
@@ -94,10 +95,20 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
             )}
           </div>
         </div>
-        <span className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${game.status === 'Upcoming' ? 'bg-electric-blue/20 text-electric-blue' : game.status === 'Ongoing' ? 'bg-lime-glow/20 text-lime-glow' : 'bg-disabled text-text-disabled'}`}>
+        <span className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${
+          isCancelled ? 'bg-hot-red/20 text-hot-red' :
+          game.status === 'Upcoming' ? 'bg-electric-blue/20 text-electric-blue' : 
+          game.status === 'Ongoing' ? 'bg-lime-glow/20 text-lime-glow' : 'bg-disabled text-text-disabled'
+        }`}>
           {game.status}
         </span>
       </div>
+      
+      {isCancelled && (
+        <div className="text-center text-hot-red font-semibold text-sm border-t border-white/10 pt-3">
+          Your entry has been refunded.
+        </div>
+      )}
 
       {/* Middle Section - Date & Players */}
       <div className="flex items-center justify-between text-sm text-text-secondary border-t border-white/10 pt-3">
@@ -112,7 +123,7 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
       </div>
       
       {/* Bottom Section - Actions */}
-      <div className="flex items-center justify-between border-t border-white/10 pt-3 gap-2">
+      <div className={`flex items-center justify-between border-t border-white/10 pt-3 gap-2 ${isCancelled ? 'hidden' : ''}`}>
         {onShowRules && (
           <button
             onClick={onShowRules}

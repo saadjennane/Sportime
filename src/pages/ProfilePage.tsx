@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
-import { Profile, LevelConfig, Badge, UserBadge } from '../../types';
-import { User, Star, Shield, Settings, Flame, Edit, Globe, Award } from 'lucide-react';
+import { Profile, LevelConfig, Badge, UserBadge, UserStreak } from '../types';
+import { User, Star, Shield, Settings, Flame, Edit, Globe, Award, Target } from 'lucide-react';
 import { ProfileSettingsModal } from '../components/ProfileSettingsModal';
 import { mockTeams } from '../data/mockTeams';
 import { mockCountries } from '../data/mockCountries';
+import { DailyStreakTracker } from '../components/DailyStreakTracker';
+import { LEVEL_BET_LIMITS } from '../config/constants';
 
 interface ProfilePageProps {
   profile: Profile;
   levels: LevelConfig[];
   allBadges: Badge[];
   userBadges: UserBadge[];
+  userStreaks: UserStreak[];
   onUpdateProfile: (updatedData: { username: string; newProfilePic: File | null; favoriteClub?: string | null; favoriteNationalTeam?: string | null; }) => void;
   onUpdateEmail: (newEmail: string) => void;
   onSignOut: () => void;
@@ -17,7 +20,7 @@ interface ProfilePageProps {
 }
 
 const ProfilePage: React.FC<ProfilePageProps> = (props) => {
-  const { profile, levels, allBadges, userBadges } = props;
+  const { profile, levels, allBadges, userBadges, userStreaks } = props;
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const currentLevel = levels.find(l => l.level_name === (profile.level ?? 'Amateur')) || levels[0];
@@ -32,6 +35,9 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
   const favoriteClub = profile.favorite_club ? mockTeams.find(t => t.id === profile.favorite_club) : null;
   const favoriteNationalTeam = profile.favorite_national_team ? mockCountries.find(c => c.name === profile.favorite_national_team) : null;
   const preferencesSkipped = !profile.is_guest && !profile.favorite_club && !profile.favorite_national_team;
+  
+  const userStreak = userStreaks.find(s => s.user_id === profile.id);
+  const maxBet = currentLevel ? LEVEL_BET_LIMITS[currentLevel.level_name] : 'N/A';
 
   const PreferenceItem: React.FC<{
     icon: React.ReactNode;
@@ -93,6 +99,8 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
         </div>
       </div>
 
+      <DailyStreakTracker streak={userStreak} />
+
       {/* Fan Preferences */}
       <div className="card-base p-5 space-y-3">
          <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2"><Edit size={20} className="text-electric-blue" /> Fan Preferences</h3>
@@ -132,6 +140,25 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
           </p>
         )}
       </div>
+
+      {/* Betting Limit */}
+      <div className="card-base p-5">
+        <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2 mb-2">
+            <Target size={20} className="text-lime-glow" /> Betting Limit
+        </h3>
+        <div className="bg-deep-navy p-3 rounded-lg text-center">
+            <p className="text-sm text-text-secondary">Max bet per match</p>
+            <p className="text-2xl font-bold text-warm-yellow">
+                {maxBet ? `${maxBet.toLocaleString()} coins` : 'No Limit'}
+            </p>
+        </div>
+        {nextLevel && (
+            <p className="text-xs text-text-disabled text-center mt-2">
+                Next level unlocks higher limits!
+            </p>
+        )}
+      </div>
+
 
       {/* Badges */}
       <div className="card-base p-5">

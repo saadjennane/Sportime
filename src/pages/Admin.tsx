@@ -30,6 +30,7 @@ interface AdminPageProps {
   // Challenge props
   challenges: BettingChallenge[];
   onAddChallenge: (challenge: Omit<BettingChallenge, 'id' | 'status' | 'totalPlayers' | 'gameType' | 'is_linkable'>) => void;
+  onProcessChallengeStart: (challengeId: string) => { success: boolean, message: string };
 
   // Developer props
   isTestMode: boolean;
@@ -44,8 +45,7 @@ interface AdminPageProps {
 const AdminPage: React.FC<AdminPageProps> = (props) => {
   const [editingMatch, setEditingMatch] = useState<Match | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [activeSection, setActiveSection] = useState<AdminSection>('developer');
-  const { addToast } = useToast();
+  const [activeSection, setActiveSection] = useState<AdminSection>('challenges');
 
   const handleEdit = (match: Match) => {
     setEditingMatch(match);
@@ -59,6 +59,11 @@ const AdminPage: React.FC<AdminPageProps> = (props) => {
   const handleToggleAddForm = () => {
     setShowAddForm(!showAddForm);
     setEditingMatch(null);
+  };
+
+  const handleStartChallenge = (challengeId: string) => {
+    const result = props.onProcessChallengeStart(challengeId);
+    props.addToast(result.message, result.success ? 'success' : 'error');
   };
 
   const AdminSectionButton: React.FC<{ section: AdminSection, icon: React.ReactNode, label: string }> = ({ section, icon, label }) => (
@@ -82,7 +87,7 @@ const AdminPage: React.FC<AdminPageProps> = (props) => {
 
       {activeSection === 'challenges' && (
         <div className="animate-scale-in">
-          <ChallengesAdmin addToast={addToast} onAddChallenge={props.onAddChallenge} />
+          <ChallengesAdmin challenges={props.challenges} onProcessChallengeStart={handleStartChallenge} />
         </div>
       )}
 
@@ -103,7 +108,7 @@ const AdminPage: React.FC<AdminPageProps> = (props) => {
 
       {activeSection === 'datasync' && (
         <div className="animate-scale-in">
-          <DataSyncAdmin addToast={addToast} />
+          <DataSyncAdmin addToast={props.addToast} />
         </div>
       )}
 
@@ -176,9 +181,9 @@ const AdminPage: React.FC<AdminPageProps> = (props) => {
                 if (props.profile) {
                   const newBalance = props.profile.coins_balance + 50000;
                   props.onSetCoinBalance(newBalance);
-                  addToast('Added 50,000 coins!', 'success');
+                  props.addToast('Added 50,000 coins!', 'success');
                 } else {
-                  addToast('No active profile to add coins to.', 'error');
+                  props.addToast('No active profile to add coins to.', 'error');
                 }
               }}
               className="w-full flex items-center justify-center gap-2 py-3 bg-lime-glow/20 text-lime-glow rounded-xl font-semibold hover:bg-lime-glow/30 transition-colors"

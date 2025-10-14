@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
-import { ChallengeMatch, ChallengeBet } from '../types';
+import { ChallengeMatch, ChallengeBet, Profile } from '../types';
 import { TrendingUp, Zap } from 'lucide-react';
+import { LEVEL_BET_LIMITS } from '../config/constants';
 
 interface ChallengeBetControllerProps {
   match: ChallengeMatch;
@@ -12,12 +13,16 @@ interface ChallengeBetControllerProps {
   onApplyBooster: () => void;
   isBoosted: boolean;
   boosterType?: 'x2' | 'x3';
+  profile: Profile;
 }
 
-export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ match, bet, onBetChange, disabled, maxAmount, isBoosterArmed, onApplyBooster, isBoosted, boosterType }) => {
+export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ match, bet, onBetChange, disabled, maxAmount, isBoosterArmed, onApplyBooster, isBoosted, boosterType, profile }) => {
   const { teamA, teamB, odds } = match;
   const selectedPrediction = bet?.prediction;
   const amount = bet?.amount || '';
+
+  const betLimit = profile.level ? LEVEL_BET_LIMITS[profile.level] : 500;
+  const effectiveMaxAmount = betLimit ? Math.min(maxAmount, betLimit) : maxAmount;
 
   const handlePredictionClick = (prediction: 'teamA' | 'draw' | 'teamB') => {
     if (disabled) return;
@@ -32,8 +37,8 @@ export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (disabled || !selectedPrediction) return;
     let newAmount = parseInt(e.target.value) || 0;
-    if (newAmount > maxAmount) {
-      newAmount = maxAmount;
+    if (newAmount > effectiveMaxAmount) {
+      newAmount = effectiveMaxAmount;
     }
     if (newAmount < 0) {
       newAmount = 0;
@@ -55,13 +60,13 @@ export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ 
 
   const quickBetAmounts = useMemo(() => {
     const defaults = [100, 200, 500];
-    const availableAmounts = defaults.filter(a => a < maxAmount);
-    if (maxAmount > 0) {
-        availableAmounts.push(maxAmount);
+    const availableAmounts = defaults.filter(a => a < effectiveMaxAmount);
+    if (effectiveMaxAmount > 0) {
+        availableAmounts.push(effectiveMaxAmount);
     }
     const finalAmounts = [...new Set(availableAmounts)];
     return finalAmounts.slice(0, 4);
-  }, [maxAmount]);
+  }, [effectiveMaxAmount]);
 
   const BetOption: React.FC<{
     label: string;
@@ -76,26 +81,26 @@ export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ 
         onClick={() => handlePredictionClick(prediction)}
         disabled={disabled}
         className={`flex-1 p-2 border-2 rounded-lg text-center transition-all ${
-          isSelected ? 'bg-purple-100 border-purple-500' : 'bg-gray-50 border-gray-200 hover:border-purple-300'
-        } ${disabled ? 'cursor-not-allowed bg-gray-100' : ''} ${isWinningOutcome ? '!bg-green-100 !border-green-500' : ''}`}
+          isSelected ? 'bg-electric-blue/20 border-electric-blue' : 'bg-deep-navy border-disabled hover:border-electric-blue/50'
+        } ${disabled ? 'cursor-not-allowed bg-navy-accent' : ''} ${isWinningOutcome ? '!bg-lime-glow/20 !border-lime-glow' : ''}`}
       >
-        <div className="text-sm font-semibold text-gray-800">{label}</div>
-        <div className="text-xs text-gray-500">@{odd.toFixed(2)}</div>
+        <div className="text-sm font-semibold text-text-primary">{label}</div>
+        <div className="text-xs text-electric-blue">@{odd.toFixed(2)}</div>
       </button>
     );
   };
 
   return (
-    <div className={`bg-white rounded-xl p-3 space-y-3 border-2 relative ${selectedPrediction ? 'border-purple-200' : 'border-transparent'} ${disabled && match.status === 'played' ? 'opacity-70' : ''}`}>
+    <div className={`bg-navy-accent rounded-xl p-3 space-y-3 border-2 relative ${selectedPrediction ? 'border-electric-blue/50' : 'border-transparent'} ${disabled && match.status === 'played' ? 'opacity-70' : ''}`}>
       {isBoosted && (
         <span className={`absolute -top-2 -right-2 text-xs font-bold px-2 py-1 rounded-full text-white shadow-lg ${boosterType === 'x2' ? 'bg-blue-500' : 'bg-red-500'}`}>
           {boosterType === 'x2' ? 'x2 🔥' : 'x3 🚀'}
         </span>
       )}
       <div className="flex justify-between items-center">
-        <p className="text-sm font-bold text-gray-800 pr-10">{teamA.emoji} {teamA.name} vs {teamB.emoji} {teamB.name}</p>
+        <p className="text-sm font-bold text-text-primary pr-10">{teamA.emoji} {teamA.name} vs {teamB.emoji} {teamB.name}</p>
         {match.status === 'played' && (
-          <span className="text-xs font-bold px-2 py-1 rounded-full bg-gray-200 text-gray-700">
+          <span className="text-xs font-bold px-2 py-1 rounded-full bg-disabled text-text-disabled">
             Played
           </span>
         )}
@@ -112,26 +117,29 @@ export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ 
           onChange={handleAmountChange}
           placeholder="Bet amount"
           disabled={!selectedPrediction || disabled}
-          max={maxAmount}
+          max={effectiveMaxAmount}
           min="0"
-          className="w-full p-2 bg-gray-50 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+          className="w-full p-2 bg-deep-navy border-2 border-disabled rounded-lg focus:border-electric-blue focus:outline-none disabled:bg-navy-accent disabled:cursor-not-allowed"
         />
+        {betLimit && Number(amount) > betLimit && (
+            <p className="text-xs text-hot-red mt-1 text-center">Max bet for your level is {betLimit} coins.</p>
+        )}
         {selectedPrediction && !disabled && quickBetAmounts.length > 0 && (
           <div className="flex gap-2 mt-2">
             {quickBetAmounts.map((qAmount) => (
               <button
                 key={qAmount}
                 onClick={() => onBetChange(selectedPrediction, qAmount)}
-                className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-purple-100 rounded-lg text-xs font-semibold text-slate-700 hover:text-purple-700 transition-colors"
+                className="flex-1 py-1.5 px-2 bg-deep-navy hover:bg-electric-blue/20 rounded-lg text-xs font-semibold text-text-secondary hover:text-electric-blue transition-colors"
               >
-                {qAmount === maxAmount ? 'All In' : qAmount.toLocaleString()}
+                {qAmount === effectiveMaxAmount ? 'All In' : qAmount.toLocaleString()}
               </button>
             ))}
           </div>
         )}
       </div>
       {potentialGain > 0 && !disabled && (
-        <div className="flex items-center justify-end gap-2 text-green-700">
+        <div className="flex items-center justify-end gap-2 text-lime-glow">
           <TrendingUp size={14} />
           <span className="text-xs font-semibold">
             Potential Gain: +{potentialGain.toLocaleString(undefined, { maximumFractionDigits: 0 })}
@@ -141,7 +149,7 @@ export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ 
       {isBoosterArmed && (
         <button
           onClick={onApplyBooster}
-          className="w-full flex items-center justify-center gap-2 text-sm p-2 bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200 font-semibold mt-2"
+          className="w-full flex items-center justify-center gap-2 text-sm p-2 bg-warm-yellow/20 text-warm-yellow rounded-lg hover:bg-warm-yellow/30 font-semibold mt-2"
         >
           <Zap size={14} /> Apply Booster to this Match
         </button>

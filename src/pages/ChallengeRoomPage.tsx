@@ -139,7 +139,7 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
       { day: 1, bets: [{ challengeMatchId: 'cm-new-1', prediction: 'draw', amount: 1000 }], booster: { type: 'x2', matchId: 'cm-new-1' } },
       { day: 2, bets: [{ challengeMatchId: 'cm-new-3', prediction: 'teamA', amount: 1000 }] }
     ];
-    const mockEntry: UserChallengeEntry = { challengeId: challenge.id, dailyEntries: mockDailyEntries };
+    const mockEntry: UserChallengeEntry = { challengeId: challenge.id, dailyEntries: mockDailyEntries, user_id: 'mock-user', entryMethod: 'coins' };
 
     const otherPlayers = [
       { username: 'TopPlayer', entry: mockEntry },
@@ -309,6 +309,7 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
                       onApplyBooster={() => handleApplyBooster(dailyEntry.day, match.id)}
                       isBoosted={dailyEntry.booster?.matchId === match.id}
                       boosterType={dailyEntry.booster?.matchId === match.id ? dailyEntry.booster.type : undefined}
+                      profile={profile}
                     />
                   );
                 })}

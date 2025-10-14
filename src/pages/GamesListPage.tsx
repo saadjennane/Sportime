@@ -52,7 +52,7 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
   const myFantasyGameIds = userFantasyTeams.map(entry => entry.gameId);
 
   const allGames: Game[] = [...challenges, ...swipeMatchDays, ...fantasyGames].sort((a, b) => {
-    const statusOrder = { Upcoming: 0, Ongoing: 1, Finished: 2 };
+    const statusOrder = { Upcoming: 0, Ongoing: 1, Finished: 2, Cancelled: 3, Pending: 0 };
     return statusOrder[a.status] - statusOrder[b.status];
   });
 
@@ -64,8 +64,8 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
         (game.gameType === 'fantasy' && myFantasyGameIds.includes(game.id))
       );
 
-  const activeGames = baseFilteredGames.filter(g => g.status !== 'Finished');
-  const finishedGames = baseFilteredGames.filter(g => g.status === 'Finished');
+  const activeGames = baseFilteredGames.filter(g => g.status !== 'Finished' && g.status !== 'Cancelled');
+  const pastGames = baseFilteredGames.filter(g => g.status === 'Finished' || g.status === 'Cancelled');
 
   const getCtaState = (game: Game): CtaState => {
     let hasJoined = false;
@@ -86,7 +86,7 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
         return 'JOIN';
     }
 
-    if (game.status === 'Finished') {
+    if (game.status === 'Finished' || game.status === 'Cancelled') {
         return 'RESULTS';
     }
 
@@ -185,16 +185,16 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
             </div>
           )}
 
-          {finishedGames.length > 0 && (
+          {pastGames.length > 0 && (
             <div className="card-base p-4 mt-4">
               <button
                 onClick={() => setIsFinishedVisible(!isFinishedVisible)}
                 className="w-full flex justify-between items-center text-left"
               >
                 <div className="flex items-center gap-3">
-                  <h3 className="text-lg font-bold text-text-secondary">Finished Challenges</h3>
+                  <h3 className="text-lg font-bold text-text-secondary">Past Challenges</h3>
                   <span className="bg-disabled text-text-disabled text-xs font-bold px-2.5 py-1 rounded-full">
-                    {finishedGames.length}
+                    {pastGames.length}
                   </span>
                 </div>
                 <ChevronDown
@@ -205,7 +205,7 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
               </button>
               {isFinishedVisible && (
                 <div className="mt-4 space-y-4 border-t border-white/10 pt-4 animate-scale-in">
-                  {finishedGames.map(renderGameCard)}
+                  {pastGames.map(renderGameCard)}
                 </div>
               )}
             </div>

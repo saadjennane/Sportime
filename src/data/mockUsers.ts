@@ -14,6 +14,8 @@ export const mockUsers: Profile[] = [
         xp: 2500,
         favorite_club: 'team-1',
         favorite_national_team: 'France',
+        is_subscriber: true,
+        badges: ['badge-1', 'badge-2', 'badge-5'],
     },
     {
         id: 'user-2',
@@ -26,6 +28,8 @@ export const mockUsers: Profile[] = [
         profile_picture_url: 'https://i.pravatar.cc/150?u=a042581f4e29026704d',
         level: 'Amateur',
         xp: 500,
+        is_subscriber: false,
+        badges: ['badge-1'],
     },
     {
         id: 'user-3',
@@ -38,5 +42,7 @@ export const mockUsers: Profile[] = [
         profile_picture_url: 'https://i.pravatar.cc/150?u=a042581f4e29026704c',
         level: 'Expert',
         xp: 6000,
+        is_subscriber: true,
+        badges: ['badge-1', 'badge-3', 'badge-4'],
     }
 ];

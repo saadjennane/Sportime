@@ -1,81 +1,55 @@
-import React, { useState, useEffect } from 'react';
-import { Plus } from 'lucide-react';
-import { TOURNAMENT_COSTS } from '../config/constants';
-import { TournamentType, BettingChallenge } from '../types';
-
-type DurationType = 'daily' | 'mini' | 'season';
+import React, { useState } from 'react';
+import { BettingChallenge } from '../types';
+import { Play } from 'lucide-react';
 
 interface ChallengesAdminProps {
-    addToast: (message: string, type: 'success' | 'error' | 'info') => void;
-    onAddChallenge: (challenge: Omit<BettingChallenge, 'id' | 'status' | 'totalPlayers' | 'gameType' | 'is_linkable'>) => void;
+  challenges: BettingChallenge[];
+  onProcessChallengeStart: (challengeId: string) => void;
 }
 
-const TOURNAMENT_TYPES: TournamentType[] = ['rookie', 'pro', 'elite'];
-const DURATION_TYPES: DurationType[] = ['daily', 'mini', 'season'];
+export const ChallengesAdmin: React.FC<ChallengesAdminProps> = ({ challenges, onProcessChallengeStart }) => {
+  const upcomingChallenges = challenges.filter(c => c.status === 'Upcoming');
+  const otherChallenges = challenges.filter(c => c.status !== 'Upcoming');
 
-export const ChallengesAdmin: React.FC<ChallengesAdminProps> = ({ addToast, onAddChallenge }) => {
-    const [name, setName] = useState('');
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
-    const [tournamentType, setTournamentType] = useState<TournamentType>('rookie');
-    const [durationType, setDurationType] = useState<DurationType>('daily');
-    const [challengeBalance, setChallengeBalance] = useState(1000);
-    const [entryCost, setEntryCost] = useState(0);
-
-    useEffect(() => {
-        const cost = TOURNAMENT_COSTS[tournamentType].base * TOURNAMENT_COSTS[tournamentType].multipliers[durationType];
-        setEntryCost(cost);
-    }, [tournamentType, durationType]);
-
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!name || !startDate || !endDate) {
-            addToast('Please fill all fields', 'error');
-            return;
-        }
-        onAddChallenge({
-            name,
-            startDate,
-            endDate,
-            entryCost,
-            challengeBalance,
-            tournament_type: tournamentType,
-            duration_type: durationType,
-        });
-        addToast('Challenge created!', 'success');
-        // Reset form
-        setName('');
-        setStartDate('');
-        setEndDate('');
-    };
-
-    const formField = "w-full p-3 bg-deep-navy border-2 border-disabled rounded-xl text-text-primary placeholder-text-disabled focus:border-electric-blue focus:ring-electric-blue/50 focus:outline-none transition-colors";
-
-    return (
-        <div className="card-base p-5 space-y-4">
-            <h2 className="font-bold text-lg text-electric-blue">Create New Challenge</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-                <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Challenge Name" className={formField} required />
-                <div className="grid grid-cols-2 gap-4">
-                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={formField} required />
-                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={formField} required />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                    <select value={tournamentType} onChange={e => setTournamentType(e.target.value as TournamentType)} className={formField}>
-                        {TOURNAMENT_TYPES.map(t => <option key={t} value={t} className="capitalize bg-deep-navy">{t}</option>)}
-                    </select>
-                    <select value={durationType} onChange={e => setDurationType(e.target.value as DurationType)} className={formField}>
-                        {DURATION_TYPES.map(d => <option key={d} value={d} className="capitalize bg-deep-navy">{d}</option>)}
-                    </select>
-                </div>
-                <div className="bg-deep-navy p-3 rounded-lg text-center">
-                    <p className="text-sm text-text-secondary">Calculated Entry Cost</p>
-                    <p className="text-xl font-bold text-warm-yellow">{entryCost.toLocaleString()} coins</p>
-                </div>
-                <button type="submit" className="w-full primary-button flex items-center justify-center gap-2">
-                    <Plus size={18} /> Create Challenge
-                </button>
-            </form>
+  return (
+    <div className="space-y-4">
+      <h2 className="font-bold text-lg text-electric-blue">Manage Challenges</h2>
+      
+      {upcomingChallenges.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-md font-semibold text-text-secondary">Upcoming</h3>
+          {upcomingChallenges.map(challenge => (
+            <div key={challenge.id} className="card-base p-3 flex items-center justify-between">
+              <div>
+                <p className="font-bold text-text-primary">{challenge.name}</p>
+                <p className="text-xs text-text-disabled">Min Players: {challenge.minimum_players || 'N/A'}, Current: {challenge.participants.length}</p>
+              </div>
+              <button
+                onClick={() => onProcessChallengeStart(challenge.id)}
+                className="flex items-center gap-2 text-sm font-semibold bg-lime-glow/20 text-lime-glow px-3 py-2 rounded-lg hover:bg-lime-glow/30"
+              >
+                <Play size={16} /> Start
+              </button>
+            </div>
+          ))}
         </div>
-    );
+      )}
+
+      {otherChallenges.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-md font-semibold text-text-secondary">Active/Finished</h3>
+          {otherChallenges.map(challenge => (
+             <div key={challenge.id} className={`card-base p-3 opacity-70 ${challenge.status === 'Cancelled' ? 'bg-hot-red/10' : ''}`}>
+              <p className="font-bold text-text-primary">{challenge.name}</p>
+              <p className={`text-xs font-bold ${challenge.status === 'Cancelled' ? 'text-hot-red' : 'text-text-disabled'}`}>Status: {challenge.status}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {challenges.length === 0 && (
+        <p className="text-center text-text-disabled py-4">No challenges have been created yet.</p>
+      )}
+    </div>
+  );
 };

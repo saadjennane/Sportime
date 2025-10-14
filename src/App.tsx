@@ -69,7 +69,6 @@ function App() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const { toasts, addToast, removeToast } = useToast();
-  const [allUsers, setAllUsers] = useState<Profile[]>(mockUsers);
   const [authFlow, setAuthFlow] = useState<AuthFlowState>('guest');
   const [showSignUpPrompt, setShowSignUpPrompt] = useState(false);
   const [isTestMode, setIsTestMode] = useState(false);
@@ -92,6 +91,8 @@ function App() {
     liveGames,
     predictionChallenges,
     userTickets,
+    userStreaks,
+    allUsers,
     addChallenge,
     createLeague,
     linkGameToLeagues,
@@ -102,6 +103,8 @@ function App() {
     placeLiveBet,
     tickLiveGame,
     joinChallenge: joinChallengeAction,
+    processDailyStreak,
+    processChallengeStart,
   } = useMockStore();
 
   // --- Local Game State ---
@@ -182,17 +185,21 @@ function App() {
         // Mock logic for guest/registered user
         setLoading(true);
         const storedUserJson = localStorage.getItem('sportime_user');
+        let user: Profile;
         if (storedUserJson) {
-            const user: Profile = JSON.parse(storedUserJson);
-            setProfile(user);
-            setAuthFlow(user.is_guest ? 'guest' : 'authenticated');
+            user = JSON.parse(storedUserJson);
         } else {
-            // MODIFICATION FOR MVP: Default to an authenticated user for testing leagues
-            const defaultUser = mockUsers.find(u => u.id === 'user-1')!;
-            localStorage.setItem('sportime_user', JSON.stringify(defaultUser));
-            setProfile(defaultUser);
-            setAuthFlow('authenticated');
+            user = mockUsers.find(u => u.id === 'user-1')!;
+            localStorage.setItem('sportime_user', JSON.stringify(user));
         }
+        setProfile(user);
+        setAuthFlow(user.is_guest ? 'guest' : 'authenticated');
+        
+        const { reward, message } = processDailyStreak(user.id);
+        if (reward) {
+          addToast(message, 'success');
+        }
+
         const seenTutorial = localStorage.getItem('sportime_seen_swipe_tutorial');
         if (seenTutorial) {
           setHasSeenSwipeTutorial(true);
@@ -245,7 +252,6 @@ function App() {
             is_guest: false,
             verified: true,
         };
-        setAllUsers(prev => [...prev, newUser]);
         setProfile(newUser);
         setAuthFlow('onboarding');
     };
@@ -300,7 +306,6 @@ function App() {
 
     const updatedProfile = { ...profile, ...newProfileData } as Profile;
     setProfile(updatedProfile);
-    setAllUsers(prev => prev.map(u => u.id === updatedProfile.id ? updatedProfile : u));
     localStorage.setItem('sportime_user', JSON.stringify(updatedProfile));
     addToast('Profile updated successfully!', 'success');
     setLoading(false);
@@ -312,7 +317,6 @@ function App() {
   const handleCompleteOnboarding = (updatedProfile: Profile) => {
     const finalProfile = { ...updatedProfile, verified: true };
     setProfile(finalProfile);
-    setAllUsers(prev => prev.map(u => u.id === finalProfile.id ? finalProfile : u));
     localStorage.setItem('sportime_user', JSON.stringify(finalProfile));
     setAuthFlow('authenticated');
     addToast(`Welcome to Sportime, ${finalProfile.username}!`, 'success');
@@ -413,12 +417,7 @@ function App() {
     const result = joinChallengeAction(challengeId, profile.id, method);
     if (result.success) {
       addToast(result.message, 'success');
-      const newEntry: UserChallengeEntry = {
-        challengeId: challengeId,
-        dailyEntries: [...new Set(mockChallengeMatches.filter(m => m.challengeId === challengeId).map(m => m.day))]
-          .map(day => ({ day, bets: [] })),
-      };
-      setUserChallengeEntries(prev => [...prev, newEntry]);
+      // The store now handles entry creation
       setActiveChallengeId(challengeId);
     } else {
       addToast(result.message, 'error');
@@ -460,7 +459,10 @@ function App() {
         addToast(`Booster removed.`, 'info');
     }
   };
-  const handleUpdateChallengeStatus = (challengeId: string, status: ChallengeStatus) => { /* ... */ };
+  const handleUpdateChallengeStatus = (challengeId: string, status: ChallengeStatus) => {
+    const result = processChallengeStart(challengeId);
+    addToast(result.message, result.success ? 'success' : 'error');
+  };
   const handleUpdateBoosterPreferences = (booster: 'x2' | 'x3') => {
     const newPrefs = { ...boosterInfoPreferences, [booster]: true };
     setBoosterInfoPreferences(newPrefs);
@@ -762,8 +764,9 @@ function App() {
 
   const handleResetTestUsers = async () => {
     await handleSignOut(); // Signs out current user, creates a new guest session
-    setAllUsers([]); // Clears the list of registered users
-    addToast('All test user accounts have been reset.', 'success');
+    localStorage.removeItem('sportime_user'); // Ensure local storage is clear
+    setProfile(null); // Clear profile state
+    addToast('All test user accounts have been reset. Please refresh.', 'success');
   };
 
   const handleTestOnboarding = () => {
@@ -829,7 +832,7 @@ function App() {
     if (viewingLeaderboardFor) {
       const challenge = challenges.find(c => c.id === viewingLeaderboardFor);
       if (challenge && profile) {
-        const userEntry = userChallengeEntries.find(e => e.challengeId === viewingLeaderboardFor);
+        const userEntry = userChallengeEntries.find(e => e.challengeId === viewingLeaderboardFor && e.user_id === profile.id);
         return <LeaderboardPage
           challenge={challenge}
           matches={mockChallengeMatches}
@@ -847,7 +850,7 @@ function App() {
 
     if (activeChallengeId) {
       const challenge = challenges.find(c => c.id === activeChallengeId);
-      const userEntry = userChallengeEntries.find(e => e.challengeId === activeChallengeId);
+      const userEntry = userChallengeEntries.find(e => e.challengeId === activeChallengeId && e.user_id === profile.id);
       if (challenge && userEntry && profile) {
         return <ChallengeRoomPage
           challenge={challenge}
@@ -1009,10 +1012,6 @@ function App() {
                 onResetInviteCode={handleResetInviteCode}
                 onLeave={() => setModalAction({type: 'leave', leagueId: league.id})}
                 onDelete={() => setModalAction({type: 'delete', leagueId: league.id})}
-                leagueGames={leagueGames}
-                allGames={allGames}
-                linkableGames={linkableGames}
-                onLinkGame={handleLinkGameToLeague}
                 onViewGame={(gameId, gameType) => handleViewLeagueGame(gameId, gameType, league.id, league.name)}
                 onViewLiveGame={handleViewLiveGame}
                 addToast={addToast}
@@ -1032,10 +1031,10 @@ function App() {
               onViewLeague={setActiveLeagueId}
           />;
       case 'admin':
-        return <AdminPage matches={matches} onAddMatch={handleAddMatch} onUpdateMatch={handleUpdateMatch} onResolveMatch={handleResolveMatch} levels={levelsConfig} badges={badges} onAddLevel={handleAddLevel} onUpdateLevel={handleUpdateLevel} onDeleteLevel={handleDeleteLevel} onAddBadge={handleAddBadge} onUpdateBadge={handleUpdateBadge} onDeleteBadge={handleDeleteBadge} challenges={challenges} onAddChallenge={addChallenge} isTestMode={isTestMode} onSetTestMode={handleSetTestMode} onResetTestUsers={handleResetTestUsers} profile={profile} onSetCoinBalance={handleSetCoinBalance} addToast={addToast} onTestOnboarding={handleTestOnboarding} />;
+        return <AdminPage matches={matches} onAddMatch={handleAddMatch} onUpdateMatch={handleUpdateMatch} onResolveMatch={handleResolveMatch} levels={levelsConfig} badges={badges} onAddLevel={handleAddLevel} onUpdateLevel={handleUpdateLevel} onDeleteLevel={handleDeleteLevel} onAddBadge={handleAddBadge} onUpdateBadge={handleUpdateBadge} onDeleteBadge={handleDeleteBadge} challenges={challenges} onAddChallenge={addChallenge} isTestMode={isTestMode} onSetTestMode={handleSetTestMode} onResetTestUsers={handleResetTestUsers} profile={profile} onSetCoinBalance={handleSetCoinBalance} addToast={addToast} onTestOnboarding={handleTestOnboarding} onProcessChallengeStart={processChallengeStart} />;
       case 'profile':
         if (profile && !profile.is_guest) {
-          return <ProfilePage profile={profile} levels={levelsConfig} allBadges={badges} userBadges={userBadges} onUpdateProfile={handleUpdateProfile} onUpdateEmail={handleUpdateEmail} onSignOut={handleSignOut} onDeleteAccount={handleDeleteAccount} />;
+          return <ProfilePage profile={profile} levels={levelsConfig} allBadges={badges} userBadges={userBadges} onUpdateProfile={handleUpdateProfile} onUpdateEmail={handleUpdateEmail} onSignOut={handleSignOut} onDeleteAccount={handleDeleteAccount} userStreaks={userStreaks} />;
         }
         return null;
       default:
