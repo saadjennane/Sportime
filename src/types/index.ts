@@ -34,7 +34,7 @@ export interface Bet {
 export type ChallengeStatus = 'Upcoming' | 'Ongoing' | 'Finished' | 'Cancelled' | 'Pending';
 export type TournamentType = 'rookie' | 'pro' | 'elite';
 export type DurationType = 'daily' | 'mini' | 'season';
-export type GameType = 'betting' | 'prediction' | 'fantasy';
+export type GameType = 'betting' | 'prediction' | 'fantasy' | 'fantasy-live';
 export type GameFormat = 'leaderboard' | 'knockout' | 'championship' | 'battle_royale';
 export type RewardTier = 'tier1' | 'tier2' | 'tier3';
 export type ConditionsLogic = 'and' | 'or';
@@ -207,6 +207,7 @@ export interface UserFantasyTeam {
   gameWeekId: string;
   starters: string[];
   substitutes: string[];
+  captain_id: string;
   fatigue_state: Record<string, number>; 
   booster_used: number | null;
   booster_target_id?: string | null;
@@ -244,6 +245,7 @@ export interface Profile {
   created_at: string;
   is_admin?: boolean;
   is_subscriber?: boolean;
+  subscription_expires_at?: string;
   badges?: string[];
   favorite_club?: string;
   favorite_national_team?: string;
@@ -583,4 +585,42 @@ export interface UserTicket {
   created_at: string;
   expires_at: string;
   used_at?: string;
+}
+
+// --- Spin Engine Types ---
+export type SpinTier = 'rookie' | 'pro' | 'elite';
+
+export interface SpinReward {
+  id: string;
+  label: string;
+  baseChance: number;
+  category: string;
+}
+
+export interface SpinResult {
+  id: string;
+  tier: SpinTier;
+  rewardId: string;
+  rewardLabel: string;
+  timestamp: string;
+  wasPity: boolean;
+}
+
+export interface UserSpinState {
+  userId: string;
+  adaptiveMultipliers: Record<string, { multiplier: number; expiresAt?: string }>;
+  pityCounter: number;
+  spinHistory: SpinResult[];
+  availableSpins: Record<SpinTier, number>;
+}
+
+export interface SpinTelemetryLog {
+  user_id: string;
+  wheel_tier: SpinTier;
+  outcome: string;
+  rarity_flag: boolean;
+  multipliers: Record<string, number>;
+  pity_active: boolean;
+  inventory_snapshot: any;
+  timestamp: string;
 }

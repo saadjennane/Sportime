@@ -102,6 +102,9 @@ interface MockDataActions {
   joinChallenge: (challengeId: string, userId: string, method: 'coins' | 'ticket') => { success: boolean; message: string; method?: 'ticket' | 'coins' | 'none' };
   processDailyStreak: (userId: string) => { reward: { coins?: number; ticket?: string } | null; message: string };
   processChallengeStart: (challengeId: string) => { success: boolean, message: string };
+  addTicket: (userId: string, type: TournamentType) => void;
+  addXp: (userId: string, amount: number) => void;
+  grantPremium: (userId: string, days: number) => void;
 }
 
 export const generateBonusQuestions = (predictedScore: { home: number, away: number }): BonusQuestion[] => {
@@ -368,6 +371,73 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
     set({ userStreaks: updatedStreaks });
 
     return { reward, message: `Streak: Day ${newDay}! ${message}` };
+  },
+
+  addTicket: (userId, type) => {
+    const { userTickets } = get();
+    const now = new Date();
+    const userTicketsOfType = userTickets.filter(
+      t => t.user_id === userId && t.type === type && !t.is_used && isBefore(now, parseISO(t.expires_at))
+    );
+    const ticketRule = TICKET_RULES[type];
+
+    if (userTicketsOfType.length >= ticketRule.max_quantity) {
+      console.warn(`Ticket limit reached for user ${userId}, type ${type}`);
+      return;
+    }
+
+    const newTicket: UserTicket = {
+      id: uuidv4(),
+      user_id: userId,
+      type: type,
+      is_used: false,
+      created_at: now.toISOString(),
+      expires_at: addDays(now, ticketRule.expiry_days).toISOString(),
+    };
+
+    set({ userTickets: [...userTickets, newTicket] });
+  },
+
+  addXp: (userId, amount) => {
+    set(state => {
+      const updatedUsers = state.allUsers.map(user => {
+        if (user.id === userId) {
+          const newXp = (user.xp || 0) + amount;
+          const currentLevelIndex = mockLevelsConfig.findIndex(l => l.level_name === user.level);
+          let finalLevelName = user.level || 'Amateur';
+
+          for (let i = mockLevelsConfig.length - 1; i >= 0; i--) {
+            if (newXp >= mockLevelsConfig[i].min_xp) {
+              finalLevelName = mockLevelsConfig[i].level_name;
+              break;
+            }
+          }
+          
+          return { ...user, xp: newXp, level: finalLevelName };
+        }
+        return user;
+      });
+      return { allUsers: updatedUsers };
+    });
+  },
+
+  grantPremium: (userId, days) => {
+    set(state => ({
+      allUsers: state.allUsers.map(user => {
+        if (user.id === userId) {
+          const now = new Date();
+          const currentExpiry = user.subscription_expires_at ? new Date(user.subscription_expires_at) : now;
+          const newExpiry = addDays(isBefore(currentExpiry, now) ? now : currentExpiry, days);
+
+          return {
+            ...user,
+            is_subscriber: true,
+            subscription_expires_at: newExpiry.toISOString(),
+          };
+        }
+        return user;
+      })
+    }));
   },
 
   // ... other actions

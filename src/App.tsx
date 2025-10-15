@@ -6,10 +6,10 @@ import { FooterNav } from './components/FooterNav';
 import { mockMatches } from './data/mockMatches';
 import { mockChallengeMatches } from './data/mockChallenges';
 import { mockFantasyPlayers, mockUserFantasyTeams } from './data/mockFantasy.tsx';
-import { Match, Bet, UserChallengeEntry, ChallengeStatus, DailyChallengeEntry, BoosterSelection, UserSwipeEntry, SwipePredictionOutcome, Profile, LevelConfig, Badge, UserBadge, FantasyPlayer, ChallengeBet, UserLeague, LeagueMember, LeagueGame, Game, PrivateLeagueGameConfig, LiveGamePlayerEntry, UserFantasyTeam, UserTicket, BettingChallenge, SportimeGame } from './types';
+import { Match, Bet, UserChallengeEntry, ChallengeStatus, DailyChallengeEntry, BoosterSelection, UserSwipeEntry, SwipePredictionOutcome, Profile, LevelConfig, Badge, UserBadge, FantasyPlayer, ChallengeBet, UserLeague, LeagueMember, LeagueGame, Game, PrivateLeagueGameConfig, LiveGamePlayerEntry, UserFantasyTeam, UserTicket, BettingChallenge, SportimeGame, SpinTier } from './types';
 import UpcomingPage from './pages/Upcoming';
 import PlayedPage from './pages/Played';
-import AdminPage from './pages/Admin';
+import AdminPage from './pages-admin';
 import GamesListPage from './pages/GamesListPage';
 import ChallengeRoomPage from './pages/ChallengeRoomPage';
 import LeaderboardPage from './pages/LeaderboardPage';
@@ -51,6 +51,7 @@ import FantasyLiveGamePage from './pages/live-game/FantasyLiveGamePage';
 import { OnboardingFlow } from './components/OnboardingFlow';
 import { isBefore, parseISO } from 'date-fns';
 import { TicketWalletModal } from './components/TicketWalletModal';
+import { SpinWheel } from './components/SpinWheel';
 
 
 export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'leagues';
@@ -71,9 +72,9 @@ function App() {
   const { toasts, addToast, removeToast } = useToast();
   const [authFlow, setAuthFlow] = useState<AuthFlowState>('guest');
   const [showSignUpPrompt, setShowSignUpPrompt] = useState(false);
-  const [isTestMode, setIsTestMode] = useState(false);
   const [showOnboardingTest, setShowOnboardingTest] = useState(false);
   const [isTicketWalletOpen, setIsTicketWalletOpen] = useState(false);
+  const [spinWheelState, setSpinWheelState] = useState<{ isOpen: boolean; tier: SpinTier | null }>({ isOpen: false, tier: null });
 
   const [page, setPage] = useState<Page>('leagues');
   const [matches, setMatches] = useState<Match[]>(mockMatches);
@@ -104,6 +105,18 @@ function App() {
     processDailyStreak,
     processChallengeStart,
   } = useMockStore();
+
+  const { isTestMode, setTestMode, resetTestUsers, setCoinBalance, testOnboarding } = useMockStore(state => ({
+    isTestMode: false,
+    setTestMode: () => {},
+    resetTestUsers: () => {},
+    setCoinBalance: (userId: string, newBalance: number) => {
+        useMockStore.setState(state => ({
+            allUsers: state.allUsers.map(u => u.id === userId ? { ...u, coins_balance: newBalance } : u)
+        }));
+    },
+    testOnboarding: () => setShowOnboardingTest(true),
+  }));
 
   // --- Local Game State ---
   const [userChallengeEntries, setUserChallengeEntries] = useState<UserChallengeEntry[]>([]);
@@ -160,7 +173,7 @@ function App() {
   useEffect(() => {
     const storedTestMode = localStorage.getItem('sportime_test_mode');
     if (storedTestMode) {
-      setIsTestMode(JSON.parse(storedTestMode));
+      // setIsTestMode(JSON.parse(storedTestMode));
     }
   }, []);
 
@@ -213,13 +226,11 @@ function App() {
 
   const handleSetCoinBalance = async (newBalance: number) => {
     if (profile) {
+      setCoinBalance(profile.id, newBalance);
       const updatedProfile = { ...profile, coins_balance: newBalance };
       setProfile(updatedProfile);
       if (!profile.is_guest) {
           localStorage.setItem('sportime_user', JSON.stringify(updatedProfile));
-      }
-      if (USE_SUPABASE && !profile.is_guest) {
-        await supabase.from('users').update({ coins_balance: newBalance }).eq('id', profile.id);
       }
     }
   };
@@ -652,13 +663,13 @@ function App() {
     }
   };
 
-  const handleViewLeagueGame = (gameId: string, gameType: 'Fantasy' | 'Prediction' | 'Betting', leagueId: string, leagueName: string) => {
+  const handleViewLeagueGame = (gameId: string, gameType: Game['game_type'], leagueId: string, leagueName: string) => {
     setLeaderboardContext({ leagueId, leagueName, fromLeague: true });
-    if (gameType === 'Betting') {
+    if (gameType === 'betting') {
       setViewingLeaderboardFor(gameId);
-    } else if (gameType === 'Prediction') {
+    } else if (gameType === 'prediction') {
       setViewingSwipeLeaderboardFor(gameId);
-    } else if (gameType === 'Fantasy') {
+    } else if (gameType === 'fantasy') {
       setActiveFantasyGameId(gameId);
     }
   };
@@ -753,22 +764,8 @@ function App() {
     }
   };
 
-  // --- Admin Test Mode Handlers ---
-  const handleSetTestMode = (enabled: boolean) => {
-    setIsTestMode(enabled);
-    localStorage.setItem('sportime_test_mode', JSON.stringify(enabled));
-    addToast(`Test Mode ${enabled ? 'Enabled' : 'Disabled'}`, 'info');
-  };
-
-  const handleResetTestUsers = async () => {
-    await handleSignOut(); // Signs out current user, creates a new guest session
-    localStorage.removeItem('sportime_user'); // Ensure local storage is clear
-    setProfile(null); // Clear profile state
-    addToast('All test user accounts have been reset. Please refresh.', 'success');
-  };
-
-  const handleTestOnboarding = () => {
-    setShowOnboardingTest(true);
+  const handleOpenSpinWheel = (tier: SpinTier) => {
+    setSpinWheelState({ isOpen: true, tier });
   };
 
   const myGamesCount = useMemo(() => {
@@ -861,7 +858,7 @@ function App() {
           onBack={handleLeaderboardBack}
           allUsers={allUsers}
           userSwipeEntries={userSwipeEntries}
-          swipeMatchDays={games.filter(g => g.game_type === 'prediction')}
+          swipeMatchDays={games.filter(g => g.game_type === 'prediction') as SwipeMatchDay[]}
           currentUserId={profile.id}
         />
       }
@@ -872,7 +869,7 @@ function App() {
       if (matchDay && profile) {
         const userEntry = userSwipeEntries.find(e => e.matchDayId === viewingSwipeLeaderboardFor);
         return <SwipeLeaderboardPage
-          matchDay={matchDay}
+          matchDay={matchDay as SwipeMatchDay}
           userEntry={userEntry}
           onBack={handleLeaderboardBack}
           onViewChallenge={() => setViewingPredictionChallenge(matchDay.challengeId || null)}
@@ -895,7 +892,7 @@ function App() {
         
         if (swipeGameViewMode === 'swiping' && isEditable) {
           return <SwipeGamePage
-            matchDay={matchDay}
+            matchDay={matchDay as SwipeMatchDay}
             userEntry={userEntry}
             onSwipePrediction={handleSwipePrediction}
             hasSeenSwipeTutorial={hasSeenSwipeTutorial}
@@ -904,7 +901,7 @@ function App() {
           />;
         } else {
           return <SwipeRecapPage
-            allMatchDays={games.filter(g => g.game_type === 'prediction' && userSwipeEntries.some(e => e.matchDayId === g.id))}
+            allMatchDays={games.filter(g => g.game_type === 'prediction' && userSwipeEntries.some(e => e.matchDayId === g.id)) as SwipeMatchDay[]}
             selectedMatchDayId={activeSwipeGameId}
             userEntry={userEntry}
             onBack={() => setActiveSwipeGameId(null)}
@@ -926,7 +923,7 @@ function App() {
       const game = games.find(g => g.id === activeFantasyGameId && g.game_type === 'fantasy');
       if (game && profile) {
         return <FantasyGameWeekPage
-          game={game}
+          game={game as FantasyGame}
           allPlayers={mockFantasyPlayers}
           onBack={handleLeaderboardBack}
           initialLeagueContext={leaderboardContext}
@@ -989,8 +986,8 @@ function App() {
                 currentUserRole={currentUserMembership?.role || 'member'}
                 currentUserId={profile.id}
                 onBack={() => setActiveLeagueId(null)}
-                onUpdateDetails={handleUpdateLeagueDetails}
-                onRemoveMember={handleRemoveLeagueMember}
+                onUpdateDetails={handleUpdateDetails}
+                onRemoveMember={handleRemoveMember}
                 onResetInviteCode={handleResetInviteCode}
                 onLeave={() => setModalAction({type: 'leave', leagueId: league.id})}
                 onDelete={() => setModalAction({type: 'delete', leagueId: league.id})}
@@ -1016,10 +1013,10 @@ function App() {
               onViewLeague={setActiveLeagueId}
           />;
       case 'admin':
-        return <AdminPage matches={matches} onAddMatch={handleAddMatch} onUpdateMatch={handleUpdateMatch} onResolveMatch={handleResolveMatch} levels={levelsConfig} badges={badges} onAddLevel={handleAddLevel} onUpdateLevel={handleUpdateLevel} onDeleteLevel={handleDeleteLevel} onAddBadge={handleAddBadge} onUpdateBadge={handleUpdateBadge} onDeleteBadge={handleDeleteBadge} games={games} onCreateGame={createGame} isTestMode={isTestMode} onSetTestMode={handleSetTestMode} onResetTestUsers={handleResetTestUsers} profile={profile} onSetCoinBalance={handleSetCoinBalance} addToast={addToast} onTestOnboarding={handleTestOnboarding} onProcessChallengeStart={processChallengeStart} />;
+        return <AdminPage profile={profile} addToast={addToast} />;
       case 'profile':
         if (profile && !profile.is_guest) {
-          return <ProfilePage profile={profile} levels={levelsConfig} allBadges={badges} userBadges={userBadges} onUpdateProfile={handleUpdateProfile} onUpdateEmail={handleUpdateEmail} onSignOut={handleSignOut} onDeleteAccount={handleDeleteAccount} userStreaks={userStreaks} />;
+          return <ProfilePage profile={profile} levels={levelsConfig} allBadges={badges} userBadges={userBadges} userStreaks={userStreaks} onUpdateProfile={handleUpdateProfile} onUpdateEmail={handleUpdateEmail} onSignOut={handleSignOut} onDeleteAccount={handleDeleteAccount} onOpenSpinWheel={handleOpenSpinWheel} />;
         }
         return null;
       default:
@@ -1111,6 +1108,13 @@ function App() {
       onClose={() => setIsTicketWalletOpen(false)}
       tickets={profile ? userTickets.filter(t => t.user_id === profile.id) : []}
     />
+    {spinWheelState.isOpen && spinWheelState.tier && (
+      <SpinWheel
+        isOpen={spinWheelState.isOpen}
+        onClose={() => setSpinWheelState({ isOpen: false, tier: null })}
+        tier={spinWheelState.tier}
+      />
+    )}
     </div>
   );
 }
