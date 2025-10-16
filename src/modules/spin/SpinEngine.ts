@@ -1,81 +1,56 @@
-import { SpinTier, SpinReward, UserSpinState } from '../../types';
-import { SPIN_REWARDS, RARE_REWARD_CATEGORIES, PITY_TIMER_THRESHOLD } from '../../config/spinConstants';
-import { addDays } from 'date-fns';
+import { SPIN_REWARDS, RARE_REWARD_CATEGORIES, PITY_TIMER_THRESHOLD, PITY_MULTIPLIER } from '../../config/spinConstants';
+import { SpinReward, SpinTier, UserSpinState } from '../../types';
 
-/**
- * The core logic for a single wheel spin.
- * This is a pure function that takes the current state and returns the result and the new state.
- */
-export const spinWheel = (tier: SpinTier, currentState: UserSpinState): { wonReward: SpinReward, newState: Partial<UserSpinState> } => {
-  const baseRewards = SPIN_REWARDS[tier];
-  
-  // 1. Apply Pity Timer
-  const isPityActive = currentState.pityCounter >= PITY_TIMER_THRESHOLD;
-  const pityMultiplier = isPityActive ? 1.5 : 1.0;
+export function spinWheel(
+  tier: SpinTier,
+  userState: UserSpinState
+): { reward: SpinReward; wasPity: boolean; finalChances: Record<string, number> } {
+  const rewards = SPIN_REWARDS[tier];
+  const rareCategories = new Set(RARE_REWARD_CATEGORIES[tier]);
 
-  // 2. Apply Adaptive Drop Rates
-  const adjustedRewards = baseRewards.map(reward => {
-    let finalChance = reward.baseChance;
-    const adaptiveInfo = currentState.adaptiveMultipliers[reward.category];
+  const pityActive = userState.pityCounter >= PITY_TIMER_THRESHOLD;
+
+  // 1. Apply adaptive and pity multipliers
+  const adjustedChances = rewards.map(reward => {
+    let chance = reward.baseChance;
     
-    if (adaptiveInfo && (!adaptiveInfo.expiresAt || new Date(adaptiveInfo.expiresAt) > new Date())) {
-      finalChance *= adaptiveInfo.multiplier;
-    }
+    // Apply adaptive drop rate multiplier
+    const adaptiveMultiplier = userState.adaptiveMultipliers[reward.category]?.multiplier || 1.0;
+    chance *= adaptiveMultiplier;
 
-    if (RARE_REWARD_CATEGORIES[tier].includes(reward.category)) {
-      finalChance *= pityMultiplier;
+    // Apply pity timer multiplier for rare rewards
+    if (pityActive && rareCategories.has(reward.category)) {
+      chance *= PITY_MULTIPLIER;
     }
     
-    return { ...reward, finalChance };
+    return { ...reward, adjustedChance: chance };
   });
 
-  // 3. Normalize Probabilities
-  const totalChance = adjustedRewards.reduce((sum, r) => sum + r.finalChance, 0);
-  let cumulativeChance = 0;
-  const normalizedRewards = adjustedRewards.map(r => {
-    const normalized = r.finalChance / totalChance;
-    cumulativeChance += normalized;
-    return { ...r, cumulativeChance };
-  });
+  // 2. Normalize probabilities to sum to 1
+  const totalChance = adjustedChances.reduce((sum, reward) => sum + reward.adjustedChance, 0);
+  const normalizedRewards = adjustedChances.map(reward => ({
+    ...reward,
+    normalizedChance: reward.adjustedChance / totalChance,
+  }));
 
-  // 4. Select Winner
-  const roll = Math.random();
-  const wonReward = normalizedRewards.find(r => roll < r.cumulativeChance)!;
+  // 3. Select a reward
+  let random = Math.random();
+  let selectedReward: SpinReward | null = null;
 
-  // 5. Prepare New State
-  const isRareWin = RARE_REWARD_CATEGORIES[tier].includes(wonReward.category);
-  const newPityCounter = isRareWin ? 0 : currentState.pityCounter + 1;
-  const newMultipliers = { ...currentState.adaptiveMultipliers };
-
-  // Update adaptive multipliers based on win
-  switch (wonReward.category) {
-    case 'premium':
-      newMultipliers['premium'] = { multiplier: 0.5, expiresAt: addDays(new Date(), 7).toISOString() };
+  for (const reward of normalizedRewards) {
+    if (random < reward.normalizedChance) {
+      selectedReward = reward;
       break;
-    case 'gift_card':
-      newMultipliers['gift_card'] = { multiplier: 0.3, expiresAt: addDays(new Date(), 7).toISOString() };
-      break;
-    case 'masterpass':
-      newMultipliers['masterpass'] = { multiplier: 0.5, expiresAt: addDays(new Date(), 30).toISOString() };
-      break;
-    case 'extra_spin':
-      const lastSpin = currentState.spinHistory[0];
-      if (lastSpin?.rewardId.includes('extra_spin')) {
-        newMultipliers['extra_spin'] = { multiplier: 0.6 };
-      }
-      break;
-    default:
-      // Reset extra_spin multiplier if a different reward was won
-      if (newMultipliers['extra_spin']) {
-        delete newMultipliers['extra_spin'];
-      }
+    }
+    random -= reward.normalizedChance;
   }
 
-  const newState: Partial<UserSpinState> = {
-    pityCounter: newPityCounter,
-    adaptiveMultipliers: newMultipliers,
-    availableSpins: { ...currentState.availableSpins },
-  };
+  // Fallback in case of floating point inaccuracies
+  if (!selectedReward) {
+    selectedReward = normalizedRewards[normalizedRewards.length - 1];
+  }
 
-  return { wonReward, newState };
-};
+  const finalChances = normalizedRewards.reduce((acc, r) => ({...acc, [r.id]: r.normalizedChance}), {});
+
+  return { reward: selectedReward, wasPity: pityActive, finalChances };
+}

@@ -1,4 +1,4 @@
-import { SpinReward, SpinTier, TournamentType } from "../types";
+import { SpinReward, SpinTier } from '../types';
 
 export const SPIN_TIERS: SpinTier[] = ["rookie", "pro", "elite"];
 

@@ -1,25 +1,23 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
-import { UserSpinState, SpinResult, SpinTelemetryLog, SpinTier } from '../types';
-import { logSpin } from '../utils/spinTelemetry';
+import { SpinTier, UserSpinState, SpinResult } from '../types';
 import { spinWheel } from '../modules/spin/SpinEngine';
+import { ADAPTIVE_RULES, RARE_REWARD_CATEGORIES } from '../config/spinConstants';
+import { addDays, isAfter } from 'date-fns';
 import { useMockStore } from './useMockStore';
 
-interface SpinStoreState {
+interface SpinState {
   userSpinStates: Record<string, UserSpinState>;
-  spinTelemetry: SpinTelemetryLog[];
 }
 
-interface SpinStoreActions {
-  getUserSpinState: (userId: string) => UserSpinState;
+interface SpinActions {
+  initializeUserSpinState: (userId: string) => void;
+  performSpin: (userId: string, tier: SpinTier) => SpinResult | null;
   updateUserSpinState: (userId: string, updates: Partial<UserSpinState>) => void;
-  addSpinToHistory: (userId: string, result: SpinResult) => void;
-  logSpinTelemetry: (log: SpinTelemetryLog) => void;
-  performSpin: (tier: SpinTier, userId: string) => SpinResult;
-  tickAdaptiveCooldowns: (userId: string) => void;
+  tickAdaptiveMultipliers: (userId: string) => void;
 }
 
-const initialUserSpinState = (userId: string): UserSpinState => ({
+export const initialUserSpinState = (userId: string): UserSpinState => ({
   userId,
   adaptiveMultipliers: {},
   pityCounter: 0,
@@ -27,126 +25,127 @@ const initialUserSpinState = (userId: string): UserSpinState => ({
   availableSpins: { rookie: 1, pro: 1, elite: 1 },
 });
 
-export const useSpinStore = create<SpinStoreState & SpinStoreActions>((set, get) => ({
+export const useSpinStore = create<SpinState & SpinActions>((set, get) => ({
   userSpinStates: {},
-  spinTelemetry: [],
 
-  getUserSpinState: (userId) => {
-    const state = get().userSpinStates[userId];
-    if (!state) {
-      return initialUserSpinState(userId);
+  initializeUserSpinState: (userId) => {
+    set(state => {
+      if (state.userSpinStates[userId]) {
+        return state; // Already initialized
+      }
+      return {
+        userSpinStates: {
+          ...state.userSpinStates,
+          [userId]: initialUserSpinState(userId),
+        },
+      };
+    });
+  },
+
+  performSpin: (userId, tier) => {
+    const state = get();
+    const userState = state.userSpinStates[userId];
+    if (!userState || userState.availableSpins[tier] <= 0) {
+      return null;
     }
-    return state;
-  },
 
-  updateUserSpinState: (userId, updates) => {
-    const currentState = get().getUserSpinState(userId);
-    const newState = { ...currentState, ...updates };
-    set(state => ({
-      userSpinStates: {
-        ...state.userSpinStates,
-        [userId]: newState,
-      },
-    }));
-  },
+    // Perform the spin
+    const { reward, wasPity } = spinWheel(tier, userState);
 
-  addSpinToHistory: (userId, result) => {
-    const userState = get().getUserSpinState(userId);
-    const newHistory = [result, ...userState.spinHistory].slice(0, 10);
-    get().updateUserSpinState(userId, { spinHistory: newHistory });
-  },
+    // Update state based on the reward
+    let newPityCounter = userState.pityCounter + 1;
+    let newMultipliers = { ...userState.adaptiveMultipliers };
+    const rareCategories = new Set(RARE_REWARD_CATEGORIES[tier]);
 
-  logSpinTelemetry: (log) => {
-    set(state => ({
-      spinTelemetry: [...state.spinTelemetry, log],
-    }));
-    logSpin(log); // Also log to external utility
-  },
+    if (rareCategories.has(reward.category)) {
+      newPityCounter = 0; // Reset pity timer on rare win
+    }
 
-  performSpin: (tier, userId) => {
-    const { getUserSpinState, updateUserSpinState, logSpinTelemetry, addSpinToHistory } = get();
+    if (ADAPTIVE_RULES[reward.category]) {
+      const rule = ADAPTIVE_RULES[reward.category];
+      newMultipliers[reward.category] = {
+        multiplier: rule.multiplier,
+        expiresAt: addDays(new Date(), rule.durationDays).toISOString(),
+      };
+    }
+    
+    // Handle "Extra Spin" reward
+    let newAvailableSpins = { ...userState.availableSpins };
+    if (reward.id === 'extra_spin') {
+      newAvailableSpins[tier] += 1;
+    } else {
+      newAvailableSpins[tier] -= 1;
+    }
+
+    // Apply other rewards via the main store
     const { addTicket, addXp, grantPremium } = useMockStore.getState();
-
-    const userState = getUserSpinState(userId);
-    
-    if (userState.availableSpins[tier] <= 0) {
-      throw new Error(`No available spins for ${tier} tier.`);
+    if (reward.id.startsWith('ticket_')) {
+      addTicket(userId, reward.id.replace('ticket_', '') as TournamentType);
+    } else if (reward.id.startsWith('boost_')) {
+      addXp(userId, parseInt(reward.id.replace('boost_', '')));
+    } else if (reward.id.startsWith('premium_')) {
+      grantPremium(userId, parseInt(reward.id.replace('premium_', '').replace('d', '')));
     }
-
-    const { wonReward, newState } = spinWheel(tier, userState);
-    
-    // Grant reward
-    if (wonReward.id.startsWith('ticket_')) {
-      const ticketType = wonReward.id.replace('ticket_', '').replace('_upgrade', '') as 'rookie' | 'pro' | 'elite';
-      addTicket(userId, ticketType);
-    } else if (wonReward.id.startsWith('boost_')) {
-      const xpAmount = parseInt(wonReward.id.replace('boost_', ''));
-      addXp(userId, xpAmount);
-    } else if (wonReward.id.startsWith('premium_')) {
-      const days = parseInt(wonReward.id.replace('premium_', '').replace('d', ''));
-      grantPremium(userId, days);
-    } else if (wonReward.id === 'extra_spin_rookie') {
-      newState.availableSpins.rookie += 1;
-    } else if (wonReward.id === 'extra_spin_pro') {
-      newState.availableSpins.pro += 1;
-    } else if (wonReward.id === 'extra_spin_elite') {
-      newState.availableSpins.elite += 1;
-    }
-
-    newState.availableSpins[tier] -= 1;
-    
-    updateUserSpinState(userId, newState);
 
     const spinResult: SpinResult = {
       id: uuidv4(),
       tier,
-      rewardId: wonReward.id,
-      rewardLabel: wonReward.label,
+      rewardId: reward.id,
+      rewardLabel: reward.label,
       timestamp: new Date().toISOString(),
-      wasPity: userState.pityCounter >= 10,
+      wasPity,
     };
 
-    addSpinToHistory(userId, spinResult);
-    
-    logSpinTelemetry({
-      user_id: userId,
-      wheel_tier: tier,
-      outcome: wonReward.id,
-      rarity_flag: newState.pityCounter === 0, // Pity counter resets on rare win
-      multipliers: {}, // Simplified for now
-      pity_active: userState.pityCounter >= 10,
-      inventory_snapshot: { spins: newState.availableSpins },
-      timestamp: spinResult.timestamp,
+    // Update user state
+    const updatedUserState: UserSpinState = {
+      ...userState,
+      pityCounter: newPityCounter,
+      adaptiveMultipliers: newMultipliers,
+      spinHistory: [spinResult, ...userState.spinHistory.slice(0, 9)],
+      availableSpins: newAvailableSpins,
+    };
+
+    set({
+      userSpinStates: {
+        ...state.userSpinStates,
+        [userId]: updatedUserState,
+      },
     });
-    
+
     return spinResult;
   },
 
-  tickAdaptiveCooldowns: (userId) => {
-    const userState = get().getUserSpinState(userId);
+  updateUserSpinState: (userId, updates) => {
+    set(state => ({
+      userSpinStates: {
+        ...state.userSpinStates,
+        [userId]: {
+          ...state.userSpinStates[userId],
+          ...updates,
+        },
+      },
+    }));
+  },
+
+  tickAdaptiveMultipliers: (userId) => {
+    const state = get();
+    const userState = state.userSpinStates[userId];
+    if (!userState) return;
+
+    const now = new Date();
     const newMultipliers = { ...userState.adaptiveMultipliers };
-    let changed = false;
+    let hasChanged = false;
 
     for (const key in newMultipliers) {
-      const item = newMultipliers[key];
-      if (item.expiresAt && new Date(item.expiresAt) < new Date()) {
+      const entry = newMultipliers[key];
+      if (entry.expiresAt && isAfter(now, new Date(entry.expiresAt))) {
         delete newMultipliers[key];
-        changed = true;
-      } else {
-        // Simplified daily recovery logic
-        if (item.multiplier < 1.0) {
-          if (key === 'masterpass') {
-            item.multiplier = Math.min(1.0, item.multiplier + 0.02);
-          } else {
-            item.multiplier = Math.min(1.0, item.multiplier + 0.1);
-          }
-          changed = true;
-        }
+        hasChanged = true;
       }
     }
 
-    if (changed) {
-      get().updateUserSpinState(userId, { adaptiveMultipliers: newMultipliers });
+    if (hasChanged) {
+      state.updateUserSpinState(userId, { adaptiveMultipliers: newMultipliers });
     }
   },
 }));

@@ -1,8 +1,8 @@
-const defaultTheme = require('tailwindcss/defaultTheme');
-const { STADIUM_ENERGY_THEME } = require('./src/config/theme');
+import defaultTheme from 'tailwindcss/defaultTheme';
+import { STADIUM_ENERGY_THEME } from './src/config/theme';
 
 /** @type {import('tailwindcss').Config} */
-module.exports = {
+export default {
   content: [
     './src/**/*.{js,jsx,ts,tsx}',
   ],

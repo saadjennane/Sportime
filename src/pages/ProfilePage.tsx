@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Profile, LevelConfig, Badge, UserBadge, UserStreak, SpinTier } from '../types';
 import { User, Star, Shield, Settings, Flame, Edit, Globe, Award, Target, Gift } from 'lucide-react';
 import { ProfileSettingsModal } from '../components/ProfileSettingsModal';
@@ -24,9 +24,8 @@ interface ProfilePageProps {
 const ProfilePage: React.FC<ProfilePageProps> = (props) => {
   const { profile, levels, allBadges, userBadges, userStreaks, onOpenSpinWheel } = props;
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const { getUserSpinState } = useSpinStore();
-
-  const userSpinState = getUserSpinState(profile.id);
+  
+  const userSpinState = useSpinStore(state => state.userSpinStates[profile.id]);
 
   const currentLevel = levels.find(l => l.level_name === (profile.level ?? 'Amateur')) || levels[0];
   const nextLevel = levels.find(l => l.min_xp > (currentLevel?.min_xp || 0));
@@ -126,14 +125,16 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
         <DailyStreakTracker streak={userStreak} />
 
         {/* Spin Wheel Section */}
-        <div className="card-base p-5 space-y-3">
-          <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2"><Gift size={20} className="text-warm-yellow" /> Spin the Wheel</h3>
-          <div className="flex gap-2">
-            <SpinTierButton tier="rookie" spins={userSpinState.availableSpins.rookie} />
-            <SpinTierButton tier="pro" spins={userSpinState.availableSpins.pro} />
-            <SpinTierButton tier="elite" spins={userSpinState.availableSpins.elite} />
+        {userSpinState && (
+          <div className="card-base p-5 space-y-3">
+            <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2"><Gift size={20} className="text-warm-yellow" /> Spin the Wheel</h3>
+            <div className="flex gap-2">
+              <SpinTierButton tier="rookie" spins={userSpinState.availableSpins.rookie} />
+              <SpinTierButton tier="pro" spins={userSpinState.availableSpins.pro} />
+              <SpinTierButton tier="elite" spins={userSpinState.availableSpins.elite} />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Fan Preferences */}
         <div className="card-base p-5 space-y-3">

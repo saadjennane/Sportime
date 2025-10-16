@@ -39,6 +39,7 @@ import { NoLeaguesModal } from './components/leagues/NoLeaguesModal';
 import { MiniCreateLeagueModal } from './components/leagues/MiniCreateLeagueModal';
 import { SelectLeaguesToLinkModal } from './components/leagues/SelectLeaguesToLinkModal';
 import { useMockStore } from './store/useMockStore';
+import { useSpinStore } from './store/useSpinStore';
 import LiveGameSetupPage from './pages/live-game/LiveGameSetupPage';
 import LiveGamePlayPage from './pages/live-game/LiveGamePlayPage';
 import LiveGameResultsPage from './pages/live-game/LiveGameResultsPage';
@@ -105,6 +106,8 @@ function App() {
     processDailyStreak,
     processChallengeStart,
   } = useMockStore();
+
+  const { initializeUserSpinState } = useSpinStore();
 
   const { isTestMode, setTestMode, resetTestUsers, setCoinBalance, testOnboarding } = useMockStore(state => ({
     isTestMode: false,
@@ -206,6 +209,8 @@ function App() {
         setProfile(user);
         setAuthFlow(user.is_guest ? 'guest' : 'authenticated');
         
+        // Initialize user-specific states
+        initializeUserSpinState(user.id);
         const { reward, message } = processDailyStreak(user.id);
         if (reward) {
           addToast(message, 'success');
@@ -872,7 +877,6 @@ function App() {
           matchDay={matchDay as SwipeMatchDay}
           userEntry={userEntry}
           onBack={handleLeaderboardBack}
-          onViewChallenge={() => setViewingPredictionChallenge(matchDay.challengeId || null)}
           initialLeagueContext={leaderboardContext}
           allUsers={allUsers}
           userLeagues={myLeagues}
@@ -986,12 +990,12 @@ function App() {
                 currentUserRole={currentUserMembership?.role || 'member'}
                 currentUserId={profile.id}
                 onBack={() => setActiveLeagueId(null)}
-                onUpdateDetails={handleUpdateDetails}
-                onRemoveMember={handleRemoveMember}
-                onResetInviteCode={handleResetInviteCode}
+                onUpdateDetails={() => {}}
+                onRemoveMember={() => {}}
+                onResetInviteCode={() => {}}
                 onLeave={() => setModalAction({type: 'leave', leagueId: league.id})}
                 onDelete={() => setModalAction({type: 'delete', leagueId: league.id})}
-                onViewGame={(gameId, gameType) => handleViewLeagueGame(gameId, gameType, league.id, league.name)}
+                onViewGame={(gameId, gameType) => handleViewLeagueGame(gameId, gameType as any, league.id, league.name)}
                 onViewLiveGame={handleViewLiveGame}
                 addToast={addToast}
                 leagueGames={leagueGames}
@@ -1108,11 +1112,12 @@ function App() {
       onClose={() => setIsTicketWalletOpen(false)}
       tickets={profile ? userTickets.filter(t => t.user_id === profile.id) : []}
     />
-    {spinWheelState.isOpen && spinWheelState.tier && (
+    {spinWheelState.isOpen && spinWheelState.tier && profile && (
       <SpinWheel
         isOpen={spinWheelState.isOpen}
         onClose={() => setSpinWheelState({ isOpen: false, tier: null })}
         tier={spinWheelState.tier}
+        userId={profile.id}
       />
     )}
     </div>

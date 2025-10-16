@@ -63,17 +63,17 @@ export const FantasyLeaderboardModal: React.FC<FantasyLeaderboardModalProps> = (
       return {
         start_type: 'season_start',
         end_type: 'season_end',
-        start_date: currentLeague.season_start_date || game.startDate,
-        end_date: currentLeague.season_end_date || game.endDate,
+        start_date: currentLeague.season_start_date || game.start_date,
+        end_date: currentLeague.season_end_date || game.end_date,
       };
     }
     return {
       start_type: 'season_start',
       end_type: 'season_end',
-      start_date: game.startDate,
-      end_date: game.endDate,
+      start_date: game.start_date,
+      end_date: game.end_date,
     };
-  }, [leagueGame, currentLeague, game.startDate, game.endDate]);
+  }, [leagueGame, currentLeague, game.start_date, game.end_date]);
 
   const filteredGameWeeks = useMemo(() => {
     const interval = { start: parseISO(activePeriod.start_date), end: parseISO(activePeriod.end_date) };

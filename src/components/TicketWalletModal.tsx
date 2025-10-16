@@ -1,7 +1,7 @@
 import React from 'react';
-import { UserTicket, TournamentType } from '../types';
 import { X, Ticket } from 'lucide-react';
-import { differenceInDays, parseISO, isBefore, format } from 'date-fns';
+import { UserTicket, TournamentType } from '../types';
+import { formatDistanceToNowStrict, parseISO, isBefore } from 'date-fns';
 
 interface TicketWalletModalProps {
   isOpen: boolean;
@@ -9,50 +9,39 @@ interface TicketWalletModalProps {
   tickets: UserTicket[];
 }
 
-const tierDetails = {
-  rookie: { label: 'Rookie', color: 'text-lime-glow', bg: 'bg-lime-glow/10' },
-  pro: { label: 'Pro', color: 'text-warm-yellow', bg: 'bg-warm-yellow/10' },
-  elite: { label: 'Elite', color: 'text-hot-red', bg: 'bg-hot-red/10' },
+const tierDetails: Record<TournamentType, { label: string; color: string, iconColor: string }> = {
+  rookie: { label: 'Rookie', color: 'border-lime-glow', iconColor: 'text-lime-glow' },
+  pro: { label: 'Pro', color: 'border-warm-yellow', iconColor: 'text-warm-yellow' },
+  elite: { label: 'Elite', color: 'border-hot-red', iconColor: 'text-hot-red' },
 };
 
 export const TicketWalletModal: React.FC<TicketWalletModalProps> = ({ isOpen, onClose, tickets }) => {
   if (!isOpen) return null;
 
   const now = new Date();
-  const validTickets = tickets.filter(t => !t.is_used && isBefore(now, parseISO(t.expires_at)));
-  const expiredTickets = tickets.filter(t => 
-    !t.is_used && 
-    !isBefore(now, parseISO(t.expires_at)) &&
-    differenceInDays(now, parseISO(t.expires_at)) <= 7
-  );
+  const activeTickets = tickets.filter(t => !t.is_used && isBefore(now, parseISO(t.expires_at)));
+  const expiredTickets = tickets.filter(t => !t.is_used && !isBefore(now, parseISO(t.expires_at)));
+  
+  const ticketsByType = (tier: TournamentType) => activeTickets.filter(t => t.type === tier);
 
-  const ticketSummary = {
-    rookie: validTickets.filter(t => t.type === 'rookie'),
-    pro: validTickets.filter(t => t.type === 'pro'),
-    elite: validTickets.filter(t => t.type === 'elite'),
-  };
-
-  const getOldestExpiry = (ticketGroup: UserTicket[]) => {
-    if (ticketGroup.length === 0) return null;
-    const oldest = ticketGroup.sort((a, b) => parseISO(a.expires_at).getTime() - parseISO(b.expires_at).getTime())[0];
-    return differenceInDays(parseISO(oldest.expires_at), now);
-  };
-
-  const TicketTier: React.FC<{ type: TournamentType }> = ({ type }) => {
-    const details = tierDetails[type];
-    const userTickets = ticketSummary[type];
-    const expiryDays = getOldestExpiry(userTickets);
+  const TicketTierSection: React.FC<{ tier: TournamentType }> = ({ tier }) => {
+    const details = tierDetails[tier];
+    const tierTickets = ticketsByType(tier);
+    const oldestTicket = tierTickets.length > 0 ? tierTickets.sort((a, b) => new Date(a.expires_at).getTime() - new Date(b.expires_at).getTime())[0] : null;
 
     return (
-      <div className={`p-4 rounded-xl ${details.bg}`}>
+      <div className={`bg-deep-navy p-4 rounded-xl border-2 ${details.color}`}>
         <div className="flex justify-between items-center">
-          <h3 className={`font-bold text-lg ${details.color}`}>{details.label}</h3>
-          <span className="font-bold text-text-primary text-xl">{userTickets.length}</span>
+          <div className="flex items-center gap-2">
+            <Ticket size={20} className={details.iconColor} />
+            <h3 className={`text-lg font-bold ${details.iconColor}`}>{details.label}</h3>
+          </div>
+          <span className="font-bold text-text-primary">{tierTickets.length} <span className="text-sm text-text-disabled">/ {tier === 'rookie' ? 5 : tier === 'pro' ? 3 : 2}</span></span>
         </div>
-        {expiryDays !== null && expiryDays >= 0 ? (
-          <p className="text-xs text-text-secondary mt-1">Oldest expires in {expiryDays} days</p>
-        ) : (
-          <p className="text-xs text-text-disabled mt-1">No tickets available</p>
+        {oldestTicket && (
+          <p className="text-xs text-text-disabled mt-1">
+            Oldest expires in {formatDistanceToNowStrict(parseISO(oldestTicket.expires_at))}
+          </p>
         )}
       </div>
     );
@@ -60,54 +49,41 @@ export const TicketWalletModal: React.FC<TicketWalletModalProps> = ({ isOpen, on
 
   return (
     <div className="fixed inset-0 bg-deep-navy/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-scale-in">
-      <div className="modal-base max-w-sm w-full p-6 space-y-4">
-        <div className="flex justify-between items-center">
+      <div className="modal-base max-w-sm w-full h-auto max-h-[80vh] flex flex-col p-6">
+        <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-            <Ticket /> Ticket Wallet
+            <Ticket className="text-lime-glow" /> My Tickets
           </h2>
           <button onClick={onClose} className="p-2 text-text-secondary hover:bg-white/10 rounded-full">
             <X size={24} />
           </button>
         </div>
-        
-        {validTickets.length === 0 && expiredTickets.length === 0 ? (
-          <div className="text-center py-8">
-            <Ticket size={48} className="mx-auto text-text-disabled mb-4" />
-            <h3 className="font-bold text-text-primary text-lg">No Tickets Yet!</h3>
-            <p className="text-sm text-text-secondary mt-2">
-              Earn tickets by winning tournaments. Tickets can be used to enter new challenges for free!
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <h3 className="font-bold text-text-primary">Active Tickets</h3>
-            <TicketTier type="rookie" />
-            <TicketTier type="pro" />
-            <TicketTier type="elite" />
-            
-            {expiredTickets.length > 0 && (
-              <div className="pt-4 mt-4 border-t border-disabled">
-                <h3 className="font-bold text-text-disabled mb-2">Expired Tickets</h3>
-                <div className="space-y-2 opacity-60">
-                  {expiredTickets.map(ticket => {
-                    const details = tierDetails[ticket.type];
-                    return (
-                      <div key={ticket.id} className={`p-3 rounded-xl ${details.bg}`}>
-                        <div className="flex justify-between items-center">
-                          <h4 className={`font-semibold text-md ${details.color}`}>{details.label}</h4>
-                          <p className="text-xs text-text-disabled">Expired on: {format(parseISO(ticket.expires_at), 'dd/MM/yyyy')}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
-        <div className="text-center text-sm text-text-secondary pt-2">
-          <p>Tickets are used automatically when joining a matching tournament.</p>
+        <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+          <h4 className="text-sm font-semibold text-text-secondary uppercase">Active Tickets</h4>
+          {activeTickets.length > 0 ? (
+            <>
+              <TicketTierSection tier="rookie" />
+              <TicketTierSection tier="pro" />
+              <TicketTierSection tier="elite" />
+            </>
+          ) : (
+            <p className="text-center text-text-disabled py-4">You have no active tickets. Win them in tournaments!</p>
+          )}
+
+          {expiredTickets.length > 0 && (
+            <div className="pt-4 mt-4 border-t border-disabled">
+              <h4 className="text-sm font-semibold text-text-disabled uppercase mb-2">Expired Tickets</h4>
+              <div className="space-y-2">
+                {expiredTickets.map(ticket => (
+                  <div key={ticket.id} className="bg-disabled/50 p-3 rounded-lg opacity-60">
+                    <p className="font-semibold text-text-disabled capitalize">{ticket.type} Ticket</p>
+                    <p className="text-xs text-text-disabled">Expired on {format(parseISO(ticket.expires_at), 'MMM d, yyyy')}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

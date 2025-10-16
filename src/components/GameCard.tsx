@@ -1,11 +1,11 @@
 import React, { useMemo } from 'react';
-import { Game, TournamentType, Profile, UserTicket } from '../types';
+import { SportimeGame, TournamentType, Profile, UserTicket, GameType } from '../types';
 import { format, parseISO, isBefore } from 'date-fns';
-import { Calendar, Coins, Info, ArrowRight, Check, Clock, Users, Ticket, Ban } from 'lucide-react';
+import { Calendar, Coins, Info, ArrowRight, Check, Clock, Users, Ticket, Ban, Star, Trophy, Award } from 'lucide-react';
 import { CtaState } from '../pages/GamesListPage';
 
 interface GameCardProps {
-  game: Game;
+  game: SportimeGame;
   ctaState: CtaState;
   onJoinClick: () => void;
   onPlay: () => void;
@@ -14,10 +14,11 @@ interface GameCardProps {
   userTickets: UserTicket[];
 }
 
-const gameTypeDetails = {
+const gameTypeDetails: Record<GameType, { tag: string; color: string }> = {
   betting: { tag: 'Betting', color: 'bg-electric-blue/20 text-electric-blue' },
   prediction: { tag: 'Prediction', color: 'bg-neon-cyan/20 text-neon-cyan' },
   fantasy: { tag: 'Fantasy', color: 'bg-lime-glow/20 text-lime-glow' },
+  'fantasy-live': { tag: 'Fantasy Live', color: 'bg-purple-600/20 text-purple-400' },
 };
 
 const tournamentTierDetails: Record<TournamentType, { label: string; color: string }> = {
@@ -78,6 +79,12 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
     disabled: 'bg-disabled text-text-disabled cursor-not-allowed text-sm py-2 px-4 rounded-lg',
   };
 
+  const accessConditionIcons = [
+    game.requires_subscription && <Star key="sub" size={14} title="Subscriber only" />,
+    game.minimum_level !== 'Amateur' && <Trophy key="level" size={14} title={`Level ${game.minimum_level}+`} />,
+    game.required_badges && game.required_badges.length > 0 && <Award key="badge" size={14} title={`Requires ${game.required_badges.length} badge(s)`} />,
+  ].filter(Boolean);
+
   return (
     <div className={`card-base p-4 space-y-3 transition-all hover:border-neon-cyan/50 ${isCancelled ? 'opacity-60' : ''}`}>
       {/* Top Section */}
@@ -85,13 +92,20 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
         <div className="flex-1">
           <h3 className="text-md font-bold text-text-primary pr-2">{game.name}</h3>
           <div className="flex items-center gap-2 mt-1">
-            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${details.color}`}>
-              {details.tag}
-            </span>
+            {details && (
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${details.color}`}>
+                {details.tag}
+              </span>
+            )}
             {tierDetails && (
               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${tierDetails.color}`}>
                 {tierDetails.label}
               </span>
+            )}
+            {accessConditionIcons.length > 0 && (
+              <div className="flex items-center gap-1 text-warm-yellow" title="Access conditions apply">
+                {accessConditionIcons}
+              </div>
             )}
           </div>
         </div>
@@ -114,7 +128,9 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
       <div className="flex items-center justify-between text-sm text-text-secondary border-t border-white/10 pt-3">
         <div className="flex items-center gap-2">
           <Calendar size={14} />
-          <span>{format(parseISO(game.start_date), 'MMM d')} - {format(parseISO(game.end_date), 'MMM d')}</span>
+          <span>
+            {game.start_date ? format(parseISO(game.start_date), 'MMM d') : 'TBD'} - {game.end_date ? format(parseISO(game.end_date), 'MMM d') : 'TBD'}
+          </span>
         </div>
         <div className="flex items-center gap-1 text-xs">
           <Users size={14} />

@@ -1,123 +1,148 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { SportimeGame, GameType, TournamentType, GameFormat, RewardTier, ConditionsLogic, DurationType } from '../../types';
+import React, { useState, useMemo } from 'react';
+import { SportimeGame, TournamentType, GameType, GameFormat, RewardTier, ConditionsLogic } from '../../types';
 import { TOURNAMENT_COSTS } from '../../config/constants';
-import { mockBadges, mockLevelsConfig } from '../../data/mockProgression';
-import { MultiSelect } from './MultiSelect';
+import { mockBadges } from '../../data/mockProgression';
 import { mockLeagues } from '../../data/mockLeagues';
+import { MultiSelect } from './MultiSelect';
 
 interface GameCreationFormProps {
   onCreate: (config: Omit<SportimeGame, 'id' | 'status' | 'totalPlayers' | 'participants'>) => void;
   onCancel: () => void;
 }
 
-const formFieldClasses = "input-base !bg-deep-navy/50";
+const initialFormState: Omit<SportimeGame, 'id' | 'status' | 'totalPlayers' | 'participants'> = {
+  name: '',
+  description: '',
+  league_id: mockLeagues[0].id,
+  start_date: new Date().toISOString().split('T')[0],
+  end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+  game_type: 'betting',
+  tier: 'rookie',
+  entry_cost: 2000,
+  custom_entry_cost_enabled: false,
+  is_linkable: true,
+  reward_tier: 'tier1',
+  format: 'leaderboard',
+  requires_subscription: false,
+  minimum_level: 'Amateur',
+  required_badges: [],
+  conditions_logic: 'and',
+  minimum_players: 0,
+  maximum_players: 0,
+  duration_type: 'daily',
+};
 
 export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, onCancel }) => {
-  const [config, setConfig] = useState<Partial<Omit<SportimeGame, 'id'>>>({
-    name: '',
-    game_type: 'betting',
-    tier: 'rookie',
-    duration_type: 'daily',
-    entry_cost: TOURNAMENT_COSTS.rookie.base,
-    custom_entry_cost_enabled: false,
-    is_linkable: true,
-    requires_subscription: false,
-    minimum_level: 'Amateur',
-    required_badges: [],
-    minimum_players: 0,
-    maximum_players: 0,
-  });
+  const [formState, setFormState] = useState(initialFormState);
 
-  useEffect(() => {
-    if (!config.custom_entry_cost_enabled && config.tier && config.duration_type) {
-      const cost = TOURNAMENT_COSTS[config.tier].base * (TOURNAMENT_COSTS[config.tier].multipliers[config.duration_type] || 1);
-      setConfig(prev => ({ ...prev, entry_cost: cost }));
-    }
-  }, [config.tier, config.duration_type, config.custom_entry_cost_enabled]);
+  const calculatedCost = useMemo(() => {
+    const durationKey = formState.duration_type === 'daily' ? 'matchday' : formState.duration_type;
+    return TOURNAMENT_COSTS[formState.tier].base * (TOURNAMENT_COSTS[formState.tier].multipliers[durationKey] || 1);
+  }, [formState.tier, formState.duration_type]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
-    const isCheckbox = type === 'checkbox';
-    // @ts-ignore
-    const val = isCheckbox ? e.target.checked : value;
-    setConfig(prev => ({ ...prev, [name]: val }));
+    let finalValue: any = value;
+    if (type === 'checkbox') {
+      finalValue = (e.target as HTMLInputElement).checked;
+    }
+    if (['entry_cost', 'minimum_players', 'maximum_players'].includes(name)) {
+      finalValue = Number(value);
+    }
+    
+    const newState = { ...formState, [name]: finalValue };
+
+    if (!newState.custom_entry_cost_enabled && (name === 'tier' || name === 'duration_type')) {
+        const newCost = TOURNAMENT_COSTS[newState.tier].base * (TOURNAMENT_COSTS[newState.tier].multipliers[newState.duration_type === 'daily' ? 'matchday' : newState.duration_type] || 1);
+        newState.entry_cost = newCost;
+    }
+
+    setFormState(newState);
   };
 
-  const handleNumericChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setConfig(prev => ({ ...prev, [name]: parseInt(value) || 0 }));
+  const handleBadgeChange = (selectedBadges: string[]) => {
+    setFormState({ ...formState, required_badges: selectedBadges });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onCreate(config as Omit<SportimeGame, 'id' | 'status' | 'totalPlayers' | 'participants'>);
+    onCreate(formState);
   };
 
-  const badgeOptions = useMemo(() => mockBadges.map(b => ({ value: b.id, label: b.name })), []);
-  const levelOptions = useMemo(() => mockLevelsConfig.map(l => l.level_name), []);
+  const formFieldClasses = "input-base text-sm";
 
   return (
-    <form onSubmit={handleSubmit} className="bg-navy-accent/50 p-4 rounded-xl space-y-6 border border-disabled">
-      <h3 className="font-bold text-lg text-electric-blue">Create New Game</h3>
-      
+    <form onSubmit={handleSubmit} className="card-base p-4 space-y-4">
       {/* Basic Info */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <input type="text" name="name" placeholder="Game Name" onChange={handleChange} className={formFieldClasses} required />
-        <select name="game_type" onChange={handleChange} value={config.game_type} className={formFieldClasses}>
-          <option value="betting">Betting</option>
-          <option value="prediction">Prediction</option>
-          <option value="fantasy">Fantasy</option>
+      <div className="grid grid-cols-2 gap-3">
+        <input type="text" name="name" placeholder="Game Name" value={formState.name} onChange={handleChange} className={formFieldClasses} required />
+        <select name="league_id" value={formState.league_id} onChange={handleChange} className={formFieldClasses}>
+          {mockLeagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
         </select>
-        <textarea name="description" placeholder="Description (optional)" onChange={handleChange} className={`${formFieldClasses} md:col-span-2 h-20`} />
+      </div>
+      <textarea name="description" placeholder="Description..." value={formState.description} onChange={handleChange} className={`${formFieldClasses} h-20`} />
+      
+      {/* Dates */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-xs text-text-disabled">Start Date</label>
+          <input type="date" name="start_date" value={formState.start_date} onChange={handleChange} className={formFieldClasses} required />
+        </div>
+        <div>
+          <label className="text-xs text-text-disabled">End Date</label>
+          <input type="date" name="end_date" value={formState.end_date} onChange={handleChange} className={formFieldClasses} required />
+        </div>
       </div>
 
-      {/* Economy & Tier */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <select name="tier" onChange={handleChange} value={config.tier} className={formFieldClasses}>
-          <option value="rookie">Rookie</option>
-          <option value="pro">Pro</option>
-          <option value="elite">Elite</option>
+      {/* Game Type & Tier */}
+      <div className="grid grid-cols-2 gap-3">
+        <select name="game_type" value={formState.game_type} onChange={handleChange} className={formFieldClasses}>
+          {(['betting', 'prediction', 'fantasy'] as GameType[]).map(t => <option key={t} value={t} className="capitalize">{t}</option>)}
         </select>
-        <select name="duration_type" onChange={handleChange} value={config.duration_type} className={formFieldClasses}>
-          <option value="daily">Matchday / Daily</option>
-          <option value="mini">Mini-Series</option>
-          <option value="season">Season</option>
+        <select name="tier" value={formState.tier} onChange={handleChange} className={formFieldClasses}>
+          {(['rookie', 'pro', 'elite'] as TournamentType[]).map(t => <option key={t} value={t} className="capitalize">{t}</option>)}
         </select>
-        <div className="relative">
-          <input type="number" name="entry_cost" value={config.entry_cost} onChange={handleNumericChange} disabled={!config.custom_entry_cost_enabled} className={`${formFieldClasses} pr-10`} />
-          <input type="checkbox" name="custom_entry_cost_enabled" checked={config.custom_entry_cost_enabled} onChange={handleChange} className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4" title="Enable custom cost" />
+      </div>
+
+      {/* Entry Cost */}
+      <div className="flex items-end gap-3">
+        <div className="flex-1">
+          <label className="text-xs text-text-disabled">Entry Cost</label>
+          <input type="number" name="entry_cost" value={formState.custom_entry_cost_enabled ? formState.entry_cost : calculatedCost} onChange={handleChange} disabled={!formState.custom_entry_cost_enabled} className={`${formFieldClasses} disabled:bg-navy-accent`} />
         </div>
+        <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer">
+          <input type="checkbox" name="custom_entry_cost_enabled" checked={formState.custom_entry_cost_enabled} onChange={handleChange} className="accent-electric-blue" />
+          Override
+        </label>
       </div>
 
       {/* Player Limits */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <input type="number" name="minimum_players" placeholder="Min Players (0 for none)" onChange={handleNumericChange} className={formFieldClasses} />
-        <input type="number" name="maximum_players" placeholder="Max Players (0 for none)" onChange={handleNumericChange} className={formFieldClasses} />
+      <div className="grid grid-cols-2 gap-3">
+        <input type="number" name="minimum_players" placeholder="Min Players (0=none)" value={formState.minimum_players || ''} onChange={handleChange} className={formFieldClasses} />
+        <input type="number" name="maximum_players" placeholder="Max Players (0=none)" value={formState.maximum_players || ''} onChange={handleChange} className={formFieldClasses} />
       </div>
 
       {/* Access Conditions */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-4">
-          <label className="flex items-center gap-2 text-sm font-semibold text-text-secondary">
-            <input type="checkbox" name="requires_subscription" checked={config.requires_subscription} onChange={handleChange} className="h-4 w-4" />
-            Subscriber Only
-          </label>
-           <label className="flex items-center gap-2 text-sm font-semibold text-text-secondary">
-            <input type="checkbox" name="is_linkable" checked={config.is_linkable} onChange={handleChange} className="h-4 w-4" />
-            Linkable
-          </label>
-        </div>
-        <select name="minimum_level" onChange={handleChange} value={config.minimum_level} className={formFieldClasses}>
+      <div className="space-y-3">
+        <h4 className="text-sm font-semibold text-text-secondary">Access Conditions</h4>
+        <label className="flex items-center gap-2 text-sm text-text-primary cursor-pointer">
+          <input type="checkbox" name="requires_subscription" checked={formState.requires_subscription} onChange={handleChange} className="accent-electric-blue" />
+          Subscriber Only
+        </label>
+        <select name="minimum_level" value={formState.minimum_level} onChange={handleChange} className={formFieldClasses}>
           <option value="Amateur">Min Level: Amateur</option>
-          {levelOptions.slice(1).map(level => <option key={level} value={level}>Min Level: {level}</option>)}
+          <option value="Pro">Min Level: Pro</option>
+          <option value="Expert">Min Level: Expert</option>
+          <option value="Master">Min Level: Master</option>
+          <option value="Legend">Min Level: Legend</option>
         </select>
-        <MultiSelect label="Required Badges" options={badgeOptions} selected={config.required_badges || []} onChange={(val) => setConfig(p => ({...p, required_badges: val}))} placeholder="Select badges..." />
+        <MultiSelect options={mockBadges.map(b => ({ value: b.id, label: b.name }))} selectedValues={formState.required_badges} onChange={handleBadgeChange} placeholder="Select required badges..." />
       </div>
 
       {/* Actions */}
-      <div className="flex gap-4 pt-4 border-t border-disabled">
-        <button type="button" onClick={onCancel} className="secondary-button flex-1 bg-navy-accent border-disabled text-text-secondary hover:border-electric-blue hover:text-electric-blue">Cancel</button>
-        <button type="submit" className="primary-button flex-1">Create Game</button>
+      <div className="flex gap-3 pt-3">
+        <button type="button" onClick={onCancel} className="flex-1 py-2 bg-disabled text-text-secondary rounded-lg font-semibold">Cancel</button>
+        <button type="submit" className="flex-1 primary-button py-2">Create Game</button>
       </div>
     </form>
   );

@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, Coins, Ticket } from 'lucide-react';
-import { BettingChallenge } from '../types';
+import { BettingChallenge, TournamentType } from '../types';
 
 interface ChooseEntryMethodModalProps {
   isOpen: boolean;
@@ -8,6 +8,12 @@ interface ChooseEntryMethodModalProps {
   onSelectMethod: (method: 'coins' | 'ticket') => void;
   challenge: BettingChallenge;
 }
+
+const tierDetails: Record<TournamentType, { label: string; color: string }> = {
+  rookie: { label: 'Rookie', color: 'text-lime-glow' },
+  pro: { label: 'Pro', color: 'text-warm-yellow' },
+  elite: { label: 'Elite', color: 'text-hot-red' },
+};
 
 export const ChooseEntryMethodModal: React.FC<ChooseEntryMethodModalProps> = ({
   isOpen,
@@ -17,12 +23,7 @@ export const ChooseEntryMethodModal: React.FC<ChooseEntryMethodModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const tierDetails = {
-    rookie: { label: 'Rookie', color: 'text-lime-glow' },
-    pro: { label: 'Pro', color: 'text-warm-yellow' },
-    elite: { label: 'Elite', color: 'text-hot-red' },
-  };
-  const tierInfo = tierDetails[challenge.tournament_type];
+  const tier = tierDetails[challenge.tier];
 
   return (
     <div className="fixed inset-0 bg-deep-navy/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-scale-in">
@@ -35,40 +36,37 @@ export const ChooseEntryMethodModal: React.FC<ChooseEntryMethodModalProps> = ({
         </button>
 
         <h2 className="text-2xl font-bold text-center text-text-primary">How do you want to join?</h2>
-        <p className="text-center text-text-secondary -mt-2">{challenge.name}</p>
+        <p className="text-center text-sm text-text-secondary -mt-3">You have multiple ways to enter this challenge.</p>
 
         <div className="space-y-3 pt-2">
           <button
             onClick={() => onSelectMethod('coins')}
-            className="w-full flex items-center justify-between p-4 rounded-xl bg-deep-navy hover:bg-navy-accent border-2 border-disabled hover:border-electric-blue transition-colors"
+            className="w-full flex items-center justify-between p-4 bg-deep-navy hover:bg-navy-accent rounded-xl border-2 border-disabled hover:border-electric-blue transition-all"
           >
-            <div className="flex items-center gap-3">
-              <Coins className="w-6 h-6 text-warm-yellow" />
-              <span className="font-bold text-text-primary">Use Coins</span>
+            <span className="font-bold text-lg text-text-primary">Use Coins</span>
+            <div className="flex items-center gap-2 font-semibold text-warm-yellow">
+              <Coins size={20} />
+              <span>{challenge.entry_cost.toLocaleString()}</span>
             </div>
-            <span className="font-semibold text-warm-yellow">{challenge.entryCost.toLocaleString()}</span>
           </button>
-
           <button
             onClick={() => onSelectMethod('ticket')}
-            className="w-full flex items-center justify-between p-4 rounded-xl bg-deep-navy hover:bg-navy-accent border-2 border-disabled hover:border-electric-blue transition-colors"
+            className="w-full flex items-center justify-between p-4 bg-deep-navy hover:bg-navy-accent rounded-xl border-2 border-disabled hover:border-electric-blue transition-all"
           >
-            <div className="flex items-center gap-3">
-              <Ticket className={`w-6 h-6 ${tierInfo.color}`} />
-              <span className="font-bold text-text-primary">Use Ticket</span>
+            <span className="font-bold text-lg text-text-primary">Use Ticket</span>
+            <div className={`flex items-center gap-2 font-semibold ${tier.color}`}>
+              <Ticket size={20} />
+              <span className="capitalize">{tier.label}</span>
             </div>
-            <span className={`font-semibold capitalize ${tierInfo.color}`}>{tierInfo.label}</span>
           </button>
         </div>
 
-        <div className="text-center">
-          <button
-            onClick={onClose}
-            className="py-2 px-4 text-sm font-semibold text-text-secondary hover:bg-white/10 rounded-xl"
-          >
-            Cancel
-          </button>
-        </div>
+        <button
+          onClick={onClose}
+          className="w-full py-3 text-sm font-semibold text-text-secondary hover:bg-white/10 rounded-xl"
+        >
+          Cancel
+        </button>
       </div>
     </div>
   );

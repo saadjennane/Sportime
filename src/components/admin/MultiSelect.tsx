@@ -1,26 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, X } from 'lucide-react';
-import { AnimatePresence, motion } from 'framer-motion';
 
 interface Option {
   value: string;
   label: string;
-  icon?: string;
 }
 
 interface MultiSelectProps {
   options: Option[];
-  selected: string[];
+  selectedValues: string[];
   onChange: (selected: string[]) => void;
   placeholder: string;
-  label: string;
 }
 
-export const MultiSelect: React.FC<MultiSelectProps> = ({ options, selected, onChange, placeholder, label }) => {
+export const MultiSelect: React.FC<MultiSelectProps> = ({ options, selectedValues, onChange, placeholder }) => {
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  const selectedOptions = options.filter(opt => selected.includes(opt.value));
+  const selectedLabels = selectedValues.map(val => options.find(opt => opt.value === val)?.label).filter(Boolean);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -32,8 +29,8 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({ options, selected, onC
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const toggleOption = (value: string) => {
-    const newSelected = new Set(selected);
+  const handleToggleOption = (value: string) => {
+    const newSelected = new Set(selectedValues);
     if (newSelected.has(value)) {
       newSelected.delete(value);
     } else {
@@ -44,51 +41,32 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({ options, selected, onC
 
   return (
     <div className="relative w-full" ref={wrapperRef}>
-      <label className="block text-sm font-medium text-text-secondary mb-1">{label}</label>
-      <div className="input-base !p-2 !bg-deep-navy/50">
-        <div className="flex flex-wrap gap-1.5">
-          {selectedOptions.map(option => (
-            <div key={option.value} className="flex items-center gap-1 bg-electric-blue/20 text-electric-blue text-xs font-semibold px-2 py-1 rounded">
-              {option.label}
-              <button type="button" onClick={() => toggleOption(option.value)} className="hover:text-white">
-                <X size={12} />
-              </button>
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={() => setIsOpen(!isOpen)}
-            className="flex-1 flex items-center justify-between text-left min-w-[100px]"
-          >
-            {selected.length === 0 && <span className="text-text-disabled ml-1">{placeholder}</span>}
-            <span/>
-            <ChevronDown className={`transition-transform text-text-disabled ${isOpen ? 'rotate-180' : ''}`} />
-          </button>
-        </div>
-      </div>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="input-base text-sm w-full flex justify-between items-center"
+      >
+        <span className="truncate">
+          {selectedLabels.length > 0 ? selectedLabels.join(', ') : placeholder}
+        </span>
+        <ChevronDown className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
 
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="absolute top-full mt-2 w-full bg-navy-accent border border-disabled rounded-xl shadow-lg z-10 p-2 max-h-48 overflow-y-auto"
-          >
-            {options.map(option => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => toggleOption(option.value)}
-                className="w-full flex items-center gap-3 p-2 text-left hover:bg-electric-blue/10 rounded-lg"
-              >
-                <div className={`w-4 h-4 rounded border-2 ${selected.includes(option.value) ? 'bg-electric-blue border-electric-blue' : 'border-disabled'}`} />
-                <span className="text-text-primary">{option.label}</span>
-              </button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {isOpen && (
+        <div className="absolute top-full mt-1 w-full bg-navy-accent border border-disabled rounded-lg shadow-lg z-10 p-2 max-h-48 overflow-y-auto">
+          {options.map(option => (
+            <label key={option.value} className="flex items-center gap-2 p-2 rounded hover:bg-electric-blue/10 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selectedValues.includes(option.value)}
+                onChange={() => handleToggleOption(option.value)}
+                className="accent-electric-blue"
+              />
+              <span className="text-sm text-text-primary">{option.label}</span>
+            </label>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

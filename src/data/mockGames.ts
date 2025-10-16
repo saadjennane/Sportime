@@ -3,19 +3,20 @@ import { TOURNAMENT_COSTS } from '../config/constants';
 import { mockSwipeMatchDays } from './mockSwipeGames';
 import { mockFantasyGame } from './mockFantasy.tsx';
 
-const bettingChallenges: SportimeGame[] = [
+export const mockGames: SportimeGame[] = [
+  // Betting Challenges
   {
     id: 'challenge-new',
-    game_type: 'betting',
     name: 'Summer Showdown',
+    game_type: 'betting',
     tier: 'rookie',
     duration_type: 'mini',
     start_date: '2025-07-25',
     end_date: '2025-07-26',
-    entry_cost: TOURNAMENT_COSTS.rookie.base * TOURNAMENT_COSTS.rookie.multipliers.mini,
+    entry_cost: TOURNAMENT_COSTS.rookie.base * TOURNAMENT_COSTS.rookie.multipliers["mini-series"],
     challengeBalance: 1000,
     status: 'Upcoming',
-    totalPlayers: 0,
+    totalPlayers: 5821,
     is_linkable: true,
     minimum_players: 10,
     maximum_players: 100,
@@ -26,16 +27,16 @@ const bettingChallenges: SportimeGame[] = [
   },
   {
     id: 'challenge-1',
-    game_type: 'betting',
     name: 'Pro Weekend League',
+    game_type: 'betting',
     tier: 'pro',
     duration_type: 'daily',
     start_date: '2025-07-18',
     end_date: '2025-07-20',
-    entry_cost: TOURNAMENT_COSTS.pro.base * TOURNAMENT_COSTS.pro.multipliers.daily,
+    entry_cost: TOURNAMENT_COSTS.pro.base * TOURNAMENT_COSTS.pro.multipliers.matchday,
     challengeBalance: 1000,
     status: 'Upcoming',
-    totalPlayers: 0,
+    totalPlayers: 13476,
     is_linkable: true,
     minimum_players: 50,
     maximum_players: 0,
@@ -46,16 +47,16 @@ const bettingChallenges: SportimeGame[] = [
   },
   {
     id: 'challenge-2',
-    game_type: 'betting',
     name: 'Elite Champions Knockouts',
+    game_type: 'betting',
     tier: 'elite',
     duration_type: 'daily',
     start_date: '2025-07-15',
     end_date: '2025-07-17',
-    entry_cost: TOURNAMENT_COSTS.elite.base * TOURNAMENT_COSTS.elite.multipliers.daily,
+    entry_cost: TOURNAMENT_COSTS.elite.base * TOURNAMENT_COSTS.elite.multipliers.matchday,
     challengeBalance: 1000,
     status: 'Upcoming',
-    totalPlayers: 0,
+    totalPlayers: 8254,
     is_linkable: true,
     minimum_players: 100,
     maximum_players: 500,
@@ -66,13 +67,13 @@ const bettingChallenges: SportimeGame[] = [
   },
   {
     id: 'challenge-3',
-    game_type: 'betting',
     name: 'International Friendlies',
+    game_type: 'betting',
     tier: 'rookie',
     duration_type: 'daily',
     start_date: '2025-07-01',
     end_date: '2025-07-03',
-    entry_cost: TOURNAMENT_COSTS.rookie.base * TOURNAMENT_COSTS.rookie.multipliers.daily,
+    entry_cost: TOURNAMENT_COSTS.rookie.base * TOURNAMENT_COSTS.rookie.multipliers.matchday,
     challengeBalance: 1000,
     status: 'Finished',
     totalPlayers: 5123,
@@ -82,53 +83,48 @@ const bettingChallenges: SportimeGame[] = [
     required_badges: [],
     minimum_level: 'Amateur',
     participants: [],
-  }
-];
-
-const predictionGames: SportimeGame[] = mockSwipeMatchDays.map(md => ({
-  id: md.id,
-  name: md.name,
-  game_type: 'prediction',
-  tier: 'rookie', // Default tier for prediction games
-  start_date: md.startDate,
-  end_date: md.endDate,
-  entry_cost: md.entryCost,
-  is_linkable: md.is_linkable,
-  status: md.status,
-  matches: md.matches,
-  totalPlayers: md.totalPlayers,
-  minimum_players: 0,
-  maximum_players: 0,
-  requires_subscription: false,
-  required_badges: [],
-  minimum_level: 'Amateur',
-  participants: [],
-}));
-
-const fantasyGames: SportimeGame[] = [
+  },
+  // Prediction Games
+  ...mockSwipeMatchDays.map(md => ({
+    id: md.id,
+    name: md.name,
+    game_type: 'prediction' as const,
+    matches: md.matches,
+    status: md.status,
+    start_date: md.startDate,
+    end_date: md.endDate,
+    entry_cost: md.entryCost,
+    totalPlayers: md.totalPlayers,
+    challengeId: md.challengeId,
+    description: `Predict the outcomes for ${md.name}.`,
+    tier: 'rookie' as const,
+    is_linkable: true,
+    requires_subscription: false,
+    minimum_level: 'Amateur',
+    required_badges: [],
+    minimum_players: 0,
+    maximum_players: 0,
+    participants: [],
+  })),
+  // Fantasy Game
   {
     id: mockFantasyGame.id,
     name: mockFantasyGame.name,
     game_type: 'fantasy',
-    tier: 'pro', // Default tier for fantasy games
+    status: mockFantasyGame.status,
     start_date: mockFantasyGame.startDate,
     end_date: mockFantasyGame.endDate,
     entry_cost: mockFantasyGame.entryCost,
-    is_linkable: mockFantasyGame.is_linkable,
-    status: mockFantasyGame.status,
-    gameWeeks: mockFantasyGame.gameWeeks,
     totalPlayers: mockFantasyGame.totalPlayers,
-    minimum_players: 0,
-    maximum_players: 0,
+    gameWeeks: mockFantasyGame.gameWeeks,
+    description: 'The official season-long fantasy game.',
+    tier: 'pro',
+    is_linkable: true,
     requires_subscription: false,
+    minimum_level: 'Pro',
     required_badges: [],
-    minimum_level: 'Amateur',
+    minimum_players: 100,
+    maximum_players: 0,
     participants: [],
-  }
-];
-
-export const mockGames: SportimeGame[] = [
-  ...bettingChallenges,
-  ...predictionGames,
-  ...fantasyGames,
+  },
 ];

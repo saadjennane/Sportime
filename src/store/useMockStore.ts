@@ -30,33 +30,32 @@ import {
   UserStreak,
   TournamentType,
   SportimeGame,
+  ChallengeStatus,
 } from '../types';
 import { isToday, addDays, isBefore, parseISO, differenceInHours } from 'date-fns';
 import { DAILY_STREAK_REWARDS, STREAK_RESET_THRESHOLD_HOURS, TICKET_RULES } from '../config/constants';
+import { processGameWeek } from '../services/fantasyService';
 
 // Import mock data
-import { mockChallenges } from '../data/mockChallenges';
-import { mockSwipeMatchDays } from '../data/mockSwipeGames';
-import { mockFantasyGame, mockUserFantasyTeams } from '../data/mockFantasy.tsx';
+import { mockGames } from '../data/mockGames';
 import { mockUserLeagues } from '../data/mockUserLeagues';
 import { mockLeagueMembers } from '../data/mockLeagueMembers';
 import { mockLeagueGames } from '../data/mockLeagueGames';
 import { mockScores } from '../data/mockLeaderboardScores';
 import { mockLiveGames } from '../data/mockLiveGames';
-import { mockFantasyPlayers } from '../data/mockFantasy.tsx';
+import { mockFantasyPlayers, mockUserFantasyTeams } from '../data/mockFantasy.tsx';
 import { mockPreMatchMarkets } from '../data/mockLiveGameMarkets';
 import { marketTemplates } from '../data/marketTemplates';
 import { mockUsers } from '../data/mockUsers';
 import { mockFantasyLiveBoosters } from '../data/mockFantasyLive.tsx';
 import { mockUserTickets } from '../data/mockTickets';
-import { mockLevelsConfig } from '../data/mockProgression';
-import { mockGames } from '../data/mockGames';
+import { mockLevelsConfig, mockBadges } from '../data/mockProgression';
+import { mockUserChallengeEntries } from '../data/mockUserChallengeEntries';
+import { mockUserSwipeEntries } from '../data/mockUserSwipeEntries';
+import { mockPlayerGameWeekStats } from '../data/mockPlayerStats';
 
 interface MockDataState {
   games: SportimeGame[];
-  challenges: BettingChallenge[];
-  swipeMatchDays: SwipeMatchDay[];
-  fantasyGames: FantasyGame[];
   userLeagues: UserLeague[];
   leagueMembers: LeagueMember[];
   leagueGames: LeagueGame[];
@@ -67,9 +66,15 @@ interface MockDataState {
   liveGames: LiveGame[];
   predictionChallenges: PredictionChallenge[];
   userFantasyTeams: UserFantasyTeam[];
+  userChallengeEntries: UserChallengeEntry[];
+  userSwipeEntries: UserSwipeEntry[];
   allUsers: Profile[];
   userTickets: UserTicket[];
   userStreaks: UserStreak[];
+  levels: typeof mockLevelsConfig;
+  badges: typeof mockBadges;
+  isTestMode: boolean;
+  showOnboardingTest: boolean;
 }
 
 interface MockDataActions {
@@ -77,7 +82,6 @@ interface MockDataActions {
   updateGame: (gameId: string, updates: Partial<SportimeGame>) => void;
   deleteGame: (gameId: string) => void;
   cancelGame: (gameId: string) => void;
-  addChallenge: (challengeData: Omit<BettingChallenge, 'id' | 'status' | 'totalPlayers' | 'gameType' | 'is_linkable'>) => void;
   createLeague: (name: string, description: string, profile: Profile) => UserLeague;
   linkGameToLeagues: (game: Game, leagueIds: string[]) => { linkedLeagueNames: string[] };
   createLeagueAndLink: (name: string, description: string, gameToLink: Game, profile: Profile) => void;
@@ -98,6 +102,7 @@ interface MockDataActions {
   editLiveGamePrediction: (gameId: string, userId: string, newScore: { home: number; away: number }) => void;
   placeLiveBet: (gameId: string, userId: string, marketId: string, option: string, amount: number, odds: number) => void;
   tickLiveGame: (gameId: string) => void;
+  tickFantasyGame: (gameWeekId: string, userId: string) => void;
   updateUserFantasyTeam: (team: UserFantasyTeam) => void;
   joinChallenge: (challengeId: string, userId: string, method: 'coins' | 'ticket') => { success: boolean; message: string; method?: 'ticket' | 'coins' | 'none' };
   processDailyStreak: (userId: string) => { reward: { coins?: number; ticket?: string } | null; message: string };
@@ -105,6 +110,11 @@ interface MockDataActions {
   addTicket: (userId: string, type: TournamentType) => void;
   addXp: (userId: string, amount: number) => void;
   grantPremium: (userId: string, days: number) => void;
+  setCoinBalance: (userId: string, newBalance: number) => void;
+  setTestMode: (enabled: boolean) => void;
+  resetTestUsers: () => void;
+  openOnboardingTest: () => void;
+  closeOnboardingTest: () => void;
 }
 
 export const generateBonusQuestions = (predictedScore: { home: number, away: number }): BonusQuestion[] => {
@@ -138,9 +148,6 @@ export const generateBonusQuestions = (predictedScore: { home: number, away: num
 export const useMockStore = create<MockDataState & MockDataActions>((set, get) => ({
   // Initial State from mock files
   games: mockGames,
-  challenges: mockChallenges,
-  swipeMatchDays: mockSwipeMatchDays,
-  fantasyGames: [mockFantasyGame],
   userLeagues: mockUserLeagues,
   leagueMembers: mockLeagueMembers,
   leagueGames: mockLeagueGames,
@@ -157,10 +164,98 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
     createdAt: new Date().toISOString(),
   }],
   userFantasyTeams: mockUserFantasyTeams,
+  userChallengeEntries: mockUserChallengeEntries,
+  userSwipeEntries: mockUserSwipeEntries,
   allUsers: mockUsers,
   userTickets: mockUserTickets,
   userStreaks: [{ user_id: 'user-1', current_day: 3, last_claimed_at: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(), total_cycles_completed: 0 }],
+  levels: mockLevelsConfig,
+  badges: mockBadges,
+  isTestMode: false,
+  showOnboardingTest: false,
 
+  openOnboardingTest: () => set({ showOnboardingTest: true }),
+  closeOnboardingTest: () => set({ showOnboardingTest: false }),
+
+  setTestMode: (enabled) => {
+    set({ isTestMode: enabled });
+    localStorage.setItem('sportime_test_mode', JSON.stringify(enabled));
+  },
+
+  resetTestUsers: () => {
+    set({ 
+      allUsers: [...mockUsers], 
+      userStreaks: [{ user_id: 'user-1', current_day: 3, last_claimed_at: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(), total_cycles_completed: 0 }],
+      userTickets: [...mockUserTickets], 
+      userChallengeEntries: [...mockUserChallengeEntries], 
+      userSwipeEntries: [...mockUserSwipeEntries] 
+    });
+    console.log("Test users have been reset.");
+  },
+
+  processDailyStreak: (userId) => {
+    const state = get();
+    const now = new Date();
+    let userStreak = state.userStreaks.find(s => s.user_id === userId);
+
+    if (!userStreak) {
+      userStreak = {
+        user_id: userId,
+        current_day: 0,
+        last_claimed_at: new Date(0).toISOString(),
+        total_cycles_completed: 0,
+      };
+    }
+
+    const hoursSinceLast = differenceInHours(now, parseISO(userStreak.last_claimed_at));
+    if (hoursSinceLast < 24) {
+      return { reward: null, message: "You've already claimed your reward for today." };
+    }
+
+    let newDay = userStreak.current_day;
+    if (hoursSinceLast > STREAK_RESET_THRESHOLD_HOURS) {
+      newDay = 1;
+    } else {
+      newDay = (newDay % 7) + 1;
+    }
+    
+    const reward = DAILY_STREAK_REWARDS[newDay as keyof typeof DAILY_STREAK_REWARDS];
+    let rewardMessage = '';
+    let rewardGranted = false;
+    
+    const changes: Partial<MockDataState> = {};
+
+    if (reward.coins) {
+      changes.allUsers = state.allUsers.map(u => u.id === userId ? { ...u, coins_balance: u.coins_balance + reward.coins! } : u);
+      rewardMessage = `+${reward.coins} coins earned!`;
+      rewardGranted = true;
+    } else if (reward.ticket) {
+      const userTicketsOfType = state.userTickets.filter(t => t.user_id === userId && t.type === reward.ticket && !t.is_used && isBefore(now, parseISO(t.expires_at)));
+      const ticketRule = TICKET_RULES[reward.ticket as TournamentType];
+
+      if (userTicketsOfType.length < ticketRule.max_quantity) {
+        const newTicket: UserTicket = { id: uuidv4(), user_id: userId, type: reward.ticket as TournamentType, is_used: false, created_at: now.toISOString(), expires_at: addDays(now, ticketRule.expiry_days).toISOString() };
+        changes.userTickets = [...state.userTickets, newTicket];
+        rewardMessage = `You earned a ${reward.ticket} Ticket!`;
+        rewardGranted = true;
+      } else {
+        rewardMessage = `Ticket limit reached for ${reward.ticket} tickets.`;
+      }
+    }
+
+    if (rewardGranted) {
+      const updatedStreak: UserStreak = { ...userStreak, current_day: newDay, last_claimed_at: now.toISOString(), total_cycles_completed: newDay === 7 ? userStreak.total_cycles_completed + 1 : userStreak.total_cycles_completed };
+      changes.userStreaks = state.userStreaks.some(s => s.user_id === userId)
+        ? state.userStreaks.map(s => s.user_id === userId ? updatedStreak : s)
+        : [...state.userStreaks, updatedStreak];
+      
+      set(changes);
+    }
+    
+    return { reward: rewardGranted ? reward : null, message: `Streak: Day ${newDay}! ${rewardMessage}` };
+  },
+
+  // ... other actions
   createGame: (config) => {
     const newGame: SportimeGame = {
       ...config,
@@ -188,19 +283,6 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
     set(state => ({
       games: state.games.map(g => g.id === gameId ? { ...g, status: 'Cancelled' } : g)
     }));
-  },
-
-  addChallenge: (challengeData) => {
-    const newChallenge: BettingChallenge = {
-        ...challengeData,
-        id: `challenge-${uuidv4()}`,
-        status: 'Upcoming',
-        totalPlayers: 0,
-        participants: [],
-        game_type: 'betting',
-        is_linkable: true,
-    };
-    set(state => ({ challenges: [newChallenge, ...state.challenges] }));
   },
 
   joinChallenge: (challengeId, userId, method) => {
@@ -315,64 +397,6 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
     }
   },
 
-  processDailyStreak: (userId) => {
-    const { userStreaks, allUsers, userTickets } = get();
-    const now = new Date();
-    let userStreak = userStreaks.find(s => s.user_id === userId);
-    
-    if (!userStreak) {
-      userStreak = { user_id: userId, current_day: 0, last_claimed_at: new Date(0).toISOString(), total_cycles_completed: 0 };
-    }
-
-    const hoursSinceLast = differenceInHours(now, parseISO(userStreak.last_claimed_at));
-    
-    if (hoursSinceLast < 24) {
-      return { reward: null, message: "You've already claimed your reward for today." };
-    }
-
-    let newDay = userStreak.current_day;
-    if (hoursSinceLast > STREAK_RESET_THRESHOLD_HOURS) {
-      newDay = 1; // Reset streak
-    } else {
-      newDay += 1;
-      if (newDay > 7) newDay = 1;
-    }
-    
-    const reward = DAILY_STREAK_REWARDS[newDay as keyof typeof DAILY_STREAK_REWARDS];
-    let message = '';
-
-    if (reward.coins) {
-      const updatedUsers = allUsers.map(u => u.id === userId ? { ...u, coins_balance: u.coins_balance + reward.coins! } : u);
-      set({ allUsers: updatedUsers });
-      message = `+${reward.coins} coins earned!`;
-    } else if (reward.ticket) {
-      const userTicketsOfType = userTickets.filter(t => t.user_id === userId && t.type === reward.ticket && !t.is_used && isBefore(new Date(), parseISO(t.expires_at)));
-      const ticketRule = TICKET_RULES[reward.ticket as TournamentType];
-      if (userTicketsOfType.length < ticketRule.max_quantity) {
-        const newTicket: UserTicket = {
-          id: uuidv4(),
-          user_id: userId,
-          type: reward.ticket as TournamentType,
-          is_used: false,
-          created_at: now.toISOString(),
-          expires_at: addDays(now, ticketRule.expiry_days).toISOString(),
-        };
-        set({ userTickets: [...userTickets, newTicket] });
-        message = `You earned a ${reward.ticket} Ticket!`;
-      } else {
-        message = `${reward.ticket} ticket limit reached. Use a ticket to earn more!`;
-      }
-    }
-    
-    const updatedStreak = { ...userStreak, current_day: newDay, last_claimed_at: now.toISOString() };
-    const updatedStreaks = userStreaks.some(s => s.user_id === userId)
-      ? userStreaks.map(s => s.user_id === userId ? updatedStreak : s)
-      : [...userStreaks, updatedStreak];
-    set({ userStreaks: updatedStreaks });
-
-    return { reward, message: `Streak: Day ${newDay}! ${message}` };
-  },
-
   addTicket: (userId, type) => {
     const { userTickets } = get();
     const now = new Date();
@@ -403,7 +427,6 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
       const updatedUsers = state.allUsers.map(user => {
         if (user.id === userId) {
           const newXp = (user.xp || 0) + amount;
-          const currentLevelIndex = mockLevelsConfig.findIndex(l => l.level_name === user.level);
           let finalLevelName = user.level || 'Amateur';
 
           for (let i = mockLevelsConfig.length - 1; i >= 0; i--) {
@@ -437,6 +460,12 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
         }
         return user;
       })
+    }));
+  },
+
+  setCoinBalance: (userId, newBalance) => {
+    set(state => ({
+      allUsers: state.allUsers.map(u => u.id === userId ? { ...u, coins_balance: newBalance } : u)
     }));
   },
 
@@ -560,7 +589,7 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
 
     const topPlayers = leaderboard.slice(0, 3).map(p => ({
       name: p.username,
-      score: 'points' in p ? p.points : p.totalPoints,
+      score: 'points' in p ? p.points : ('totalPoints' in p ? p.totalPoints : 0),
     }));
 
     const newFeedPost: LeagueFeedPost = {
@@ -791,7 +820,7 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
         
         const event = events.find(e => newMinute >= e.minute && lastKnownState.minute < e.minute);
         if (event) {
-            newScore = event.score;
+            newScore = { teamA: event.score.teamA, teamB: event.score.teamB };
         }
 
         const marketsToResolve = newMarkets.filter(m => m.status === 'open' && new Date(m.expires_at) < new Date());
@@ -858,6 +887,21 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
         };
       }),
     }));
+  },
+
+  tickFantasyGame: (gameWeekId, userId) => {
+    set(state => {
+      const userTeam = state.userFantasyTeams.find(t => t.gameWeekId === gameWeekId && t.userId === userId);
+      if (!userTeam) return state;
+
+      const { updatedTeam } = processGameWeek(userTeam, mockFantasyPlayers, mockPlayerGameWeekStats);
+
+      return {
+        userFantasyTeams: state.userFantasyTeams.map(t =>
+          (t.gameWeekId === gameWeekId && t.userId === userId) ? updatedTeam : t
+        )
+      };
+    });
   },
 
   updateUserFantasyTeam: (team) => {

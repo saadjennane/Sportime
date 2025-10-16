@@ -6,10 +6,8 @@ import { FantasyLeaderboardModal } from '../components/FantasyLeaderboardModal';
 import { mockBoosters } from '../data/mockFantasy.tsx';
 import { BoosterSelectionModal } from '../components/BoosterSelectionModal';
 import { FantasyRulesModal } from '../components/FantasyRulesModal';
-import { updateAllPlayerStatuses, processGameWeek } from '../services/fantasyService';
+import { processGameWeek } from '../services/fantasyService';
 import { mockPlayerLast10Stats, mockPlayerGameWeekStats } from '../data/mockPlayerStats';
-
-// New fantasy components
 import { GameWeekConditions } from '../components/fantasy/GameWeekConditions';
 import { FantasyPitch } from '../components/fantasy/FantasyPitch';
 import { Bench } from '../components/fantasy/Bench';
@@ -18,7 +16,6 @@ import { LivePointsBreakdown } from '../components/fantasy/LivePointsBreakdown';
 import { LinkGameButton } from '../components/leagues/LinkGameButton';
 import { useMockStore } from '../store/useMockStore';
 import { SubstitutionModal } from '../components/fantasy/SubstitutionModal';
-
 
 interface FantasyGameWeekPageProps {
   game: FantasyGame;
@@ -35,12 +32,10 @@ interface FantasyGameWeekPageProps {
 }
 
 export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) => {
-  const { game, allPlayers: initialPlayers, onBack, initialLeagueContext, allUsers, userLeagues, leagueMembers, leagueGames, currentUserId, onLinkGame, profile } = props;
+  const { game, allPlayers, onBack, initialLeagueContext, allUsers, userLeagues, leagueMembers, leagueGames, currentUserId, onLinkGame, profile } = props;
   
-  const { userFantasyTeams, updateUserFantasyTeam } = useMockStore();
+  const { userFantasyTeams, updateUserFantasyTeam, tickFantasyGame } = useMockStore();
   
-  const allPlayers = useMemo(() => updateAllPlayerStatuses(initialPlayers, mockPlayerLast10Stats), [initialPlayers]);
-
   const [selectedMatchDayId, setSelectedMatchDayId] = useState(initialLeagueContext ? game.gameWeeks[game.gameWeeks.length - 1].id : (game.gameWeeks.find(gw => gw.status === 'live')?.id || game.gameWeeks.find(gw => gw.status === 'upcoming')?.id || game.gameWeeks[0].id));
   
   const [editingSlot, setEditingSlot] = useState<{ position: PlayerPosition; playerToReplaceId: string | null } | null>(null);
@@ -57,19 +52,25 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
   const isLiveOrFinished = isLive || isFinished;
   
   const userTeam = useMemo(() => {
-    return userFantasyTeams.find(t => t.gameWeekId === selectedGameWeek.id);
-  }, [userFantasyTeams, selectedGameWeek.id]);
+    return userFantasyTeams.find(t => t.gameWeekId === selectedGameWeek.id && t.userId === currentUserId);
+  }, [userFantasyTeams, selectedGameWeek.id, currentUserId]);
 
-  const { simulationResult, updatedTeam } = useMemo(() => {
-    if (!userTeam || !isLiveOrFinished) return { simulationResult: null, updatedTeam: null };
-    return processGameWeek(userTeam, allPlayers, mockPlayerGameWeekStats);
-  }, [userTeam, allPlayers, isLiveOrFinished]);
-
+  // This effect will now handle the live game progression
   useEffect(() => {
-    if (updatedTeam && JSON.stringify(updatedTeam) !== JSON.stringify(userTeam)) {
-      updateUserFantasyTeam(updatedTeam);
+    if (isLive) {
+      const interval = setInterval(() => {
+        tickFantasyGame(selectedGameWeek.id, currentUserId);
+      }, 15000); // Tick every 15 seconds
+
+      return () => clearInterval(interval);
     }
-  }, [updatedTeam, userTeam, updateUserFantasyTeam]);
+  }, [isLive, selectedGameWeek.id, currentUserId, tickFantasyGame]);
+  
+  const { simulationResult } = useMemo(() => {
+    if (!userTeam || !isLiveOrFinished) return { simulationResult: null };
+    const { simulationResult } = processGameWeek(userTeam, allPlayers, mockPlayerGameWeekStats);
+    return { simulationResult };
+  }, [userTeam, allPlayers, isLiveOrFinished]);
 
   const { starters, substitutes, captainId } = useMemo(() => {
     if (!userTeam) return { starters: [], substitutes: [], captainId: null };
