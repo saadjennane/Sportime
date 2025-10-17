@@ -58,7 +58,7 @@ export const mockGames: SportimeGame[] = [
     end_date: '2025-07-17',
     entry_cost: TOURNAMENT_COSTS.elite.base * TOURNAMENT_COSTS.elite.multipliers.matchday,
     challengeBalance: 1000,
-    status: 'Upcoming',
+    status: 'Ongoing',
     totalPlayers: 8254,
     is_linkable: true,
     minimum_players: 100,

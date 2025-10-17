@@ -19,6 +19,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
   const [syncConfigs, setSyncConfigs] = useState<ApiSyncConfig[]>([]);
 
   const fetchSyncConfigs = useCallback(async () => {
+    if (!supabase) return;
     const { data, error } = await supabase.from('api_sync_config').select('*');
     if (error) {
       addToast('Failed to load sync configurations', 'error');
@@ -36,6 +37,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
   };
 
   const handleFrequencyChange = async (endpoint: string, frequency: string) => {
+    if (!supabase) return;
     const { error } = await supabase.from('api_sync_config').upsert({ id: endpoint, frequency }, { onConflict: 'id' });
     if (error) {
       addToast(`Failed to update frequency for ${endpoint}`, 'error');
@@ -46,6 +48,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
   };
 
   const syncLeagues = async (ids: string[]) => {
+    if (!supabase) return;
     addProgress(`Syncing ${ids.length} leagues...`);
     try {
       for (const id of ids) {
@@ -65,6 +68,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
   };
 
   const syncTeamsByLeague = async (leagueId: string, season: string) => {
+    if (!supabase) return [];
     addProgress(`Syncing teams for league ${leagueId}, season ${season}...`);
     try {
       const data = await fetchFromFootball<ApiTeamInfo>('teams', { league: leagueId, season });
@@ -86,6 +90,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
   };
 
   const syncPlayersByTeam = async (teamId: number, season: string) => {
+    if (!supabase) return;
     addProgress(`Syncing players for team ${teamId}...`);
     try {
       const data = await fetchFromFootball<ApiPlayerInfo>('players', { team: teamId.toString(), season });
@@ -108,6 +113,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
   };
 
   const handleFullImport = async () => {
+    if (!supabase) return;
     setLoading('import');
     setProgress([]);
     const ids = leagueIds.split(',').map(id => id.trim()).filter(Boolean);
@@ -131,6 +137,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
   };
   
   const handleManualSync = async (endpoint: string) => {
+    if (!supabase) return;
     setLoading(endpoint);
     setProgress([]);
     addProgress(`Starting manual sync for ${endpoint}...`);
@@ -191,6 +198,18 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
     
     setLoading(null);
   };
+
+  if (!supabase) {
+    return (
+      <div className="card-base p-5 space-y-4 text-center opacity-50">
+        <DatabaseZap className="w-10 h-10 mx-auto text-text-disabled" />
+        <h3 className="font-bold text-lg text-text-secondary">Data Sync Disabled</h3>
+        <p className="text-sm text-text-disabled">
+          Supabase is not configured. Please set <code>USE_SUPABASE</code> to <code>true</code> in <code>src/config/env.ts</code> and provide credentials in <code>.env</code> to enable this feature.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { SportimeGame, TournamentType, Profile, UserTicket, GameType } from '../types';
-import { format, parseISO, isBefore } from 'date-fns';
-import { Calendar, Coins, Gift, ArrowRight, Check, Clock, Users, Ticket, Ban, Star, Trophy, Award, ScrollText } from 'lucide-react';
+import { format, parseISO, isBefore, formatDistanceToNowStrict } from 'date-fns';
+import { Calendar, Coins, Gift, ArrowRight, Check, Clock, Users, Ticket, Ban, Star, Trophy, Award, ScrollText, Bell, Flame } from 'lucide-react';
 import { CtaState } from '../pages/GamesListPage';
 
 interface GameCardProps {
@@ -62,6 +62,7 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
 
   const isCancelled = game.status === 'Cancelled';
   const isJoinDisabled = ctaState === 'JOIN' && !hasTicket && !hasEnoughCoins;
+  const isInProgress = ctaState === 'IN_PROGRESS';
 
   const ctaConfig = {
     JOIN: { onClick: onJoinClick, disabled: isJoinDisabled, style: 'primary', content: joinButtonContent() },
@@ -70,6 +71,8 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
     AWAITING: { text: 'Matches Awaiting', onClick: () => {}, disabled: true, style: 'disabled', icon: <Clock size={16} /> },
     RESULTS: { text: 'View Results', onClick: onPlay, disabled: false, style: 'primary', icon: <ArrowRight size={16} /> },
     VIEW_TEAM: { text: 'View Team', onClick: onPlay, disabled: false, style: 'primary', icon: <ArrowRight size={16} /> },
+    NOTIFY: { text: 'Notify Me', onClick: () => alert('Notification set!'), disabled: false, style: 'secondary', icon: <Bell size={16} /> },
+    IN_PROGRESS: { text: 'In Progress', onClick: () => {}, disabled: true, style: 'disabled', icon: <Flame size={16} /> },
   };
 
   const currentCta = ctaConfig[ctaState];
@@ -86,8 +89,13 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
     game.required_badges && game.required_badges.length > 0 && <Award key="badge" size={14} title={`Requires ${game.required_badges.length} badge(s)`} />,
   ].filter(Boolean);
 
+  const startsIn = useMemo(() => {
+    if (game.status !== 'Upcoming') return null;
+    return formatDistanceToNowStrict(parseISO(game.start_date), { addSuffix: true, unit: 'day' });
+  }, [game.start_date, game.status]);
+
   return (
-    <div className={`card-base p-4 space-y-3 transition-all hover:border-neon-cyan/50 ${isCancelled ? 'opacity-60' : ''}`}>
+    <div className={`card-base p-4 space-y-3 transition-all hover:border-neon-cyan/50 ${isCancelled || isInProgress ? 'opacity-60' : ''}`}>
       {/* Top Section */}
       <div className="flex justify-between items-start">
         <div className="flex-1">
@@ -160,20 +168,23 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
           </button>
         </div>
         
-        <button 
-          onClick={currentCta.onClick} 
-          disabled={currentCta.disabled} 
-          className={`flex-1 flex items-center justify-center gap-2 font-bold rounded-lg transition-all ${buttonStyles[currentCta.style]}`}
-        >
-          {ctaState === 'JOIN' ? (
-            currentCta.content
-          ) : (
-            <>
-              <span>{currentCta.text}</span>
-              {currentCta.icon}
-            </>
-          )}
-        </button>
+        <div className="flex-1 flex justify-end items-center gap-2">
+          {startsIn && ctaState === 'NOTIFY' && <span className="text-xs text-text-disabled font-semibold">{startsIn}</span>}
+          <button 
+            onClick={currentCta.onClick} 
+            disabled={currentCta.disabled} 
+            className={`flex items-center justify-center gap-2 font-bold rounded-lg transition-all ${buttonStyles[currentCta.style]}`}
+          >
+            {ctaState === 'JOIN' ? (
+              currentCta.content
+            ) : (
+              <>
+                <span>{currentCta.text}</span>
+                {currentCta.icon}
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

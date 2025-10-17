@@ -33,9 +33,9 @@ export interface Bet {
 
 export type ChallengeStatus = 'Upcoming' | 'Ongoing' | 'Finished' | 'Cancelled' | 'Pending';
 export type TournamentType = 'rookie' | 'pro' | 'elite';
-export type DurationType = 'daily' | 'mini-series' | 'season';
+export type DurationType = 'daily' | 'mini-series' | 'seasonal';
 export type GameType = 'betting' | 'prediction' | 'fantasy' | 'fantasy-live';
-export type GameFormat = 'leaderboard' | 'knockout' | 'championship' | 'battle_royale';
+export type GameFormat = 'leaderboard' | 'knockout' | 'championship' | 'battle_royale' | 'classic';
 export type RewardTier = 'tier1' | 'tier2' | 'tier3';
 export type ConditionsLogic = 'and' | 'or';
 
@@ -654,4 +654,12 @@ export interface CelebrationEvent {
   topPlayers: { userId: string; username: string; rank: number; reward: RewardItem }[];
   createdAt: string;
   message: string;
+}
+
+export interface GameFilters {
+  type: GameType | 'all';
+  format: GameFormat | 'all';
+  tier: TournamentType | 'all';
+  duration: DurationType | 'all';
+  eligibleOnly: boolean;
 }

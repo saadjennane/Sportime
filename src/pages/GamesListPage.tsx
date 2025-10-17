@@ -1,11 +1,15 @@
 import React, { useState, useMemo } from 'react';
-import { SportimeGame, UserChallengeEntry, UserSwipeEntry, UserFantasyTeam, Profile, UserTicket } from '../types';
+import { SportimeGame, UserChallengeEntry, UserSwipeEntry, UserFantasyTeam, Profile, UserTicket, GameFilters } from '../types';
 import { GameCard } from '../components/GameCard';
-import { Gamepad2, UserCheck, ChevronDown } from 'lucide-react';
 import { RewardsPreviewModal } from '../components/RewardsPreviewModal';
 import { RulesModal } from '../components/RulesModal';
+import { GamesFilterPanel } from '../components/filters/GamesFilterPanel';
+import { checkEligibility } from '../lib/eligibility';
+import { GameSection } from '../components/GameSection';
+import { add, isWithinInterval, parseISO } from 'date-fns';
+import { Zap, Hourglass, Flame, Flag } from 'lucide-react';
 
-export type CtaState = 'JOIN' | 'PLAY' | 'SUBMITTED' | 'AWAITING' | 'RESULTS' | 'VIEW_TEAM';
+export type CtaState = 'JOIN' | 'PLAY' | 'SUBMITTED' | 'AWAITING' | 'RESULTS' | 'VIEW_TEAM' | 'NOTIFY' | 'IN_PROGRESS';
 
 interface GamesListPageProps {
   games: SportimeGame[];
@@ -22,22 +26,16 @@ interface GamesListPageProps {
   userTickets: UserTicket[];
 }
 
-const GamesListPage: React.FC<GamesListPageProps> = ({ 
-  games,
-  userChallengeEntries, 
-  userSwipeEntries,
-  userFantasyTeams,
-  onJoinChallenge, 
-  onViewChallenge, 
-  onJoinSwipeGame,
-  onPlaySwipeGame,
-  onViewFantasyGame,
-  myGamesCount,
-  profile,
-  userTickets,
-}) => {
-  const [activeTab, setActiveTab] = useState<'all' | 'my'>('all');
-  const [isFinishedVisible, setIsFinishedVisible] = useState(false);
+const GamesListPage: React.FC<GamesListPageProps> = (props) => {
+  const { games, userChallengeEntries, userSwipeEntries, userFantasyTeams, onJoinChallenge, onViewChallenge, onJoinSwipeGame, onPlaySwipeGame, onViewFantasyGame, profile, userTickets } = props;
+  
+  const [filters, setFilters] = useState<GameFilters>({
+    type: 'all',
+    format: 'all',
+    tier: 'all',
+    duration: 'all',
+    eligibleOnly: false,
+  });
   const [viewingRewardsFor, setViewingRewardsFor] = useState<SportimeGame | null>(null);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
 
@@ -50,39 +48,89 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
     return ids;
   }, [userChallengeEntries, userSwipeEntries, userFantasyTeams, profile]);
 
+  const processedGames = useMemo(() => {
+    return games
+      .map(game => {
+        const { isEligible } = checkEligibility(profile, game, userTickets);
+        return { ...game, isEligible };
+      })
+      .filter(game => {
+        if (filters.type !== 'all' && game.game_type !== filters.type) return false;
+        if (filters.format !== 'all' && game.format !== filters.format) return false;
+        if (filters.tier !== 'all' && game.tier !== filters.tier) return false;
+        if (filters.duration !== 'all' && game.duration_type !== filters.duration) return false;
+        if (filters.eligibleOnly && !game.isEligible) return false;
+        return true;
+      });
+  }, [games, profile, userTickets, filters]);
 
-  const sortedGames = useMemo(() => [...games].sort((a, b) => {
-    const statusOrder = { Upcoming: 0, Pending: 0, Ongoing: 1, Finished: 2, Cancelled: 3 };
-    return statusOrder[a.status] - statusOrder[b.status];
-  }), [games]);
+  const { playableToday, comingSoon, inProgress, finished } = useMemo(() => {
+    const now = new Date('2025-07-24T00:00:00Z'); // Fixed date for stable mock environment
+    const twentyFourHoursFromNow = add(now, { hours: 24 });
 
-  const baseFilteredGames = activeTab === 'all'
-    ? sortedGames
-    : sortedGames.filter(game => myGameIds.has(game.id));
+    const sections: {
+      playableToday: (SportimeGame & { isEligible: boolean })[];
+      comingSoon: (SportimeGame & { isEligible: boolean })[];
+      inProgress: (SportimeGame & { isEligible: boolean })[];
+      finished: (SportimeGame & { isEligible: boolean })[];
+    } = {
+      playableToday: [],
+      comingSoon: [],
+      inProgress: [],
+      finished: [],
+    };
 
-  const activeGames = baseFilteredGames.filter(g => g.status !== 'Finished' && g.status !== 'Cancelled');
-  const pastGames = baseFilteredGames.filter(g => g.status === 'Finished' || g.status === 'Cancelled');
+    for (const game of processedGames) {
+      const gameStartDate = parseISO(game.start_date);
+      const hasJoined = myGameIds.has(game.id);
 
-  const getCtaState = (game: SportimeGame): CtaState => {
+      if (game.status === 'Finished' || game.status === 'Cancelled') {
+        sections.finished.push(game);
+      } else if (game.status === 'Ongoing') {
+        if (hasJoined) {
+          sections.playableToday.push(game);
+        } else {
+          sections.inProgress.push(game);
+        }
+      } else if (game.status === 'Upcoming') {
+        if (gameStartDate <= twentyFourHoursFromNow) {
+          if (game.isEligible) {
+            sections.playableToday.push(game);
+          } else {
+            // Not eligible, but starts soon. It's "coming soon" for this user.
+            sections.comingSoon.push(game);
+          }
+        } else {
+          // Starts more than 24 hours from now.
+          sections.comingSoon.push(game);
+        }
+      }
+    }
+
+    const sortByStartDate = (a: SportimeGame, b: SportimeGame) => parseISO(a.start_date).getTime() - parseISO(b.start_date).getTime();
+    const sortByEndDateDesc = (a: SportimeGame, b: SportimeGame) => parseISO(b.end_date).getTime() - parseISO(a.end_date).getTime();
+
+    sections.playableToday.sort(sortByStartDate);
+    sections.comingSoon.sort(sortByStartDate);
+    sections.inProgress.sort(sortByStartDate);
+    sections.finished.sort(sortByEndDateDesc);
+
+    return sections;
+  }, [processedGames, myGameIds]);
+
+  const getCtaState = (game: SportimeGame & { isEligible: boolean }): CtaState => {
     const hasJoined = myGameIds.has(game.id);
+    const now = new Date('2025-07-24T00:00:00Z');
+    const isPlayableSoon = isWithinInterval(new Date(game.start_date), { start: now, end: add(now, { days: 1 }) });
     
-    if (!hasJoined) {
-        return 'JOIN';
-    }
+    if (game.status === 'Finished' || game.status === 'Cancelled') return 'RESULTS';
+    if (game.status === 'Ongoing' && !hasJoined) return 'IN_PROGRESS';
+    if (game.status === 'Upcoming' && !isPlayableSoon && !hasJoined) return 'NOTIFY';
+    if (!hasJoined) return 'JOIN';
 
-    if (game.status === 'Finished' || game.status === 'Cancelled') {
-        return 'RESULTS';
-    }
-    
-    if (game.game_type === 'fantasy') {
-      return 'VIEW_TEAM';
-    }
+    if (game.game_type === 'fantasy') return 'VIEW_TEAM';
+    if (game.status === 'Ongoing') return 'AWAITING';
 
-    if (game.status === 'Ongoing') {
-        return 'AWAITING';
-    }
-
-    // Status is 'Upcoming'
     if (game.game_type === 'betting') {
         const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
         if (!userEntry) return 'PLAY';
@@ -91,7 +139,6 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
             return totalBet >= (game.challengeBalance || 1000);
         });
         return isComplete ? 'SUBMITTED' : 'PLAY';
-
     } else { // prediction
         const userEntry = userSwipeEntries.find(e => e.matchDayId === game.id);
         if (!userEntry) return 'PLAY';
@@ -100,7 +147,7 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
     }
   };
 
-  const renderGameCard = (game: SportimeGame) => {
+  const renderGameCard = (game: SportimeGame & { isEligible: boolean }) => {
     const ctaState = getCtaState(game);
     
     let onPlayAction = () => {};
@@ -125,78 +172,23 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
 
   return (
     <div className="space-y-4">
-      <div className="flex bg-navy-accent rounded-xl p-1">
-        <button
-          onClick={() => setActiveTab('all')}
-          className={`flex-1 flex items-center justify-center gap-2 p-2 rounded-lg font-semibold transition-all ${
-            activeTab === 'all' ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'
-          }`}
-        >
-          <Gamepad2 size={16} /> All Games
-        </button>
-        <button
-          onClick={() => setActiveTab('my')}
-          className={`flex-1 flex items-center justify-center gap-2 p-2 rounded-lg font-semibold transition-all ${
-            activeTab === 'my' ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'
-          }`}
-        >
-          <UserCheck size={16} />
-          <span>My Games</span>
-          {myGamesCount > 0 && (
-            <span className={`ml-1.5 text-xs font-bold px-2 py-0.5 rounded-full transition-colors ${
-                activeTab === 'my' ? 'bg-neon-cyan/20 text-neon-cyan' : 'bg-disabled text-text-disabled'
-            }`}>
-              {myGamesCount}
-            </span>
-          )}
-        </button>
-      </div>
+      <GamesFilterPanel filters={filters} onFilterChange={setFilters} />
+      
+      <GameSection title="Playable Today" count={playableToday.length} icon={<Zap />} colorClass="text-lime-glow">
+        {playableToday.map(renderGameCard)}
+      </GameSection>
 
-      {baseFilteredGames.length === 0 ? (
-        <div className="card-base p-8 text-center animate-scale-in">
-          <div className="text-6xl mb-4">🤷</div>
-          <p className="text-text-secondary font-medium">
-            {activeTab === 'my' ? "You haven't played any games yet." : "No games available."}
-          </p>
-          {activeTab === 'my' && (
-            <p className="text-sm text-text-disabled mt-2">Go to "All Games" to join one!</p>
-          )}
-        </div>
-      ) : (
-        <>
-          {activeGames.length > 0 && (
-            <div className="space-y-4 animate-scale-in">
-              {activeGames.map(renderGameCard)}
-            </div>
-          )}
+      <GameSection title="Coming Soon" count={comingSoon.length} icon={<Hourglass />} colorClass="text-warm-yellow" defaultOpen={false}>
+        {comingSoon.map(renderGameCard)}
+      </GameSection>
 
-          {pastGames.length > 0 && (
-            <div className="card-base p-4 mt-4">
-              <button
-                onClick={() => setIsFinishedVisible(!isFinishedVisible)}
-                className="w-full flex justify-between items-center text-left"
-              >
-                <div className="flex items-center gap-3">
-                  <h3 className="text-lg font-bold text-text-secondary">Past Challenges</h3>
-                  <span className="bg-disabled text-text-disabled text-xs font-bold px-2.5 py-1 rounded-full">
-                    {pastGames.length}
-                  </span>
-                </div>
-                <ChevronDown
-                  className={`w-6 h-6 text-text-disabled transition-transform duration-300 ${
-                    isFinishedVisible ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
-              {isFinishedVisible && (
-                <div className="mt-4 space-y-4 border-t border-white/10 pt-4 animate-scale-in">
-                  {pastGames.map(renderGameCard)}
-                </div>
-              )}
-            </div>
-          )}
-        </>
-      )}
+      <GameSection title="In Progress" count={inProgress.length} icon={<Flame />} colorClass="text-orange-500" defaultOpen={false}>
+        {inProgress.map(renderGameCard)}
+      </GameSection>
+
+      <GameSection title="Finished" count={finished.length} icon={<Flag />} colorClass="text-text-disabled" defaultOpen={false}>
+        {finished.map(renderGameCard)}
+      </GameSection>
 
       {viewingRewardsFor && (
         <RewardsPreviewModal
