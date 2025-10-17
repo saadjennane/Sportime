@@ -70,7 +70,7 @@ export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = (props) => {
     if (!selectedMatchDay || selectedMatchDay.matches.length === 0) return null;
     const sortedMatches = [...selectedMatchDay.matches].sort((a, b) => a.kickoffTime.localeCompare(b.kickoffTime));
     const firstMatch = sortedMatches[0];
-    const deadlineDate = new Date(`${selectedMatchDay.startDate}T${firstMatch.kickoffTime}:00`);
+    const deadlineDate = new Date(`${selectedMatchDay.start_date}T${firstMatch.kickoffTime}:00`);
     return format(deadlineDate, "MMM d, yyyy 'at' h:mm a");
   }, [selectedMatchDay]);
 
@@ -78,8 +78,8 @@ export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = (props) => {
     return allMatchDays.map(md => ({
       id: md.id,
       name: md.name,
-      startDate: md.startDate,
-      endDate: md.endDate,
+      startDate: md.start_date,
+      endDate: md.end_date,
       leagues: [],
       status: md.status,
     }));

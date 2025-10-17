@@ -5,7 +5,8 @@ export const mockLevelsConfig: LevelConfig[] = [
   { id: 'level-2', level_name: 'Pro', min_xp: 1000, max_xp: 4999, level_icon_url: '🥈' },
   { id: 'level-3', level_name: 'Expert', min_xp: 5000, max_xp: 9999, level_icon_url: '🥇' },
   { id: 'level-4', level_name: 'Master', min_xp: 10000, max_xp: 19999, level_icon_url: '🏆' },
-  { id: 'level-5', level_name: 'Legend', min_xp: 20000, max_xp: Infinity, level_icon_url: '👑' },
+  { id: 'level-5', level_name: 'Legend', min_xp: 20000, max_xp: 49999, level_icon_url: '👑' },
+  { id: 'level-6', level_name: 'GOAT', min_xp: 50000, max_xp: Infinity, level_icon_url: '🐐' },
 ];
 
 export const mockBadges: Badge[] = [

@@ -172,6 +172,7 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
           <option value="Expert">Min Level: Expert</option>
           <option value="Master">Min Level: Master</option>
           <option value="Legend">Min Level: Legend</option>
+          <option value="GOAT">Min Level: GOAT</option>
         </select>
         <MultiSelect options={mockBadges.map(b => ({ value: b.id, label: b.name }))} selectedValues={formState.required_badges} onChange={handleBadgeChange} placeholder="Select required badges..." />
       </div>

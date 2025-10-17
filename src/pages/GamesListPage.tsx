@@ -3,6 +3,7 @@ import { SportimeGame, UserChallengeEntry, UserSwipeEntry, UserFantasyTeam, Prof
 import { GameCard } from '../components/GameCard';
 import { Gamepad2, UserCheck, ChevronDown } from 'lucide-react';
 import { RewardsPreviewModal } from '../components/RewardsPreviewModal';
+import { RulesModal } from '../components/RulesModal';
 
 export type CtaState = 'JOIN' | 'PLAY' | 'SUBMITTED' | 'AWAITING' | 'RESULTS' | 'VIEW_TEAM';
 
@@ -38,6 +39,7 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
   const [activeTab, setActiveTab] = useState<'all' | 'my'>('all');
   const [isFinishedVisible, setIsFinishedVisible] = useState(false);
   const [viewingRewardsFor, setViewingRewardsFor] = useState<SportimeGame | null>(null);
+  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
 
   const myGameIds = useMemo(() => {
     if (!profile) return new Set();
@@ -114,6 +116,7 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
         onJoinClick={() => game.game_type === 'betting' ? onJoinChallenge(game) : onJoinSwipeGame(game.id)}
         onPlay={onPlayAction}
         onShowRewards={() => setViewingRewardsFor(game)}
+        onShowRules={() => setIsRulesModalOpen(true)}
         profile={profile}
         userTickets={userTickets}
       />
@@ -202,6 +205,11 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
           game={viewingRewardsFor}
         />
       )}
+      
+      <RulesModal 
+        isOpen={isRulesModalOpen}
+        onClose={() => setIsRulesModalOpen(false)}
+      />
     </div>
   );
 };

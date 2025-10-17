@@ -26,32 +26,41 @@ const getRewardLabel = (reward: RewardItem) => {
   return label;
 };
 
-const getRankLabel = (tier: GameRewardTier): string => {
-  if (tier.positionType === 'rank') {
-    if (tier.start === 1) return '🥇 1st Place';
-    if (tier.start === 2) return '🥈 2nd Place';
-    if (tier.start === 3) return '🥉 3rd Place';
-    return `Rank ${tier.start}`;
+const getRankLabel = (line: GameRewardTier): string => {
+  if (line.positionType === 'rank') {
+    if (line.start === 1) return '🥇 1st Place';
+    if (line.start === 2) return '🥈 2nd Place';
+    if (line.start === 3) return '🥉 3rd Place';
+    return `Rank ${line.start}`;
   }
-  if (tier.positionType === 'range') {
-    return `Ranks ${tier.start} - ${tier.end}`;
+  if (line.positionType === 'range') {
+    return `Ranks ${line.start} - ${line.end}`;
   }
-  if (tier.positionType === 'percent') {
-    return `Top ${tier.start}%`;
+  if (line.positionType === 'percent') {
+    return `Top ${line.start}%`;
   }
   return 'Unknown Rank';
 };
 
+const getRankColor = (line: GameRewardTier) => {
+  if (line.positionType === 'rank') {
+    if (line.start === 1) return 'text-yellow-400';
+    if (line.start === 2) return 'text-gray-300';
+    if (line.start === 3) return 'text-orange-400';
+  }
+  return 'text-electric-blue';
+};
+
+
 const SortableRewardLine: React.FC<{
   line: GameRewardTier;
-  onUpdate: (lineId: string, updates: Partial<GameRewardTier>) => void;
   onDelete: (lineId: string) => void;
   onAddReward: (lineId: string) => void;
   onEditReward: (lineId: string, reward: RewardItem) => void;
   onDeleteReward: (lineId: string, rewardId: string) => void;
   onClearLine: (lineId: string) => void;
 }> = (props) => {
-  const { line, onUpdate, onDelete, onAddReward, onEditReward, onDeleteReward, onClearLine } = props;
+  const { line, onDelete, onAddReward, onEditReward, onDeleteReward, onClearLine } = props;
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: line.id });
 
   const style = {
@@ -65,7 +74,7 @@ const SortableRewardLine: React.FC<{
         <button {...attributes} {...listeners} className="p-1 text-text-disabled cursor-grab active:cursor-grabbing">
           <GripVertical size={16} />
         </button>
-        <p className="font-bold text-electric-blue flex-1">{getRankLabel(line)}</p>
+        <p className={`font-bold flex-1 ${getRankColor(line)}`}>{getRankLabel(line)}</p>
         <button type="button" onClick={() => onClearLine(line.id)} className="p-1 text-xs text-warm-yellow hover:underline">Clear</button>
         <button type="button" onClick={() => onDelete(line.id)} className="p-1 text-hot-red hover:bg-hot-red/10 rounded-full"><Trash2 size={14} /></button>
       </div>
@@ -108,12 +117,6 @@ export const RewardsConfigurator: React.FC<RewardsConfiguratorProps> = ({ reward
       setRewardLines(newOrder);
       onRewardsChange(newOrder);
     }
-  };
-
-  const handleUpdateLine = (lineId: string, updates: Partial<GameRewardTier>) => {
-    const newLines = rewardLines.map(line => line.id === lineId ? { ...line, ...updates } : line);
-    setRewardLines(newLines);
-    onRewardsChange(newLines);
   };
 
   const handleDeleteLine = (lineId: string) => {
@@ -219,7 +222,6 @@ export const RewardsConfigurator: React.FC<RewardsConfiguratorProps> = ({ reward
               <SortableRewardLine
                 key={line.id}
                 line={line}
-                onUpdate={handleUpdateLine}
                 onDelete={handleDeleteLine}
                 onAddReward={handleAddReward}
                 onEditReward={handleEditReward}

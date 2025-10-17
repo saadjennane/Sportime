@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { SportimeGame, TournamentType, Profile, UserTicket, GameType } from '../types';
 import { format, parseISO, isBefore } from 'date-fns';
-import { Calendar, Coins, Gift, ArrowRight, Check, Clock, Users, Ticket, Ban, Star, Trophy, Award } from 'lucide-react';
+import { Calendar, Coins, Gift, ArrowRight, Check, Clock, Users, Ticket, Ban, Star, Trophy, Award, ScrollText } from 'lucide-react';
 import { CtaState } from '../pages/GamesListPage';
 
 interface GameCardProps {
@@ -10,6 +10,7 @@ interface GameCardProps {
   onJoinClick: () => void;
   onPlay: () => void;
   onShowRewards: () => void;
+  onShowRules: () => void;
   profile: Profile | null;
   userTickets: UserTicket[];
 }
@@ -27,7 +28,7 @@ const tournamentTierDetails: Record<TournamentType, { label: string; color: stri
   elite: { label: 'Elite', color: 'bg-hot-red/20 text-hot-red' },
 };
 
-export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick, onPlay, onShowRewards, profile, userTickets }) => {
+export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick, onPlay, onShowRewards, onShowRules, profile, userTickets }) => {
   const details = gameTypeDetails[game.game_type as keyof typeof gameTypeDetails];
   const tierDetails = game.tier ? tournamentTierDetails[game.tier] : null;
 
@@ -140,15 +141,24 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
       
       {/* Bottom Section - Actions */}
       <div className={`flex items-center justify-between border-t border-white/10 pt-3 gap-2 ${isCancelled ? 'hidden' : ''}`}>
-        {game.rewards && game.rewards.length > 0 && (
+        <div className="flex items-center gap-2">
+          {game.rewards && game.rewards.length > 0 && (
+            <button
+              onClick={onShowRewards}
+              className="flex items-center justify-center p-2 rounded-lg transition-all bg-navy-accent text-text-secondary hover:bg-white/10"
+              title="View Rewards"
+            >
+              <Gift size={20} />
+            </button>
+          )}
           <button
-            onClick={onShowRewards}
-            className="flex items-center justify-center gap-2 font-semibold py-2 px-4 rounded-lg transition-all text-sm bg-navy-accent text-text-secondary hover:bg-white/10"
+            onClick={onShowRules}
+            className="flex items-center justify-center p-2 rounded-lg transition-all bg-navy-accent text-text-secondary hover:bg-white/10"
+            title="View Rules"
           >
-            <Gift size={16} />
-            Rewards
+            <ScrollText size={20} />
           </button>
-        )}
+        </div>
         
         <button 
           onClick={currentCta.onClick} 

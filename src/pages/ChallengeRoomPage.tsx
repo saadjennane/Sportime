@@ -57,7 +57,7 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   const [selectedDay, setSelectedDay] = useState<number>(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const challengeStartDate = parseISO(challenge.startDate);
+    const challengeStartDate = parseISO(challenge.start_date);
 
     for (const dailyEntry of userEntry.dailyEntries) {
         const dayDate = addDays(challengeStartDate, dailyEntry.day - 1);
@@ -74,7 +74,7 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
 
   const matchDaysForSwitcher = useMemo(() => {
     return userEntry.dailyEntries.map(dailyEntry => {
-      const date = addDays(parseISO(challenge.startDate), dailyEntry.day - 1);
+      const date = addDays(parseISO(challenge.start_date), dailyEntry.day - 1);
       return {
         id: dailyEntry.day.toString(),
         name: `Day ${dailyEntry.day}`,
@@ -84,7 +84,7 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
         status: challenge.status,
       };
     });
-  }, [userEntry.dailyEntries, challenge.startDate, challenge.status]);
+  }, [userEntry.dailyEntries, challenge.start_date, challenge.status]);
 
   const handleBetChange = (day: number, matchId: string, prediction: 'teamA' | 'draw' | 'teamB' | null, amount: number) => {
     const dailyEntry = userEntry.dailyEntries.find(d => d.day === day);

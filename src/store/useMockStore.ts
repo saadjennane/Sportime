@@ -75,6 +75,7 @@ interface MockDataState {
   rewardPacks: typeof BASE_REWARD_PACKS;
   isTestMode: boolean;
   showOnboardingTest: boolean;
+  currentUserId: string | null;
 }
 
 interface MockDataActions {
@@ -117,6 +118,12 @@ interface MockDataActions {
   openOnboardingTest: () => void;
   closeOnboardingTest: () => void;
   updateBasePack: (tier: TournamentType, format: string, updatedPack: GameRewardTier[]) => void;
+  setCurrentUserId: (userId: string | null) => void;
+  updateUser: (userId: string, updates: Partial<Profile>) => void;
+  ensureUserExists: (user: Profile) => void;
+  joinLeague: (inviteCode: string, userId: string, callback: (league: UserLeague | null) => void) => void;
+  handleSwipePrediction: (matchDayId: string, userId: string, matchId: string, prediction: any) => void;
+  updateSwipePrediction: (matchDayId: string, userId: string, matchId: string, prediction: any) => void;
 }
 
 export const generateBonusQuestions = (predictedScore: { home: number, away: number }): BonusQuestion[] => {
@@ -176,7 +183,30 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
   rewardPacks: BASE_REWARD_PACKS,
   isTestMode: false,
   showOnboardingTest: false,
+  currentUserId: null,
 
+  setCurrentUserId: (userId) => set({ currentUserId: userId }),
+
+  updateUser: (userId, updates) => {
+    set(state => ({
+      allUsers: state.allUsers.map(u => 
+        u.id === userId ? { ...u, ...updates } : u
+      )
+    }));
+  },
+
+  ensureUserExists: (user) => {
+    set(state => {
+      const userExists = state.allUsers.some(u => u.id === user.id);
+      if (userExists) {
+        return {
+          allUsers: state.allUsers.map(u => u.id === user.id ? { ...u, ...user } : u)
+        };
+      }
+      return { allUsers: [...state.allUsers, user] };
+    });
+  },
+  
   updateBasePack: (tier, format, updatedPack) => {
     set(state => {
       const newRewardPacks = { ...state.rewardPacks };
@@ -525,6 +555,57 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
     });
 
     return newLeague;
+  },
+
+  joinLeague: (inviteCode, userId, callback) => {
+    const { userLeagues, leagueMembers } = get();
+    const leagueToJoin = userLeagues.find(l => l.invite_code === inviteCode);
+    if (!leagueToJoin) {
+      callback(null);
+      return;
+    }
+    const isMember = leagueMembers.some(m => m.league_id === leagueToJoin.id && m.user_id === userId);
+    if (isMember) {
+      callback(leagueToJoin);
+      return;
+    }
+    const newMember: LeagueMember = {
+      id: uuidv4(),
+      league_id: leagueToJoin.id,
+      user_id: userId,
+      role: 'member',
+      joined_at: new Date().toISOString(),
+    };
+    set({ leagueMembers: [...leagueMembers, newMember] });
+    callback(leagueToJoin);
+  },
+
+  handleSwipePrediction: (matchDayId, userId, matchId, prediction) => {
+    set(state => {
+      let entry = state.userSwipeEntries.find(e => e.matchDayId === matchDayId && e.user_id === userId);
+      if (entry) {
+        const newPredictions = [...entry.predictions, { matchId, prediction }];
+        return {
+          userSwipeEntries: state.userSwipeEntries.map(e => e.id === entry!.id ? { ...e, predictions: newPredictions } : e)
+        };
+      }
+      // This part might need adjustment if users can predict without joining first
+      return state;
+    });
+  },
+
+  updateSwipePrediction: (matchDayId, userId, matchId, prediction) => {
+    set(state => ({
+      userSwipeEntries: state.userSwipeEntries.map(e => {
+        if (e.matchDayId === matchDayId && e.user_id === userId) {
+          return {
+            ...e,
+            predictions: e.predictions.map(p => p.matchId === matchId ? { ...p, prediction } : p)
+          };
+        }
+        return e;
+      })
+    }));
   },
 
   linkGameToLeagues: (game, leagueIds) => {

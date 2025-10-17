@@ -59,21 +59,21 @@ const SwipeLeaderboardPage: React.FC<SwipeLeaderboardPageProps> = (props) => {
     if (currentLeague) {
       return {
         start_type: 'season_start', end_type: 'season_end',
-        start_date: currentLeague.season_start_date || matchDay.startDate,
-        end_date: currentLeague.season_end_date || matchDay.endDate,
+        start_date: currentLeague.season_start_date || matchDay.start_date,
+        end_date: currentLeague.season_end_date || matchDay.end_date,
       };
     }
     return {
       start_type: 'season_start', end_type: 'season_end',
-      start_date: matchDay.startDate,
-      end_date: matchDay.endDate,
+      start_date: matchDay.start_date,
+      end_date: matchDay.end_date,
     };
   }, [leagueGame, currentLeague, matchDay]);
 
   const isGameInPeriod = useMemo(() => {
     const interval = { start: parseISO(activePeriod.start_date), end: parseISO(activePeriod.end_date) };
-    return isWithinInterval(parseISO(matchDay.startDate), interval);
-  }, [activePeriod, matchDay.startDate]);
+    return isWithinInterval(parseISO(matchDay.start_date), interval);
+  }, [activePeriod, matchDay.start_date]);
 
   const fullLeaderboard = useMemo(() => {
     const otherUsers = allUsers.filter(u => u.id !== currentUserId);
@@ -81,12 +81,12 @@ const SwipeLeaderboardPage: React.FC<SwipeLeaderboardPageProps> = (props) => {
 
     if (userEntry) {
       const userPoints = isGameInPeriod ? calculateSwipePoints(userEntry, matchDay) : 0;
-      allEntries.push({ username: 'You', points: userPoints, userId: currentUserId });
+      allEntries.push({ username: 'You', points: userPoints, userId: currentUserId, correct_picks: 0, submission_timestamp: 0 });
     }
 
     otherUsers.forEach(user => {
       const points = isGameInPeriod ? Math.floor(Math.random() * 500) : 0;
-      allEntries.push({ username: user.username || 'Player', points, userId: user.id });
+      allEntries.push({ username: user.username || 'Player', points, userId: user.id, correct_picks: 0, submission_timestamp: 0 });
     });
 
     return allEntries

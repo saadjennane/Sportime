@@ -2,6 +2,7 @@ import { SportimeGame } from '../types';
 import { TOURNAMENT_COSTS } from '../config/constants';
 import { mockSwipeMatchDays } from './mockSwipeGames';
 import { mockFantasyGame } from './mockFantasy.tsx';
+import { BASE_REWARD_PACKS } from '../config/rewardPacks';
 
 export const mockGames: SportimeGame[] = [
   // Betting Challenges
@@ -10,7 +11,7 @@ export const mockGames: SportimeGame[] = [
     name: 'Summer Showdown',
     game_type: 'betting',
     tier: 'rookie',
-    duration_type: 'mini',
+    duration_type: 'mini-series',
     start_date: '2025-07-25',
     end_date: '2025-07-26',
     entry_cost: TOURNAMENT_COSTS.rookie.base * TOURNAMENT_COSTS.rookie.multipliers["mini-series"],
@@ -24,6 +25,7 @@ export const mockGames: SportimeGame[] = [
     required_badges: [],
     minimum_level: 'Amateur',
     participants: [],
+    rewards: BASE_REWARD_PACKS.rookie["mini-series"],
   },
   {
     id: 'challenge-1',
@@ -44,6 +46,7 @@ export const mockGames: SportimeGame[] = [
     required_badges: [],
     minimum_level: 'Pro',
     participants: [],
+    rewards: BASE_REWARD_PACKS.pro.matchday,
   },
   {
     id: 'challenge-2',
@@ -64,6 +67,7 @@ export const mockGames: SportimeGame[] = [
     required_badges: ['badge-4'],
     minimum_level: 'Expert',
     participants: [],
+    rewards: BASE_REWARD_PACKS.elite.matchday,
   },
   {
     id: 'challenge-3',
@@ -83,6 +87,7 @@ export const mockGames: SportimeGame[] = [
     required_badges: [],
     minimum_level: 'Amateur',
     participants: [],
+    rewards: [],
   },
   // Prediction Games
   ...mockSwipeMatchDays.map(md => ({
@@ -105,6 +110,7 @@ export const mockGames: SportimeGame[] = [
     minimum_players: 0,
     maximum_players: 0,
     participants: [],
+    rewards: BASE_REWARD_PACKS.rookie.matchday,
   })),
   // Fantasy Game
   {
@@ -119,6 +125,7 @@ export const mockGames: SportimeGame[] = [
     gameWeeks: mockFantasyGame.gameWeeks,
     description: 'The official season-long fantasy game.',
     tier: 'pro',
+    duration_type: 'seasonal',
     is_linkable: true,
     requires_subscription: false,
     minimum_level: 'Pro',
@@ -126,5 +133,6 @@ export const mockGames: SportimeGame[] = [
     minimum_players: 100,
     maximum_players: 0,
     participants: [],
+    rewards: BASE_REWARD_PACKS.pro.season,
   },
 ];
