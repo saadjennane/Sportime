@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, Ticket } from 'lucide-react';
 import { UserTicket, TournamentType } from '../types';
-import { formatDistanceToNowStrict, parseISO, isBefore } from 'date-fns';
+import { formatDistanceToNowStrict, parseISO, isBefore, format } from 'date-fns';
 
 interface TicketWalletModalProps {
   isOpen: boolean;
