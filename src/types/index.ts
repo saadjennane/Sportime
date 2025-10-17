@@ -41,7 +41,7 @@ export type ConditionsLogic = 'and' | 'or';
 
 export interface RewardItem {
   id: string;
-  type: "ticket" | "spin" | "xp" | "giftcard" | "masterpass" | "custom" | "premium_3d" | "premium_7d";
+  type: "ticket" | "spin" | "xp" | "giftcard" | "masterpass" | "custom" | "premium_3d" | "premium_7d" | "coins";
   tier?: "rookie" | "pro" | "elite";
   value?: number | string;
   name?: string;
@@ -643,4 +643,15 @@ export interface SpinTelemetryLog {
   pity_active: boolean;
   inventory_snapshot: any;
   timestamp: string;
+}
+
+export interface CelebrationEvent {
+  id: string;
+  gameId: string;
+  gameName: string;
+  type: 'seasonal' | 'private_league';
+  period: { start: string; end: string };
+  topPlayers: { userId: string; username: string; rank: number; reward: RewardItem }[];
+  createdAt: string;
+  message: string;
 }

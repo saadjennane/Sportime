@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
-import { Profile } from '../types';
-import { Gamepad2, Star, DatabaseZap, Terminal } from 'lucide-react';
+import { Profile, SportimeGame, RewardItem } from '../types';
+import { Gamepad2, Star, DatabaseZap, Terminal, Newspaper } from 'lucide-react';
 import { useMockStore } from '../store/useMockStore';
-import { ChallengesAdmin } from '../components/ChallengesAdmin';
+import { ChallengesAdmin } from '../components/admin/ChallengesAdmin';
 import { ProgressionAdmin } from '../components/ProgressionAdmin';
 import { DataSyncAdmin } from '../components/DataSyncAdmin';
 import { TestModeToggle } from '../components/TestModeToggle';
 import { Coins, Trash2, Play } from 'lucide-react';
+import { CelebrateSeasonalWinnersModal } from '../components/admin/CelebrateSeasonalWinnersModal';
+import { CelebrationFeed } from '../components/admin/CelebrationFeed';
 
-type AdminSection = 'challenges' | 'progression' | 'datasync' | 'developer';
+type AdminSection = 'challenges' | 'progression' | 'datasync' | 'feed' | 'developer';
 
 interface AdminPageProps {
   profile: Profile | null;
@@ -29,6 +31,8 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
     openOnboardingTest,
     updateBasePack,
     updateGameRewards,
+    celebrations,
+    celebrateSeasonalWinners,
   } = useMockStore(state => ({
     games: state.games,
     createGame: state.createGame,
@@ -42,13 +46,22 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
     openOnboardingTest: state.openOnboardingTest,
     updateBasePack: state.updateBasePack,
     updateGameRewards: state.updateGameRewards,
+    celebrations: state.celebrations,
+    celebrateSeasonalWinners: state.celebrateSeasonalWinners,
   }));
 
   const [activeSection, setActiveSection] = useState<AdminSection>('challenges');
+  const [celebratingGame, setCelebratingGame] = useState<SportimeGame | null>(null);
 
   const handleStartChallenge = (challengeId: string) => {
     const result = processChallengeStart(challengeId);
     addToast(result.message, result.success ? 'success' : 'error');
+  };
+
+  const handleConfirmCelebration = (gameId: string, period: { start: string; end: string }, topN: number, reward: RewardItem, message: string) => {
+    celebrateSeasonalWinners(gameId, period, topN, reward, message);
+    addToast('Seasonal winners celebrated successfully!', 'success');
+    setCelebratingGame(null);
   };
 
   const AdminSectionButton: React.FC<{ section: AdminSection, icon: React.ReactNode, label: string }> = ({ section, icon, label }) => (
@@ -62,8 +75,9 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 sm:grid-cols-4 bg-navy-accent rounded-xl p-1 gap-1">
+      <div className="grid grid-cols-3 sm:grid-cols-5 bg-navy-accent rounded-xl p-1 gap-1">
         <AdminSectionButton section="challenges" icon={<Gamepad2 size={16} />} label="Games" />
+        <AdminSectionButton section="feed" icon={<Newspaper size={16} />} label="Feed" />
         <AdminSectionButton section="progression" icon={<Star size={16} />} label="Progression" />
         <AdminSectionButton section="datasync" icon={<DatabaseZap size={16} />} label="Data Sync" />
         <AdminSectionButton section="developer" icon={<Terminal size={16} />} label="Dev" />
@@ -78,7 +92,14 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
             addToast={addToast}
             updateBasePack={updateBasePack}
             updateGameRewards={updateGameRewards}
+            onCelebrate={setCelebratingGame}
           />
+        </div>
+      )}
+      
+      {activeSection === 'feed' && (
+        <div className="animate-scale-in">
+          <CelebrationFeed celebrations={celebrations} />
         </div>
       )}
 
@@ -143,6 +164,15 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
             </button>
           </div>
         </div>
+      )}
+
+      {celebratingGame && (
+        <CelebrateSeasonalWinnersModal
+          isOpen={!!celebratingGame}
+          onClose={() => setCelebratingGame(null)}
+          game={celebratingGame}
+          onConfirm={handleConfirmCelebration}
+        />
       )}
     </div>
   );

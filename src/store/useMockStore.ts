@@ -29,6 +29,8 @@ import {
   TournamentType,
   ChallengeStatus,
   GameRewardTier,
+  CelebrationEvent,
+  RewardItem,
 } from '../types';
 import { isToday, addDays, isBefore, parseISO, differenceInHours } from 'date-fns';
 import { DAILY_STREAK_REWARDS, STREAK_RESET_THRESHOLD_HOURS, TICKET_RULES } from '../config/constants';
@@ -73,6 +75,7 @@ interface MockDataState {
   levels: typeof mockLevelsConfig;
   badges: typeof mockBadges;
   rewardPacks: typeof BASE_REWARD_PACKS;
+  celebrations: CelebrationEvent[];
   isTestMode: boolean;
   showOnboardingTest: boolean;
   currentUserId: string | null;
@@ -97,6 +100,7 @@ interface MockDataActions {
     message: string, 
     adminId: string
   ) => { success: boolean, error?: string };
+  celebrateSeasonalWinners: (gameId: string, period: { start: string; end: string }, topN: number, reward: RewardItem, message: string) => void;
   toggleFeedPostLike: (postId: string, userId: string) => void;
   createPrivateLeagueGame: (leagueId: string, config: PrivateLeagueGameConfig) => void;
   createLiveGame: (leagueId: string, match: Match, mode: 'prediction' | 'betting' | 'fantasy-live') => void;
@@ -181,6 +185,7 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
   levels: mockLevelsConfig,
   badges: mockBadges,
   rewardPacks: BASE_REWARD_PACKS,
+  celebrations: [],
   isTestMode: false,
   showOnboardingTest: false,
   currentUserId: null,
@@ -338,7 +343,7 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
 
   cancelGame: (gameId) => {
     set(state => ({
-      games: state.games.map(g => g.id === gameId ? { ...g, status: 'Cancelled' } : g)
+      games: state.games.map(g => g.id === gameId ? { ...g, status: 'Cancelled' as ChallengeStatus } : g)
     }));
   },
 
@@ -720,6 +725,69 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
     });
 
     return { success: true };
+  },
+
+  celebrateSeasonalWinners: (gameId, period, topN, reward, message) => {
+    const { games, allUsers, leaderboardScores, addXp, setCoinBalance, addTicket } = get();
+    const game = games.find(g => g.id === gameId);
+    if (!game || game.duration_type !== 'seasonal' || !game.gameWeeks) return;
+
+    const periodStart = new Date(period.start);
+    const periodEnd = new Date(period.end);
+
+    const relevantGameWeeks = game.gameWeeks.filter(gw => {
+        const gwDate = new Date(gw.startDate);
+        return gwDate >= periodStart && gwDate <= periodEnd;
+    });
+    const relevantGameWeekIds = new Set(relevantGameWeeks.map(gw => gw.id));
+
+    const playerScores = allUsers.map(user => {
+        let totalScore = 0;
+        const userScores = leaderboardScores[game.id]?.[user.id];
+        if (userScores) {
+            for (const gwId in userScores) {
+                if (relevantGameWeekIds.has(gwId)) {
+                    totalScore += userScores[gwId];
+                }
+            }
+        }
+        return { userId: user.id, username: user.username || 'Player', score: totalScore };
+    });
+
+    const winners = playerScores.sort((a, b) => b.score - a.score).slice(0, topN);
+
+    // Dispatch rewards
+    winners.forEach(winner => {
+        switch (reward.type) {
+            case 'coins':
+                setCoinBalance(winner.userId, (allUsers.find(u => u.id === winner.userId)?.coins_balance || 0) + (reward.value as number));
+                break;
+            case 'xp':
+                addXp(winner.userId, reward.value as number);
+                break;
+            case 'ticket':
+                addTicket(winner.userId, reward.tier as TournamentType);
+                break;
+        }
+    });
+
+    const newEvent: CelebrationEvent = {
+        id: uuidv4(),
+        gameId,
+        gameName: game.name,
+        type: 'seasonal',
+        period,
+        topPlayers: winners.map((winner, index) => ({
+            userId: winner.userId,
+            username: winner.username,
+            rank: index + 1,
+            reward: { ...reward, id: uuidv4() }
+        })),
+        createdAt: new Date().toISOString(),
+        message,
+    };
+
+    set(state => ({ celebrations: [newEvent, ...state.celebrations] }));
   },
 
   toggleFeedPostLike: (postId, userId) => {
