@@ -1,13 +1,18 @@
-import React, { useState, useMemo } from 'react';
-import { SportimeGame, TournamentType, GameType, GameFormat, RewardTier, ConditionsLogic } from '../../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { SportimeGame, TournamentType, GameType, GameFormat, RewardTier, ConditionsLogic, GameRewardTier } from '../../types';
 import { TOURNAMENT_COSTS } from '../../config/constants';
 import { mockBadges } from '../../data/mockProgression';
 import { mockLeagues } from '../../data/mockLeagues';
 import { MultiSelect } from './MultiSelect';
+import { RewardsConfigurator } from './RewardsConfigurator';
+import { ChevronDown } from 'lucide-react';
+import { useMockStore } from '../../store/useMockStore';
+import { BASE_REWARD_PACKS } from '../../config/rewardPacks';
 
 interface GameCreationFormProps {
   onCreate: (config: Omit<SportimeGame, 'id' | 'status' | 'totalPlayers' | 'participants'>) => void;
   onCancel: () => void;
+  addToast: (message: string, type: 'success' | 'error' | 'info') => void;
 }
 
 const initialFormState: Omit<SportimeGame, 'id' | 'status' | 'totalPlayers' | 'participants'> = {
@@ -18,6 +23,7 @@ const initialFormState: Omit<SportimeGame, 'id' | 'status' | 'totalPlayers' | 'p
   end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
   game_type: 'betting',
   tier: 'rookie',
+  duration_type: 'daily',
   entry_cost: 2000,
   custom_entry_cost_enabled: false,
   is_linkable: true,
@@ -29,15 +35,36 @@ const initialFormState: Omit<SportimeGame, 'id' | 'status' | 'totalPlayers' | 'p
   conditions_logic: 'and',
   minimum_players: 0,
   maximum_players: 0,
-  duration_type: 'daily',
+  rewards: [],
 };
 
-export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, onCancel }) => {
+export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, onCancel, addToast }) => {
   const [formState, setFormState] = useState(initialFormState);
+  const [isRewardsOpen, setIsRewardsOpen] = useState(false);
+  const { updateBasePack } = useMockStore();
+
+  useEffect(() => {
+    if (!formState.tier || !formState.duration_type) return;
+
+    const durationMap: Record<string, string> = {
+      daily: 'matchday',
+      'mini-series': 'mini-series',
+      seasonal: 'season'
+    };
+    const normalizedKey = durationMap[formState.duration_type] || formState.duration_type;
+    const basePack = BASE_REWARD_PACKS?.[formState.tier]?.[normalizedKey];
+
+    if (basePack) {
+      const deepCopied = JSON.parse(JSON.stringify(basePack));
+      setFormState(prev => ({ ...prev, rewards: deepCopied }));
+    } else {
+        setFormState(prev => ({ ...prev, rewards: [] }));
+    }
+  }, [formState.tier, formState.duration_type]);
 
   const calculatedCost = useMemo(() => {
     const durationKey = formState.duration_type === 'daily' ? 'matchday' : formState.duration_type;
-    return TOURNAMENT_COSTS[formState.tier].base * (TOURNAMENT_COSTS[formState.tier].multipliers[durationKey] || 1);
+    return TOURNAMENT_COSTS[formState.tier].base * (TOURNAMENT_COSTS[formState.tier].multipliers[durationKey!] || 1);
   }, [formState.tier, formState.duration_type]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -53,7 +80,8 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
     const newState = { ...formState, [name]: finalValue };
 
     if (!newState.custom_entry_cost_enabled && (name === 'tier' || name === 'duration_type')) {
-        const newCost = TOURNAMENT_COSTS[newState.tier].base * (TOURNAMENT_COSTS[newState.tier].multipliers[newState.duration_type === 'daily' ? 'matchday' : newState.duration_type] || 1);
+        const durationKey = newState.duration_type === 'daily' ? 'matchday' : newState.duration_type;
+        const newCost = TOURNAMENT_COSTS[newState.tier].base * (TOURNAMENT_COSTS[newState.tier].multipliers[durationKey!] || 1);
         newState.entry_cost = newCost;
     }
 
@@ -62,6 +90,10 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
 
   const handleBadgeChange = (selectedBadges: string[]) => {
     setFormState({ ...formState, required_badges: selectedBadges });
+  };
+
+  const handleRewardsChange = (newRewards: GameRewardTier[]) => {
+    setFormState({ ...formState, rewards: newRewards });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -94,13 +126,18 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
         </div>
       </div>
 
-      {/* Game Type & Tier */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Game Type, Tier & Duration */}
+      <div className="grid grid-cols-3 gap-3">
         <select name="game_type" value={formState.game_type} onChange={handleChange} className={formFieldClasses}>
           {(['betting', 'prediction', 'fantasy'] as GameType[]).map(t => <option key={t} value={t} className="capitalize">{t}</option>)}
         </select>
         <select name="tier" value={formState.tier} onChange={handleChange} className={formFieldClasses}>
           {(['rookie', 'pro', 'elite'] as TournamentType[]).map(t => <option key={t} value={t} className="capitalize">{t}</option>)}
+        </select>
+        <select name="duration_type" value={formState.duration_type} onChange={handleChange} className={formFieldClasses}>
+          <option value="daily">Daily</option>
+          <option value="mini-series">Mini-Series</option>
+          <option value="seasonal">Seasonal</option>
         </select>
       </div>
 
@@ -137,6 +174,26 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
           <option value="Legend">Min Level: Legend</option>
         </select>
         <MultiSelect options={mockBadges.map(b => ({ value: b.id, label: b.name }))} selectedValues={formState.required_badges} onChange={handleBadgeChange} placeholder="Select required badges..." />
+      </div>
+
+      {/* Rewards Section */}
+      <div className="border-t border-disabled/50 pt-4">
+        <button type="button" onClick={() => setIsRewardsOpen(!isRewardsOpen)} className="w-full flex justify-between items-center">
+          <h4 className="text-sm font-semibold text-text-secondary">Rewards Configuration</h4>
+          <ChevronDown className={`transition-transform ${isRewardsOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {isRewardsOpen && (
+          <div className="mt-4">
+            <RewardsConfigurator
+              rewards={formState.rewards || []}
+              onRewardsChange={handleRewardsChange}
+              tier={formState.tier}
+              format={formState.duration_type!}
+              updateBasePack={updateBasePack}
+              addToast={addToast}
+            />
+          </div>
+        )}
       </div>
 
       {/* Actions */}

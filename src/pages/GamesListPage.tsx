@@ -1,11 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { SportimeGame, UserChallengeEntry, UserSwipeEntry, UserFantasyTeam, Profile, UserTicket } from '../types';
 import { GameCard } from '../components/GameCard';
-import { RulesModal } from '../components/RulesModal';
 import { Gamepad2, UserCheck, ChevronDown } from 'lucide-react';
-import { SwipeRulesModal } from '../components/SwipeRulesModal';
+import { RewardsPreviewModal } from '../components/RewardsPreviewModal';
 
-type CtaState = 'JOIN' | 'PLAY' | 'SUBMITTED' | 'AWAITING' | 'RESULTS' | 'VIEW_TEAM';
+export type CtaState = 'JOIN' | 'PLAY' | 'SUBMITTED' | 'AWAITING' | 'RESULTS' | 'VIEW_TEAM';
 
 interface GamesListPageProps {
   games: SportimeGame[];
@@ -37,9 +36,8 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
   userTickets,
 }) => {
   const [activeTab, setActiveTab] = useState<'all' | 'my'>('all');
-  const [isBettingRulesOpen, setIsBettingRulesOpen] = useState(false);
-  const [isSwipeRulesOpen, setIsSwipeRulesOpen] = useState(false);
   const [isFinishedVisible, setIsFinishedVisible] = useState(false);
+  const [viewingRewardsFor, setViewingRewardsFor] = useState<SportimeGame | null>(null);
 
   const myGameIds = useMemo(() => {
     if (!profile) return new Set();
@@ -115,7 +113,7 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
         ctaState={ctaState}
         onJoinClick={() => game.game_type === 'betting' ? onJoinChallenge(game) : onJoinSwipeGame(game.id)}
         onPlay={onPlayAction}
-        onShowRules={() => game.game_type === 'betting' ? setIsBettingRulesOpen(true) : setIsSwipeRulesOpen(true)}
+        onShowRewards={() => setViewingRewardsFor(game)}
         profile={profile}
         userTickets={userTickets}
       />
@@ -197,8 +195,13 @@ const GamesListPage: React.FC<GamesListPageProps> = ({
         </>
       )}
 
-      <RulesModal isOpen={isBettingRulesOpen} onClose={() => setIsBettingRulesOpen(false)} />
-      <SwipeRulesModal isOpen={isSwipeRulesOpen} onClose={() => setIsSwipeRulesOpen(false)} />
+      {viewingRewardsFor && (
+        <RewardsPreviewModal
+          isOpen={!!viewingRewardsFor}
+          onClose={() => setViewingRewardsFor(null)}
+          game={viewingRewardsFor}
+        />
+      )}
     </div>
   );
 };

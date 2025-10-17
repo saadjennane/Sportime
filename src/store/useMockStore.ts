@@ -1,9 +1,7 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import {
-  BettingChallenge,
-  SwipeMatchDay,
-  FantasyGame,
+  SportimeGame,
   UserLeague,
   LeagueMember,
   LeagueGame,
@@ -29,8 +27,8 @@ import {
   UserTicket,
   UserStreak,
   TournamentType,
-  SportimeGame,
   ChallengeStatus,
+  GameRewardTier,
 } from '../types';
 import { isToday, addDays, isBefore, parseISO, differenceInHours } from 'date-fns';
 import { DAILY_STREAK_REWARDS, STREAK_RESET_THRESHOLD_HOURS, TICKET_RULES } from '../config/constants';
@@ -53,6 +51,7 @@ import { mockLevelsConfig, mockBadges } from '../data/mockProgression';
 import { mockUserChallengeEntries } from '../data/mockUserChallengeEntries';
 import { mockUserSwipeEntries } from '../data/mockUserSwipeEntries';
 import { mockPlayerGameWeekStats } from '../data/mockPlayerStats';
+import { BASE_REWARD_PACKS } from '../config/rewardPacks';
 
 interface MockDataState {
   games: SportimeGame[];
@@ -73,6 +72,7 @@ interface MockDataState {
   userStreaks: UserStreak[];
   levels: typeof mockLevelsConfig;
   badges: typeof mockBadges;
+  rewardPacks: typeof BASE_REWARD_PACKS;
   isTestMode: boolean;
   showOnboardingTest: boolean;
 }
@@ -80,6 +80,7 @@ interface MockDataState {
 interface MockDataActions {
   createGame: (config: Omit<SportimeGame, 'id' | 'status' | 'totalPlayers' | 'participants'>) => void;
   updateGame: (gameId: string, updates: Partial<SportimeGame>) => void;
+  updateGameRewards: (gameId: string, rewards: GameRewardTier[]) => void;
   deleteGame: (gameId: string) => void;
   cancelGame: (gameId: string) => void;
   createLeague: (name: string, description: string, profile: Profile) => UserLeague;
@@ -115,6 +116,7 @@ interface MockDataActions {
   resetTestUsers: () => void;
   openOnboardingTest: () => void;
   closeOnboardingTest: () => void;
+  updateBasePack: (tier: TournamentType, format: string, updatedPack: GameRewardTier[]) => void;
 }
 
 export const generateBonusQuestions = (predictedScore: { home: number, away: number }): BonusQuestion[] => {
@@ -171,8 +173,19 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
   userStreaks: [{ user_id: 'user-1', current_day: 3, last_claimed_at: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(), total_cycles_completed: 0 }],
   levels: mockLevelsConfig,
   badges: mockBadges,
+  rewardPacks: BASE_REWARD_PACKS,
   isTestMode: false,
   showOnboardingTest: false,
+
+  updateBasePack: (tier, format, updatedPack) => {
+    set(state => {
+      const newRewardPacks = { ...state.rewardPacks };
+      if (newRewardPacks[tier]) {
+        newRewardPacks[tier][format] = updatedPack;
+      }
+      return { rewardPacks: newRewardPacks };
+    });
+  },
 
   openOnboardingTest: () => set({ showOnboardingTest: true }),
   closeOnboardingTest: () => set({ showOnboardingTest: false }),
@@ -221,35 +234,38 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
     
     const reward = DAILY_STREAK_REWARDS[newDay as keyof typeof DAILY_STREAK_REWARDS];
     let rewardMessage = '';
-    let rewardGranted = false;
     
-    const changes: Partial<MockDataState> = {};
+    let rewardGranted = false;
 
     if (reward.coins) {
-      changes.allUsers = state.allUsers.map(u => u.id === userId ? { ...u, coins_balance: u.coins_balance + reward.coins! } : u);
       rewardMessage = `+${reward.coins} coins earned!`;
       rewardGranted = true;
     } else if (reward.ticket) {
-      const userTicketsOfType = state.userTickets.filter(t => t.user_id === userId && t.type === reward.ticket && !t.is_used && isBefore(now, parseISO(t.expires_at)));
-      const ticketRule = TICKET_RULES[reward.ticket as TournamentType];
-
-      if (userTicketsOfType.length < ticketRule.max_quantity) {
-        const newTicket: UserTicket = { id: uuidv4(), user_id: userId, type: reward.ticket as TournamentType, is_used: false, created_at: now.toISOString(), expires_at: addDays(now, ticketRule.expiry_days).toISOString() };
-        changes.userTickets = [...state.userTickets, newTicket];
-        rewardMessage = `You earned a ${reward.ticket} Ticket!`;
-        rewardGranted = true;
-      } else {
-        rewardMessage = `Ticket limit reached for ${reward.ticket} tickets.`;
-      }
+      rewardMessage = `You earned a ${reward.ticket} Ticket!`;
+      rewardGranted = true;
     }
 
     if (rewardGranted) {
-      const updatedStreak: UserStreak = { ...userStreak, current_day: newDay, last_claimed_at: now.toISOString(), total_cycles_completed: newDay === 7 ? userStreak.total_cycles_completed + 1 : userStreak.total_cycles_completed };
-      changes.userStreaks = state.userStreaks.some(s => s.user_id === userId)
-        ? state.userStreaks.map(s => s.user_id === userId ? updatedStreak : s)
-        : [...state.userStreaks, updatedStreak];
-      
-      set(changes);
+      set(state => {
+        const updatedStreak: UserStreak = { ...userStreak!, current_day: newDay, last_claimed_at: now.toISOString(), total_cycles_completed: newDay === 7 ? userStreak!.total_cycles_completed + 1 : userStreak!.total_cycles_completed };
+        
+        let finalUsers = state.allUsers;
+        if (reward.coins) {
+          finalUsers = state.allUsers.map(u => u.id === userId ? { ...u, coins_balance: u.coins_balance + reward.coins! } : u);
+        }
+        
+        if (reward.ticket) {
+          const { addTicket } = get();
+          addTicket(userId, reward.ticket as TournamentType);
+        }
+
+        return {
+          allUsers: finalUsers,
+          userStreaks: state.userStreaks.some(s => s.user_id === userId)
+            ? state.userStreaks.map(s => s.user_id === userId ? updatedStreak : s)
+            : [...state.userStreaks, updatedStreak],
+        };
+      });
     }
     
     return { reward: rewardGranted ? reward : null, message: `Streak: Day ${newDay}! ${rewardMessage}` };
@@ -257,12 +273,17 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
 
   // ... other actions
   createGame: (config) => {
+    const { rewardPacks } = get();
+    const durationKey = config.duration_type === 'daily' ? 'matchday' : config.duration_type || 'matchday';
+    const baseRewards = rewardPacks[config.tier]?.[durationKey] || [];
+    
     const newGame: SportimeGame = {
       ...config,
       id: `game-${uuidv4()}`,
       status: 'Upcoming',
       totalPlayers: 0,
       participants: [],
+      rewards: JSON.parse(JSON.stringify(baseRewards)), // Deep copy
     };
     set(state => ({ games: [newGame, ...state.games] }));
   },
@@ -270,6 +291,12 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
   updateGame: (gameId, updates) => {
     set(state => ({
       games: state.games.map(g => g.id === gameId ? { ...g, ...updates } : g)
+    }));
+  },
+  
+  updateGameRewards: (gameId, rewards) => {
+    set(state => ({
+      games: state.games.map(g => g.id === gameId ? { ...g, rewards } : g)
     }));
   },
 

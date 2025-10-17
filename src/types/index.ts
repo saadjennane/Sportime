@@ -33,11 +33,30 @@ export interface Bet {
 
 export type ChallengeStatus = 'Upcoming' | 'Ongoing' | 'Finished' | 'Cancelled' | 'Pending';
 export type TournamentType = 'rookie' | 'pro' | 'elite';
-export type DurationType = 'daily' | 'mini' | 'season';
+export type DurationType = 'daily' | 'mini-series' | 'season';
 export type GameType = 'betting' | 'prediction' | 'fantasy' | 'fantasy-live';
 export type GameFormat = 'leaderboard' | 'knockout' | 'championship' | 'battle_royale';
 export type RewardTier = 'tier1' | 'tier2' | 'tier3';
 export type ConditionsLogic = 'and' | 'or';
+
+export interface RewardItem {
+  id: string;
+  type: "ticket" | "spin" | "xp" | "giftcard" | "masterpass" | "custom" | "premium_3d" | "premium_7d";
+  tier?: "rookie" | "pro" | "elite";
+  value?: number | string;
+  name?: string;
+  logo?: string;
+  description?: string;
+  link?: string;
+}
+
+export interface GameRewardTier {
+  id: string;
+  positionType: 'rank' | 'range' | 'percent';
+  start: number;
+  end?: number;
+  rewards: RewardItem[];
+}
 
 // Unified Game Type
 export interface SportimeGame {
@@ -63,6 +82,7 @@ export interface SportimeGame {
   status: ChallengeStatus;
   totalPlayers: number;
   participants: string[];
+  rewards: GameRewardTier[];
 
   // Game-specific fields
   // For betting

@@ -6,10 +6,10 @@ import { FooterNav } from './components/FooterNav';
 import { mockMatches } from './data/mockMatches';
 import { mockChallengeMatches } from './data/mockChallenges';
 import { mockFantasyPlayers, mockUserFantasyTeams } from './data/mockFantasy.tsx';
-import { Match, Bet, UserChallengeEntry, ChallengeStatus, DailyChallengeEntry, BoosterSelection, UserSwipeEntry, SwipePredictionOutcome, Profile, LevelConfig, Badge, UserBadge, FantasyPlayer, ChallengeBet, UserLeague, LeagueMember, LeagueGame, Game, PrivateLeagueGameConfig, LiveGamePlayerEntry, UserFantasyTeam, UserTicket, BettingChallenge, SportimeGame, SpinTier } from './types';
+import { Match, Bet, UserChallengeEntry, ChallengeStatus, DailyChallengeEntry, BoosterSelection, UserSwipeEntry, SwipePredictionOutcome, Profile, LevelConfig, Badge, UserBadge, FantasyPlayer, ChallengeBet, UserLeague, LeagueMember, LeagueGame, Game, PrivateLeagueGameConfig, LiveGamePlayerEntry, UserFantasyTeam, UserTicket, BettingChallenge, SportimeGame, SpinTier, SwipeMatchDay, FantasyGame } from './types';
 import UpcomingPage from './pages/Upcoming';
 import PlayedPage from './pages/Played';
-import AdminPage from './pages-admin';
+import AdminPage from './pages/Admin';
 import GamesListPage from './pages/GamesListPage';
 import ChallengeRoomPage from './pages/ChallengeRoomPage';
 import LeaderboardPage from './pages/LeaderboardPage';
@@ -58,15 +58,6 @@ import { SpinWheel } from './components/SpinWheel';
 export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'leagues';
 type AuthFlowState = 'guest' | 'authenticated' | 'signing_up' | 'onboarding';
 
-// Pre-populate user entries for testing purposes
-const initialUserSwipeEntries: UserSwipeEntry[] = [
-  {
-    matchDayId: 'swipe-2',
-    predictions: [],
-    submitted_at: new Date().toISOString(),
-  }
-];
-
 function App() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -77,7 +68,7 @@ function App() {
   const [isTicketWalletOpen, setIsTicketWalletOpen] = useState(false);
   const [spinWheelState, setSpinWheelState] = useState<{ isOpen: boolean; tier: SpinTier | null }>({ isOpen: false, tier: null });
 
-  const [page, setPage] = useState<Page>('leagues');
+  const [page, setPage] = useState<Page>('challenges');
   const [matches, setMatches] = useState<Match[]>(mockMatches);
   const [bets, setBets] = useState<Bet[]>([]);
   const [modalState, setModalState] = useState<{ isOpen: boolean; match: Match | null; prediction: 'teamA' | 'draw' | 'teamB' | null; odds: number; }>({ isOpen: false, match: null, prediction: null, odds: 0 });
@@ -93,7 +84,6 @@ function App() {
     userTickets,
     userStreaks,
     allUsers,
-    createGame,
     createLeague,
     linkGameToLeagues,
     createLeagueAndLink,
@@ -104,27 +94,16 @@ function App() {
     tickLiveGame,
     joinChallenge: joinChallengeAction,
     processDailyStreak,
-    processChallengeStart,
   } = useMockStore();
 
   const { initializeUserSpinState } = useSpinStore();
-
-  const { isTestMode, setTestMode, resetTestUsers, setCoinBalance, testOnboarding } = useMockStore(state => ({
-    isTestMode: false,
-    setTestMode: () => {},
-    resetTestUsers: () => {},
-    setCoinBalance: (userId: string, newBalance: number) => {
-        useMockStore.setState(state => ({
-            allUsers: state.allUsers.map(u => u.id === userId ? { ...u, coins_balance: newBalance } : u)
-        }));
-    },
-    testOnboarding: () => setShowOnboardingTest(true),
-  }));
-
+  
   // --- Local Game State ---
-  const [userChallengeEntries, setUserChallengeEntries] = useState<UserChallengeEntry[]>([]);
-  const [userSwipeEntries, setUserSwipeEntries] = useState<UserSwipeEntry[]>(initialUserSwipeEntries);
-  const [userFantasyTeams, setUserFantasyTeams] = useState<UserFantasyTeam[]>(mockUserFantasyTeams);
+  const { userChallengeEntries, userSwipeEntries, userFantasyTeams } = useMockStore(state => ({
+    userChallengeEntries: state.userChallengeEntries,
+    userSwipeEntries: state.userSwipeEntries,
+    userFantasyTeams: state.userFantasyTeams,
+  }));
   
   // --- Progression State ---
   const [levelsConfig, setLevelsConfig] = useState<LevelConfig[]>([]);
@@ -170,14 +149,6 @@ function App() {
       }
     };
     fetchStaticData();
-  }, []);
-
-  // Effect for test mode
-  useEffect(() => {
-    const storedTestMode = localStorage.getItem('sportime_test_mode');
-    if (storedTestMode) {
-      // setIsTestMode(JSON.parse(storedTestMode));
-    }
   }, []);
 
   // Check for league join link on initial load
@@ -229,9 +200,9 @@ function App() {
 
   const coinBalance = profile?.coins_balance ?? 0;
 
-  const handleSetCoinBalance = async (newBalance: number) => {
+  const handleSetCoinBalance = (newBalance: number) => {
     if (profile) {
-      setCoinBalance(profile.id, newBalance);
+      useMockStore.getState().setCoinBalance(profile.id, newBalance);
       const updatedProfile = { ...profile, coins_balance: newBalance };
       setProfile(updatedProfile);
       if (!profile.is_guest) {
@@ -270,7 +241,7 @@ function App() {
         setAuthFlow('onboarding');
     };
 
-    if (isTestMode) {
+    if (useMockStore.getState().isTestMode) {
       addToast('Test Mode: Skipping verification...', 'info');
       completeSignUp();
     } else {
@@ -366,117 +337,15 @@ function App() {
     }
   };
 
-  const handleAddMatch = (newMatchData: Omit<Match, 'id' | 'status'>) => {
-    const newMatch: Match = { ...newMatchData, id: uuidv4(), status: 'upcoming' };
-    setMatches([newMatch, ...matches]);
-  };
-
-  const handleUpdateMatch = (updatedMatch: Match) => {
-    setMatches(matches.map(m => m.id === updatedMatch.id ? updatedMatch : m));
-  };
-  
-  const handleResolveMatch = (matchId: string, result: 'teamA' | 'draw' | 'teamB', score: { teamA: number, teamB: number }) => {
-    let totalPayout = 0;
-    const updatedBets = bets.map(bet => {
-      if (bet.matchId === matchId && bet.status === 'pending') {
-        if (bet.prediction === result) {
-          const winAmount = bet.amount * bet.odds;
-          totalPayout += winAmount;
-          return { ...bet, status: 'won' as const, winAmount };
-        } else {
-          return { ...bet, status: 'lost' as const };
-        }
-      }
-      return bet;
-    });
-    const updatedMatches = matches.map(match => {
-      if (match.id === matchId) {
-        return { ...match, status: 'played' as const, result, score };
-      }
-      return match;
-    });
-    handleSetCoinBalance(coinBalance + totalPayout);
-    setBets(updatedBets);
-    setMatches(updatedMatches);
-  };
-
-  const handleJoinChallenge = (challenge: SportimeGame) => {
-    if (profile?.is_guest) {
-      handleTriggerSignUp();
-      return;
-    }
-    if (!profile) return;
-
-    const hasTicket = userTickets.some(ticket => 
-      ticket.user_id === profile.id &&
-      ticket.type === challenge.tier &&
-      !ticket.is_used &&
-      isBefore(new Date(), parseISO(ticket.expires_at))
-    );
-    const hasEnoughCoins = profile.coins_balance >= challenge.entry_cost;
-
-    if (hasTicket && hasEnoughCoins) {
-      setChallengeToJoin(challenge);
-    } else if (hasTicket) {
-      handleConfirmJoinChallenge(challenge.id, 'ticket');
-    } else if (hasEnoughCoins) {
-      handleConfirmJoinChallenge(challenge.id, 'coins');
-    } else {
-      addToast('Not enough coins or tickets to join.', 'error');
-    }
-  };
-
-  const handleConfirmJoinChallenge = (challengeId: string, method: 'coins' | 'ticket') => {
-    if (!profile) return;
-    const result = joinChallengeAction(challengeId, profile.id, method);
-    if (result.success) {
-      addToast(result.message, 'success');
-      // The store now handles entry creation
-      setActiveChallengeId(challengeId);
-    } else {
-      addToast(result.message, 'error');
-    }
-    setChallengeToJoin(null);
-  };
-  
   const handleUpdateDailyBets = async (challengeId: string, day: number, newBets: ChallengeBet[]) => {
-    setUserChallengeEntries(prev => prev.map(entry => {
-      if (entry.challengeId === challengeId) {
-        const newDailyEntries = entry.dailyEntries.map(daily => {
-          if (daily.day === day) {
-            return { ...daily, bets: newBets };
-          }
-          return daily;
-        });
-        return { ...entry, dailyEntries: newDailyEntries };
-      }
-      return entry;
-    }));
-    addToast('Bets updated for Day ' + day, 'info');
+    // This logic is now handled in the store. This handler is kept for legacy compatibility if needed.
+    console.log("Updating daily bets (UI event):", { challengeId, day, newBets });
   };
   const handleSetDailyBooster = async (challengeId: string, day: number, booster: BoosterSelection | undefined) => {
-    setUserChallengeEntries(prev => prev.map(entry => {
-      if (entry.challengeId === challengeId) {
-        const newDailyEntries = entry.dailyEntries.map(daily => {
-          if (daily.day === day) {
-            return { ...daily, booster };
-          }
-          return daily;
-        });
-        return { ...entry, dailyEntries: newDailyEntries };
-      }
-      return entry;
-    }));
-    if (booster) {
-        addToast(`Booster applied!`, 'success');
-    } else {
-        addToast(`Booster removed.`, 'info');
-    }
+    // This logic is now handled in the store.
+    console.log("Setting daily booster (UI event):", { challengeId, day, booster });
   };
-  const handleUpdateChallengeStatus = (challengeId: string, status: ChallengeStatus) => {
-    const result = processChallengeStart(challengeId);
-    addToast(result.message, result.success ? 'success' : 'error');
-  };
+  
   const handleUpdateBoosterPreferences = (booster: 'x2' | 'x3') => {
     const newPrefs = { ...boosterInfoPreferences, [booster]: true };
     setBoosterInfoPreferences(newPrefs);
@@ -504,7 +373,7 @@ function App() {
             predictions: [],
             submitted_at: null,
         };
-        setUserSwipeEntries(prev => [...prev, newEntry]);
+        useMockStore.setState(state => ({ userSwipeEntries: [...state.userSwipeEntries, newEntry] }));
 
         setJoinSwipeGameModalState({ isOpen: false, game: null });
         addToast(`Successfully joined "${game.name}"!`, 'success');
@@ -535,11 +404,11 @@ function App() {
         handleTriggerSignUp();
         return;
     }
-    setUserSwipeEntries(prev => {
-        const oldEntry = prev.find(e => e.matchDayId === matchDayId);
+    useMockStore.setState(prev => {
+        const oldEntry = prev.userSwipeEntries.find(e => e.matchDayId === matchDayId);
         const oldPredictionsCount = oldEntry?.predictions.length || 0;
 
-        const newEntries = prev.map(entry => {
+        const newEntries = prev.userSwipeEntries.map(entry => {
             if (entry.matchDayId === matchDayId) {
                 const existingPredictionIndex = entry.predictions.findIndex(p => p.matchId === matchId);
                 let newPredictions = [...entry.predictions];
@@ -565,18 +434,20 @@ function App() {
             }
             return entry;
         });
-        return newEntries;
+        return { userSwipeEntries: newEntries };
     });
   };
   const handleUpdateSwipePrediction = (matchDayId: string, matchId: string, prediction: SwipePredictionOutcome) => {
-    setUserSwipeEntries(prev => prev.map(entry => {
-        if (entry.matchDayId === matchDayId) {
-            const newPredictions = entry.predictions.map(p =>
-                p.matchId === matchId ? { ...p, prediction } : p
-            );
-            return { ...entry, predictions: newPredictions };
-        }
-        return entry;
+    useMockStore.setState(prev => ({
+        userSwipeEntries: prev.userSwipeEntries.map(entry => {
+            if (entry.matchDayId === matchDayId) {
+                const newPredictions = entry.predictions.map(p =>
+                    p.matchId === matchId ? { ...p, prediction } : p
+                );
+                return { ...entry, predictions: newPredictions };
+            }
+            return entry;
+        })
     }));
     addToast('Prediction updated!', 'info');
   };
@@ -590,7 +461,6 @@ function App() {
     setSwipeGameViewMode('recap');
   };
 
-  const handleFinalizeSwipePicks = async (matchDayId: string) => { /* ... */ };
   const handleDismissSwipeTutorial = (dontShowAgain: boolean) => {
     if (dontShowAgain) {
       localStorage.setItem('sportime_seen_swipe_tutorial', 'true');
@@ -601,14 +471,6 @@ function App() {
     setActiveFantasyGameId(gameId);
   };
   
-  // Progression Handlers
-  const handleAddLevel = async (levelData: Omit<LevelConfig, 'id'>) => { /* ... */ };
-  const handleUpdateLevel = async (levelData: LevelConfig) => { /* ... */ };
-  const handleDeleteLevel = async (levelId: string) => { /* ... */ };
-  const handleAddBadge = async (badgeData: Omit<Badge, 'id' | 'created_at'>) => { /* ... */ };
-  const handleUpdateBadge = async (badgeData: Badge) => { /* ... */ };
-  const handleDeleteBadge = async (badgeId: string) => { /* ... */ };
-
   // --- League Handlers ---
   const handleCreateLeague = (name: string, description: string, image_url: string | null) => {
       if (!profile || profile.is_guest) {
@@ -648,7 +510,7 @@ function App() {
           role: 'member',
           joined_at: new Date().toISOString(),
       };
-      // setLeagueMembers(prev => [...prev, newMember]);
+      useMockStore.setState(state => ({ leagueMembers: [...state.leagueMembers, newMember] }));
       addToast(`Welcome to ${league.name}!`, 'success');
       setActiveLeagueId(league.id);
       setJoinLeagueCode(null);
@@ -732,6 +594,45 @@ function App() {
     }
     handleCloseLinkGameModals();
     setIsLinkingLoading(false);
+  };
+
+  const handleConfirmJoinChallenge = (challengeId: string, method: 'coins' | 'ticket') => {
+    if (!profile) return;
+    
+    const result = joinChallengeAction(challengeId, profile.id, method);
+
+    if (result.success) {
+      addToast(result.message, 'success');
+      setActiveChallengeId(challengeId);
+    } else {
+      addToast(result.message, 'error');
+    }
+    setChallengeToJoin(null);
+  };
+
+  const handleJoinChallenge = (game: SportimeGame) => {
+    if (!profile || profile.is_guest) {
+      handleTriggerSignUp();
+      return;
+    }
+
+    const validTicket = userTickets.find(t => 
+      t.user_id === profile.id &&
+      t.type === game.tier &&
+      !t.is_used &&
+      isBefore(new Date(), parseISO(t.expires_at))
+    );
+    const hasEnoughCoins = profile.coins_balance >= game.entry_cost;
+
+    if (validTicket && hasEnoughCoins) {
+      setChallengeToJoin(game); // Open modal to choose
+    } else if (validTicket) {
+      handleConfirmJoinChallenge(game.id, 'ticket'); // Auto-use ticket
+    } else if (hasEnoughCoins) {
+      handleConfirmJoinChallenge(game.id, 'coins'); // Auto-use coins
+    } else {
+      addToast("You don't have enough coins or a valid ticket to join.", 'error');
+    }
   };
 
 
@@ -1042,13 +943,12 @@ function App() {
     return <OnboardingPage profile={profile} onComplete={handleCompleteOnboarding} />;
   }
 
+  const handleOpenOnboardingTest = () => {
+    setShowOnboardingTest(true);
+  };
+
   return (
     <div className="main-background">
-      {isTestMode && (
-        <div className="bg-warm-yellow text-deep-navy text-sm text-center py-1 font-semibold shadow-sm">
-          ⚠️ Test Mode Active — Email verification is bypassed
-        </div>
-      )}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
       <div className="max-w-md mx-auto px-4 pt-4 pb-28 space-y-4">
         <Header profile={profile} ticketCount={ticketCount} onViewProfile={() => handlePageChange('profile')} onSignIn={handleTriggerSignUp} onViewTickets={() => setIsTicketWalletOpen(true)} />

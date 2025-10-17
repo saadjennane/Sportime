@@ -1,12 +1,17 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { USE_SUPABASE } from '../config/env';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+let supabase: SupabaseClient | null = null;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Supabase URL and Anon Key must be defined in .env file");
+if (USE_SUPABASE) {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error("Supabase URL and Anon Key must be defined in .env file. Please create a .env file with VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
+  }
+
+  supabase = createClient(supabaseUrl, supabaseAnonKey);
 }
 
-// Note: We are not using generated types from the database schema as per the instructions.
-// In a real-world project, you would generate these types for full type safety.
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export { supabase };

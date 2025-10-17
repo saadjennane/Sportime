@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { SportimeGame, TournamentType, Profile, UserTicket, GameType } from '../types';
 import { format, parseISO, isBefore } from 'date-fns';
-import { Calendar, Coins, Info, ArrowRight, Check, Clock, Users, Ticket, Ban, Star, Trophy, Award } from 'lucide-react';
+import { Calendar, Coins, Gift, ArrowRight, Check, Clock, Users, Ticket, Ban, Star, Trophy, Award } from 'lucide-react';
 import { CtaState } from '../pages/GamesListPage';
 
 interface GameCardProps {
@@ -9,7 +9,7 @@ interface GameCardProps {
   ctaState: CtaState;
   onJoinClick: () => void;
   onPlay: () => void;
-  onShowRules?: () => void;
+  onShowRewards: () => void;
   profile: Profile | null;
   userTickets: UserTicket[];
 }
@@ -27,12 +27,12 @@ const tournamentTierDetails: Record<TournamentType, { label: string; color: stri
   elite: { label: 'Elite', color: 'bg-hot-red/20 text-hot-red' },
 };
 
-export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick, onPlay, onShowRules, profile, userTickets }) => {
+export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick, onPlay, onShowRewards, profile, userTickets }) => {
   const details = gameTypeDetails[game.game_type as keyof typeof gameTypeDetails];
   const tierDetails = game.tier ? tournamentTierDetails[game.tier] : null;
 
   const { hasTicket, hasEnoughCoins } = useMemo(() => {
-    if (!profile || game.game_type !== 'betting') return { hasTicket: false, hasEnoughCoins: false };
+    if (!profile) return { hasTicket: false, hasEnoughCoins: false };
     const validTicket = userTickets.find(t => 
       t.user_id === profile.id &&
       t.type === game.tier &&
@@ -140,13 +140,13 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
       
       {/* Bottom Section - Actions */}
       <div className={`flex items-center justify-between border-t border-white/10 pt-3 gap-2 ${isCancelled ? 'hidden' : ''}`}>
-        {onShowRules && (
+        {game.rewards && game.rewards.length > 0 && (
           <button
-            onClick={onShowRules}
+            onClick={onShowRewards}
             className="flex items-center justify-center gap-2 font-semibold py-2 px-4 rounded-lg transition-all text-sm bg-navy-accent text-text-secondary hover:bg-white/10"
           >
-            <Info size={16} />
-            Rules
+            <Gift size={16} />
+            Rewards
           </button>
         )}
         
