@@ -33,6 +33,19 @@ const generateMatches = (count: number): SwipeMatch[] => {
 
 export const mockSwipeMatchDays: SwipeMatchDay[] = [
   {
+    id: 'swipe-testable',
+    gameType: 'prediction',
+    name: "Today's Swipe Challenge",
+    status: 'Upcoming',
+    matches: generateMatches(3),
+    entryCost: 150,
+    startDate: '2025-07-24',
+    endDate: '2025-07-24',
+    totalPlayers: 4500,
+    is_linkable: true,
+    challengeId: 'pred-challenge-1',
+  },
+  {
     id: 'swipe-1',
     gameType: 'prediction',
     name: 'Match Day 1',

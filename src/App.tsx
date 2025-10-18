@@ -75,7 +75,7 @@ function App() {
     games, userLeagues, leagueMembers, leagueGames, liveGames, predictionChallenges,
     userTickets, userStreaks, createLeague, linkGameToLeagues, createLeagueAndLink,
     createLiveGame, submitLiveGamePrediction, editLiveGamePrediction, placeLiveBet,
-    tickLiveGame, joinChallenge: joinChallengeAction, processDailyStreak,
+    tickLiveGame, joinChallenge: joinChallengeAction, processDailyStreak, joinSwipeGame,
   } = useMockStore();
 
   const profile = useMemo(() => allUsers.find(u => u.id === currentUserId), [allUsers, currentUserId]);
@@ -342,11 +342,17 @@ function App() {
 
     if (coinBalance >= game.entry_cost) {
         handleSetCoinBalance(coinBalance - game.entry_cost);
-        joinChallengeAction(game.id, profile.id, 'coins');
-        setJoinSwipeGameModalState({ isOpen: false, game: null });
-        addToast(`Successfully joined "${game.name}"!`, 'success');
-        setSwipeGameViewMode('swiping');
-        setActiveSwipeGameId(game.id);
+        const result = joinSwipeGame(game.id, profile.id);
+        
+        if (result.success) {
+          setJoinSwipeGameModalState({ isOpen: false, game: null });
+          addToast(`Successfully joined "${game.name}"!`, 'success');
+          setSwipeGameViewMode('swiping');
+          setActiveSwipeGameId(game.id);
+        } else {
+          addToast(result.message, 'error');
+          handleSetCoinBalance(coinBalance); // Refund
+        }
     } else {
         addToast('Insufficient funds to join this game.', 'error');
     }

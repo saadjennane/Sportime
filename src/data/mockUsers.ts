@@ -4,7 +4,7 @@ export const mockUsers: Profile[] = [
     {
         id: 'user-1',
         username: 'saadjennane',
-        coins_balance: 5000,
+        coins_balance: 500000,
         created_at: new Date().toISOString(),
         is_guest: false,
         verified: true,
@@ -15,7 +15,7 @@ export const mockUsers: Profile[] = [
         favorite_club: 'team-1',
         favorite_national_team: 'France',
         is_subscriber: true,
-        badges: ['badge-1', 'badge-2', 'badge-5'],
+        badges: ['badge-1', 'badge-2', 'badge-5', 'badge-4'],
     },
     {
         id: 'user-2',

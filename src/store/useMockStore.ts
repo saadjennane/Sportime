@@ -31,6 +31,8 @@ import {
   GameRewardTier,
   CelebrationEvent,
   RewardItem,
+  UserChallengeEntry,
+  UserSwipeEntry,
 } from '../types';
 import { isToday, addDays, isBefore, parseISO, differenceInHours } from 'date-fns';
 import { DAILY_STREAK_REWARDS, STREAK_RESET_THRESHOLD_HOURS, TICKET_RULES } from '../config/constants';
@@ -54,6 +56,7 @@ import { mockUserChallengeEntries } from '../data/mockUserChallengeEntries';
 import { mockUserSwipeEntries } from '../data/mockUserSwipeEntries';
 import { mockPlayerGameWeekStats } from '../data/mockPlayerStats';
 import { BASE_REWARD_PACKS } from '../config/rewardPacks';
+import { mockChallengeMatches } from '../data/mockChallenges';
 
 interface MockDataState {
   games: SportimeGame[];
@@ -111,6 +114,7 @@ interface MockDataActions {
   tickFantasyGame: (gameWeekId: string, userId: string) => void;
   updateUserFantasyTeam: (team: UserFantasyTeam) => void;
   joinChallenge: (challengeId: string, userId: string, method: 'coins' | 'ticket') => { success: boolean; message: string; method?: 'ticket' | 'coins' | 'none' };
+  joinSwipeGame: (gameId: string, userId: string) => { success: boolean; message: string };
   processDailyStreak: (userId: string) => { reward: { coins?: number; ticket?: string } | null; message: string };
   processChallengeStart: (challengeId: string) => { success: boolean, message: string };
   addTicket: (userId: string, type: TournamentType) => void;
@@ -408,11 +412,17 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
     const updatedGames = games.map(c => 
       c.id === challengeId ? { ...c, participants: [...c.participants, userId] } : c
     );
+    
+    const challengeMatches = mockChallengeMatches.filter(m => m.challengeId === challengeId);
+    const uniqueDays = [...new Set(challengeMatches.map(m => m.day))];
 
     const newUserEntry: UserChallengeEntry = {
       user_id: userId,
       challengeId: challengeId,
-      dailyEntries: [],
+      dailyEntries: uniqueDays.map(day => ({
+        day: day,
+        bets: [],
+      })),
       entryMethod: method,
       ticketId: ticketId,
     };
@@ -423,6 +433,31 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
     });
 
     return { success: true, message: `Successfully joined with ${method}!`, method };
+  },
+
+  joinSwipeGame: (gameId, userId) => {
+    const { games, userSwipeEntries, allUsers } = get();
+    const game = games.find(g => g.id === gameId);
+    const user = allUsers.find(u => u.id === userId);
+  
+    if (!game || !user) {
+      return { success: false, message: "Game or user not found." };
+    }
+  
+    const hasJoined = userSwipeEntries.some(e => e.matchDayId === gameId && e.user_id === userId);
+    if (hasJoined) {
+      return { success: true, message: "Already joined." };
+    }
+  
+    const newUserEntry: UserSwipeEntry = {
+      user_id: userId,
+      matchDayId: gameId,
+      predictions: [],
+      submitted_at: null,
+    };
+  
+    set({ userSwipeEntries: [...userSwipeEntries, newUserEntry] });
+    return { success: true, message: "Successfully joined swipe game." };
   },
 
   processChallengeStart: (challengeId) => {
@@ -591,7 +626,7 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
       if (entry) {
         const newPredictions = [...entry.predictions, { matchId, prediction }];
         return {
-          userSwipeEntries: state.userSwipeEntries.map(e => e.id === entry!.id ? { ...e, predictions: newPredictions } : e)
+          userSwipeEntries: state.userSwipeEntries.map(e => e.matchDayId === matchDayId && e.user_id === userId ? { ...e, predictions: newPredictions } : e)
         };
       }
       // This part might need adjustment if users can predict without joining first

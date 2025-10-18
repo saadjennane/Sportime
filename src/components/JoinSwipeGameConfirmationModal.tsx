@@ -19,7 +19,7 @@ export const JoinSwipeGameConfirmationModal: React.FC<JoinSwipeGameConfirmationM
 }) => {
   if (!isOpen) return null;
 
-  const hasSufficientFunds = userBalance >= game.entryCost;
+  const hasSufficientFunds = userBalance >= game.entry_cost;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-scale-in">
@@ -39,7 +39,7 @@ export const JoinSwipeGameConfirmationModal: React.FC<JoinSwipeGameConfirmationM
             <p className="text-sm text-slate-500">Entry Cost</p>
             <div className="flex items-center justify-center gap-2">
               <Coins className="w-6 h-6 text-amber-500" />
-              <p className="text-3xl font-bold text-slate-800">{game.entryCost.toLocaleString()}</p>
+              <p className="text-3xl font-bold text-slate-800">{game.entry_cost.toLocaleString()}</p>
             </div>
           </div>
         </div>
