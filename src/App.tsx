@@ -51,6 +51,9 @@ import { OnboardingFlow } from './components/OnboardingFlow';
 import { isBefore, parseISO } from 'date-fns';
 import { TicketWalletModal } from './components/TicketWalletModal';
 import { SpinWheel } from './components/SpinWheel';
+import { GameModal } from './components/modals/GameModal';
+import { LiveArenaModal } from './components/modals/LiveArenaModal';
+import { JoinGameModal } from './components/modals/JoinGameModal';
 
 
 export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'leagues';
@@ -68,6 +71,11 @@ function App() {
   const [matches, setMatches] = useState<Match[]>(mockMatches);
   const [bets, setBets] = useState<Bet[]>([]);
   const [modalState, setModalState] = useState<{ isOpen: boolean; match: Match | null; prediction: 'teamA' | 'draw' | 'teamB' | null; odds: number; }>({ isOpen: false, match: null, prediction: null, odds: 0 });
+
+  // --- Game Modal States ---
+  const [gameModalState, setGameModalState] = useState<{ isOpen: boolean; matchId: string | null; matchName: string | null; }>({ isOpen: false, matchId: null, matchName: null });
+  const [liveGameModalState, setLiveGameModalState] = useState<{ isOpen: boolean; matchId: string | null; matchName: string | null; }>({ isOpen: false, matchId: null, matchName: null });
+  const [joinGameModalState, setJoinGameModalState] = useState<{ isOpen: boolean }>({ isOpen: false });
 
   // --- Store State ---
   const {
@@ -618,6 +626,10 @@ function App() {
     ).length;
   }, [userTickets, profile]);
 
+  const handlePlayGameClick = (matchId: string, matchName: string) => {
+    setGameModalState({ isOpen: true, matchId, matchName });
+  };
+
   const renderPage = () => {
     if (joinLeagueCode) {
         const leagueToJoin = userLeagues.find(l => l.invite_code === joinLeagueCode);
@@ -825,7 +837,7 @@ function App() {
 
     switch (page) {
       case 'matches':
-        return <MatchesPage matches={matches} bets={bets} onBet={handleBetClick} />;
+        return <MatchesPage matches={matches} bets={bets} onBet={handleBetClick} onPlayGame={handlePlayGameClick} />;
       case 'challenges':
         return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} />;
       case 'leagues':
@@ -932,6 +944,31 @@ function App() {
         userId={profile.id}
       />
     )}
+    <GameModal 
+        isOpen={gameModalState.isOpen} 
+        onClose={() => setGameModalState({ isOpen: false, matchId: null, matchName: null })}
+        matchId={gameModalState.matchId}
+        matchName={gameModalState.matchName}
+        onStartLiveGame={() => {
+            setLiveGameModalState({ isOpen: true, matchId: gameModalState.matchId, matchName: gameModalState.matchName });
+            setGameModalState({ isOpen: false, matchId: null, matchName: null });
+        }}
+        onJoinGame={() => {
+            setJoinGameModalState({ isOpen: true });
+            setGameModalState({ isOpen: false, matchId: null, matchName: null });
+        }}
+        addToast={addToast}
+    />
+    <LiveArenaModal
+        isOpen={liveGameModalState.isOpen}
+        onClose={() => setLiveGameModalState({ isOpen: false, matchId: null, matchName: null })}
+        matchId={liveGameModalState.matchId}
+        matchName={liveGameModalState.matchName}
+    />
+    <JoinGameModal
+        isOpen={joinGameModalState.isOpen}
+        onClose={() => setJoinGameModalState({ isOpen: false })}
+    />
     </div>
   );
 }

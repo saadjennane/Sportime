@@ -1,6 +1,6 @@
 import React from 'react';
 import { Match, Bet } from '../types';
-import { MatchCard } from '../components/MatchCard';
+import { MatchCard } from '../components/matches/MatchCard';
 import { LeagueMatchGroup } from '../components/matches/LeagueMatchGroup';
 
 interface UpcomingPageProps {
@@ -9,9 +9,10 @@ interface UpcomingPageProps {
   bets: Bet[];
   onBet: (match: Match, prediction: 'teamA' | 'draw' | 'teamB', odds: number) => void;
   onViewStats: (match: Match) => void;
+  onPlayGame: (matchId: string, matchName: string) => void;
 }
 
-const UpcomingPage: React.FC<UpcomingPageProps> = ({ groupedMatches, orderedLeagues, bets, onBet, onViewStats }) => {
+const UpcomingPage: React.FC<UpcomingPageProps> = ({ groupedMatches, orderedLeagues, bets, onBet, onViewStats, onPlayGame }) => {
   const hasMatches = Object.keys(groupedMatches).length > 0;
 
   return (
@@ -41,6 +42,7 @@ const UpcomingPage: React.FC<UpcomingPageProps> = ({ groupedMatches, orderedLeag
                   match={match}
                   onBet={(prediction, odds) => onBet(match, prediction, odds)}
                   onViewStats={() => onViewStats(match)}
+                  onPlayGame={onPlayGame}
                   userBet={bets.find(bet => bet.matchId === match.id)}
                 />
               ))}

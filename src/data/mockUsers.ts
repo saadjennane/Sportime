@@ -9,7 +9,7 @@ export const mockUsers: Profile[] = [
         is_guest: false,
         verified: true,
         email: 'saad.jennane@example.com',
-        profile_picture_url: 'https://i.pravatar.cc/150?u=a042581f4e29026704e',
+        profile_picture_url: 'https://i.pravatar.cc/150?u=a042581f4e29026704f',
         level: 'GOAT',
         xp: 55000,
         favorite_club: 'team-1',

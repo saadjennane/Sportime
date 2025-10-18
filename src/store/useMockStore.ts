@@ -33,6 +33,7 @@ import {
   RewardItem,
   UserChallengeEntry,
   UserSwipeEntry,
+  ActiveSession,
 } from '../types';
 import { isToday, addDays, isBefore, parseISO, differenceInHours } from 'date-fns';
 import { DAILY_STREAK_REWARDS, STREAK_RESET_THRESHOLD_HOURS, TICKET_RULES } from '../config/constants';
@@ -79,6 +80,7 @@ interface MockDataState {
   badges: typeof mockBadges;
   rewardPacks: typeof BASE_REWARD_PACKS;
   celebrations: CelebrationEvent[];
+  activeSessions: ActiveSession[];
   isTestMode: boolean;
   showOnboardingTest: boolean;
   currentUserId: string | null;
@@ -132,6 +134,8 @@ interface MockDataActions {
   joinLeague: (inviteCode: string, userId: string, callback: (league: UserLeague | null) => void) => void;
   handleSwipePrediction: (matchDayId: string, userId: string, matchId: string, prediction: any) => void;
   updateSwipePrediction: (matchDayId: string, userId: string, matchId: string, prediction: any) => void;
+  createLiveSession: (matchId: string, mode: 'solo' | 'invite' | 'league', leagueId?: string) => ActiveSession;
+  joinLiveSession: (pin: string) => ActiveSession | null;
 }
 
 export const generateBonusQuestions = (predictedScore: { home: number, away: number }): BonusQuestion[] => {
@@ -190,9 +194,33 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
   badges: mockBadges,
   rewardPacks: BASE_REWARD_PACKS,
   celebrations: [],
+  activeSessions: [],
   isTestMode: false,
   showOnboardingTest: false,
   currentUserId: null,
+
+  createLiveSession: (matchId, mode, leagueId) => {
+    const pin = Math.floor(10000 + Math.random() * 90000).toString();
+    const now = Date.now();
+    const newSession: ActiveSession = {
+        id: uuidv4(),
+        pin,
+        matchId,
+        mode,
+        leagueId,
+        createdAt: now,
+        expiresAt: now + 5 * 60 * 1000, // 5 minutes expiry
+    };
+    set(state => ({ activeSessions: [...state.activeSessions, newSession] }));
+    return newSession;
+  },
+
+  joinLiveSession: (pin) => {
+    const { activeSessions } = get();
+    const now = Date.now();
+    const session = activeSessions.find(s => s.pin === pin && s.expiresAt > now);
+    return session || null;
+  },
 
   setCurrentUserId: (userId) => set({ currentUserId: userId }),
 

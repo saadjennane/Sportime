@@ -500,6 +500,16 @@ export interface LiveGame {
   players: LiveGamePlayerEntry[];
 }
 
+export interface ActiveSession {
+  id: string;
+  matchId: string;
+  gameTypeId: string;
+  leagueId?: string;
+  pin?: string;
+  createdAt: number;
+  expiresAt: number;
+}
+
 export interface ApiFootballResponse<T> {
   get: string;
   parameters: Record<string, string>;

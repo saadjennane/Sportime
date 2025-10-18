@@ -11,11 +11,14 @@ import { MatchStatsDrawer } from '../components/matches/stats/MatchStatsDrawer';
 
 type Tab = 'upcoming' | 'played';
 
-const MatchesPage: React.FC<{
+interface MatchesPageProps {
   matches: Match[];
   bets: Bet[];
   onBet: (match: Match, prediction: 'teamA' | 'draw' | 'teamB', odds: number) => void;
-}> = ({ matches, bets, onBet }) => {
+  onPlayGame: (matchId: string, matchName: string) => void;
+}
+
+const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayGame }) => {
   const [activeTab, setActiveTab] = useState<Tab>('upcoming');
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [selectedMatchForStats, setSelectedMatchForStats] = useState<Match | null>(null);
@@ -106,6 +109,7 @@ const MatchesPage: React.FC<{
           bets={bets}
           onBet={onBet}
           onViewStats={setSelectedMatchForStats}
+          onPlayGame={onPlayGame}
         />
       ) : (
         <PlayedPage 
