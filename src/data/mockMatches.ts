@@ -19,7 +19,8 @@ export const mockMatches: Match[] = [
     teamB: { name: 'Real Madrid', emoji: '⚪' },
     kickoffTime: '18:30',
     odds: { teamA: 2.5, draw: 3.0, teamB: 2.3 },
-    status: 'upcoming'
+    status: 'upcoming',
+    hasLineup: true,
   },
   {
     id: '3',

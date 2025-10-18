@@ -22,6 +22,7 @@ export interface Match {
     teamA: number;
     teamB: number;
   };
+  hasLineup?: boolean;
 }
 
 export interface Bet {
@@ -664,4 +665,69 @@ export interface GameFilters {
   tier: TournamentType | 'all';
   duration: DurationType | 'all';
   eligibleOnly: boolean;
+}
+
+// --- Match Stats Drawer Types ---
+export interface FormSummary {
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  formString: string;
+}
+
+export interface FormMatch {
+  date: string;
+  competition: string;
+  homeTeam: string;
+  awayTeam: string;
+  homeScore: number;
+  awayScore: number;
+  result: 'W' | 'D' | 'L';
+}
+
+export interface TeamStats {
+  name: string;
+  formSummary: FormSummary;
+  formMatches: FormMatch[];
+}
+
+export interface H2HMatch {
+  date: string;
+  competition: string;
+  homeTeam: string;
+  awayTeam: string;
+  score: string;
+}
+
+export interface LineupPlayer {
+  name: string;
+  position: string;
+}
+
+export interface Absentee {
+  name: string;
+  reason: string;
+}
+
+export interface Lineup {
+  status: 'confirmed' | 'tbc';
+  formation: string;
+  lastUpdated: string;
+  source: string;
+  starters: LineupPlayer[];
+  bench: LineupPlayer[];
+  absentees: Absentee[];
+}
+
+export interface MatchStats {
+  matchId: string;
+  teams: {
+    home: TeamStats;
+    away: TeamStats;
+  };
+  h2h: H2HMatch[];
+  lineup?: Lineup;
 }

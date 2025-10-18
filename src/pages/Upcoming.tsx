@@ -8,9 +8,10 @@ interface UpcomingPageProps {
   orderedLeagues: string[];
   bets: Bet[];
   onBet: (match: Match, prediction: 'teamA' | 'draw' | 'teamB', odds: number) => void;
+  onViewStats: (match: Match) => void;
 }
 
-const UpcomingPage: React.FC<UpcomingPageProps> = ({ groupedMatches, orderedLeagues, bets, onBet }) => {
+const UpcomingPage: React.FC<UpcomingPageProps> = ({ groupedMatches, orderedLeagues, bets, onBet, onViewStats }) => {
   const hasMatches = Object.keys(groupedMatches).length > 0;
 
   return (
@@ -39,6 +40,7 @@ const UpcomingPage: React.FC<UpcomingPageProps> = ({ groupedMatches, orderedLeag
                   key={match.id}
                   match={match}
                   onBet={(prediction, odds) => onBet(match, prediction, odds)}
+                  onViewStats={() => onViewStats(match)}
                   userBet={bets.find(bet => bet.matchId === match.id)}
                 />
               ))}

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Match, Bet } from '../types';
+import { Match, Bet, MatchStats } from '../types';
 import UpcomingPage from './Upcoming';
 import PlayedPage from './Played';
 import { DailySummaryHeader } from '../components/matches/DailySummaryHeader';
@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { Settings } from 'lucide-react';
 import { useLeagueOrder } from '../hooks/useLeagueOrder';
 import { LeagueOrderModal } from '../components/matches/LeagueOrderModal';
+import { MatchStatsDrawer } from '../components/matches/stats/MatchStatsDrawer';
 
 type Tab = 'upcoming' | 'played';
 
@@ -17,6 +18,7 @@ const MatchesPage: React.FC<{
 }> = ({ matches, bets, onBet }) => {
   const [activeTab, setActiveTab] = useState<Tab>('upcoming');
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+  const [selectedMatchForStats, setSelectedMatchForStats] = useState<Match | null>(null);
   
   const { orderedLeagues, allLeagues, setOrderedLeagues } = useLeagueOrder(matches);
 
@@ -103,12 +105,14 @@ const MatchesPage: React.FC<{
           orderedLeagues={orderedLeagues}
           bets={bets}
           onBet={onBet}
+          onViewStats={setSelectedMatchForStats}
         />
       ) : (
         <PlayedPage 
           groupedMatches={groupedPlayed}
           orderedLeagues={orderedLeagues}
           bets={bets}
+          onViewStats={setSelectedMatchForStats}
         />
       )}
 
@@ -117,6 +121,11 @@ const MatchesPage: React.FC<{
         onClose={() => setIsOrderModalOpen(false)}
         leagues={uniqueLeaguesWithLogos}
         onSave={setOrderedLeagues}
+      />
+
+      <MatchStatsDrawer
+        match={selectedMatchForStats}
+        onClose={() => setSelectedMatchForStats(null)}
       />
     </div>
   );

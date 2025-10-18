@@ -1,14 +1,15 @@
 import React from 'react';
 import { Match, Bet } from '../types';
-import { Clock, TrendingUp, CheckCircle2, XCircle } from 'lucide-react';
+import { Clock, TrendingUp, CheckCircle2, XCircle, BarChart2 } from 'lucide-react';
 
 interface MatchCardProps {
   match: Match;
   onBet?: (prediction: 'teamA' | 'draw' | 'teamB', odds: number) => void;
+  onViewStats?: () => void;
   userBet?: Bet;
 }
 
-export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, userBet }) => {
+export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats, userBet }) => {
   const isUpcoming = match.status === 'upcoming';
   const betPlaced = !!userBet;
 
@@ -108,11 +109,25 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, userBet }) =
       </div>
 
       <div className="space-y-2">
-        <div className="flex items-center gap-2 mb-2">
-          <TrendingUp className="w-4 h-4 text-electric-blue" />
-          <span className="text-xs font-semibold text-text-secondary uppercase">
-            {isUpcoming ? 'Place Your Bet' : 'Final Odds'}
-          </span>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-electric-blue" />
+            <span className="text-xs font-semibold text-text-secondary uppercase">
+              {isUpcoming ? 'Place Your Bet' : 'Final Odds'}
+            </span>
+          </div>
+          {onViewStats && (
+            <button onClick={onViewStats} className="relative flex items-center gap-1.5 text-xs font-semibold text-text-secondary hover:text-electric-blue">
+              <BarChart2 size={16} />
+              Stats
+              {match.hasLineup && (
+                <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime-glow opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-lime-glow"></span>
+                </span>
+              )}
+            </button>
+          )}
         </div>
         <div className="flex gap-2">
           <BetButton prediction="teamA" odds={match.odds.teamA} label={match.teamA.name.split(' ')[0]} />

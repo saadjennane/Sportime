@@ -7,9 +7,10 @@ interface PlayedPageProps {
   groupedMatches: Record<string, Match[]>;
   orderedLeagues: string[];
   bets: Bet[];
+  onViewStats: (match: Match) => void;
 }
 
-const PlayedPage: React.FC<PlayedPageProps> = ({ groupedMatches, orderedLeagues, bets }) => {
+const PlayedPage: React.FC<PlayedPageProps> = ({ groupedMatches, orderedLeagues, bets, onViewStats }) => {
   const hasMatches = Object.keys(groupedMatches).length > 0;
 
   return (
@@ -37,6 +38,7 @@ const PlayedPage: React.FC<PlayedPageProps> = ({ groupedMatches, orderedLeagues,
                 <MatchCard
                   key={match.id}
                   match={match}
+                  onViewStats={() => onViewStats(match)}
                   userBet={bets.find(bet => bet.matchId === match.id)}
                 />
               ))}
