@@ -1,5 +1,7 @@
 export interface Match {
   id: string;
+  leagueName: string;
+  leagueLogo: string;
   teamA: {
     name: string;
     emoji: string;
