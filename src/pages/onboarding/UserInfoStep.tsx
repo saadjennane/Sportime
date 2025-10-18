@@ -1,36 +1,28 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Profile } from '../../types';
-import { User, Camera, Loader2 } from 'lucide-react';
+import { Camera, Loader2, User } from 'lucide-react';
+import { UsernameInput } from '../../components/auth/UsernameInput';
+import { DisplayNamePreview } from '../../components/auth/DisplayNamePreview';
 
 interface UserInfoStepProps {
   profile: Profile;
-  onContinue: (username: string, profilePic: File | null) => void;
+  onContinue: (username: string, displayName: string, profilePic: File | null) => void;
   loading: boolean;
-  // mockUsers is needed for unique username validation
-  mockUsers: Profile[];
 }
 
-export const UserInfoStep: React.FC<UserInfoStepProps> = ({ profile, onContinue, loading, mockUsers }) => {
+export const UserInfoStep: React.FC<UserInfoStepProps> = ({ profile, onContinue, loading }) => {
   const [username, setUsername] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [profilePicFile, setProfilePicFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (username.length > 2) {
-      const isTaken = mockUsers.some(u => u.username?.toLowerCase() === username.toLowerCase() && u.id !== profile.id);
-      if (isTaken) {
-        setUsernameError('This username is already taken.');
-      } else {
-        setUsernameError(null);
-      }
-    } else if (username.length > 0) {
-        setUsernameError('Username must be at least 3 characters.');
-    } else {
-        setUsernameError(null);
-    }
-  }, [username, mockUsers, profile.id]);
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -43,8 +35,8 @@ export const UserInfoStep: React.FC<UserInfoStepProps> = ({ profile, onContinue,
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (username.length > 2 && !usernameError) {
-      onContinue(username, profilePicFile);
+    if (!usernameError && username.length >= 3) {
+      onContinue(username, displayName, profilePicFile);
     }
   };
 
@@ -74,26 +66,22 @@ export const UserInfoStep: React.FC<UserInfoStepProps> = ({ profile, onContinue,
           </button>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-          <p className="w-full p-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-500">{profile.email}</p>
-        </div>
+        <UsernameInput value={username} onChange={setUsername} currentUserId={profile.id} setExternalError={setUsernameError} />
 
         <div>
-          <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">Username</label>
-          <div className="relative">
-            <input
-              id="username"
-              type="text"
-              value={username}
-              onChange={e => setUsername(e.target.value)}
-              placeholder="Choose a unique username"
-              className={`w-full p-3 bg-gray-100 border-2 rounded-xl ${usernameError ? 'border-red-400' : 'border-gray-200 focus:border-purple-500'}`}
-              required
-            />
-          </div>
-          {usernameError && <p className="text-red-500 text-xs mt-1">{usernameError}</p>}
+          <label htmlFor="displayName" className="block text-sm font-medium text-gray-700 mb-1">Display Name (Optional)</label>
+          <input
+            id="displayName"
+            type="text"
+            value={displayName}
+            onChange={e => setDisplayName(e.target.value)}
+            placeholder="How your name will appear"
+            className="w-full p-3 bg-gray-100 border-2 border-gray-200 rounded-xl"
+            maxLength={30}
+          />
         </div>
+        
+        <DisplayNamePreview displayName={displayName} username={username} />
 
         <button type="submit" disabled={isContinueDisabled} className="w-full py-3.5 bg-purple-600 text-white font-bold rounded-xl shadow-lg shadow-purple-500/30 hover:bg-purple-700 disabled:bg-gray-300 disabled:shadow-none disabled:cursor-not-allowed transition-all">
           {loading ? <Loader2 className="animate-spin mx-auto" /> : 'Continue'}

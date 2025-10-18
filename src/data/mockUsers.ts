@@ -4,6 +4,7 @@ export const mockUsers: Profile[] = [
     {
         id: 'user-1',
         username: 'saadjennane',
+        display_name: 'Saad ⚡️',
         coins_balance: 500000,
         created_at: new Date().toISOString(),
         is_guest: false,
@@ -19,7 +20,8 @@ export const mockUsers: Profile[] = [
     },
     {
         id: 'user-2',
-        username: 'JaneDoe',
+        username: 'janedoe',
+        display_name: 'JaneDoe',
         coins_balance: 2500,
         created_at: new Date().toISOString(),
         is_guest: false,
@@ -33,7 +35,8 @@ export const mockUsers: Profile[] = [
     },
     {
         id: 'user-3',
-        username: 'AlexRay',
+        username: 'alexray',
+        display_name: 'AlexRay',
         coins_balance: 10000,
         created_at: new Date().toISOString(),
         is_guest: false,

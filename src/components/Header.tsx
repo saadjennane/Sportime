@@ -1,6 +1,7 @@
 import React from 'react';
 import { Coins, LogIn, Ticket, Bell } from 'lucide-react';
 import { Profile } from '../types';
+import { DisplayName } from './shared/DisplayName';
 
 interface HeaderProps {
   profile: Profile | null;
@@ -20,17 +21,20 @@ export const Header: React.FC<HeaderProps> = ({ profile, ticketCount, notificati
       {/* Left side: Avatar */}
       <button 
         onClick={isGuest ? onSignIn : onViewProfile}
-        className="w-10 h-10 bg-navy-accent/70 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm border border-neon-cyan/20"
+        className="flex items-center gap-2"
       >
-        {isGuest ? (
-          <LogIn className="w-5 h-5 text-electric-blue" />
-        ) : profile?.profile_picture_url ? (
-          <img src={profile.profile_picture_url} alt="Profile" className="w-full h-full rounded-full object-cover" />
-        ) : (
-           <span className="font-bold text-lg text-electric-blue">
-            {profile?.username ? profile.username.charAt(0).toUpperCase() : '?'}
-          </span>
-        )}
+        <div className="w-10 h-10 bg-navy-accent/70 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm border border-neon-cyan/20">
+          {isGuest ? (
+            <LogIn className="w-5 h-5 text-electric-blue" />
+          ) : profile?.profile_picture_url ? (
+            <img src={profile.profile_picture_url} alt="Profile" className="w-full h-full rounded-full object-cover" />
+          ) : (
+             <span className="font-bold text-lg text-electric-blue">
+              {profile?.username ? profile.username.charAt(0).toUpperCase() : '?'}
+            </span>
+          )}
+        </div>
+        <DisplayName profile={profile} className="font-bold text-text-primary hidden sm:block" />
       </button>
 
       {/* Right side: Balance, Tickets, Notifications */}

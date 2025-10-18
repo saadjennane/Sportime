@@ -258,7 +258,8 @@ export interface FantasyGameWeek {
 export interface Profile {
   id: string;
   email: string | null;
-  username: string | null;
+  username: string;
+  display_name?: string;
   verified: boolean;
   is_guest: boolean;
   profile_picture_url?: string | null;
@@ -266,6 +267,7 @@ export interface Profile {
   xp?: number;
   coins_balance: number;
   created_at: string;
+  updated_at?: string;
   is_admin?: boolean;
   is_subscriber?: boolean;
   subscription_expires_at?: string;

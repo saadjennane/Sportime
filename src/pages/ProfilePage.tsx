@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Profile, LevelConfig, Badge, UserBadge, UserStreak, SpinTier } from '../types';
 import { User, Star, Shield, Settings, Flame, Edit, Globe, Award, Target, Gift, BarChart2, List, Users as SquadIcon } from 'lucide-react';
-import { ProfileSettingsModal } from '../components/ProfileSettingsModal';
+import { ProfileSettingsModal } from '../components/profile/ProfileSettingsModal';
 import { mockTeams } from '../data/mockTeams';
 import { mockCountries } from '../data/mockCountries';
 import { DailyStreakTracker } from '../components/DailyStreakTracker';
@@ -10,6 +10,7 @@ import { useSpinStore } from '../store/useSpinStore';
 import { UserProfileStats } from '../components/profile/UserProfileStats';
 import { FrequentPlayersList } from '../components/squad/FrequentPlayersList';
 import { useMockStore } from '../store/useMockStore';
+import { DisplayName } from '../components/shared/DisplayName';
 
 interface ProfilePageProps {
   profile: Profile;
@@ -17,7 +18,7 @@ interface ProfilePageProps {
   allBadges: Badge[];
   userBadges: UserBadge[];
   userStreaks: UserStreak[];
-  onUpdateProfile: (updatedData: { username: string; newProfilePic: File | null; favoriteClub?: string | null; favoriteNationalTeam?: string | null; }) => void;
+  onUpdateProfile: (updatedData: { username: string; displayName: string; newProfilePic: File | null; favoriteClub?: string | null; favoriteNationalTeam?: string | null; }) => void;
   onUpdateEmail: (newEmail: string) => void;
   onSignOut: () => void;
   onDeleteAccount: () => void;
@@ -121,8 +122,9 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
             {currentLevel && <span className="absolute bottom-0 right-0 bg-navy-accent p-1.5 rounded-full text-2xl shadow-md border-2 border-neon-cyan/50">{currentLevel.level_icon_url}</span>}
           </div>
           <div className="text-center">
-            <h2 className="text-2xl font-bold text-text-primary">{profile.username}</h2>
-            {currentLevel && <p className="text-sm font-semibold text-electric-blue">{currentLevel.level_name}</p>}
+            <DisplayName profile={profile} className="text-2xl font-bold text-text-primary" />
+            <p className="text-sm text-text-disabled">@{profile.username}</p>
+            {currentLevel && <p className="text-sm font-semibold text-electric-blue mt-1">{currentLevel.level_name}</p>}
           </div>
         </div>
 

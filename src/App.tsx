@@ -224,7 +224,7 @@ function App() {
         const newUser: Profile = {
             id: uuidv4(),
             email,
-            username: null,
+            username: `user_${uuidv4().slice(0, 4)}`,
             coins_balance: 1000,
             created_at: new Date().toISOString(),
             is_guest: false,
@@ -260,7 +260,7 @@ function App() {
     addToast('You have been signed out.', 'info');
   };
 
-  const handleUpdateProfile = async (updatedData: { username: string; newProfilePic: File | null; favoriteClub?: string | null; favoriteNationalTeam?: string | null; }) => {
+  const handleUpdateProfile = async (updatedData: { username: string; displayName: string; newProfilePic: File | null; favoriteClub?: string | null; favoriteNationalTeam?: string | null; }) => {
     if (!profile || profile.is_guest) return;
     setLoading(true);
     addToast('Updating profile...', 'info');
@@ -272,6 +272,7 @@ function App() {
 
     const newProfileData: Partial<Profile> = {
       username: updatedData.username,
+      display_name: updatedData.displayName,
       profile_picture_url: newProfilePictureUrl,
       favorite_club: updatedData.favoriteClub === null ? undefined : updatedData.favoriteClub || profile.favorite_club,
       favorite_national_team: updatedData.favoriteNationalTeam === null ? undefined : updatedData.favoriteNationalTeam || profile.favorite_national_team,
@@ -292,7 +293,7 @@ function App() {
     const finalProfile = { ...profile, ...updatedProfileData, verified: true };
     updateUser(profile.id, finalProfile);
     localStorage.setItem('sportime_user', JSON.stringify(finalProfile));
-    addToast(`Welcome to Sportime, ${finalProfile.username}!`, 'success');
+    addToast(`Welcome to Sportime, ${finalProfile.display_name || finalProfile.username}!`, 'success');
   };
   
   const handleBetClick = (match: Match, prediction: 'teamA' | 'draw' | 'teamB', odds: number) => {
@@ -771,7 +772,7 @@ function App() {
           leagueMembers={leagueMembers}
           leagueGames={leagueGames}
           currentUserId={profile.id}
-          onLinkGame={onLinkGame}
+          onLinkGame={handleOpenLinkGameFlow}
           profile={profile}
         />;
       }

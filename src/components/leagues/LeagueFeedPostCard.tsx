@@ -3,6 +3,7 @@ import { LeagueFeedPost, Profile, LeaderboardSnapshot } from '../../types';
 import { formatDistanceToNow } from 'date-fns';
 import { Heart, MessageSquare, Trophy } from 'lucide-react';
 import { useMockStore } from '../../store/useMockStore';
+import { DisplayName } from '../shared/DisplayName';
 
 interface LeagueFeedPostCardProps {
   post: LeagueFeedPost;
@@ -51,7 +52,7 @@ export const LeagueFeedPostCard: React.FC<LeagueFeedPostCardProps> = ({ post, au
           className="w-10 h-10 rounded-full object-cover"
         />
         <div>
-          <p className="font-bold text-text-primary">{author?.username || 'A member'}</p>
+          <DisplayName profile={author} className="font-bold text-text-primary" fallback="A member" />
           <p className="text-xs text-text-disabled">
             {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
           </p>
