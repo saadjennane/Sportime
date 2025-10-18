@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Profile } from '../../types';
 import { X, Mail, LogOut, Trash2, Loader2, Camera } from 'lucide-react';
-import { DeleteAccountModal } from './DeleteAccountModal';
+import { DeleteAccountModal } from '../DeleteAccountModal';
 import { SearchableSelect } from '../SearchableSelect';
 import { mockTeams } from '../../data/mockTeams';
 import { mockCountries } from '../../data/mockCountries';

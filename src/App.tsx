@@ -55,9 +55,10 @@ import { GameModal } from './components/modals/GameModal';
 import { LiveArenaModal } from './components/modals/LiveArenaModal';
 import { JoinGameModal } from './components/modals/JoinGameModal';
 import { NotificationCenter } from './components/notifications/NotificationCenter';
+import FunZonePage from './pages/FunZonePage';
 
 
-export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'leagues';
+export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'leagues' | 'funzone';
 type AuthFlowState = 'guest' | 'authenticated' | 'signing_up' | 'onboarding';
 
 function App() {
@@ -570,7 +571,7 @@ function App() {
 
 
   const handlePageChange = (newPage: Page) => {
-    if ((newPage === 'profile' || newPage === 'leagues') && profile?.is_guest) {
+    if ((newPage === 'profile' || newPage === 'leagues' || newPage === 'funzone') && profile?.is_guest) {
         handleTriggerSignUp();
         return;
     }
@@ -852,6 +853,8 @@ function App() {
               onCreate={() => setShowCreateLeagueModal(true)}
               onViewLeague={setActiveLeagueId}
           />;
+      case 'funzone':
+        return <FunZonePage profile={profile} onOpenSpinWheel={handleOpenSpinWheel} addToast={addToast} />;
       case 'admin':
         return <AdminPage profile={profile} addToast={addToast} />;
       case 'profile':

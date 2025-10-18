@@ -36,6 +36,8 @@ import {
   ActiveSession,
   Notification,
   PlayerGraph,
+  FunZoneState,
+  FreeSpinReward,
 } from '../types';
 import { isToday, addDays, isBefore, parseISO, differenceInHours } from 'date-fns';
 import { DAILY_STREAK_REWARDS, STREAK_RESET_THRESHOLD_HOURS, TICKET_RULES } from '../config/constants';
@@ -62,6 +64,7 @@ import { BASE_REWARD_PACKS } from '../config/rewardPacks';
 import { mockChallengeMatches } from '../data/mockChallenges';
 import { mockNotifications } from '../data/mockNotifications';
 import { mockPlayerGraph } from '../data/mockPlayerGraph';
+import { FREE_SPIN_REWARDS } from '../data/mockFunZone';
 
 interface MockDataState {
   games: SportimeGame[];
@@ -87,6 +90,7 @@ interface MockDataState {
   activeSessions: ActiveSession[];
   notifications: Notification[];
   playerGraph: PlayerGraph;
+  funzone: FunZoneState;
   isTestMode: boolean;
   showOnboardingTest: boolean;
   currentUserId: string | null;
@@ -141,11 +145,12 @@ interface MockDataActions {
   handleSwipePrediction: (matchDayId: string, userId: string, matchId: string, prediction: any) => void;
   updateSwipePrediction: (matchDayId: string, userId: string, matchId: string, prediction: any) => void;
   createLiveSession: (matchId: string, gameTypeId: string, leagueId?: string) => ActiveSession;
-  joinLiveSession: (pin: string, userId: string) => ActiveSession | null;
+  joinLiveSession: (pin: string) => ActiveSession | null;
   addNotification: (notification: Omit<Notification, 'id' | 'timestamp' | 'isRead'>) => void;
   markNotificationAsRead: (notificationId: string) => void;
   markAllNotificationsAsRead: () => void;
   incrementInteraction: (user1Id: string, user2Id: string) => void;
+  performFreeSpin: (userId: string) => FreeSpinReward | null;
 }
 
 export const generateBonusQuestions = (predictedScore: { home: number, away: number }): BonusQuestion[] => {
@@ -207,9 +212,49 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
   activeSessions: [],
   notifications: mockNotifications,
   playerGraph: mockPlayerGraph,
+  funzone: {
+    userProgress: 42,
+    dailySpinLastUsed: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(),
+    availableGames: [
+      { id: "guess-player", name: "Guess the Player", description: "Can you identify the player from his career path?", isPlayable: false, logic: { rules: '', winCondition: ''} },
+      { id: "guess-score", name: "Guess the Score", description: "Predict the final score in 10 seconds!", isPlayable: false, logic: { rules: '', winCondition: ''} },
+      { id: "tic-tac-foot", name: "Tic-Tac-Foot", description: "A football twist on the classic Tic-Tac-Toe.", isPlayable: false, logic: { rules: '', winCondition: ''} }
+    ]
+  },
   isTestMode: false,
   showOnboardingTest: false,
   currentUserId: null,
+
+  performFreeSpin: (userId) => {
+    const { funzone, setCoinBalance, addXp } = get();
+    if (funzone.dailySpinLastUsed && differenceInHours(new Date(), new Date(funzone.dailySpinLastUsed)) < 24) {
+      return null; // Already spun today
+    }
+
+    let random = Math.random();
+    let selectedReward: FreeSpinReward | null = null;
+    for (const reward of FREE_SPIN_REWARDS) {
+      if (random < reward.probability) {
+        selectedReward = reward;
+        break;
+      }
+      random -= reward.probability;
+    }
+    if (!selectedReward) selectedReward = FREE_SPIN_REWARDS[FREE_SPIN_REWARDS.length - 1];
+
+    if (selectedReward.type === 'coins') {
+      const user = get().allUsers.find(u => u.id === userId);
+      if (user) setCoinBalance(userId, user.coins_balance + selectedReward.value);
+    } else if (selectedReward.type === 'xp') {
+      addXp(userId, selectedReward.value);
+    }
+
+    set(state => ({
+      funzone: { ...state.funzone, dailySpinLastUsed: new Date().toISOString() }
+    }));
+    
+    return selectedReward;
+  },
 
   createLiveSession: (matchId, gameTypeId, leagueId) => {
     const { currentUserId } = get();
@@ -229,8 +274,10 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
     return newSession;
   },
 
-  joinLiveSession: (pin, userId) => {
-    const { activeSessions, incrementInteraction } = get();
+  joinLiveSession: (pin) => {
+    const { activeSessions, currentUserId, incrementInteraction } = get();
+    if (!currentUserId) return null;
+    
     const now = Date.now();
     let sessionToJoin: ActiveSession | null = null;
     let sessionIndex = -1;
@@ -243,20 +290,17 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
     });
 
     if (sessionToJoin && sessionIndex > -1) {
-      if (!sessionToJoin.participants.includes(userId)) {
-        // Increment interaction with existing participants
+      if (!sessionToJoin.participants.includes(currentUserId)) {
         sessionToJoin.participants.forEach(existingParticipantId => {
-          incrementInteraction(userId, existingParticipantId);
+          incrementInteraction(currentUserId, existingParticipantId);
         });
-
-        // Add new user and update state
-        const updatedSession = { ...sessionToJoin, participants: [...sessionToJoin.participants, userId] };
+        const updatedSession = { ...sessionToJoin, participants: [...sessionToJoin.participants, currentUserId] };
         const updatedSessions = [...activeSessions];
         updatedSessions[sessionIndex] = updatedSession;
         set({ activeSessions: updatedSessions });
         return updatedSession;
       }
-      return sessionToJoin; // Already a participant
+      return sessionToJoin;
     }
     return null;
   },

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, SlidersHorizontal, Gamepad2, Users } from 'lucide-react';
+import { Calendar, SlidersHorizontal, Gamepad2, Users, ToyBrick } from 'lucide-react';
 import { Page } from '../App';
 
 interface FooterNavProps {
@@ -50,6 +50,12 @@ export const FooterNav: React.FC<FooterNavProps> = ({ activePage, onPageChange }
           label="Leagues"
           isActive={activePage === 'leagues'}
           onClick={() => onPageChange('leagues')}
+        />
+        <NavItem
+          icon={<ToyBrick className="w-6 h-6" />}
+          label="FunZone"
+          isActive={activePage === 'funzone'}
+          onClick={() => onPageChange('funzone')}
         />
         <NavItem
           icon={<Calendar className="w-6 h-6" />}

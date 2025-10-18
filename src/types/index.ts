@@ -282,7 +282,9 @@ export interface Profile {
     nba?: { team?: string },
     f1?: { team?: string, driver?: string },
     tennis?: { player?: string }
-  }
+  };
+  funzone_progress?: number;
+  funzone_daily_spin_last_used?: string;
 }
 
 export interface Badge {
@@ -787,4 +789,34 @@ export interface PlayerInteraction {
 
 export interface PlayerGraph {
   [userId: string]: PlayerInteraction;
+}
+
+// --- FunZone Types ---
+export interface FunZoneGame {
+  id: string;
+  name: string;
+  description: string;
+  isPlayable: boolean;
+  logic: {
+    rules: string;
+    winCondition: string;
+  };
+}
+
+export interface FunZoneState {
+  userProgress: number;
+  dailySpinLastUsed?: string;
+  availableGames: FunZoneGame[];
+}
+
+export interface ProgressionMilestone {
+  wins: number;
+  rewards: { type: 'coins' | 'xp' | 'spin' | 'badge'; value: number | string }[];
+}
+
+export interface FreeSpinReward {
+  label: string;
+  type: 'coins' | 'xp' | 'none';
+  value: number;
+  probability: number;
 }
