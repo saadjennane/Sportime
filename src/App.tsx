@@ -56,9 +56,10 @@ import { LiveArenaModal } from './components/modals/LiveArenaModal';
 import { JoinGameModal } from './components/modals/JoinGameModal';
 import { NotificationCenter } from './components/notifications/NotificationCenter';
 import FunZonePage from './pages/FunZonePage';
+import ShopPage from './pages/ShopPage';
 
 
-export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'leagues' | 'funzone';
+export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'leagues' | 'funzone' | 'shop';
 type AuthFlowState = 'guest' | 'authenticated' | 'signing_up' | 'onboarding';
 
 function App() {
@@ -571,7 +572,7 @@ function App() {
 
 
   const handlePageChange = (newPage: Page) => {
-    if ((newPage === 'profile' || newPage === 'leagues' || newPage === 'funzone') && profile?.is_guest) {
+    if ((newPage === 'profile' || newPage === 'leagues' || newPage === 'funzone' || newPage === 'shop') && profile?.is_guest) {
         handleTriggerSignUp();
         return;
     }
@@ -855,6 +856,8 @@ function App() {
           />;
       case 'funzone':
         return <FunZonePage profile={profile} onOpenSpinWheel={handleOpenSpinWheel} addToast={addToast} />;
+      case 'shop':
+        return <ShopPage profile={profile} addToast={addToast} />;
       case 'admin':
         return <AdminPage profile={profile} addToast={addToast} />;
       case 'profile':
@@ -892,6 +895,7 @@ function App() {
           onViewTickets={() => setIsTicketWalletOpen(true)}
           notificationCount={unreadNotificationsCount}
           onViewNotifications={() => setIsNotificationCenterOpen(true)}
+          onGoToShop={() => handlePageChange('shop')}
         />
         {renderPage()}
       </div>

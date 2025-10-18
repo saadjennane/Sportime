@@ -1,5 +1,5 @@
 import React from 'react';
-import { Coins, LogIn, Ticket, Bell } from 'lucide-react';
+import { Coins, LogIn, Ticket, Bell, Plus } from 'lucide-react';
 import { Profile } from '../types';
 import { DisplayName } from './shared/DisplayName';
 
@@ -11,9 +11,10 @@ interface HeaderProps {
   onSignIn: () => void;
   onViewTickets: () => void;
   onViewNotifications: () => void;
+  onGoToShop: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ profile, ticketCount, notificationCount, onViewProfile, onSignIn, onViewTickets, onViewNotifications }) => {
+export const Header: React.FC<HeaderProps> = ({ profile, ticketCount, notificationCount, onViewProfile, onSignIn, onViewTickets, onViewNotifications, onGoToShop }) => {
   const isGuest = profile?.is_guest;
 
   return (
@@ -42,9 +43,16 @@ export const Header: React.FC<HeaderProps> = ({ profile, ticketCount, notificati
         {profile && (
           <>
             {/* Balance */}
-            <div className="flex items-center gap-2 bg-navy-accent/70 backdrop-blur-sm px-3 py-2 rounded-full shadow-sm border border-neon-cyan/20">
+            <div className="flex items-center gap-1 bg-navy-accent/70 backdrop-blur-sm pl-3 pr-1 py-1 rounded-full shadow-sm border border-neon-cyan/20">
               <Coins className="w-5 h-5 text-warm-yellow" />
               <span className="font-bold text-text-primary text-sm">{profile.coins_balance.toLocaleString()}</span>
+              <button 
+                onClick={onGoToShop} 
+                className="w-6 h-6 bg-lime-glow/20 rounded-full flex items-center justify-center text-lime-glow hover:bg-lime-glow/30 transition-colors"
+                aria-label="Go to shop"
+              >
+                <Plus size={16} />
+              </button>
             </div>
             
             {/* Tickets */}

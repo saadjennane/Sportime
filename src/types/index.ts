@@ -285,6 +285,8 @@ export interface Profile {
   };
   funzone_progress?: number;
   funzone_daily_spin_last_used?: string;
+  total_spent_eur?: number;
+  purchases_count?: number;
 }
 
 export interface Badge {
@@ -626,7 +628,7 @@ export interface UserTicket {
 }
 
 // --- Spin Engine Types ---
-export type SpinTier = 'rookie' | 'pro' | 'elite';
+export type SpinTier = 'free' | 'rookie' | 'pro' | 'elite' | 'premium';
 
 export interface SpinReward {
   id: string;
@@ -819,4 +821,15 @@ export interface FreeSpinReward {
   type: 'coins' | 'xp' | 'none';
   value: number;
   probability: number;
+}
+
+// --- Coin Shop Types ---
+export interface CoinPack {
+  id: string;
+  name: string;
+  priceEUR: number;
+  coins: number;
+  bonus: number;
+  valuePerCoin: number;
+  isBestValue?: boolean;
 }

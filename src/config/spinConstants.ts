@@ -1,8 +1,9 @@
 import { SpinReward, SpinTier, TournamentType } from "../types";
 
-export const SPIN_TIERS: SpinTier[] = ["rookie", "pro", "elite"];
+export const SPIN_TIERS: SpinTier[] = ["free", "rookie", "pro", "elite", "premium"];
 
 export const SPIN_REWARDS: Record<SpinTier, SpinReward[]> = {
+  free: [], // This is handled by mockFunZone.ts, should be consolidated
   rookie: [
     { id: "ticket_rookie", label: "Rookie Ticket", baseChance: 0.28, category: 'ticket' },
     { id: "extra_spin", label: "Extra Spin", baseChance: 0.28, category: 'spin' },
@@ -30,12 +31,22 @@ export const SPIN_REWARDS: Record<SpinTier, SpinReward[]> = {
     { id: "gift_card", label: "Gift Card $5", baseChance: 0.06, category: 'gift_card' },
     { id: "premium_7d", label: "Premium (7 days)", baseChance: 0.04, category: 'premium' },
   ],
+  premium: [
+    { id: "masterpass_pro", label: "Pro MasterPass", baseChance: 0.20, category: 'masterpass' },
+    { id: "gift_card_10", label: "Gift Card $10", baseChance: 0.05, category: 'gift_card' },
+    { id: "premium_30d", label: "Premium (30 days)", baseChance: 0.10, category: 'premium' },
+    { id: "boost_2000", label: "XP +2000", baseChance: 0.25, category: 'xp' },
+    { id: "ticket_elite_pack", label: "2x Elite Tickets", baseChance: 0.15, category: 'ticket' },
+    { id: "extra_spin_premium", label: "Extra Premium Spin", baseChance: 0.25, category: 'spin' },
+  ],
 };
 
 export const RARE_REWARD_CATEGORIES: Record<SpinTier, string[]> = {
+    free: [],
     rookie: ['masterpass', 'ticket_pro'],
     pro: ['masterpass', 'ticket_elite', 'premium'],
     elite: ['masterpass', 'gift_card', 'premium'],
+    premium: ['gift_card', 'premium', 'masterpass_pro'],
 };
 
 export const PITY_TIMER_THRESHOLD = 10;
