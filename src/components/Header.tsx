@@ -1,16 +1,18 @@
 import React from 'react';
-import { Coins, LogIn, Ticket } from 'lucide-react';
+import { Coins, LogIn, Ticket, Bell } from 'lucide-react';
 import { Profile } from '../types';
 
 interface HeaderProps {
   profile: Profile | null;
   ticketCount: number;
+  notificationCount: number;
   onViewProfile: () => void;
   onSignIn: () => void;
   onViewTickets: () => void;
+  onViewNotifications: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ profile, ticketCount, onViewProfile, onSignIn, onViewTickets }) => {
+export const Header: React.FC<HeaderProps> = ({ profile, ticketCount, notificationCount, onViewProfile, onSignIn, onViewTickets, onViewNotifications }) => {
   const isGuest = profile?.is_guest;
 
   return (
@@ -23,6 +25,19 @@ export const Header: React.FC<HeaderProps> = ({ profile, ticketCount, onViewProf
 
       {/* Right side: Coin Balance & Profile */}
       <div className="flex items-center gap-2">
+        {profile && !isGuest && (
+          <button 
+            onClick={onViewNotifications}
+            className="relative w-10 h-10 bg-navy-accent/70 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm border border-neon-cyan/20"
+          >
+            <Bell className="w-5 h-5 text-text-secondary" />
+            {notificationCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-hot-red text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">
+                {notificationCount}
+              </span>
+            )}
+          </button>
+        )}
         {profile && (
           <>
             <div className="flex items-center gap-2 bg-navy-accent/70 backdrop-blur-sm px-3 py-2 rounded-full shadow-sm border border-neon-cyan/20">

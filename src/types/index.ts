@@ -508,6 +508,7 @@ export interface ActiveSession {
   pin?: string;
   createdAt: number;
   expiresAt: number;
+  participants: string[];
 }
 
 export interface ApiFootballResponse<T> {
@@ -759,4 +760,29 @@ export interface UserProfileStatsData {
   mostPlayedTeam: string;
   favoriteGameType: string;
   last10DaysAccuracy: number;
+}
+
+// --- Notification & Player Graph Types ---
+export interface Notification {
+  id: string;
+  type: "gameplay" | "league" | "squad" | "premium" | "reminder" | "system";
+  title: string;
+  message: string;
+  timestamp: string;
+  isRead: boolean;
+  action?: {
+    label: string;
+    link?: string;
+  };
+}
+
+export interface PlayerInteraction {
+  playerId: string;
+  username: string;
+  interactions: number;
+  lastInteraction: string;
+}
+
+export interface PlayerGraph {
+  [userId: string]: PlayerInteraction;
 }

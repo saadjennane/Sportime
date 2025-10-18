@@ -34,6 +34,8 @@ import {
   UserChallengeEntry,
   UserSwipeEntry,
   ActiveSession,
+  Notification,
+  PlayerGraph,
 } from '../types';
 import { isToday, addDays, isBefore, parseISO, differenceInHours } from 'date-fns';
 import { DAILY_STREAK_REWARDS, STREAK_RESET_THRESHOLD_HOURS, TICKET_RULES } from '../config/constants';
@@ -58,6 +60,8 @@ import { mockUserSwipeEntries } from '../data/mockUserSwipeEntries';
 import { mockPlayerGameWeekStats } from '../data/mockPlayerStats';
 import { BASE_REWARD_PACKS } from '../config/rewardPacks';
 import { mockChallengeMatches } from '../data/mockChallenges';
+import { mockNotifications } from '../data/mockNotifications';
+import { mockPlayerGraph } from '../data/mockPlayerGraph';
 
 interface MockDataState {
   games: SportimeGame[];
@@ -81,6 +85,8 @@ interface MockDataState {
   rewardPacks: typeof BASE_REWARD_PACKS;
   celebrations: CelebrationEvent[];
   activeSessions: ActiveSession[];
+  notifications: Notification[];
+  playerGraph: PlayerGraph;
   isTestMode: boolean;
   showOnboardingTest: boolean;
   currentUserId: string | null;
@@ -134,8 +140,12 @@ interface MockDataActions {
   joinLeague: (inviteCode: string, userId: string, callback: (league: UserLeague | null) => void) => void;
   handleSwipePrediction: (matchDayId: string, userId: string, matchId: string, prediction: any) => void;
   updateSwipePrediction: (matchDayId: string, userId: string, matchId: string, prediction: any) => void;
-  createLiveSession: (matchId: string, mode: 'solo' | 'invite' | 'league', leagueId?: string) => ActiveSession;
-  joinLiveSession: (pin: string) => ActiveSession | null;
+  createLiveSession: (matchId: string, gameTypeId: string, leagueId?: string) => ActiveSession;
+  joinLiveSession: (pin: string, userId: string) => ActiveSession | null;
+  addNotification: (notification: Omit<Notification, 'id' | 'timestamp' | 'isRead'>) => void;
+  markNotificationAsRead: (notificationId: string) => void;
+  markAllNotificationsAsRead: () => void;
+  incrementInteraction: (user1Id: string, user2Id: string) => void;
 }
 
 export const generateBonusQuestions = (predictedScore: { home: number, away: number }): BonusQuestion[] => {
@@ -195,31 +205,60 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
   rewardPacks: BASE_REWARD_PACKS,
   celebrations: [],
   activeSessions: [],
+  notifications: mockNotifications,
+  playerGraph: mockPlayerGraph,
   isTestMode: false,
   showOnboardingTest: false,
   currentUserId: null,
 
-  createLiveSession: (matchId, mode, leagueId) => {
+  createLiveSession: (matchId, gameTypeId, leagueId) => {
+    const { currentUserId } = get();
     const pin = Math.floor(10000 + Math.random() * 90000).toString();
     const now = Date.now();
     const newSession: ActiveSession = {
         id: uuidv4(),
         pin,
         matchId,
-        mode,
+        gameTypeId,
         leagueId,
         createdAt: now,
         expiresAt: now + 5 * 60 * 1000, // 5 minutes expiry
+        participants: currentUserId ? [currentUserId] : [],
     };
     set(state => ({ activeSessions: [...state.activeSessions, newSession] }));
     return newSession;
   },
 
-  joinLiveSession: (pin) => {
-    const { activeSessions } = get();
+  joinLiveSession: (pin, userId) => {
+    const { activeSessions, incrementInteraction } = get();
     const now = Date.now();
-    const session = activeSessions.find(s => s.pin === pin && s.expiresAt > now);
-    return session || null;
+    let sessionToJoin: ActiveSession | null = null;
+    let sessionIndex = -1;
+
+    activeSessions.forEach((s, index) => {
+      if (s.pin === pin && s.expiresAt > now) {
+        sessionToJoin = s;
+        sessionIndex = index;
+      }
+    });
+
+    if (sessionToJoin && sessionIndex > -1) {
+      if (!sessionToJoin.participants.includes(userId)) {
+        // Increment interaction with existing participants
+        sessionToJoin.participants.forEach(existingParticipantId => {
+          incrementInteraction(userId, existingParticipantId);
+        });
+
+        // Add new user and update state
+        const updatedSession = { ...sessionToJoin, participants: [...sessionToJoin.participants, userId] };
+        const updatedSessions = [...activeSessions];
+        updatedSessions[sessionIndex] = updatedSession;
+        set({ activeSessions: updatedSessions });
+        return updatedSession;
+      }
+      return sessionToJoin; // Already a participant
+    }
+    return null;
   },
 
   setCurrentUserId: (userId) => set({ currentUserId: userId }),
@@ -1149,6 +1188,59 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
         t.gameWeekId === team.gameWeekId && t.userId === team.userId ? team : t
       ),
     }));
+  },
+
+  addNotification: (notification) => {
+    const newNotification: Notification = {
+      ...notification,
+      id: uuidv4(),
+      timestamp: new Date().toISOString(),
+      isRead: false,
+    };
+    set(state => ({ notifications: [newNotification, ...state.notifications] }));
+  },
+
+  markNotificationAsRead: (notificationId) => {
+    set(state => ({
+      notifications: state.notifications.map(n => 
+        n.id === notificationId ? { ...n, isRead: true } : n
+      )
+    }));
+  },
+
+  markAllNotificationsAsRead: () => {
+    set(state => ({
+      notifications: state.notifications.map(n => ({ ...n, isRead: true }))
+    }));
+  },
+
+  incrementInteraction: (user1Id, user2Id) => {
+    set(state => {
+      const { allUsers } = get();
+      const newGraph = { ...state.playerGraph };
+      
+      const updateUserInteraction = (mainUserId: string, otherUserId: string) => {
+        const otherUser = allUsers.find(u => u.id === otherUserId);
+        if (!otherUser) return;
+
+        if (newGraph[mainUserId]) {
+          newGraph[mainUserId].interactions += 1;
+          newGraph[mainUserId].lastInteraction = new Date().toISOString();
+        } else {
+          newGraph[mainUserId] = {
+            playerId: otherUserId,
+            username: otherUser.username || 'Player',
+            interactions: 1,
+            lastInteraction: new Date().toISOString(),
+          };
+        }
+      };
+
+      updateUserInteraction(user1Id, user2Id);
+      updateUserInteraction(user2Id, user1Id);
+
+      return { playerGraph: newGraph };
+    });
   },
 }));
 

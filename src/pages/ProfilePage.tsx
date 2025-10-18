@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Profile, LevelConfig, Badge, UserBadge, UserStreak, SpinTier } from '../types';
-import { User, Star, Shield, Settings, Flame, Edit, Globe, Award, Target, Gift, BarChart2, List } from 'lucide-react';
+import { User, Star, Shield, Settings, Flame, Edit, Globe, Award, Target, Gift, BarChart2, List, Users as SquadIcon } from 'lucide-react';
 import { ProfileSettingsModal } from '../components/ProfileSettingsModal';
 import { mockTeams } from '../data/mockTeams';
 import { mockCountries } from '../data/mockCountries';
@@ -8,6 +8,8 @@ import { DailyStreakTracker } from '../components/DailyStreakTracker';
 import { LEVEL_BET_LIMITS } from '../config/constants';
 import { useSpinStore } from '../store/useSpinStore';
 import { UserProfileStats } from '../components/profile/UserProfileStats';
+import { FrequentPlayersList } from '../components/squad/FrequentPlayersList';
+import { useMockStore } from '../store/useMockStore';
 
 interface ProfilePageProps {
   profile: Profile;
@@ -25,9 +27,10 @@ interface ProfilePageProps {
 const ProfilePage: React.FC<ProfilePageProps> = (props) => {
   const { profile, levels, allBadges, userBadges, userStreaks, onOpenSpinWheel } = props;
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'stats'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'stats' | 'squad'>('overview');
   
   const userSpinState = useSpinStore(state => state.userSpinStates[profile.id]);
+  const { addNotification } = useMockStore();
 
   const currentLevel = levels.find(l => l.level_name === (profile.level ?? 'Amateur')) || levels[0];
   const nextLevel = levels.find(l => l.min_xp > (currentLevel?.min_xp || 0));
@@ -127,6 +130,7 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
         <div className="flex bg-navy-accent rounded-xl p-1 gap-1">
           <TabButton label="Overview" icon={<List size={16} />} isActive={activeTab === 'overview'} onClick={() => setActiveTab('overview')} />
           <TabButton label="Stats" icon={<BarChart2 size={16} />} isActive={activeTab === 'stats'} onClick={() => setActiveTab('stats')} />
+          <TabButton label="Squad" icon={<SquadIcon size={16} />} isActive={activeTab === 'squad'} onClick={() => setActiveTab('squad')} />
         </div>
 
         {activeTab === 'overview' && (
@@ -228,6 +232,19 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
 
         {activeTab === 'stats' && (
           <UserProfileStats />
+        )}
+
+        {activeTab === 'squad' && (
+          <FrequentPlayersList 
+            currentUserId={profile.id}
+            onInvite={(username) => {
+              addNotification({
+                type: 'squad',
+                title: 'Invite Sent',
+                message: `You invited ${username} to a game.`,
+              });
+            }}
+          />
         )}
         
         <ProfileSettingsModal 

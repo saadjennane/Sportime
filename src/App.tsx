@@ -6,7 +6,7 @@ import { FooterNav } from './components/FooterNav';
 import { mockMatches } from './data/mockMatches';
 import { mockChallengeMatches } from './data/mockChallenges';
 import { mockFantasyPlayers } from './data/mockFantasy.tsx';
-import { Match, Bet, UserChallengeEntry, Profile, LevelConfig, Badge, UserBadge, FantasyPlayer, Game, LiveGamePlayerEntry, UserFantasyTeam, UserTicket, SportimeGame, SpinTier, SwipeMatchDay, FantasyGame } from './types';
+import { Match, Bet, UserChallengeEntry, Profile, LevelConfig, Badge, UserBadge, FantasyPlayer, Game, LiveGamePlayerEntry, UserFantasyTeam, UserTicket, SportimeGame, SpinTier, SwipeMatchDay, FantasyGame, ActiveSession } from './types';
 import AdminPage from './pages/Admin';
 import GamesListPage from './pages/GamesListPage';
 import ChallengeRoomPage from './pages/ChallengeRoomPage';
@@ -54,6 +54,7 @@ import { SpinWheel } from './components/SpinWheel';
 import { GameModal } from './components/modals/GameModal';
 import { LiveArenaModal } from './components/modals/LiveArenaModal';
 import { JoinGameModal } from './components/modals/JoinGameModal';
+import { NotificationCenter } from './components/notifications/NotificationCenter';
 
 
 export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'leagues';
@@ -66,6 +67,7 @@ function App() {
   const [showSignUpPrompt, setShowSignUpPrompt] = useState(false);
   const [isTicketWalletOpen, setIsTicketWalletOpen] = useState(false);
   const [spinWheelState, setSpinWheelState] = useState<{ isOpen: boolean; tier: SpinTier | null }>({ isOpen: false, tier: null });
+  const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
 
   const [page, setPage] = useState<Page>('challenges');
   const [matches, setMatches] = useState<Match[]>(mockMatches);
@@ -84,6 +86,7 @@ function App() {
     userTickets, userStreaks, createLeague, linkGameToLeagues, createLeagueAndLink,
     createLiveGame, submitLiveGamePrediction, editLiveGamePrediction, placeLiveBet,
     tickLiveGame, joinChallenge: joinChallengeAction, processDailyStreak, joinSwipeGame,
+    notifications, markNotificationAsRead, markAllNotificationsAsRead,
   } = useMockStore();
 
   const profile = useMemo(() => allUsers.find(u => u.id === currentUserId), [allUsers, currentUserId]);
@@ -630,6 +633,8 @@ function App() {
     setGameModalState({ isOpen: true, matchId, matchName });
   };
 
+  const unreadNotificationsCount = useMemo(() => notifications.filter(n => !n.isRead).length, [notifications]);
+
   const renderPage = () => {
     if (joinLeagueCode) {
         const leagueToJoin = userLeagues.find(l => l.invite_code === joinLeagueCode);
@@ -766,7 +771,7 @@ function App() {
           leagueMembers={leagueMembers}
           leagueGames={leagueGames}
           currentUserId={profile.id}
-          onLinkGame={handleOpenLinkGameFlow}
+          onLinkGame={onLinkGame}
           profile={profile}
         />;
       }
@@ -875,7 +880,15 @@ function App() {
     <div className="main-background">
       <ToastContainer toasts={toasts} removeToast={removeToast} />
       <div className="max-w-md mx-auto px-4 pt-4 pb-28 space-y-4">
-        <Header profile={profile} ticketCount={ticketCount} onViewProfile={() => handlePageChange('profile')} onSignIn={handleTriggerSignUp} onViewTickets={() => setIsTicketWalletOpen(true)} />
+        <Header 
+          profile={profile} 
+          ticketCount={ticketCount} 
+          onViewProfile={() => handlePageChange('profile')} 
+          onSignIn={handleTriggerSignUp} 
+          onViewTickets={() => setIsTicketWalletOpen(true)}
+          notificationCount={unreadNotificationsCount}
+          onViewNotifications={() => setIsNotificationCenterOpen(true)}
+        />
         {renderPage()}
       </div>
 
@@ -968,6 +981,13 @@ function App() {
     <JoinGameModal
         isOpen={joinGameModalState.isOpen}
         onClose={() => setJoinGameModalState({ isOpen: false })}
+    />
+    <NotificationCenter
+      isOpen={isNotificationCenterOpen}
+      onClose={() => setIsNotificationCenterOpen(false)}
+      notifications={notifications}
+      onMarkAsRead={markNotificationAsRead}
+      onMarkAllAsRead={markAllNotificationsAsRead}
     />
     </div>
   );
