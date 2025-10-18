@@ -1,5 +1,5 @@
 import React from 'react';
-import { Coins, LogIn, Ticket, Bell, Plus } from 'lucide-react';
+import { Coins, LogIn, Ticket, Bell, Plus, Star } from 'lucide-react';
 import { Profile } from '../types';
 import { DisplayName } from './shared/DisplayName';
 
@@ -12,10 +12,11 @@ interface HeaderProps {
   onViewTickets: () => void;
   onViewNotifications: () => void;
   onGoToShop: () => void;
+  onOpenPremiumModal: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ profile, ticketCount, notificationCount, onViewProfile, onSignIn, onViewTickets, onViewNotifications, onGoToShop }) => {
-  const isGuest = profile?.is_guest;
+export const Header: React.FC<HeaderProps> = ({ profile, ticketCount, notificationCount, onViewProfile, onSignIn, onViewTickets, onViewNotifications, onGoToShop, onOpenPremiumModal }) => {
+  const isGuest = !profile || profile.is_guest;
 
   return (
     <header className="flex items-center justify-between">
@@ -40,7 +41,7 @@ export const Header: React.FC<HeaderProps> = ({ profile, ticketCount, notificati
 
       {/* Right side: Balance, Tickets, Notifications */}
       <div className="flex items-center gap-2">
-        {profile && (
+        {profile && !isGuest && (
           <>
             {/* Balance */}
             <div className="flex items-center gap-1 bg-navy-accent/70 backdrop-blur-sm pl-3 pr-1 py-1 rounded-full shadow-sm border border-neon-cyan/20">
@@ -66,19 +67,26 @@ export const Header: React.FC<HeaderProps> = ({ profile, ticketCount, notificati
             </button>
             
             {/* Notifications */}
-            {!isGuest && (
-              <button 
-                onClick={onViewNotifications}
-                className="relative w-10 h-10 bg-navy-accent/70 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm border border-neon-cyan/20"
-              >
-                <Bell className="w-5 h-5 text-text-secondary" />
-                {notificationCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-hot-red text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">
-                    {notificationCount}
-                  </span>
-                )}
-              </button>
-            )}
+            <button 
+              onClick={onViewNotifications}
+              className="relative w-10 h-10 bg-navy-accent/70 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm border border-neon-cyan/20"
+            >
+              <Bell className="w-5 h-5 text-text-secondary" />
+              {notificationCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-hot-red text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">
+                  {notificationCount}
+                </span>
+              )}
+            </button>
+
+            {/* Premium Status */}
+            <button
+              onClick={onOpenPremiumModal}
+              className="relative w-10 h-10 bg-navy-accent/70 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm border border-neon-cyan/20"
+              title={profile.is_subscriber ? "Premium Active" : "Become Premium"}
+            >
+              <Star className={`w-5 h-5 transition-colors ${profile.is_subscriber ? 'text-warm-yellow fill-current' : 'text-text-secondary'}`} />
+            </button>
           </>
         )}
       </div>

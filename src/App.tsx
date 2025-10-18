@@ -57,6 +57,7 @@ import { JoinGameModal } from './components/modals/JoinGameModal';
 import { NotificationCenter } from './components/notifications/NotificationCenter';
 import FunZonePage from './pages/FunZonePage';
 import ShopPage from './pages/ShopPage';
+import { PremiumModal } from './components/premium/PremiumModal';
 
 
 export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'leagues' | 'funzone' | 'shop';
@@ -70,6 +71,7 @@ function App() {
   const [isTicketWalletOpen, setIsTicketWalletOpen] = useState(false);
   const [spinWheelState, setSpinWheelState] = useState<{ isOpen: boolean; tier: SpinTier | null }>({ isOpen: false, tier: null });
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
+  const [isPremiumModalOpen, setIsPremiumModalOpen] = useState(false);
 
   const [page, setPage] = useState<Page>('challenges');
   const [matches, setMatches] = useState<Match[]>(mockMatches);
@@ -88,7 +90,7 @@ function App() {
     userTickets, userStreaks, createLeague, linkGameToLeagues, createLeagueAndLink,
     createLiveGame, submitLiveGamePrediction, editLiveGamePrediction, placeLiveBet,
     tickLiveGame, joinChallenge: joinChallengeAction, processDailyStreak, joinSwipeGame,
-    notifications, markNotificationAsRead, markAllNotificationsAsRead,
+    notifications, markNotificationAsRead, markAllNotificationsAsRead, subscribeToPremium,
   } = useMockStore();
 
   const profile = useMemo(() => allUsers.find(u => u.id === currentUserId), [allUsers, currentUserId]);
@@ -638,6 +640,14 @@ function App() {
 
   const unreadNotificationsCount = useMemo(() => notifications.filter(n => !n.isRead).length, [notifications]);
 
+  const handleSubscribe = (plan: 'monthly' | 'seasonal') => {
+    if (profile) {
+      subscribeToPremium(profile.id, plan);
+      addToast(`Subscribed to ${plan} plan! Premium activated.`, 'success');
+      setIsPremiumModalOpen(false);
+    }
+  };
+
   const renderPage = () => {
     if (joinLeagueCode) {
         const leagueToJoin = userLeagues.find(l => l.invite_code === joinLeagueCode);
@@ -857,12 +867,12 @@ function App() {
       case 'funzone':
         return <FunZonePage profile={profile} onOpenSpinWheel={handleOpenSpinWheel} addToast={addToast} />;
       case 'shop':
-        return <ShopPage profile={profile} addToast={addToast} />;
+        return <ShopPage profile={profile} addToast={addToast} onOpenPremiumModal={() => setIsPremiumModalOpen(true)} />;
       case 'admin':
         return <AdminPage profile={profile} addToast={addToast} />;
       case 'profile':
         if (profile && !profile.is_guest) {
-          return <ProfilePage profile={profile} levels={levelsConfig} allBadges={badges} userBadges={userBadges} userStreaks={userStreaks} onUpdateProfile={handleUpdateProfile} onUpdateEmail={handleUpdateEmail} onSignOut={handleSignOut} onDeleteAccount={handleDeleteAccount} onOpenSpinWheel={handleOpenSpinWheel} />;
+          return <ProfilePage profile={profile} levels={levelsConfig} allBadges={badges} userBadges={userBadges} userStreaks={userStreaks} onUpdateProfile={handleUpdateProfile} onUpdateEmail={handleUpdateEmail} onSignOut={handleSignOut} onDeleteAccount={handleDeleteAccount} onOpenSpinWheel={handleOpenSpinWheel} onOpenPremiumModal={() => setIsPremiumModalOpen(true)} />;
         }
         return null;
       default:
@@ -896,6 +906,7 @@ function App() {
           notificationCount={unreadNotificationsCount}
           onViewNotifications={() => setIsNotificationCenterOpen(true)}
           onGoToShop={() => handlePageChange('shop')}
+          onOpenPremiumModal={() => setIsPremiumModalOpen(true)}
         />
         {renderPage()}
       </div>
@@ -996,6 +1007,11 @@ function App() {
       notifications={notifications}
       onMarkAsRead={markNotificationAsRead}
       onMarkAllAsRead={markAllNotificationsAsRead}
+    />
+    <PremiumModal
+      isOpen={isPremiumModalOpen}
+      onClose={() => setIsPremiumModalOpen(false)}
+      onSubscribe={handleSubscribe}
     />
     </div>
   );

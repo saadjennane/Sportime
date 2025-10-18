@@ -11,6 +11,8 @@ import { UserProfileStats } from '../components/profile/UserProfileStats';
 import { FrequentPlayersList } from '../components/squad/FrequentPlayersList';
 import { useMockStore } from '../store/useMockStore';
 import { DisplayName } from '../components/shared/DisplayName';
+import { PremiumUnlockCard } from '../components/premium/PremiumUnlockCard';
+import { PremiumStatusCard } from '../components/premium/PremiumStatusCard';
 
 interface ProfilePageProps {
   profile: Profile;
@@ -23,10 +25,11 @@ interface ProfilePageProps {
   onSignOut: () => void;
   onDeleteAccount: () => void;
   onOpenSpinWheel: (tier: SpinTier) => void;
+  onOpenPremiumModal: () => void;
 }
 
 const ProfilePage: React.FC<ProfilePageProps> = (props) => {
-  const { profile, levels, allBadges, userBadges, userStreaks, onOpenSpinWheel } = props;
+  const { profile, levels, allBadges, userBadges, userStreaks, onOpenSpinWheel, onOpenPremiumModal } = props;
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'stats' | 'squad'>('overview');
   
@@ -137,6 +140,11 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
 
         {activeTab === 'overview' && (
           <div className="space-y-6">
+            {profile.is_subscriber && profile.subscription_expires_at ? (
+              <PremiumStatusCard expiryDate={profile.subscription_expires_at} />
+            ) : (
+              <PremiumUnlockCard onClick={onOpenPremiumModal} />
+            )}
             {preferencesSkipped && (
               <div className="bg-gradient-to-r from-warm-yellow to-orange-500 text-deep-navy p-4 rounded-2xl shadow-lg flex items-center gap-3">
                 <Flame className="flex-shrink-0" />

@@ -65,6 +65,7 @@ import { mockChallengeMatches } from '../data/mockChallenges';
 import { mockNotifications } from '../data/mockNotifications';
 import { mockPlayerGraph } from '../data/mockPlayerGraph';
 import { FREE_SPIN_REWARDS } from '../data/mockFunZone';
+import { COIN_PACKS } from '../config/coinPacks';
 
 interface MockDataState {
   games: SportimeGame[];
@@ -141,6 +142,7 @@ interface MockDataActions {
   setCurrentUserId: (userId: string | null) => void;
   updateUser: (userId: string, updates: Partial<Profile>) => void;
   ensureUserExists: (user: Profile) => void;
+  checkUsernameAvailability: (username: string, currentUserId?: string) => Promise<boolean>;
   joinLeague: (inviteCode: string, userId: string, callback: (league: UserLeague | null) => void) => void;
   handleSwipePrediction: (matchDayId: string, userId: string, matchId: string, prediction: any) => void;
   updateSwipePrediction: (matchDayId: string, userId: string, matchId: string, prediction: any) => void;
@@ -151,6 +153,8 @@ interface MockDataActions {
   markAllNotificationsAsRead: () => void;
   incrementInteraction: (user1Id: string, user2Id: string) => void;
   performFreeSpin: (userId: string) => FreeSpinReward | null;
+  purchaseCoinPack: (packId: string, userId: string) => void;
+  subscribeToPremium: (userId: string, plan: 'monthly' | 'seasonal') => void;
 }
 
 export const generateBonusQuestions = (predictedScore: { home: number, away: number }): BonusQuestion[] => {
@@ -224,6 +228,52 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
   isTestMode: false,
   showOnboardingTest: false,
   currentUserId: null,
+
+  subscribeToPremium: (userId, plan) => {
+    const { allUsers, setCoinBalance } = get();
+    const user = allUsers.find(u => u.id === userId);
+    if (!user) return;
+
+    const days = plan === 'monthly' ? 30 : 180;
+    const now = new Date();
+    const currentExpiry = user.subscription_expires_at ? new Date(user.subscription_expires_at) : now;
+    const newExpiry = addDays(isBefore(currentExpiry, now) ? now : currentExpiry, days);
+
+    const wasAlreadyPremium = user.is_subscriber;
+
+    const updatedUser: Partial<Profile> = {
+      is_subscriber: true,
+      subscription_expires_at: newExpiry.toISOString(),
+    };
+
+    // Add welcome bonus only on first subscription
+    if (!wasAlreadyPremium) {
+      setCoinBalance(userId, user.coins_balance + 5000);
+    }
+
+    set(state => ({
+      allUsers: state.allUsers.map(u => u.id === userId ? { ...u, ...updatedUser } : u)
+    }));
+  },
+
+  purchaseCoinPack: (packId, userId) => {
+    const pack = COIN_PACKS.find(p => p.id === packId);
+    if (!pack) return;
+
+    set(state => ({
+      allUsers: state.allUsers.map(u => {
+        if (u.id === userId) {
+          return {
+            ...u,
+            coins_balance: u.coins_balance + pack.coins,
+            total_spent_eur: (u.total_spent_eur || 0) + pack.priceEUR,
+            purchases_count: (u.purchases_count || 0) + 1,
+          };
+        }
+        return u;
+      })
+    }));
+  },
 
   performFreeSpin: (userId) => {
     const { funzone, setCoinBalance, addXp } = get();
@@ -313,6 +363,11 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
         u.id === userId ? { ...u, ...updates } : u
       )
     }));
+  },
+  
+  checkUsernameAvailability: async (username, currentUserId) => {
+    const { allUsers } = get();
+    return allUsers.some(u => u.username.toLowerCase() === username.toLowerCase() && u.id !== currentUserId);
   },
 
   ensureUserExists: (user) => {

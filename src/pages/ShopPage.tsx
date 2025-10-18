@@ -4,13 +4,16 @@ import { COIN_PACKS } from '../config/coinPacks';
 import { CoinsShopCard } from '../components/shop/CoinsShopCard';
 import { PurchaseConfirmationModal } from '../components/shop/PurchaseConfirmationModal';
 import { useMockStore } from '../store/useMockStore';
+import { PremiumPromoCard } from '../components/premium/PremiumPromoCard';
+import { PremiumStatusCard } from '../components/premium/PremiumStatusCard';
 
 interface ShopPageProps {
   profile: Profile | null;
   addToast: (message: string, type: 'success' | 'error' | 'info') => void;
+  onOpenPremiumModal: () => void;
 }
 
-const ShopPage: React.FC<ShopPageProps> = ({ profile, addToast }) => {
+const ShopPage: React.FC<ShopPageProps> = ({ profile, addToast, onOpenPremiumModal }) => {
   const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
   const { purchaseCoinPack } = useMockStore();
 
@@ -50,6 +53,13 @@ const ShopPage: React.FC<ShopPageProps> = ({ profile, addToast }) => {
               onClick={() => handlePurchase(pack.id)}
             />
           ))}
+        </div>
+        <div className="mt-6">
+          {profile && !profile.is_subscriber ? (
+            <PremiumPromoCard onClick={onOpenPremiumModal} />
+          ) : profile && profile.subscription_expires_at ? (
+            <PremiumStatusCard expiryDate={profile.subscription_expires_at} />
+          ) : null}
         </div>
       </div>
       {selectedPack && (
