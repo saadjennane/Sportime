@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, SlidersHorizontal, Gamepad2, Users, ToyBrick, Store } from 'lucide-react';
+import { Calendar, SlidersHorizontal, Gamepad2, Users, ToyBrick } from 'lucide-react';
 import { Page } from '../App';
 
 interface FooterNavProps {

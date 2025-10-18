@@ -36,7 +36,6 @@ export const Header: React.FC<HeaderProps> = ({ profile, ticketCount, notificati
             </span>
           )}
         </div>
-        <DisplayName profile={profile} className="font-bold text-text-primary hidden sm:block" />
       </button>
 
       {/* Right side: Balance, Tickets, Notifications */}

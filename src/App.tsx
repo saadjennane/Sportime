@@ -56,11 +56,11 @@ import { LiveArenaModal } from './components/modals/LiveArenaModal';
 import { JoinGameModal } from './components/modals/JoinGameModal';
 import { NotificationCenter } from './components/notifications/NotificationCenter';
 import FunZonePage from './pages/FunZonePage';
-import ShopPage from './pages/ShopPage';
 import { PremiumModal } from './components/premium/PremiumModal';
+import { CoinShopModal } from './components/shop/CoinShopModal';
 
 
-export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'leagues' | 'funzone' | 'shop';
+export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'leagues' | 'funzone';
 type AuthFlowState = 'guest' | 'authenticated' | 'signing_up' | 'onboarding';
 
 function App() {
@@ -72,6 +72,7 @@ function App() {
   const [spinWheelState, setSpinWheelState] = useState<{ isOpen: boolean; tier: SpinTier | null }>({ isOpen: false, tier: null });
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
   const [isPremiumModalOpen, setIsPremiumModalOpen] = useState(false);
+  const [isCoinShopModalOpen, setIsCoinShopModalOpen] = useState(false);
 
   const [page, setPage] = useState<Page>('challenges');
   const [matches, setMatches] = useState<Match[]>(mockMatches);
@@ -574,7 +575,7 @@ function App() {
 
 
   const handlePageChange = (newPage: Page) => {
-    if ((newPage === 'profile' || newPage === 'leagues' || newPage === 'funzone' || newPage === 'shop') && profile?.is_guest) {
+    if ((newPage === 'profile' || newPage === 'leagues' || newPage === 'funzone') && profile?.is_guest) {
         handleTriggerSignUp();
         return;
     }
@@ -866,8 +867,6 @@ function App() {
           />;
       case 'funzone':
         return <FunZonePage profile={profile} onOpenSpinWheel={handleOpenSpinWheel} addToast={addToast} />;
-      case 'shop':
-        return <ShopPage profile={profile} addToast={addToast} onOpenPremiumModal={() => setIsPremiumModalOpen(true)} />;
       case 'admin':
         return <AdminPage profile={profile} addToast={addToast} />;
       case 'profile':
@@ -905,7 +904,7 @@ function App() {
           onViewTickets={() => setIsTicketWalletOpen(true)}
           notificationCount={unreadNotificationsCount}
           onViewNotifications={() => setIsNotificationCenterOpen(true)}
-          onGoToShop={() => handlePageChange('shop')}
+          onGoToShop={() => setIsCoinShopModalOpen(true)}
           onOpenPremiumModal={() => setIsPremiumModalOpen(true)}
         />
         {renderPage()}
@@ -1012,6 +1011,16 @@ function App() {
       isOpen={isPremiumModalOpen}
       onClose={() => setIsPremiumModalOpen(false)}
       onSubscribe={handleSubscribe}
+    />
+    <CoinShopModal
+      isOpen={isCoinShopModalOpen}
+      onClose={() => setIsCoinShopModalOpen(false)}
+      profile={profile}
+      addToast={addToast}
+      onOpenPremiumModal={() => {
+        setIsCoinShopModalOpen(false);
+        setIsPremiumModalOpen(true);
+      }}
     />
     </div>
   );
