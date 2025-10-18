@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { Profile, LevelConfig, Badge, UserBadge, UserStreak, SpinTier } from '../types';
-import { User, Star, Shield, Settings, Flame, Edit, Globe, Award, Target, Gift } from 'lucide-react';
+import { User, Star, Shield, Settings, Flame, Edit, Globe, Award, Target, Gift, BarChart2, List } from 'lucide-react';
 import { ProfileSettingsModal } from '../components/ProfileSettingsModal';
 import { mockTeams } from '../data/mockTeams';
 import { mockCountries } from '../data/mockCountries';
 import { DailyStreakTracker } from '../components/DailyStreakTracker';
 import { LEVEL_BET_LIMITS } from '../config/constants';
 import { useSpinStore } from '../store/useSpinStore';
+import { UserProfileStats } from '../components/profile/UserProfileStats';
 
 interface ProfilePageProps {
   profile: Profile;
@@ -24,6 +25,7 @@ interface ProfilePageProps {
 const ProfilePage: React.FC<ProfilePageProps> = (props) => {
   const { profile, levels, allBadges, userBadges, userStreaks, onOpenSpinWheel } = props;
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'overview' | 'stats'>('overview');
   
   const userSpinState = useSpinStore(state => state.userSpinStates[profile.id]);
 
@@ -86,19 +88,18 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
     );
   };
 
+  const TabButton: React.FC<{ label: string; icon: React.ReactNode; isActive: boolean; onClick: () => void; }> = ({ label, icon, isActive, onClick }) => (
+    <button
+      onClick={onClick}
+      className={`flex-1 flex items-center justify-center gap-2 p-2 rounded-lg font-semibold transition-all text-sm ${isActive ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'}`}
+    >
+      {icon} {label}
+    </button>
+  );
+
   return (
     <>
       <div className="space-y-6 animate-scale-in">
-        {preferencesSkipped && (
-          <div className="bg-gradient-to-r from-warm-yellow to-orange-500 text-deep-navy p-4 rounded-2xl shadow-lg flex items-center gap-3">
-            <Flame className="flex-shrink-0" />
-            <div>
-              <h4 className="font-bold">Complete your profile!</h4>
-              <p className="text-sm">Choose your fan preferences to unlock fan stats and community leagues.</p>
-            </div>
-          </div>
-        )}
-
         {/* Profile Header */}
         <div className="card-base p-5 flex flex-col items-center space-y-3 relative">
           <button onClick={() => setIsSettingsOpen(true)} className="absolute top-4 right-4 p-2 text-text-secondary hover:bg-white/10 rounded-full">
@@ -122,99 +123,112 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
           </div>
         </div>
 
-        <DailyStreakTracker streak={userStreak} />
+        {/* Tab Switcher */}
+        <div className="flex bg-navy-accent rounded-xl p-1 gap-1">
+          <TabButton label="Overview" icon={<List size={16} />} isActive={activeTab === 'overview'} onClick={() => setActiveTab('overview')} />
+          <TabButton label="Stats" icon={<BarChart2 size={16} />} isActive={activeTab === 'stats'} onClick={() => setActiveTab('stats')} />
+        </div>
 
-        {/* Spin Wheel Section */}
-        {userSpinState && (
-          <div className="card-base p-5 space-y-3">
-            <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2"><Gift size={20} className="text-warm-yellow" /> Spin the Wheel</h3>
-            <div className="flex gap-2">
-              <SpinTierButton tier="rookie" spins={userSpinState.availableSpins.rookie} />
-              <SpinTierButton tier="pro" spins={userSpinState.availableSpins.pro} />
-              <SpinTierButton tier="elite" spins={userSpinState.availableSpins.elite} />
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
+            {preferencesSkipped && (
+              <div className="bg-gradient-to-r from-warm-yellow to-orange-500 text-deep-navy p-4 rounded-2xl shadow-lg flex items-center gap-3">
+                <Flame className="flex-shrink-0" />
+                <div>
+                  <h4 className="font-bold">Complete your profile!</h4>
+                  <p className="text-sm">Choose your fan preferences to unlock fan stats and community leagues.</p>
+                </div>
+              </div>
+            )}
+            <DailyStreakTracker streak={userStreak} />
+            {userSpinState && (
+              <div className="card-base p-5 space-y-3">
+                <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2"><Gift size={20} className="text-warm-yellow" /> Spin the Wheel</h3>
+                <div className="flex gap-2">
+                  <SpinTierButton tier="rookie" spins={userSpinState.availableSpins.rookie} />
+                  <SpinTierButton tier="pro" spins={userSpinState.availableSpins.pro} />
+                  <SpinTierButton tier="elite" spins={userSpinState.availableSpins.elite} />
+                </div>
+              </div>
+            )}
+            <div className="card-base p-5 space-y-3">
+              <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2"><Edit size={20} className="text-electric-blue" /> Fan Preferences</h3>
+              <PreferenceItem 
+                  icon={<Award size={16} />}
+                  label="Favorite Club"
+                  value={favoriteClub?.name}
+                  valueIcon={favoriteClub?.logo}
+                  onClick={() => setIsSettingsOpen(true)}
+              />
+              <PreferenceItem 
+                  icon={<Globe size={16} />}
+                  label="Favorite National Team"
+                  value={favoriteNationalTeam?.name}
+                  valueIcon={<span className="text-2xl">{favoriteNationalTeam?.flag}</span>}
+                  onClick={() => setIsSettingsOpen(true)}
+              />
+            </div>
+            <div className="card-base p-5">
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2"><Star size={20} className="text-warm-yellow" /> XP Progress</h3>
+                <span className="font-bold text-sm text-text-secondary">
+                  {profile.xp?.toLocaleString() || 0} / {nextLevel ? nextLevel.min_xp.toLocaleString() : 'Max'} XP
+                </span>
+              </div>
+              <div className="w-full bg-disabled rounded-full h-4">
+                <div
+                  className="bg-gradient-to-r from-neon-cyan to-warm-yellow h-4 rounded-full transition-all duration-500"
+                  style={{ width: `${progressPercentage}%` }}
+                ></div>
+              </div>
+              {nextLevel && (
+                <p className="text-xs text-text-disabled text-center mt-2">
+                  {nextLevel.min_xp - (profile.xp ?? 0)} XP to reach {nextLevel.level_name}
+                </p>
+              )}
+            </div>
+            <div className="card-base p-5">
+              <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2 mb-2">
+                  <Target size={20} className="text-lime-glow" /> Betting Limit
+              </h3>
+              <div className="bg-deep-navy p-3 rounded-lg text-center">
+                  <p className="text-sm text-text-secondary">Max bet per match</p>
+                  <p className="text-2xl font-bold text-warm-yellow">
+                      {maxBet ? `${maxBet.toLocaleString()} coins` : 'No Limit'}
+                  </p>
+              </div>
+              {nextLevel && (
+                  <p className="text-xs text-text-disabled text-center mt-2">
+                      Next level unlocks higher limits!
+                  </p>
+              )}
+            </div>
+            <div className="card-base p-5">
+              <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2 mb-4"><Shield size={20} className="text-neon-cyan" /> Earned Badges</h3>
+              {earnedBadges.length > 0 ? (
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
+                  {earnedBadges.map(badge => (
+                    <div key={badge.id} className="flex flex-col items-center text-center space-y-2 group">
+                      <div className="bg-deep-navy group-hover:bg-electric-blue/20 transition-colors w-16 h-16 rounded-full flex items-center justify-center text-3xl shadow-inner">
+                        {badge.icon_url}
+                      </div>
+                      <p className="text-xs font-semibold text-text-secondary">{badge.name}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 bg-deep-navy rounded-xl">
+                  <p className="text-text-secondary font-medium">No badges earned yet.</p>
+                  <p className="text-sm text-text-disabled mt-1">Keep playing to unlock them!</p>
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        {/* Fan Preferences */}
-        <div className="card-base p-5 space-y-3">
-          <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2"><Edit size={20} className="text-electric-blue" /> Fan Preferences</h3>
-          <PreferenceItem 
-              icon={<Award size={16} />}
-              label="Favorite Club"
-              value={favoriteClub?.name}
-              valueIcon={favoriteClub?.logo}
-              onClick={() => setIsSettingsOpen(true)}
-          />
-          <PreferenceItem 
-              icon={<Globe size={16} />}
-              label="Favorite National Team"
-              value={favoriteNationalTeam?.name}
-              valueIcon={<span className="text-2xl">{favoriteNationalTeam?.flag}</span>}
-              onClick={() => setIsSettingsOpen(true)}
-          />
-        </div>
-
-        {/* XP Progress */}
-        <div className="card-base p-5">
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2"><Star size={20} className="text-warm-yellow" /> XP Progress</h3>
-            <span className="font-bold text-sm text-text-secondary">
-              {profile.xp?.toLocaleString() || 0} / {nextLevel ? nextLevel.min_xp.toLocaleString() : 'Max'} XP
-            </span>
-          </div>
-          <div className="w-full bg-disabled rounded-full h-4">
-            <div
-              className="bg-gradient-to-r from-neon-cyan to-warm-yellow h-4 rounded-full transition-all duration-500"
-              style={{ width: `${progressPercentage}%` }}
-            ></div>
-          </div>
-          {nextLevel && (
-            <p className="text-xs text-text-disabled text-center mt-2">
-              {nextLevel.min_xp - (profile.xp ?? 0)} XP to reach {nextLevel.level_name}
-            </p>
-          )}
-        </div>
-
-        {/* Betting Limit */}
-        <div className="card-base p-5">
-          <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2 mb-2">
-              <Target size={20} className="text-lime-glow" /> Betting Limit
-          </h3>
-          <div className="bg-deep-navy p-3 rounded-lg text-center">
-              <p className="text-sm text-text-secondary">Max bet per match</p>
-              <p className="text-2xl font-bold text-warm-yellow">
-                  {maxBet ? `${maxBet.toLocaleString()} coins` : 'No Limit'}
-              </p>
-          </div>
-          {nextLevel && (
-              <p className="text-xs text-text-disabled text-center mt-2">
-                  Next level unlocks higher limits!
-              </p>
-          )}
-        </div>
-
-        {/* Badges */}
-        <div className="card-base p-5">
-          <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2 mb-4"><Shield size={20} className="text-neon-cyan" /> Earned Badges</h3>
-          {earnedBadges.length > 0 ? (
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
-              {earnedBadges.map(badge => (
-                <div key={badge.id} className="flex flex-col items-center text-center space-y-2 group">
-                  <div className="bg-deep-navy group-hover:bg-electric-blue/20 transition-colors w-16 h-16 rounded-full flex items-center justify-center text-3xl shadow-inner">
-                    {badge.icon_url}
-                  </div>
-                  <p className="text-xs font-semibold text-text-secondary">{badge.name}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 bg-deep-navy rounded-xl">
-              <p className="text-text-secondary font-medium">No badges earned yet.</p>
-              <p className="text-sm text-text-disabled mt-1">Keep playing to unlock them!</p>
-            </div>
-          )}
-        </div>
+        {activeTab === 'stats' && (
+          <UserProfileStats />
+        )}
         
         <ProfileSettingsModal 
           isOpen={isSettingsOpen} 

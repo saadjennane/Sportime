@@ -741,3 +741,22 @@ export interface MatchStats {
   h2h: H2HMatch[];
   lineup?: Lineup;
 }
+
+export interface UserProfileStatsData {
+  username: string;
+  predictionsTotal: number;
+  predictionsCorrect: number;
+  hotPerformanceIndex: number;
+  bestHotDay: { date: string; hpi: number; correct: number; total: number };
+  streak: number;
+  averageBetCoins: number;
+  riskIndex: number;
+  gamesPlayed: number;
+  podiums: { gold: number; silver: number; bronze: number };
+  trophies: number;
+  badges: string[];
+  mostPlayedLeague: string;
+  mostPlayedTeam: string;
+  favoriteGameType: string;
+  last10DaysAccuracy: number;
+}
