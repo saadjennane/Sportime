@@ -17,33 +17,33 @@ export const Header: React.FC<HeaderProps> = ({ profile, ticketCount, notificati
 
   return (
     <header className="flex items-center justify-between">
-      {/* Left side: App Title */}
-      <div className="relative">
-        <h1 className="text-2xl font-extrabold text-electric-blue">Sportime</h1>
-        <div className="absolute -bottom-1 left-0 w-1/2 h-0.5 bg-warm-yellow"></div>
-      </div>
-
-      {/* Right side: Coin Balance & Profile */}
-      <div className="flex items-center gap-2">
-        {profile && !isGuest && (
-          <button 
-            onClick={onViewNotifications}
-            className="relative w-10 h-10 bg-navy-accent/70 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm border border-neon-cyan/20"
-          >
-            <Bell className="w-5 h-5 text-text-secondary" />
-            {notificationCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-hot-red text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">
-                {notificationCount}
-              </span>
-            )}
-          </button>
+      {/* Left side: Avatar */}
+      <button 
+        onClick={isGuest ? onSignIn : onViewProfile}
+        className="w-10 h-10 bg-navy-accent/70 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm border border-neon-cyan/20"
+      >
+        {isGuest ? (
+          <LogIn className="w-5 h-5 text-electric-blue" />
+        ) : profile?.profile_picture_url ? (
+          <img src={profile.profile_picture_url} alt="Profile" className="w-full h-full rounded-full object-cover" />
+        ) : (
+           <span className="font-bold text-lg text-electric-blue">
+            {profile?.username ? profile.username.charAt(0).toUpperCase() : '?'}
+          </span>
         )}
+      </button>
+
+      {/* Right side: Balance, Tickets, Notifications */}
+      <div className="flex items-center gap-2">
         {profile && (
           <>
+            {/* Balance */}
             <div className="flex items-center gap-2 bg-navy-accent/70 backdrop-blur-sm px-3 py-2 rounded-full shadow-sm border border-neon-cyan/20">
               <Coins className="w-5 h-5 text-warm-yellow" />
               <span className="font-bold text-text-primary text-sm">{profile.coins_balance.toLocaleString()}</span>
             </div>
+            
+            {/* Tickets */}
             <button 
               onClick={onViewTickets} 
               className="flex items-center gap-2 bg-navy-accent/70 backdrop-blur-sm px-3 py-2 rounded-full shadow-sm border border-neon-cyan/20 transition-colors hover:bg-white/10"
@@ -52,22 +52,23 @@ export const Header: React.FC<HeaderProps> = ({ profile, ticketCount, notificati
               <Ticket className="w-5 h-5 text-lime-glow" />
               <span className="font-bold text-text-primary text-sm">{ticketCount}</span>
             </button>
+            
+            {/* Notifications */}
+            {!isGuest && (
+              <button 
+                onClick={onViewNotifications}
+                className="relative w-10 h-10 bg-navy-accent/70 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm border border-neon-cyan/20"
+              >
+                <Bell className="w-5 h-5 text-text-secondary" />
+                {notificationCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-hot-red text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">
+                    {notificationCount}
+                  </span>
+                )}
+              </button>
+            )}
           </>
         )}
-        <button 
-          onClick={isGuest ? onSignIn : onViewProfile}
-          className="w-10 h-10 bg-navy-accent/70 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm border border-neon-cyan/20"
-        >
-          {isGuest ? (
-            <LogIn className="w-5 h-5 text-electric-blue" />
-          ) : profile?.profile_picture_url ? (
-            <img src={profile.profile_picture_url} alt="Profile" className="w-full h-full rounded-full object-cover" />
-          ) : (
-             <span className="font-bold text-lg text-electric-blue">
-              {profile?.username ? profile.username.charAt(0).toUpperCase() : '?'}
-            </span>
-          )}
-        </button>
       </div>
     </header>
   );
