@@ -17,6 +17,9 @@ export const mockUsers: Profile[] = [
         favorite_national_team: 'France',
         is_subscriber: true,
         badges: ['badge-1', 'badge-2', 'badge-5', 'badge-4'],
+        referralCode: 'saad123',
+        referralsSent: 5,
+        referralsRewarded: 2,
     },
     {
         id: 'user-2',

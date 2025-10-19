@@ -1021,6 +1021,7 @@ function App() {
         setIsCoinShopModalOpen(false);
         setIsPremiumModalOpen(true);
       }}
+      onTriggerSignUp={handleTriggerSignUp}
     />
     </div>
   );

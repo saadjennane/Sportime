@@ -287,6 +287,9 @@ export interface Profile {
   funzone_daily_spin_last_used?: string;
   total_spent_eur?: number;
   purchases_count?: number;
+  referralCode?: string;
+  referralsSent?: number;
+  referralsRewarded?: number;
 }
 
 export interface Badge {

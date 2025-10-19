@@ -6,7 +6,7 @@ import { PurchaseConfirmationModal } from '../shop/PurchaseConfirmationModal';
 import { useMockStore } from '../../store/useMockStore';
 import { PremiumPromoCard } from '../premium/PremiumPromoCard';
 import { PremiumStatusCard } from '../premium/PremiumStatusCard';
-import { X } from 'lucide-react';
+import { X, Copy, Coins } from 'lucide-react';
 
 interface CoinShopModalProps {
   isOpen: boolean;
@@ -14,9 +14,10 @@ interface CoinShopModalProps {
   profile: Profile | null;
   addToast: (message: string, type: 'success' | 'error' | 'info') => void;
   onOpenPremiumModal: () => void;
+  onTriggerSignUp: () => void;
 }
 
-export const CoinShopModal: React.FC<CoinShopModalProps> = ({ isOpen, onClose, profile, addToast, onOpenPremiumModal }) => {
+export const CoinShopModal: React.FC<CoinShopModalProps> = ({ isOpen, onClose, profile, addToast, onOpenPremiumModal, onTriggerSignUp }) => {
   const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
   const { purchaseCoinPack } = useMockStore();
 
@@ -35,6 +36,17 @@ export const CoinShopModal: React.FC<CoinShopModalProps> = ({ isOpen, onClose, p
       }
       setSelectedPackId(null);
     }
+  };
+
+  const handleReferralClick = () => {
+    if (!profile || profile.is_guest) {
+        onTriggerSignUp();
+        onClose();
+        return;
+    }
+    const referralLink = `https://sportime.app/invite?ref=${profile.referralCode || profile.id}`;
+    navigator.clipboard.writeText(referralLink);
+    addToast("✅ Invite link copied! You’ll each earn 1,000 coins once your friend joins and bets.", 'success');
   };
 
   const selectedPack = COIN_PACKS.find(p => p.id === selectedPackId);
@@ -63,6 +75,19 @@ export const CoinShopModal: React.FC<CoinShopModalProps> = ({ isOpen, onClose, p
                   onClick={() => handlePurchase(pack.id)}
                 />
               ))}
+               <div className="card-base p-3 flex flex-col justify-between text-center relative overflow-hidden">
+                <div className="space-y-1 my-2">
+                  <h3 className="text-md font-bold text-text-primary">🎉 Invite & Earn!</h3>
+                  <div className="flex items-center justify-center gap-2">
+                    <p className="text-3xl font-bold text-warm-yellow">+1,000</p>
+                    <Coins size={20} className="text-warm-yellow" />
+                  </div>
+                  <p className="text-xs text-text-secondary h-10">Invite friends & you both get coins when they place their first bet.</p>
+                </div>
+                <button onClick={handleReferralClick} className="w-full primary-button py-2 text-sm flex items-center justify-center gap-2">
+                  <Copy size={14} /> Copy Invite Link
+                </button>
+              </div>
             </div>
             <div className="pt-4">
               {profile && !profile.is_subscriber ? (
