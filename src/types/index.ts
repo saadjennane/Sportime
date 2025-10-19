@@ -108,6 +108,7 @@ export interface Profile {
   last_premium_prompt_at?: Record<string, string>;
   paidTournamentsCreatedThisMonth?: number;
   activePaidTournaments?: number;
+  giftCards?: { amount: string; provider: string; status: 'Mock' }[];
 }
 
 export interface LevelConfig {
@@ -795,3 +796,5 @@ export interface MatchStats {
   h2h: H2HMatch[];
   lineup?: Lineup;
 }
+
+export type ContextualPromptType = 'out_of_coins' | 'missed_streak' | 'heavy_player';

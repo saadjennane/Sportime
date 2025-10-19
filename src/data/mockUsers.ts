@@ -24,6 +24,7 @@ export const mockUsers: Profile[] = [
         last_premium_prompt_at: {},
         paidTournamentsCreatedThisMonth: 1,
         activePaidTournaments: 1,
+        giftCards: [],
     },
     {
         id: 'user-2',
@@ -39,6 +40,7 @@ export const mockUsers: Profile[] = [
         xp: 500,
         is_subscriber: false,
         badges: ['badge-1'],
+        giftCards: [],
     },
     {
         id: 'user-3',
@@ -54,5 +56,6 @@ export const mockUsers: Profile[] = [
         xp: 6000,
         is_subscriber: true,
         badges: ['badge-1', 'badge-3', 'badge-4'],
+        giftCards: [],
     }
 ];

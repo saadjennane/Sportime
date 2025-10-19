@@ -66,6 +66,7 @@ import { mockNotifications } from '../data/mockNotifications';
 import { mockPlayerGraph } from '../data/mockPlayerGraph';
 import { FREE_SPIN_REWARDS } from '../data/mockFunZone';
 import { COIN_PACKS } from '../config/coinPacks';
+import { useSpinStore } from './useSpinStore';
 
 interface MockDataState {
   games: SportimeGame[];
@@ -118,7 +119,8 @@ interface MockDataActions {
   ) => { success: boolean, error?: string };
   celebrateSeasonalWinners: (gameId: string, period: { start: string; end: string }, topN: number, reward: RewardItem, message: string) => void;
   toggleFeedPostLike: (postId: string, userId: string) => void;
-  createPrivateLeagueGame: (leagueId: string, config: PrivateLeagueGameConfig) => void;
+  createPrivateLeagueGame: (leagueId: string, config: PrivateLeagueGameConfig) => { success: boolean, error?: string };
+  distributePrizes: (args: { tournamentId: string; players: { id: string; rank: number; }[]; prizePool: number; rewardTier: "Rookie" | "Pro" | "Elite"; participationBonus: number; }) => void;
   createLiveGame: (leagueId: string, match: Match, mode: 'prediction' | 'betting' | 'fantasy-live') => void;
   submitLiveGamePrediction: (gameId: string, userId: string, prediction: Omit<LiveGamePlayerEntry, 'user_id' | 'submitted_at'>) => void;
   editLiveGamePrediction: (gameId: string, userId: string, newScore: { home: number; away: number }) => void;
@@ -186,8 +188,15 @@ export const generateBonusQuestions = (predictedScore: { home: number, away: num
     }
 };
 
+export const sendGiftCardMock = (userId: string, amount: number) => {
+  console.log(
+    `%c[Mock Email] Sent €${amount.toFixed(2)} Gift Card to user ${userId} 🎁`,
+    "color: #90EE90; font-weight: bold;"
+  );
+};
+
 export const useMockStore = create<MockDataState & MockDataActions>((set, get) => ({
-  // Initial State from mock files
+  // ... initial state
   games: mockGames,
   userLeagues: mockUserLeagues,
   leagueMembers: mockLeagueMembers,
@@ -230,6 +239,131 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
   showOnboardingTest: false,
   currentUserId: null,
 
+  // --- ACTIONS ---
+
+  distributePrizes: ({ tournamentId, players = [], prizePool = 0, rewardTier = "Rookie", participationBonus = 0 }) => {
+    const { users } = get();
+    const { addSpins } = useSpinStore.getState();
+  
+    if (!players?.length) {
+      console.warn(`[Sportime] No players found for tournament ${tournamentId}`);
+      return;
+    }
+  
+    const validTiers = ["Rookie", "Pro", "Elite"];
+    const tier = validTiers.includes(rewardTier) ? rewardTier : "Rookie";
+  
+    const tierRewards = {
+      Rookie: { ticket: "rookie" as TournamentType, spin: "rookie" as SpinTier },
+      Pro: { ticket: "pro" as TournamentType, spin: "pro" as SpinTier },
+      Elite: { ticket: "elite" as TournamentType, spin: "elite" as SpinTier },
+    };
+  
+    const firstPrize = parseFloat((prizePool * 0.55).toFixed(2));
+    const secondPrize = parseFloat((prizePool * 0.3).toFixed(2));
+    const thirdPrize = parseFloat((prizePool * 0.15).toFixed(2));
+  
+    const newUsers = users.map((u) => {
+      const participant = players.find((p) => p.id === u.id);
+      if (!participant) return u;
+  
+      const updated = { ...u };
+      updated.coins_balance = (updated.coins_balance || 0) + participationBonus;
+  
+      updated.tickets = updated.tickets || [];
+      updated.spins = updated.spins || [];
+      updated.giftCards = updated.giftCards || [];
+  
+      switch (participant.rank) {
+        case 1:
+          get().addTicket(u.id, tierRewards[tier].ticket);
+          addSpins(u.id, tierRewards[tier].spin, 1);
+          updated.giftCards.push({ amount: firstPrize.toFixed(2), provider: "Amazon", status: "Mock" });
+          sendGiftCardMock(u.id, firstPrize);
+          break;
+  
+        case 2:
+          get().addTicket(u.id, tierRewards[tier].ticket);
+          addSpins(u.id, tierRewards[tier].spin, 1);
+          updated.giftCards.push({ amount: secondPrize.toFixed(2), provider: "Amazon", status: "Mock" });
+          sendGiftCardMock(u.id, secondPrize);
+          break;
+  
+        case 3:
+          addSpins(u.id, tierRewards[tier].spin, 1);
+          updated.giftCards.push({ amount: thirdPrize.toFixed(2), provider: "Amazon", status: "Mock" });
+          sendGiftCardMock(u.id, thirdPrize);
+          break;
+  
+        default:
+          break;
+      }
+      return updated;
+    });
+  
+    set({ allUsers: newUsers });
+  
+    console.log(
+      `%c[Sportime] Rewards distributed for tournament ${tournamentId}`,
+      "color: #FFD700; font-weight: bold;"
+    );
+  },
+
+  createPrivateLeagueGame: (leagueId, config) => {
+    const { privateLeagueGames, leagueGames, allUsers, currentUserId } = get();
+    const admin = allUsers.find(u => u.id === currentUserId);
+
+    if (!admin) {
+      return { success: false, error: 'Admin user not found.' };
+    }
+
+    if (config.isPaid) {
+      if ((admin.activePaidTournaments || 0) >= 2) {
+        return { success: false, error: 'active_limit' };
+      }
+      if ((admin.paidTournamentsCreatedThisMonth || 0) >= 5) {
+        return { success: false, error: 'monthly_limit' };
+      }
+    }
+    
+    const newPrivateGame: PrivateLeagueGame = {
+      id: uuidv4(),
+      league_id: leagueId,
+      config: config,
+      created_at: new Date().toISOString(),
+    };
+
+    const newLeagueGame: LeagueGame = {
+      id: `lg-${uuidv4()}`,
+      league_id: leagueId,
+      game_id: newPrivateGame.id,
+      game_name: `Private: ${config.format_type.replace('_', ' + ').replace(/\b\w/g, l => l.toUpperCase())}`,
+      type: 'Private',
+      members_joined: 1,
+      members_total: config.player_count,
+      user_rank_in_league: 1,
+      user_rank_global: 0,
+      total_players_global: config.player_count,
+      linked_at: new Date().toISOString(),
+      leaderboard_period: null,
+    };
+
+    const updatedAdmin: Partial<Profile> = {};
+    if (config.isPaid) {
+      updatedAdmin.activePaidTournaments = (admin.activePaidTournaments || 0) + 1;
+      updatedAdmin.paidTournamentsCreatedThisMonth = (admin.paidTournamentsCreatedThisMonth || 0) + 1;
+    }
+
+    set({
+      privateLeagueGames: [...privateLeagueGames, newPrivateGame],
+      leagueGames: [...leagueGames, newLeagueGame],
+      allUsers: allUsers.map(u => u.id === admin.id ? { ...u, ...updatedAdmin } : u)
+    });
+
+    return { success: true };
+  },
+
+  // ... other actions
   subscribeToPremium: (userId, plan) => {
     const { allUsers, setCoinBalance } = get();
     const user = allUsers.find(u => u.id === userId);
@@ -990,37 +1124,6 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
         return post;
       }),
     }));
-  },
-
-  createPrivateLeagueGame: (leagueId, config) => {
-    const { privateLeagueGames, leagueGames } = get();
-    
-    const newPrivateGame: PrivateLeagueGame = {
-      id: uuidv4(),
-      league_id: leagueId,
-      config: config,
-      created_at: new Date().toISOString(),
-    };
-
-    const newLeagueGame: LeagueGame = {
-      id: `lg-${uuidv4()}`,
-      league_id: leagueId,
-      game_id: newPrivateGame.id,
-      game_name: `Private: ${config.format_type.replace('_', ' + ').replace(/\b\w/g, l => l.toUpperCase())}`,
-      type: 'Private',
-      members_joined: 1,
-      members_total: config.player_count,
-      user_rank_in_league: 1,
-      user_rank_global: 0,
-      total_players_global: config.player_count,
-      linked_at: new Date().toISOString(),
-      leaderboard_period: null,
-    };
-
-    set({
-      privateLeagueGames: [...privateLeagueGames, newPrivateGame],
-      leagueGames: [...leagueGames, newLeagueGame],
-    });
   },
 
   createLiveGame: (leagueId, match, mode) => {
