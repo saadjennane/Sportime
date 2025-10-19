@@ -128,7 +128,8 @@ interface MockDataActions {
   updateUserFantasyTeam: (team: UserFantasyTeam) => void;
   joinChallenge: (challengeId: string, userId: string, method: 'coins' | 'ticket') => { success: boolean; message: string; method?: 'ticket' | 'coins' | 'none' };
   joinSwipeGame: (gameId: string, userId: string) => { success: boolean; message: string };
-  processDailyStreak: (userId: string) => { reward: { coins?: number; ticket?: string } | null; message: string };
+  checkDailyStreak: (userId: string) => { isAvailable: boolean; streakDay: number };
+  claimDailyStreak: (userId: string) => { reward: { coins?: number; ticket?: TournamentType }; streakDay: number };
   processChallengeStart: (challengeId: string) => { success: boolean, message: string };
   addTicket: (userId: string, type: TournamentType) => void;
   addXp: (userId: string, amount: number) => void;
@@ -411,69 +412,52 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
     console.log("Test users have been reset.");
   },
 
-  processDailyStreak: (userId) => {
-    const state = get();
+  checkDailyStreak: (userId) => {
+    const userStreak = get().userStreaks.find(s => s.user_id === userId);
+    const lastClaimed = userStreak ? parseISO(userStreak.last_claimed_at) : new Date(0);
+    const hoursSinceLast = differenceInHours(new Date(), lastClaimed);
+    
+    if (hoursSinceLast >= 24) {
+        const currentDay = userStreak?.current_day || 0;
+        const newDay = hoursSinceLast > STREAK_RESET_THRESHOLD_HOURS ? 1 : (currentDay % 7) + 1;
+        return { isAvailable: true, streakDay: newDay };
+    }
+    return { isAvailable: false, streakDay: 0 };
+  },
+
+  claimDailyStreak: (userId) => {
+    const { userStreaks, allUsers, addTicket, setCoinBalance } = get();
+    const userStreak = userStreaks.find(s => s.user_id === userId);
     const now = new Date();
-    let userStreak = state.userStreaks.find(s => s.user_id === userId);
 
-    if (!userStreak) {
-      userStreak = {
-        user_id: userId,
-        current_day: 0,
-        last_claimed_at: new Date(0).toISOString(),
-        total_cycles_completed: 0,
-      };
-    }
+    const currentDay = userStreak?.current_day || 0;
+    const hoursSinceLast = userStreak ? differenceInHours(now, parseISO(userStreak.last_claimed_at)) : Infinity;
+    const newDay = hoursSinceLast > STREAK_RESET_THRESHOLD_HOURS ? 1 : (currentDay % 7) + 1;
 
-    const hoursSinceLast = differenceInHours(now, parseISO(userStreak.last_claimed_at));
-    if (hoursSinceLast < 24) {
-      return { reward: null, message: "You've already claimed your reward for today." };
-    }
-
-    let newDay = userStreak.current_day;
-    if (hoursSinceLast > STREAK_RESET_THRESHOLD_HOURS) {
-      newDay = 1;
-    } else {
-      newDay = (newDay % 7) + 1;
-    }
-    
     const reward = DAILY_STREAK_REWARDS[newDay as keyof typeof DAILY_STREAK_REWARDS];
-    let rewardMessage = '';
     
-    let rewardGranted = false;
-
     if (reward.coins) {
-      rewardMessage = `+${reward.coins} coins earned!`;
-      rewardGranted = true;
-    } else if (reward.ticket) {
-      rewardMessage = `You earned a ${reward.ticket} Ticket!`;
-      rewardGranted = true;
+        const user = allUsers.find(u => u.id === userId);
+        if (user) setCoinBalance(userId, user.coins_balance + reward.coins);
+    }
+    if (reward.ticket) {
+        addTicket(userId, reward.ticket as TournamentType);
     }
 
-    if (rewardGranted) {
-      set(state => {
-        const updatedStreak: UserStreak = { ...userStreak!, current_day: newDay, last_claimed_at: now.toISOString(), total_cycles_completed: newDay === 7 ? userStreak!.total_cycles_completed + 1 : userStreak!.total_cycles_completed };
-        
-        let finalUsers = state.allUsers;
-        if (reward.coins) {
-          finalUsers = state.allUsers.map(u => u.id === userId ? { ...u, coins_balance: u.coins_balance + reward.coins! } : u);
-        }
-        
-        if (reward.ticket) {
-          const { addTicket } = get();
-          addTicket(userId, reward.ticket as TournamentType);
-        }
+    const updatedStreak: UserStreak = { 
+        user_id: userId, 
+        current_day: newDay, 
+        last_claimed_at: now.toISOString(), 
+        total_cycles_completed: newDay === 7 ? (userStreak?.total_cycles_completed || 0) + 1 : (userStreak?.total_cycles_completed || 0) 
+    };
 
-        return {
-          allUsers: finalUsers,
-          userStreaks: state.userStreaks.some(s => s.user_id === userId)
-            ? state.userStreaks.map(s => s.user_id === userId ? updatedStreak : s)
-            : [...state.userStreaks, updatedStreak],
-        };
-      });
-    }
-    
-    return { reward: rewardGranted ? reward : null, message: `Streak: Day ${newDay}! ${rewardMessage}` };
+    set({
+        userStreaks: userStreaks.some(s => s.user_id === userId)
+            ? userStreaks.map(s => s.user_id === userId ? updatedStreak : s)
+            : [...userStreaks, updatedStreak],
+    });
+
+    return { reward, streakDay: newDay };
   },
 
   // ... other actions

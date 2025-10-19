@@ -6,7 +6,7 @@ import { FooterNav } from './components/FooterNav';
 import { mockMatches } from './data/mockMatches';
 import { mockChallengeMatches } from './data/mockChallenges';
 import { mockFantasyPlayers } from './data/mockFantasy.tsx';
-import { Match, Bet, UserChallengeEntry, Profile, LevelConfig, Badge, UserBadge, FantasyPlayer, Game, LiveGamePlayerEntry, UserFantasyTeam, UserTicket, SportimeGame, SpinTier, SwipeMatchDay, FantasyGame, ActiveSession } from './types';
+import { Match, Bet, UserChallengeEntry, Profile, LevelConfig, Badge, UserBadge, UserFantasyTeam, UserTicket, SportimeGame, SpinTier, SwipeMatchDay, FantasyGame, ActiveSession, ContextualPromptType } from './types';
 import AdminPage from './pages/Admin';
 import GamesListPage from './pages/GamesListPage';
 import ChallengeRoomPage from './pages/ChallengeRoomPage';
@@ -48,7 +48,7 @@ import PredictionChallengeOverviewPage from './pages/prediction/PredictionChalle
 import FantasyLiveTeamSelectionPage from './pages/live-game/FantasyLiveTeamSelectionPage';
 import FantasyLiveGamePage from './pages/live-game/FantasyLiveGamePage';
 import { OnboardingFlow } from './components/OnboardingFlow';
-import { isBefore, parseISO } from 'date-fns';
+import { isBefore, parseISO, differenceInHours } from 'date-fns';
 import { TicketWalletModal } from './components/TicketWalletModal';
 import { SpinWheel } from './components/SpinWheel';
 import { GameModal } from './components/modals/GameModal';
@@ -58,6 +58,8 @@ import { NotificationCenter } from './components/notifications/NotificationCente
 import FunZonePage from './pages/FunZonePage';
 import { PremiumModal } from './components/premium/PremiumModal';
 import { CoinShopModal } from './components/shop/CoinShopModal';
+import { DailyStreakModal } from './components/streaks/DailyStreakModal';
+import { ContextualPremiumPrompt } from './components/premium/ContextualPremiumPrompt';
 
 
 export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'leagues' | 'funzone';
@@ -73,6 +75,8 @@ function App() {
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
   const [isPremiumModalOpen, setIsPremiumModalOpen] = useState(false);
   const [isCoinShopModalOpen, setIsCoinShopModalOpen] = useState(false);
+  const [dailyStreakData, setDailyStreakData] = useState<{ isOpen: boolean; streakDay: number }>({ isOpen: false, streakDay: 0 });
+  const [contextualPrompt, setContextualPrompt] = useState<{ type: ContextualPromptType; isOpen: boolean } | null>(null);
 
   const [page, setPage] = useState<Page>('challenges');
   const [matches, setMatches] = useState<Match[]>(mockMatches);
@@ -90,8 +94,9 @@ function App() {
     games, userLeagues, leagueMembers, leagueGames, liveGames, predictionChallenges,
     userTickets, userStreaks, createLeague, linkGameToLeagues, createLeagueAndLink,
     createLiveGame, submitLiveGamePrediction, editLiveGamePrediction, placeLiveBet,
-    tickLiveGame, joinChallenge: joinChallengeAction, processDailyStreak, joinSwipeGame,
+    tickLiveGame, joinChallenge: joinChallengeAction, joinSwipeGame,
     notifications, markNotificationAsRead, markAllNotificationsAsRead, subscribeToPremium,
+    checkDailyStreak, claimDailyStreak,
   } = useMockStore();
 
   const profile = useMemo(() => allUsers.find(u => u.id === currentUserId), [allUsers, currentUserId]);
@@ -179,15 +184,30 @@ function App() {
     setupInitialUser();
   }, [ensureUserExists, setCurrentUserId]);
 
+  const handleClaimStreak = () => {
+    if (!profile) return;
+    const { reward, streakDay } = claimDailyStreak(profile.id);
+    
+    let rewardMessage = '';
+    if (reward.coins) rewardMessage = `You earned +${reward.coins} coins!`;
+    if (reward.ticket) rewardMessage = `You earned a ${reward.ticket} Ticket!`;
+
+    addToast(`Day ${streakDay} streak claimed! ${rewardMessage}`, 'success');
+    setDailyStreakData({ isOpen: false, streakDay: 0 });
+  };
+
   // Effect 2: React to profile changes to set up the rest of the app state
   useEffect(() => {
     if (profile) {
       setAuthFlow(profile.is_guest ? 'guest' : 'authenticated');
       
       initializeUserSpinState(profile.id);
-      const { reward, message } = processDailyStreak(profile.id);
-      if (reward) {
-        addToast(message, 'success');
+      
+      if (!profile.is_guest) {
+        const { isAvailable, streakDay } = checkDailyStreak(profile.id);
+        if (isAvailable) {
+          setDailyStreakData({ isOpen: true, streakDay });
+        }
       }
 
       const seenTutorial = localStorage.getItem('sportime_seen_swipe_tutorial');
@@ -199,7 +219,7 @@ function App() {
     } else {
       setLoading(true);
     }
-  }, [profile, addToast, initializeUserSpinState, processDailyStreak]);
+  }, [profile, initializeUserSpinState, checkDailyStreak]);
 
   const coinBalance = profile?.coins_balance ?? 0;
 
@@ -1023,6 +1043,12 @@ function App() {
       }}
       onTriggerSignUp={handleTriggerSignUp}
     />
+    <DailyStreakModal
+      isOpen={dailyStreakData.isOpen}
+      onClaim={handleClaimStreak}
+      streakDay={dailyStreakData.streakDay}
+    />
+    {contextualPrompt && <ContextualPremiumPrompt {...contextualPrompt} />}
     </div>
   );
 }
