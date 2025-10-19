@@ -22,6 +22,8 @@ export const mockUsers: Profile[] = [
         referralsRewarded: 2,
         daily_games_played: 12,
         last_premium_prompt_at: {},
+        paidTournamentsCreatedThisMonth: 1,
+        activePaidTournaments: 1,
     },
     {
         id: 'user-2',

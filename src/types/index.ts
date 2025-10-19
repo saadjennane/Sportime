@@ -106,6 +106,8 @@ export interface Profile {
   referralsRewarded?: number;
   daily_games_played?: number;
   last_premium_prompt_at?: Record<string, string>;
+  paidTournamentsCreatedThisMonth?: number;
+  activePaidTournaments?: number;
 }
 
 export interface LevelConfig {
@@ -369,6 +371,8 @@ export interface PrivateLeagueGameConfig {
   honorary_title: boolean;
   auto_rest_week: boolean;
   pairing_rule: '1vs4_2vs3';
+  isPaid?: boolean;
+  entryFee?: number;
 }
 
 export interface PrivateLeagueGame {

@@ -32,7 +32,7 @@ export const CelebrateSeasonalWinnersModal: React.FC<CelebrateSeasonalWinnersMod
   const [message, setMessage] = useState('');
 
   const period = useMemo(() => {
-    const end = new Date();
+    let end = new Date();
     let start = new Date();
     if (periodOption === '7d') {
       start = subDays(end, 7);
