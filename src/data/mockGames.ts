@@ -1,7 +1,7 @@
 import { SportimeGame } from '../types';
 import { TOURNAMENT_COSTS } from '../config/constants';
 import { mockSwipeMatchDays } from './mockSwipeGames';
-import { mockFantasyGame } from './mockFantasy';
+import { mockFantasyGame } from './mockFantasy.tsx';
 import { BASE_REWARD_PACKS } from '../config/rewardPacks';
 
 export const mockGames: SportimeGame[] = [

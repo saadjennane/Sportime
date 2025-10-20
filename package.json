@@ -42,8 +42,5 @@
     "typescript": "^5.4.5",
     "typescript-eslint": "^7.13.1",
     "vite": "^5.3.1"
-  },
-  "optionalDependencies": {
-    "@rollup/rollup-linux-x64-gnu": "4.6.1"
   }
 }

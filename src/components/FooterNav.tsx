@@ -46,6 +46,12 @@ export const FooterNav: React.FC<FooterNavProps> = ({ activePage, onPageChange }
           onClick={() => onPageChange('challenges')}
         />
         <NavItem
+          icon={<Calendar className="w-6 h-6" />}
+          label="Matches"
+          isActive={activePage === 'matches'}
+          onClick={() => onPageChange('matches')}
+        />
+        <NavItem
           icon={<Users className="w-6 h-6" />}
           label="Leagues"
           isActive={activePage === 'leagues'}
