@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '../services/supabase';
 import { X, Mail, Loader2, Gamepad2 } from 'lucide-react';
 
 interface MagicLinkModalProps {
