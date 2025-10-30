@@ -16,7 +16,7 @@ import { SwipeGamePage } from './pages/SwipeGamePage';
 import { SwipeRecapPage } from './pages/SwipeRecapPage';
 import { JoinSwipeGameConfirmationModal } from './components/JoinSwipeGameConfirmationModal';
 import SwipeLeaderboardPage from './pages/SwipeLeaderboardPage';
-import { supabase } from './lib/supabaseClient';
+import { supabase } from './services/supabase';
 import { useToast } from './hooks/useToast';
 import { ToastContainer } from './components/Toast';
 import ProfilePage from './pages/ProfilePage';

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '../services/supabase';
 import { fetchFromFootball } from '../lib/apiFootballService';
 import { ApiLeagueInfo, ApiTeamInfo, ApiPlayerInfo, ApiFixtureInfo, ApiOddsInfo, ApiSyncConfig } from '../types';
 import { DatabaseZap, DownloadCloud, Play, RefreshCw, Server, Settings } from 'lucide-react';

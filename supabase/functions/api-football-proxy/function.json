@@ -1,0 +1,12 @@
+{
+  "verify_jwt": false,
+  "cors": {
+    "allowed_origins": [
+      "http://localhost:5173",
+      "https://sportime.vercel.app",
+      "https://*.vercel.app"
+    ],
+    "allowed_headers": ["authorization", "x-client-info", "content-type"],
+    "methods": ["POST", "OPTIONS"]
+  }
+}
