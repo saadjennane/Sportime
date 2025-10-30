@@ -1,14 +1,17 @@
-import React, { useState } from 'react';
-import { supabase } from '../lib/supabaseClient';
-import { X, Mail, Loader2, Gamepad2 } from 'lucide-react';
+import React, { useState } from "react";
+import { supabase } from "../services/supabase";
+import { X, Mail, Loader2, Gamepad2 } from "lucide-react";
 
 interface MagicLinkModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export const MagicLinkModal: React.FC<MagicLinkModalProps> = ({ isOpen, onClose }) => {
-  const [email, setEmail] = useState('');
+export const MagicLinkModal: React.FC<MagicLinkModalProps> = ({
+  isOpen,
+  onClose,
+}) => {
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -27,7 +30,7 @@ export const MagicLinkModal: React.FC<MagicLinkModalProps> = ({ isOpen, onClose 
         },
       });
       if (error) throw error;
-      setMessage('Success! Check your email for the magic link to sign in.');
+      setMessage("Success! Check your email for the magic link to sign in.");
     } catch (err: any) {
       setError(err.error_description || err.message);
     } finally {
@@ -53,13 +56,17 @@ export const MagicLinkModal: React.FC<MagicLinkModalProps> = ({ isOpen, onClose 
           </div>
           <h2 className="text-2xl font-bold text-gray-900">Sign In to Join</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Create an account or sign in to save your progress and join challenges.
+            Create an account or sign in to save your progress and join
+            challenges.
           </p>
         </div>
 
         <form onSubmit={handleMagicLink} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700" htmlFor="magic-email">
+            <label
+              className="block text-sm font-medium text-gray-700"
+              htmlFor="magic-email"
+            >
               Email Address
             </label>
             <div className="relative mt-1">
@@ -81,13 +88,19 @@ export const MagicLinkModal: React.FC<MagicLinkModalProps> = ({ isOpen, onClose 
               disabled={loading || !!message}
               className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm font-medium text-white bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-60"
             >
-              {loading ? <Loader2 className="animate-spin" /> : 'Send Magic Link'}
+              {loading ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                "Send Magic Link"
+              )}
             </button>
           </div>
         </form>
 
         {error && <p className="text-center text-sm text-red-600">{error}</p>}
-        {message && <p className="text-center text-sm text-green-600">{message}</p>}
+        {message && (
+          <p className="text-center text-sm text-green-600">{message}</p>
+        )}
       </div>
     </div>
   );
