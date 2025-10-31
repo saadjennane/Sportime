@@ -1,6 +1,7 @@
 import { supabase } from '../services/supabase'
 import { apiFootball } from '../lib/apiFootballService'
-import { apiFootball } from '@/lib/apiFootballService' // ← Edge Function proxy
+import { apiFootball } from '../lib/apiFootballService'
+ // ← Edge Function proxy
 import {
   ApiLeagueInfo,
   ApiTeamInfo,
