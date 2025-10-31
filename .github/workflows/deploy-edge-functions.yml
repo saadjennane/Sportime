@@ -13,6 +13,18 @@ jobs:
         with:
           version: latest
 
+      # Ignore any local .env files in the repo during CI to avoid parse errors
+      - name: Neutralize local dotenv files for CI
+        run: |
+          if [ -f .env ]; then
+            echo "Found .env - neutralizing for CI"
+            mv .env .env.ci.backup
+          fi
+          if [ -f .env.local ]; then
+            echo "Found .env.local - neutralizing for CI"
+            mv .env.local .env.local.ci.backup
+          fi
+
       - name: Deploy api-football-proxy
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
