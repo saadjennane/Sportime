@@ -1,7 +1,6 @@
+import React, { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../services/supabase'
 import { apiFootball } from '../lib/apiFootballService'
-import { apiFootball } from '../lib/apiFootballService'
- // ← Edge Function proxy
 import {
   ApiLeagueInfo,
   ApiTeamInfo,
@@ -9,61 +8,67 @@ import {
   ApiFixtureInfo,
   ApiOddsInfo,
   ApiSyncConfig,
-} from '@/types'
+} from '../types'
 import { DatabaseZap, DownloadCloud, Play, RefreshCw, Server, Settings } from 'lucide-react'
 
 interface DataSyncAdminProps {
-  addToast: (message: string, type: 'success' | 'error' | 'info') => void
+  addToast?: (message: string, type: 'success' | 'error' | 'info') => void
 }
 
 const FREQUENCIES = ['Manual', 'Every hour', 'Every 3 hours', 'Every 6 hours', 'Every 12 hours', 'Daily']
 const SYNC_ENDPOINTS = ['fixtures', 'odds']
 
 export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
+  const toast = addToast ?? ((msg: string) => console.log('[toast]', msg))
   const [loading, setLoading] = useState<string | null>(null)
   const [progress, setProgress] = useState<string[]>([])
   const [leagueIds, setLeagueIds] = useState('39, 140, 135') // Premier League, La Liga, Serie A
   const [season, setSeason] = useState('2023')
   const [syncConfigs, setSyncConfigs] = useState<ApiSyncConfig[]>([])
 
+  const addProgress = (message: string) => setProgress((prev) => [message, ...prev])
+
   const fetchSyncConfigs = useCallback(async () => {
-    const { data, error } = await supabase.from('api_sync_config').select('*')
-    if (error) {
-      addToast('Failed to load sync configurations', 'error')
-    } else {
-      setSyncConfigs(data || [])
+    try {
+      const { data, error } = await supabase.from('api_sync_config').select('*')
+      if (error) {
+        toast('Failed to load sync configurations', 'error')
+        setSyncConfigs([])
+      } else {
+        setSyncConfigs(data || [])
+      }
+    } catch {
+      setSyncConfigs([])
     }
-  }, [addToast])
+  }, [toast])
 
   useEffect(() => {
     fetchSyncConfigs()
   }, [fetchSyncConfigs])
 
-  const addProgress = (message: string) => {
-    setProgress((prev) => [message, ...prev])
-  }
-
   const handleFrequencyChange = async (endpoint: string, frequency: string) => {
-    const { error } = await supabase
-      .from('api_sync_config')
-      .upsert({ id: endpoint, frequency }, { onConflict: 'id' })
-    if (error) {
-      addToast(`Failed to update frequency for ${endpoint}`, 'error')
-    } else {
-      addToast(`Frequency for ${endpoint} updated to ${frequency}`, 'success')
-      fetchSyncConfigs()
+    try {
+      const { error } = await supabase
+        .from('api_sync_config')
+        .upsert({ id: endpoint, frequency }, { onConflict: 'id' })
+      if (error) {
+        toast(`Failed to update frequency for ${endpoint}`, 'error')
+      } else {
+        toast(`Frequency for ${endpoint} updated to ${frequency}`, 'success')
+        fetchSyncConfigs()
+      }
+    } catch {
+      toast(`Failed to update frequency for ${endpoint}`, 'error')
     }
   }
 
-  /**
-   * LEAGUES — écrit dans leagues.api_league_id (BIGINT)
-   */
+  // LEAGUES — écriture via api_league_id (BIGINT)
   const syncLeagues = async (ids: string[]) => {
     addProgress(`Syncing ${ids.length} leagues...`)
     try {
       for (const id of ids) {
         const data = await apiFootball<ApiLeagueInfo>('leagues', { id })
-        if (data.results > 0) {
+        if (data?.results > 0) {
           const item = data.response[0]
 
           // countries
@@ -77,14 +82,12 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
           )
 
           // leagues via api_league_id
-          const currentSeason =
-            item.seasons.find((s: any) => s.current)?.year?.toString() || season
-
+          const currentSeason = item.seasons?.find((s: any) => s.current)?.year?.toString() || season
           const { error: upErr } = await supabase
             .from('leagues')
             .upsert(
               {
-                api_league_id: item.league.id, // ← ID API numérique
+                api_league_id: item.league.id,
                 name: item.league.name,
                 logo: item.league.logo,
                 type: item.league.type,
@@ -98,22 +101,20 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
           addProgress(`Synced league: ${item.league.name}`)
         }
       }
-      addToast('Leagues synced successfully!', 'success')
+      toast('Leagues synced successfully!', 'success')
     } catch (e: any) {
-      addToast(`Error syncing leagues: ${e.message}`, 'error')
+      toast(`Error syncing leagues: ${e?.message ?? 'unknown error'}`, 'error')
     }
   }
 
-  /**
-   * TEAMS — par league API id
-   */
+  // TEAMS — par league API id
   const syncTeamsByLeague = async (leagueApiId: string, season: string) => {
     addProgress(`Syncing teams for league ${leagueApiId}, season ${season}...`)
     try {
       const data = await apiFootball<ApiTeamInfo>('teams', { league: leagueApiId, season })
       const teamsToUpsert =
-        data.response?.map(({ team }) => ({
-          id: team.id, // BIGINT API
+        data?.response?.map(({ team }) => ({
+          id: team.id,
           name: team.name,
           logo: team.logo,
           country_id: team.country,
@@ -126,21 +127,19 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
       addProgress(`Synced ${teamsToUpsert.length} teams for league ${leagueApiId}.`)
       return teamsToUpsert.map((t) => t.id)
     } catch (e: any) {
-      addToast(`Error syncing teams for league ${leagueApiId}: ${e.message}`, 'error')
+      toast(`Error syncing teams for league ${leagueApiId}: ${e?.message ?? 'unknown error'}`, 'error')
       return []
     }
   }
 
-  /**
-   * PLAYERS — par team id
-   */
+  // PLAYERS — par team id
   const syncPlayersByTeam = async (teamId: number, season: string) => {
     addProgress(`Syncing players for team ${teamId}...`)
     try {
       const data = await apiFootball<ApiPlayerInfo>('players', { team: String(teamId), season })
       const playersToUpsert =
-        data.response?.map(({ player, statistics }) => ({
-          id: player.id, // BIGINT API
+        data?.response?.map(({ player, statistics }) => ({
+          id: player.id,
           name: player.name,
           age: player.age,
           nationality: player.nationality,
@@ -155,13 +154,11 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
       }
       addProgress(`Synced ${playersToUpsert.length} players for team ${teamId}.`)
     } catch (e: any) {
-      addToast(`Error syncing players for team ${teamId}: ${e.message}`, 'error')
+      toast(`Error syncing players for team ${teamId}: ${e?.message ?? 'unknown error'}`, 'error')
     }
   }
 
-  /**
-   * FULL IMPORT — leagues → teams → players
-   */
+  // FULL IMPORT — leagues → teams → players
   const handleFullImport = async () => {
     setLoading('import')
     setProgress([])
@@ -172,7 +169,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
       .filter(Boolean)
 
     if (ids.length === 0) {
-      addToast('Please enter at least one league ID.', 'error')
+      toast('Please enter at least one league ID.', 'error')
       setLoading(null)
       return
     }
@@ -190,9 +187,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
     setLoading(null)
   }
 
-  /**
-   * MANUAL SYNC — fixtures / odds
-   */
+  // MANUAL SYNC — fixtures / odds
   const handleManualSync = async (endpoint: string) => {
     setLoading(endpoint)
     setProgress([])
@@ -200,7 +195,6 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
 
     try {
       if (endpoint === 'fixtures') {
-        // Lire leagues via api_league_id
         const { data: leagues, error: leaguesErr } = await supabase
           .from('leagues')
           .select('api_league_id,season')
@@ -217,9 +211,9 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
           })
 
           const fixturesToUpsert =
-            data.response?.map(({ fixture, league, teams, goals }) => ({
-              id: fixture.id, // BIGINT API
-              league_id: league.id, // BIGINT API
+            data?.response?.map(({ fixture, league, teams, goals }) => ({
+              id: fixture.id,
+              league_id: league.id,
               home_team_id: teams.home.id,
               away_team_id: teams.away.id,
               date: fixture.date,
@@ -235,7 +229,6 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
           addProgress(`Synced ${fixturesToUpsert.length} fixtures for league ${leagueApiId}.`)
         }
       } else if (endpoint === 'odds') {
-        // Prendre les fixtures "à jouer / en cours" pour lesquelles on veut des cotes
         const { data: fixtures, error: fixErr } = await supabase
           .from('fixtures')
           .select('id, status')
@@ -248,7 +241,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
           const data = await apiFootball<ApiOddsInfo>('odds', { fixture: String(fx.id) })
 
           const matchWinnerBet =
-            data.response?.[0]?.bookmakers?.[0]?.bets?.find((b: any) => b.name === 'Match Winner')
+            data?.response?.[0]?.bookmakers?.[0]?.bets?.find((b: any) => b.name === 'Match Winner')
 
           if (matchWinnerBet) {
             const home = matchWinnerBet.values.find((v: any) => v.value === 'Home')?.odd || '0'
@@ -263,7 +256,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
                   home_win: parseFloat(home),
                   draw: parseFloat(draw),
                   away_win: parseFloat(away),
-                  bookmaker_name: data.response?.[0]?.bookmakers?.[0]?.name || 'Unknown',
+                  bookmaker_name: data?.response?.[0]?.bookmakers?.[0]?.name || 'Unknown',
                 },
                 { onConflict: 'fixture_id' }
               )
@@ -281,10 +274,10 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
         .update({ last_sync_at: new Date().toISOString() })
         .eq('id', endpoint)
 
-      addToast(`${endpoint} synced successfully!`, 'success')
+      toast(`${endpoint} synced successfully!`, 'success')
       fetchSyncConfigs()
     } catch (e: any) {
-      addToast(`Error during manual sync for ${endpoint}: ${e.message}`, 'error')
+      toast(`Error during manual sync for ${endpoint}: ${e?.message ?? 'unknown error'}`, 'error')
     }
 
     setLoading(null)
