@@ -1,6 +1,15 @@
-// TODO: Will be refactored to use Supabase Edge Function proxy
-import { ApiFootballResponse } from '../types';
+import { supabase } from '@/services/supabase'
 
-export async function fetchFromFootball<T>(endpoint: string, params: Record<string, string>): Promise<ApiFootballResponse<T>> {
-  throw new Error('Direct API fetch is disabled. Use Supabase Edge Function proxy.');
+type Params = Record<string, string | number | boolean | undefined>
+
+export async function apiFootball(path: string, params?: Params) {
+  const { data, error } = await supabase.functions.invoke('api-football-proxy', {
+    body: { path, params }
+  })
+  if (error) {
+    // Optionnel: meilleure trace côté UI
+    console.error('apiFootball error:', error)
+    throw new Error(error.message)
+  }
+  return data
 }
