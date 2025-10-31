@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { supabase } from '@/services/supabase'
+import { supabase } from '../services/supabase'
+import { apiFootball } from '../lib/apiFootballService'
 import { apiFootball } from '@/lib/apiFootballService' // ← Edge Function proxy
 import {
   ApiLeagueInfo,
