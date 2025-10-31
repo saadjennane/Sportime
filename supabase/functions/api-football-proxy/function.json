@@ -6,12 +6,7 @@
       "https://sportime.vercel.app",
       "https://*.vercel.app"
     ],
-    "allowed_headers": [
-      "authorization",
-      "apikey",
-      "x-client-info",
-      "content-type"
-    ],
+    "allowed_headers": ["*"],
     "methods": ["POST", "OPTIONS"]
   }
 }
