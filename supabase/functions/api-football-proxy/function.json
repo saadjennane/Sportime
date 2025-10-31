@@ -4,9 +4,14 @@
     "allowed_origins": [
       "http://localhost:5173",
       "https://sportime.vercel.app",
-      "https://*.vercel.app"
+      "https://sportime-1rn7pxtl8-saadjennane-2493s-projects.vercel.app"
     ],
-    "allowed_headers": ["authorization", "x-client-info", "content-type"],
+    "allowed_headers": [
+      "authorization",
+      "apikey",
+      "x-client-info",
+      "content-type"
+    ],
     "methods": ["POST", "OPTIONS"]
   }
 }
