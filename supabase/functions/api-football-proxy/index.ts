@@ -1,5 +1,5 @@
 /* deno-lint-ignore-file no-explicit-any */
-import 'jsr:@supabase/functions-js/edge-runtime'
+
 
 Deno.serve(async (req) => {
   // CORS preflight
