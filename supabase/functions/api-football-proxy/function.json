@@ -4,7 +4,7 @@
     "allowed_origins": [
       "http://localhost:5173",
       "https://sportime.vercel.app",
-      "https://sportime-1rn7pxtl8-saadjennane-2493s-projects.vercel.app"
+      "https://*.vercel.app"
     ],
     "allowed_headers": [
       "authorization",
