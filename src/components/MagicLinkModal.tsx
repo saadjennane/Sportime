@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '../services/supabase';
+import { supabase } from '../lib/supabaseClient';
 import { X, Mail, Loader2, Gamepad2 } from 'lucide-react';
 
 interface MagicLinkModalProps {
@@ -20,6 +20,7 @@ export const MagicLinkModal: React.FC<MagicLinkModalProps> = ({ isOpen, onClose 
     setMessage(null);
 
     try {
+      if (!supabase) throw new Error("Supabase client not initialized");
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {

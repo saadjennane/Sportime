@@ -1,0 +1,21 @@
+-- Add all missing columns to the profiles table to match the application's type definition
+ALTER TABLE public.profiles
+ADD COLUMN IF NOT EXISTS display_name TEXT,
+ADD COLUMN IF NOT EXISTS level TEXT DEFAULT 'Amateur',
+ADD COLUMN IF NOT EXISTS xp INT DEFAULT 0,
+ADD COLUMN IF NOT EXISTS favorite_club TEXT,
+ADD COLUMN IF NOT EXISTS favorite_national_team TEXT,
+ADD COLUMN IF NOT EXISTS sports_preferences JSONB,
+ADD COLUMN IF NOT EXISTS is_subscriber BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS badges TEXT[],
+ADD COLUMN IF NOT EXISTS referralCode TEXT,
+ADD COLUMN IF NOT EXISTS referralsSent INT DEFAULT 0,
+ADD COLUMN IF NOT EXISTS referralsRewarded INT DEFAULT 0,
+ADD COLUMN IF NOT EXISTS daily_games_played INT DEFAULT 0,
+ADD COLUMN IF NOT EXISTS last_premium_prompt_at JSONB,
+ADD COLUMN IF NOT EXISTS paidTournamentsCreatedThisMonth INT DEFAULT 0,
+ADD COLUMN IF NOT EXISTS activePaidTournaments INT DEFAULT 0,
+ADD COLUMN IF NOT EXISTS giftCards JSONB,
+ADD COLUMN IF NOT EXISTS total_spent_eur REAL DEFAULT 0,
+ADD COLUMN IF NOT EXISTS purchases_count INT DEFAULT 0;

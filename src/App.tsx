@@ -16,16 +16,14 @@ import { SwipeGamePage } from './pages/SwipeGamePage';
 import { SwipeRecapPage } from './pages/SwipeRecapPage';
 import { JoinSwipeGameConfirmationModal } from './components/JoinSwipeGameConfirmationModal';
 import SwipeLeaderboardPage from './pages/SwipeLeaderboardPage';
-import { supabase } from './services/supabase';
+import { supabase } from './lib/supabaseClient';
 import { useToast } from './hooks/useToast';
 import { ToastContainer } from './components/Toast';
 import ProfilePage from './pages/ProfilePage';
 import { mockBadges, mockLevelsConfig, mockUserBadges } from './data/mockProgression';
 import MatchesPage from './pages/MatchesPage';
 import { FantasyGameWeekPage } from './pages/FantasyGameWeekPage';
-import { USE_SUPABASE } from './config/env';
-import { mockUsers } from './data/mockUsers';
-import { OnboardingPage } from './pages/OnboardingPage';
+import { OnboardingPage } from './pages/onboarding/OnboardingPage';
 import { SignUpPromptModal } from './components/SignUpPromptModal';
 import { SignUpStep } from './pages/onboarding/SignUpStep';
 import LeaguesListPage from './pages/LeaguesListPage';
@@ -60,6 +58,7 @@ import { PremiumModal } from './components/premium/PremiumModal';
 import { CoinShopModal } from './components/shop/CoinShopModal';
 import { DailyStreakModal } from './components/streaks/DailyStreakModal';
 import { ContextualPremiumPrompt } from './components/premium/ContextualPremiumPrompt';
+import { Session } from '@supabase/supabase-js';
 
 
 export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'leagues' | 'funzone';
@@ -68,7 +67,11 @@ type AuthFlowState = 'guest' | 'authenticated' | 'signing_up' | 'onboarding';
 function App() {
   const [loading, setLoading] = useState(true);
   const { toasts, addToast, removeToast } = useToast();
+  
+  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [authFlow, setAuthFlow] = useState<AuthFlowState>('guest');
+
   const [showSignUpPrompt, setShowSignUpPrompt] = useState(false);
   const [isTicketWalletOpen, setIsTicketWalletOpen] = useState(false);
   const [spinWheelState, setSpinWheelState] = useState<{ isOpen: boolean; tier: SpinTier | null }>({ isOpen: false, tier: null });
@@ -90,7 +93,6 @@ function App() {
 
   // --- Store State ---
   const {
-    currentUserId, setCurrentUserId, allUsers, updateUser, ensureUserExists,
     games, userLeagues, leagueMembers, leagueGames, liveGames, predictionChallenges,
     userTickets, userStreaks, createLeague, linkGameToLeagues, createLeagueAndLink,
     createLiveGame, submitLiveGamePrediction, editLiveGamePrediction, placeLiveBet,
@@ -98,8 +100,6 @@ function App() {
     notifications, markNotificationAsRead, markAllNotificationsAsRead, subscribeToPremium,
     checkDailyStreak, claimDailyStreak,
   } = useMockStore();
-
-  const profile = useMemo(() => allUsers.find(u => u.id === currentUserId), [allUsers, currentUserId]);
 
   const { initializeUserSpinState } = useSpinStore();
   
@@ -155,34 +155,56 @@ function App() {
       }
   }, []);
 
-  // Effect 1: Initialize user session on mount
   useEffect(() => {
-    const setupInitialUser = () => {
-      // For the mock environment, always start with the default user from mocks
-      // to ensure consistency and reflect any developer changes to the mock data.
-      const defaultUser = mockUsers.find(u => u.id === 'user-1');
-      
-      if (defaultUser) {
-        const userToEnsure = defaultUser;
-        const userIdToSet = userToEnsure.id;
+    if (!supabase) {
+        setLoading(false);
+        return;
+    }
+    setLoading(true);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        setSession(session);
         
-        // We still use localStorage to simulate a session, but we overwrite it
-        // on load to guarantee the data is fresh from the mock file.
-        localStorage.setItem('sportime_user', JSON.stringify(userToEnsure));
-        
-        ensureUserExists(userToEnsure);
-        setCurrentUserId(userIdToSet);
-      } else {
-        // Fallback to guest if default user is not found for some reason
-        const guestId = `guest-${uuidv4()}`;
-        const guestProfile: Profile = { id: guestId, username: 'Guest', coins_balance: 1000, created_at: new Date().toISOString(), is_guest: true, verified: false, email: null };
-        ensureUserExists(guestProfile);
-        setCurrentUserId(guestId);
-      }
-    };
+        if (session?.user) {
+            const { data: userProfile, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', session.user.id)
+                .single();
 
-    setupInitialUser();
-  }, [ensureUserExists, setCurrentUserId]);
+            if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+                console.error("Error fetching profile:", error);
+                addToast('Error loading your profile.', 'error');
+            } else if (userProfile) {
+                setProfile(userProfile);
+                setAuthFlow('authenticated');
+            } else {
+                // New user, start onboarding
+                const newUserProfile: Profile = {
+                    id: session.user.id,
+                    email: session.user.email!,
+                    username: `user_${session.user.id.slice(0, 6)}`,
+                    coins_balance: 1000,
+                    created_at: new Date().toISOString(),
+                    is_guest: false,
+                    verified: false,
+                };
+                setProfile(newUserProfile);
+                setAuthFlow('onboarding');
+            }
+        } else {
+            // No session, user is a guest
+            const guestId = `guest-${uuidv4()}`;
+            const guestProfile: Profile = { id: guestId, username: 'Guest', coins_balance: 1000, created_at: new Date().toISOString(), is_guest: true, verified: false, email: null };
+            setProfile(guestProfile);
+            setAuthFlow('guest');
+        }
+        setLoading(false);
+    });
+
+    return () => {
+        subscription.unsubscribe();
+    };
+  }, [addToast]);
 
   const handleClaimStreak = () => {
     if (!profile) return;
@@ -196,36 +218,38 @@ function App() {
     setDailyStreakData({ isOpen: false, streakDay: 0 });
   };
 
-  // Effect 2: React to profile changes to set up the rest of the app state
   useEffect(() => {
-    if (profile) {
-      setAuthFlow(profile.is_guest ? 'guest' : 'authenticated');
-      
+    if (profile && !profile.is_guest) {
       initializeUserSpinState(profile.id);
-      
-      if (!profile.is_guest) {
-        const { isAvailable, streakDay } = checkDailyStreak(profile.id);
-        if (isAvailable) {
-          setDailyStreakData({ isOpen: true, streakDay });
-        }
+      const { isAvailable, streakDay } = checkDailyStreak(profile.id);
+      if (isAvailable) {
+        setDailyStreakData({ isOpen: true, streakDay });
       }
-
-      const seenTutorial = localStorage.getItem('sportime_seen_swipe_tutorial');
-      if (seenTutorial) {
-        setHasSeenSwipeTutorial(true);
-      }
-      
-      setLoading(false);
-    } else {
-      setLoading(true);
+    }
+    const seenTutorial = localStorage.getItem('sportime_seen_swipe_tutorial');
+    if (seenTutorial) {
+      setHasSeenSwipeTutorial(true);
     }
   }, [profile, initializeUserSpinState, checkDailyStreak]);
 
   const coinBalance = profile?.coins_balance ?? 0;
 
-  const handleSetCoinBalance = (newBalance: number) => {
-    if (profile) {
-      useMockStore.getState().setCoinBalance(profile.id, newBalance);
+  const handleSetCoinBalance = async (newBalance: number) => {
+    if (profile && !profile.is_guest && supabase) {
+        const { data, error } = await supabase
+            .from('profiles')
+            .update({ coins_balance: newBalance })
+            .eq('id', profile.id)
+            .select()
+            .single();
+        
+        if (error) {
+            addToast('Failed to update balance.', 'error');
+        } else if (data) {
+            setProfile(data);
+        }
+    } else if (profile && profile.is_guest) {
+        setProfile(p => p ? { ...p, coins_balance: newBalance } : null);
     }
   };
 
@@ -244,81 +268,115 @@ function App() {
     setAuthFlow(profile?.is_guest ? 'guest' : 'authenticated');
   };
 
-  const handleMagicLinkSent = (email: string) => {
-    const completeSignUp = () => {
-        const newUser: Profile = {
-            id: uuidv4(),
-            email,
-            username: `user_${uuidv4().slice(0, 4)}`,
-            coins_balance: 1000,
-            created_at: new Date().toISOString(),
-            is_guest: false,
-            verified: true,
-        };
-        ensureUserExists(newUser);
-        setCurrentUserId(newUser.id);
-        setAuthFlow('onboarding');
-    };
+  const handleMagicLinkSent = async (email: string) => {
+    if (!supabase) {
+        addToast('Supabase not configured.', 'error');
+        return;
+    }
+    const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+            emailRedirectTo: window.location.origin,
+        },
+    });
 
-    if (useMockStore.getState().isTestMode) {
-      addToast('Test Mode: Skipping verification...', 'info');
-      completeSignUp();
+    if (error) {
+        addToast(error.message, 'error');
     } else {
-      addToast('Simulating Magic Link verification...', 'info');
-      setTimeout(() => {
-          completeSignUp();
-          addToast('Verification successful! Please set up your profile.', 'success');
-      }, 1500);
+        addToast('Check your email for the magic link!', 'success');
     }
   };
 
   const handleSignOut = async () => {
-    localStorage.removeItem('sportime_user');
-    const guestId = `guest-${uuidv4()}`;
-    const guestProfile: Profile = {
-        id: guestId, username: 'Guest', coins_balance: 1000,
-        created_at: new Date().toISOString(), is_guest: true, verified: false, email: null,
-    };
-    ensureUserExists(guestProfile);
-    setCurrentUserId(guestProfile.id);
-    setPage('challenges');
-    addToast('You have been signed out.', 'info');
+    if (!supabase) return;
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+        addToast(`Error signing out: ${error.message}`, 'error');
+    } else {
+        addToast('You have been signed out.', 'info');
+        setPage('challenges');
+    }
   };
 
   const handleUpdateProfile = async (updatedData: { username: string; displayName: string; newProfilePic: File | null; favoriteClub?: string | null; favoriteNationalTeam?: string | null; }) => {
-    if (!profile || profile.is_guest) return;
+    if (!profile || profile.is_guest || !supabase) return;
     setLoading(true);
     addToast('Updating profile...', 'info');
 
     let newProfilePictureUrl = profile.profile_picture_url;
+
     if (updatedData.newProfilePic) {
-        newProfilePictureUrl = URL.createObjectURL(updatedData.newProfilePic);
+        const file = updatedData.newProfilePic;
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${profile.id}-${Date.now()}.${fileExt}`;
+        const filePath = `${fileName}`;
+
+        const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file);
+
+        if (uploadError) {
+            addToast(`Error uploading avatar: ${uploadError.message}`, 'error');
+            setLoading(false);
+            return;
+        }
+
+        const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(filePath);
+        newProfilePictureUrl = urlData.publicUrl;
     }
 
-    const newProfileData: Partial<Profile> = {
-      username: updatedData.username,
-      display_name: updatedData.displayName,
-      profile_picture_url: newProfilePictureUrl,
-      favorite_club: updatedData.favoriteClub === null ? undefined : updatedData.favoriteClub || profile.favorite_club,
-      favorite_national_team: updatedData.favoriteNationalTeam === null ? undefined : updatedData.favoriteNationalTeam || profile.favorite_national_team,
+    const updatesToSave: Partial<Profile> = {
+        username: updatedData.username,
+        display_name: updatedData.displayName,
+        profile_picture_url: newProfilePictureUrl,
+        favorite_club: updatedData.favoriteClub === null ? undefined : updatedData.favoriteClub || profile.favorite_club,
+        favorite_national_team: updatedData.favoriteNationalTeam === null ? undefined : updatedData.favoriteNationalTeam || profile.favorite_national_team,
+        sports_preferences: { football: { club: updatedData.favoriteClub || undefined, national_team: updatedData.favoriteNationalTeam || undefined } },
     };
-    newProfileData.sports_preferences = { ...profile.sports_preferences, football: { club: newProfileData.favorite_club, national_team: newProfileData.favorite_national_team } };
-    
-    updateUser(profile.id, newProfileData);
-    localStorage.setItem('sportime_user', JSON.stringify({ ...profile, ...newProfileData }));
-    addToast('Profile updated successfully!', 'success');
+
+    const { data: updatedProfile, error } = await supabase
+        .from('profiles')
+        .update(updatesToSave)
+        .eq('id', profile.id)
+        .select()
+        .single();
+
+    if (error) {
+        addToast(`Error updating profile: ${error.message}`, 'error');
+    } else if (updatedProfile) {
+        setProfile(updatedProfile);
+        addToast('Profile updated successfully!', 'success');
+    }
     setLoading(false);
   };
 
   const handleUpdateEmail = async (newEmail: string) => { /* ... */ };
   const handleDeleteAccount = async () => { /* ... */ };
 
-  const handleCompleteOnboarding = (updatedProfileData: Partial<Profile>) => {
-    if (!profile) return;
-    const finalProfile = { ...profile, ...updatedProfileData, verified: true };
-    updateUser(profile.id, finalProfile);
-    localStorage.setItem('sportime_user', JSON.stringify(finalProfile));
-    addToast(`Welcome to Sportime, ${finalProfile.display_name || finalProfile.username}!`, 'success');
+  const handleCompleteOnboarding = async (updatedProfileData: Partial<Profile>) => {
+    if (!profile || profile.is_guest || !supabase) return;
+
+    const finalProfileData = {
+        ...profile,
+        ...updatedProfileData,
+        verified: true,
+        id: profile.id,
+    };
+    
+    // Clean up client-side state properties before upserting
+    const { is_guest, verified, ...dbProfile } = finalProfileData;
+
+    const { data: upsertedProfile, error } = await supabase
+        .from('profiles')
+        .upsert(dbProfile)
+        .select()
+        .single();
+
+    if (error) {
+        addToast(`Error setting up profile: ${error.message}`, 'error');
+    } else if (upsertedProfile) {
+        setProfile(upsertedProfile as Profile);
+        setAuthFlow('authenticated');
+        addToast(`Welcome to Sportime, ${upsertedProfile.display_name || upsertedProfile.username}!`, 'success');
+    }
   };
   
   const handleBetClick = (match: Match, prediction: 'teamA' | 'draw' | 'teamB', odds: number) => {
@@ -423,7 +481,7 @@ function App() {
     }
   };
   const handleUpdateSwipePrediction = (matchDayId: string, matchId: string, prediction: any) => {
-    useMockStore.getState().updateSwipePrediction(matchDayId, profile!.id, matchId, prediction);
+    useMockStore.getState().updateSwipePrediction(profile!.id, matchDayId, matchId, prediction);
     addToast('Prediction updated!', 'info');
   };
   const handleEditSwipePicks = () => {
@@ -692,7 +750,7 @@ function App() {
           userEntry={userEntry}
           onBack={handleLeaderboardBack}
           initialLeagueContext={leaderboardContext}
-          allUsers={allUsers}
+          allUsers={useMockStore.getState().allUsers}
           userLeagues={myLeagues}
           leagueMembers={leagueMembers}
           leagueGames={leagueGames}
@@ -730,7 +788,7 @@ function App() {
         return <PredictionChallengeOverviewPage 
           challenge={challenge}
           onBack={handleLeaderboardBack}
-          allUsers={allUsers}
+          allUsers={useMockStore.getState().allUsers}
           userSwipeEntries={userSwipeEntries}
           swipeMatchDays={games.filter(g => g.game_type === 'prediction') as SwipeMatchDay[]}
           currentUserId={profile.id}
@@ -747,7 +805,7 @@ function App() {
           userEntry={userEntry}
           onBack={handleLeaderboardBack}
           initialLeagueContext={leaderboardContext}
-          allUsers={allUsers}
+          allUsers={useMockStore.getState().allUsers}
           userLeagues={myLeagues}
           leagueMembers={leagueMembers}
           leagueGames={leagueGames}
@@ -800,7 +858,7 @@ function App() {
           allPlayers={mockFantasyPlayers}
           onBack={handleLeaderboardBack}
           initialLeagueContext={leaderboardContext}
-          allUsers={allUsers}
+          allUsers={useMockStore.getState().allUsers}
           userLeagues={myLeagues}
           leagueMembers={leagueMembers}
           leagueGames={leagueGames}
@@ -850,7 +908,7 @@ function App() {
         const league = userLeagues.find(l => l.id === activeLeagueId);
         if (league && profile) {
             const membersOfLeague = leagueMembers.filter(m => m.league_id === league.id);
-            const memberProfiles = membersOfLeague.map(m => allUsers.find(u => u.id === m.user_id)).filter(Boolean) as Profile[];
+            const memberProfiles = membersOfLeague.map(m => useMockStore.getState().allUsers.find(u => u.id === m.user_id)).filter(Boolean) as Profile[];
             const currentUserMembership = membersOfLeague.find(m => m.user_id === profile.id);
             return <LeaguePage 
                 league={league}
@@ -905,7 +963,7 @@ function App() {
     return <div className="min-h-screen flex items-center justify-center bg-deep-navy"><div className="text-2xl font-semibold text-text-secondary">Loading...</div></div>;
   }
 
-  if (authFlow === 'signing_up' || joinLeagueCode && profile?.is_guest) {
+  if (authFlow === 'signing_up' || (joinLeagueCode && profile?.is_guest)) {
     return <SignUpStep onMagicLinkSent={handleMagicLinkSent} onBack={handleCancelSignUp} />;
   }
   if (authFlow === 'onboarding' && profile) {

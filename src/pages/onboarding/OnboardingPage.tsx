@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Profile } from '../types';
+import { Profile } from '../../types';
 import { UserInfoStep } from './UserInfoStep';
-import { PreferencesStep } from './onboarding/PreferencesStep';
+import { PreferencesStep } from './PreferencesStep';
 
 interface OnboardingPageProps {
   profile: Profile;
@@ -15,6 +15,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ profile, onCompl
 
   const handleUserInfoContinue = (username: string, displayName: string, profilePic: File | null) => {
     setLoading(true);
+    // In mock mode, we'll just create a blob URL. In real mode, this would upload.
     const profilePicUrl = profilePic ? URL.createObjectURL(profilePic) : null;
     setUserInfo({ username, displayName, profilePicUrl });
     setLoading(false);
@@ -24,6 +25,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ profile, onCompl
   const handlePreferencesSave = (clubId: string | null, nationalTeam: string | null) => {
     setLoading(true);
     const updatedProfile: Partial<Profile> = {
+      ...profile,
       username: userInfo.username,
       display_name: userInfo.displayName,
       profile_picture_url: userInfo.profilePicUrl,
@@ -37,6 +39,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ profile, onCompl
         }
       },
     };
+    // Simulate API call
     setTimeout(() => {
       onComplete(updatedProfile);
       setLoading(false);
@@ -46,10 +49,13 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ profile, onCompl
   const handleSkipPreferences = () => {
     setLoading(true);
     const updatedProfile: Partial<Profile> = {
+      ...profile,
       username: userInfo.username,
       display_name: userInfo.displayName,
       profile_picture_url: userInfo.profilePicUrl,
+      // preferences are left undefined
     };
+     // Simulate API call
     setTimeout(() => {
       onComplete(updatedProfile);
       setLoading(false);

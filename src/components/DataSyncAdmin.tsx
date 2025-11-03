@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { supabase } from '../services/supabase'
+import { supabase } from '../lib/supabaseClient';
 import { apiFootball } from '../lib/apiFootballService'
 import {
   ApiLeagueInfo,
@@ -29,6 +29,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
   const addProgress = (message: string) => setProgress((prev) => [message, ...prev])
 
   const fetchSyncConfigs = useCallback(async () => {
+    if (!supabase) return;
     try {
       const { data, error } = await supabase.from('api_sync_config').select('*')
       if (error) {
@@ -47,6 +48,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
   }, [fetchSyncConfigs])
 
   const handleFrequencyChange = async (endpoint: string, frequency: string) => {
+    if (!supabase) return;
     try {
       const { error } = await supabase
         .from('api_sync_config')
@@ -64,6 +66,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
 
   // LEAGUES — écriture via api_league_id (BIGINT)
   const syncLeagues = async (ids: string[]) => {
+    if (!supabase) return;
     addProgress(`Syncing ${ids.length} leagues...`)
     try {
       for (const id of ids) {
@@ -109,6 +112,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
 
   // TEAMS — par league API id
   const syncTeamsByLeague = async (leagueApiId: string, season: string) => {
+    if (!supabase) return [];
     addProgress(`Syncing teams for league ${leagueApiId}, season ${season}...`)
     try {
       const data = await apiFootball<ApiTeamInfo>('teams', { league: leagueApiId, season })
@@ -134,6 +138,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
 
   // PLAYERS — par team id
   const syncPlayersByTeam = async (teamId: number, season: string) => {
+    if (!supabase) return;
     addProgress(`Syncing players for team ${teamId}...`)
     try {
       const data = await apiFootball<ApiPlayerInfo>('players', { team: String(teamId), season })
@@ -189,6 +194,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
 
   // MANUAL SYNC — fixtures / odds
   const handleManualSync = async (endpoint: string) => {
+    if (!supabase) return;
     setLoading(endpoint)
     setProgress([])
     addProgress(`Starting manual sync for ${endpoint}...`)
