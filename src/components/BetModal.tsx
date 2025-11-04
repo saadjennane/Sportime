@@ -70,6 +70,30 @@ export const BetModal: React.FC<BetModalProps> = ({
 
   const quickAmounts = [100, 500, 1000, 2500];
 
+  const renderTeamIcon = (
+    team: Match['teamA'],
+    options?: { wrapperClass?: string; sizeClass?: string }
+  ) => {
+    const wrapperClass = options?.wrapperClass ?? 'mb-1';
+    const sizeClass = options?.sizeClass ?? 'w-12 h-12';
+    if (team.logo) {
+      return (
+        <div className={`${wrapperClass} flex justify-center`}>
+          <img src={team.logo} alt={team.name} className={`${sizeClass} object-contain`} />
+        </div>
+      );
+    }
+    const fallback =
+      team.emoji && team.emoji.length === 1 ? team.emoji : (team.name?.charAt(0).toUpperCase() || '?');
+    return (
+      <div className={`${wrapperClass} flex items-center justify-center`}>
+        <span className={`${sizeClass} rounded-full bg-deep-navy flex items-center justify-center text-2xl font-bold text-electric-blue`}>
+          {fallback}
+        </span>
+      </div>
+    );
+  };
+
   const handlePredictionChange = (newPrediction: 'teamA' | 'draw' | 'teamB', newOdds: number) => {
     setSelectedPrediction(newPrediction);
     setSelectedOdds(newOdds);
@@ -77,11 +101,21 @@ export const BetModal: React.FC<BetModalProps> = ({
 
   const PredictionOption: React.FC<{
     label: string;
-    emoji: string;
+    team?: Match['teamA'];
     currentOdds: number;
     predictionKey: 'teamA' | 'draw' | 'teamB';
-  }> = ({ label, emoji, currentOdds, predictionKey }) => {
+  }> = ({ label, team, currentOdds, predictionKey }) => {
     const isActive = selectedPrediction === predictionKey;
+    const icon =
+      team !== undefined ? (
+        renderTeamIcon(team, { wrapperClass: 'mb-1', sizeClass: 'w-12 h-12' })
+      ) : (
+        <div className="mb-1 flex items-center justify-center">
+          <span className="w-12 h-12 rounded-full bg-deep-navy flex items-center justify-center text-2xl font-bold text-electric-blue">
+            🤝
+          </span>
+        </div>
+      );
     return (
       <button
         onClick={() => handlePredictionChange(predictionKey, currentOdds)}
@@ -91,7 +125,7 @@ export const BetModal: React.FC<BetModalProps> = ({
             : 'bg-deep-navy border-disabled hover:border-electric-blue/50'
         }`}
       >
-        <span className="text-2xl mb-1">{emoji}</span>
+        {icon}
         <span className="text-xs font-bold text-text-primary">{label}</span>
         <span className="text-sm font-semibold text-electric-blue">@{currentOdds.toFixed(2)}</span>
       </button>
@@ -119,12 +153,12 @@ export const BetModal: React.FC<BetModalProps> = ({
           </div>
           <div className="flex items-center justify-center gap-4 text-center">
             <div className="flex-1">
-              <div className="text-3xl mb-1">{match.teamA.emoji}</div>
+              {renderTeamIcon(match.teamA)}
               <div className="text-sm font-bold text-text-primary">{match.teamA.name}</div>
             </div>
             <div className="text-lg font-bold text-disabled">vs</div>
             <div className="flex-1">
-              <div className="text-3xl mb-1">{match.teamB.emoji}</div>
+              {renderTeamIcon(match.teamB)}
               <div className="text-sm font-bold text-text-primary">{match.teamB.name}</div>
             </div>
           </div>
@@ -137,19 +171,19 @@ export const BetModal: React.FC<BetModalProps> = ({
           <div className="flex gap-2">
             <PredictionOption
               label={match.teamA.name.split(' ')[0]}
-              emoji={match.teamA.emoji}
+              team={match.teamA}
               currentOdds={match.odds.teamA}
               predictionKey="teamA"
             />
             <PredictionOption
               label="Draw"
-              emoji="🤝"
+              team={undefined}
               currentOdds={match.odds.draw}
               predictionKey="draw"
             />
             <PredictionOption
               label={match.teamB.name.split(' ')[0]}
-              emoji={match.teamB.emoji}
+              team={match.teamB}
               currentOdds={match.odds.teamB}
               predictionKey="teamB"
             />

@@ -12,11 +12,12 @@ interface MatchCardProps {
 
 export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats, onPlayGame, userBet }) => {
   const isUpcoming = match.status === 'upcoming';
+  const isLive = !!match.isLive;
   const betPlaced = !!userBet;
 
   const getResultStyling = (prediction: 'teamA' | 'draw' | 'teamB') => {
     if (isUpcoming) {
-      return betPlaced && userBet.prediction === prediction
+      return betPlaced && userBet?.prediction === prediction
         ? 'border-electric-blue bg-electric-blue/10'
         : 'border-disabled bg-deep-navy hover:border-electric-blue hover:shadow-lg hover:scale-105';
     } else {
@@ -33,26 +34,28 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
   };
 
   const BetButton: React.FC<{ 
-    prediction: 'teamA' | 'draw' | 'teamB'; 
-    odds: number; 
+    prediction: 'teamA' | 'draw' | 'teamB';
+    odds?: number;
     label: string;
   }> = ({ prediction, odds, label }) => {
     const isSelected = userBet?.prediction === prediction;
     const won = userBet?.status === 'won' && isSelected;
     const lost = userBet?.status === 'lost' && isSelected;
+    const displayOdds = odds !== undefined ? `${odds.toFixed(2)}x` : '--';
+    const isDisabled = !isUpcoming || odds === undefined;
 
     return (
       <button
-        onClick={() => isUpcoming && onBet && onBet(prediction, odds)}
-        disabled={!isUpcoming}
-        className={`flex-1 p-3 rounded-xl border-2 transition-all duration-300 ${getResultStyling(prediction)} ${!isUpcoming ? 'cursor-not-allowed' : ''}`}
+        onClick={() => !isDisabled && onBet && onBet(prediction, odds)}
+        disabled={isDisabled}
+        className={`flex-1 p-3 rounded-xl border-2 transition-all duration-300 ${getResultStyling(prediction)} ${isDisabled ? 'cursor-not-allowed opacity-60' : ''}`}
       >
         <div className="text-center">
           <div className="text-xs text-text-secondary mb-1 font-medium">{label}</div>
           <div className={`text-xl font-bold ${
             won ? 'text-lime-glow' : lost ? 'text-hot-red' : 'text-text-primary'
           }`}>
-            {odds.toFixed(2)}x
+            {displayOdds}
           </div>
           {won && (
             <div className="text-xs text-lime-glow font-semibold mt-1 flex items-center justify-center gap-1">
@@ -69,6 +72,58 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
     );
   };
 
+  const renderTeamAvatar = (team: Match['teamA']) => {
+    if (team.logo) {
+      return (
+        <div className="mx-auto w-12 h-12 mb-2">
+          <img
+            src={team.logo}
+            alt={team.name}
+            className="w-full h-full object-contain"
+          />
+        </div>
+      );
+    }
+    return (
+      <div className="mx-auto w-12 h-12 mb-2 flex items-center justify-center rounded-full bg-deep-navy text-2xl font-bold text-electric-blue">
+        {(team.emoji && team.emoji.length === 1) ? team.emoji : (team.name?.charAt(0).toUpperCase() || '?')}
+      </div>
+    );
+  };
+
+  const badgeContent = (() => {
+    if (!isUpcoming) {
+      return (
+        <span className="bg-disabled text-text-disabled text-xs px-3 py-1 rounded-full font-semibold">
+          Finished
+        </span>
+      );
+    }
+    if (isLive) {
+      return (
+        <span className="text-white text-xs px-3 py-1 rounded-full font-semibold bg-gradient-to-r from-hot-red to-electric-blue animate-pulse">
+          Live
+        </span>
+      );
+    }
+    if (betPlaced) {
+      return (
+        <span className="text-white text-xs px-3 py-1 rounded-full font-semibold bg-gradient-to-r from-electric-blue to-neon-cyan">
+          Bet Placed
+        </span>
+      );
+    }
+    return (
+      <span className="bg-disabled text-text-secondary text-xs px-3 py-1 rounded-full font-semibold">
+        Upcoming
+      </span>
+    );
+  })();
+
+  const teamAOdds = match.odds?.teamA && match.odds.teamA > 0 ? match.odds.teamA : undefined;
+  const drawOdds = match.odds?.draw && match.odds.draw > 0 ? match.odds.draw : undefined;
+  const teamBOdds = match.odds?.teamB && match.odds.teamB > 0 ? match.odds.teamB : undefined;
+
   return (
     <div className={`card-base p-5 transition-all duration-300 ${isUpcoming ? 'hover:border-neon-cyan/50' : ''}`}>
       <div className="flex items-center justify-between mb-4">
@@ -76,20 +131,12 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
           <Clock className="w-4 h-4" />
           <span className="text-sm font-medium">{match.kickoffTime}</span>
         </div>
-        {isUpcoming ? (
-          <span className={`text-white text-xs px-3 py-1 rounded-full font-semibold ${betPlaced ? 'bg-gradient-to-r from-electric-blue to-neon-cyan' : 'bg-gradient-to-r from-lime-glow/80 to-lime-glow/50'}`}>
-            {betPlaced ? 'Bet Placed' : 'Live'}
-          </span>
-        ) : (
-          <span className="bg-disabled text-text-disabled text-xs px-3 py-1 rounded-full font-semibold">
-            Finished
-          </span>
-        )}
+        {badgeContent}
       </div>
 
       <div className="flex items-center justify-between mb-6">
         <div className="flex-1 text-center">
-          <div className="text-4xl mb-2">{match.teamA.emoji}</div>
+          {renderTeamAvatar(match.teamA)}
           <div className="text-sm font-semibold text-text-primary">{match.teamA.name}</div>
         </div>
         
@@ -104,7 +151,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
         </div>
 
         <div className="flex-1 text-center">
-          <div className="text-4xl mb-2">{match.teamB.emoji}</div>
+          {renderTeamAvatar(match.teamB)}
           <div className="text-sm font-semibold text-text-primary">{match.teamB.name}</div>
         </div>
       </div>
@@ -139,9 +186,9 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
           </div>
         </div>
         <div className="flex gap-2">
-          <BetButton prediction="teamA" odds={match.odds.teamA} label={match.teamA.name.split(' ')[0]} />
-          <BetButton prediction="draw" odds={match.odds.draw} label="Draw" />
-          <BetButton prediction="teamB" odds={match.odds.teamB} label={match.teamB.name.split(' ')[0]} />
+          <BetButton prediction="teamA" odds={teamAOdds} label={match.teamA.name.split(' ')[0]} />
+          <BetButton prediction="draw" odds={drawOdds} label="Draw" />
+          <BetButton prediction="teamB" odds={teamBOdds} label={match.teamB.name.split(' ')[0]} />
         </div>
       </div>
     </div>

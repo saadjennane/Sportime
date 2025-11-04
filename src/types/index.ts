@@ -3,15 +3,26 @@ import React from 'react';
 export interface Match {
   id: string;
   leagueName: string;
-  leagueLogo: string;
-  teamA: { name: string; emoji: string };
-  teamB: { name: string; emoji: string };
+  leagueLogo: string | null;
+  teamA: { name: string; emoji?: string; logo?: string | null };
+  teamB: { name: string; emoji?: string; logo?: string | null };
   kickoffTime: string;
   odds: { teamA: number; draw: number; teamB: number };
   status: 'upcoming' | 'played';
+  isLive?: boolean;
   result?: 'teamA' | 'draw' | 'teamB';
   score?: { teamA: number; teamB: number };
   hasLineup?: boolean;
+  meta?: MatchMeta;
+}
+
+export interface MatchMeta {
+  fixtureId: number;
+  leagueId: string;
+  apiLeagueId?: number | null;
+  season?: string | number | null;
+  homeTeamId: number;
+  awayTeamId: number;
 }
 
 export interface Bet {

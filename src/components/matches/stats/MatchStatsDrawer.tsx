@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, FileText, History, Users } from 'lucide-react';
-import { Match, MatchStats } from '../../../types';
-import { getMatchStats } from '../../../lib/mockStatsProvider';
+import { Match } from '../../../types';
 import { FormTab } from './FormTab';
 import { H2HTab } from './H2HTab';
 import { LineupsTab } from './LineupsTab';
+import { useMatchExtras } from '../../../features/matches/useMatchExtras';
 
 interface MatchStatsDrawerProps {
   match: Match | null;
@@ -40,30 +40,42 @@ const TabButton: React.FC<{
 
 export const MatchStatsDrawer: React.FC<MatchStatsDrawerProps> = ({ match, onClose }) => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('form');
-  const [stats, setStats] = useState<MatchStats | null>(null);
-  const [loading, setLoading] = useState(false);
+
+  const extrasParams = useMemo(() => {
+    if (!match?.meta) return null;
+    const { fixtureId, homeTeamId, awayTeamId, apiLeagueId, season } = match.meta;
+    if (!Number.isFinite(fixtureId) || !Number.isFinite(homeTeamId) || !Number.isFinite(awayTeamId)) {
+      return null;
+    }
+    return {
+      fixtureId,
+      homeTeamId,
+      awayTeamId,
+      leagueApiId: apiLeagueId ?? undefined,
+      season: season ?? undefined,
+    };
+  }, [match]);
+
+  const { teams, h2h, lineup, loading, error } = useMatchExtras(extrasParams);
 
   useEffect(() => {
     if (match) {
-      setLoading(true);
       setActiveTab('form'); // Reset to form tab on new match
-      getMatchStats(match.id).then(data => {
-        setStats(data);
-        setLoading(false);
-      });
-    } else {
-      setStats(null);
     }
   }, [match]);
 
   const renderContent = () => {
+    if (error && !loading) {
+      return <div className="text-center text-hot-red p-6 text-sm">{error}</div>;
+    }
+
     switch (activeTab) {
       case 'form':
-        return <FormTab data={stats?.teams} loading={loading} />;
+        return <FormTab data={teams} loading={loading} />;
       case 'h2h':
-        return <H2HTab data={stats?.h2h} loading={loading} />;
+        return <H2HTab data={h2h} loading={loading} />;
       case 'lineups':
-        return <LineupsTab data={stats?.lineup} loading={loading} />;
+        return <LineupsTab data={lineup ?? undefined} loading={loading} />;
       default:
         return null;
     }
@@ -109,7 +121,7 @@ export const MatchStatsDrawer: React.FC<MatchStatsDrawerProps> = ({ match, onClo
             <div className="flex gap-2 p-2 border-b border-disabled flex-shrink-0">
               <TabButton label="Form" icon={<FileText size={18} />} isActive={activeTab === 'form'} onClick={() => setActiveTab('form')} />
               <TabButton label="H2H" icon={<History size={18} />} isActive={activeTab === 'h2h'} onClick={() => setActiveTab('h2h')} />
-              {stats?.lineup && (
+              {extrasParams && (
                 <TabButton label="Lineups" icon={<Users size={18} />} isActive={activeTab === 'lineups'} onClick={() => setActiveTab('lineups')} />
               )}
             </div>

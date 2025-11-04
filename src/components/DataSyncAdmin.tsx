@@ -22,8 +22,8 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
   const toast = addToast ?? ((msg: string) => console.log('[toast]', msg))
   const [loading, setLoading] = useState<string | null>(null)
   const [progress, setProgress] = useState<string[]>([])
-  const [leagueIds, setLeagueIds] = useState('39, 140, 135') // Premier League, La Liga, Serie A
-  const [season, setSeason] = useState('2023')
+  const [leagueIds, setLeagueIds] = useState('2, 39, 140, 135') // UCL, Premier League, La Liga, Serie A
+  const [season, setSeason] = useState('2024')
   const [syncConfigs, setSyncConfigs] = useState<ApiSyncConfig[]>([])
 
   const addProgress = (message: string) => setProgress((prev) => [message, ...prev])
@@ -64,46 +64,39 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
 
   // LEAGUES — écriture via api_league_id (BIGINT)
   const syncLeagues = async (ids: string[]) => {
+    if (!supabase) return
     addProgress(`Syncing ${ids.length} leagues...`)
     try {
       for (const id of ids) {
-        const data = await apiFootball<ApiLeagueInfo>('leagues', { id })
-        if (data?.results > 0) {
+        const data = await apiFootball<ApiLeagueInfo>('/leagues', { id })
+        if (data.results > 0) {
           const item = data.response[0]
+          const currentSeason =
+            item.seasons.find((s: any) => s.current)?.year?.toString() ?? season
 
-          // countries
-          await supabase.from('countries').upsert(
-            {
-              id: item.country.name,
-              code: item.country.code,
-              flag: item.country.flag,
-            },
-            { onConflict: 'id' }
-          )
-
-          // leagues via api_league_id
-          const currentSeason = item.seasons?.find((s: any) => s.current)?.year?.toString() || season
-          const { error: upErr } = await supabase
-            .from('leagues')
+          // Upsert dans la table d'ingestion API-Football
+          const { error } = await supabase
+            .from('fb_leagues')
             .upsert(
               {
                 api_league_id: item.league.id,
                 name: item.league.name,
-                logo: item.league.logo,
-                type: item.league.type,
-                season: currentSeason,
-                country_id: item.country.name,
+                country: item.country?.name ?? null,
+                logo: item.league.logo ?? null,
+                type: item.league.type ?? null,
+                season: Number(currentSeason),
+                payload: item,
               },
               { onConflict: 'api_league_id' }
             )
-          if (upErr) throw upErr
 
-          addProgress(`Synced league: ${item.league.name}`)
+          if (error) throw error
+          addProgress(`Synced league: ${item.league.name} (#${item.league.id})`)
         }
       }
-      toast('Leagues synced successfully!', 'success')
+      addToast('Leagues synced successfully!', 'success')
     } catch (e: any) {
-      toast(`Error syncing leagues: ${e?.message ?? 'unknown error'}`, 'error')
+      addToast(`Error syncing leagues: ${e.message}`, 'error')
     }
   }
 
@@ -111,7 +104,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
   const syncTeamsByLeague = async (leagueApiId: string, season: string) => {
     addProgress(`Syncing teams for league ${leagueApiId}, season ${season}...`)
     try {
-      const data = await apiFootball<ApiTeamInfo>('teams', { league: leagueApiId, season })
+      const data = await apiFootball<ApiTeamInfo>('/teams', { league: leagueApiId, season })
       const teamsToUpsert =
         data?.response?.map(({ team }) => ({
           id: team.id,
@@ -121,7 +114,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
         })) ?? []
 
       if (teamsToUpsert.length > 0) {
-        const { error } = await supabase.from('teams').upsert(teamsToUpsert, { onConflict: 'id' })
+        const { error } = await supabase.from('fb_teams').upsert(teamsToUpsert, { onConflict: 'id' })
         if (error) throw error
       }
       addProgress(`Synced ${teamsToUpsert.length} teams for league ${leagueApiId}.`)
@@ -136,7 +129,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
   const syncPlayersByTeam = async (teamId: number, season: string) => {
     addProgress(`Syncing players for team ${teamId}...`)
     try {
-      const data = await apiFootball<ApiPlayerInfo>('players', { team: String(teamId), season })
+      const data = await apiFootball<ApiPlayerInfo>('/players', { team: String(teamId), season })
       const playersToUpsert =
         data?.response?.map(({ player, statistics }) => ({
           id: player.id,
@@ -149,7 +142,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
         })) ?? []
 
       if (playersToUpsert.length > 0) {
-        const { error } = await supabase.from('players').upsert(playersToUpsert, { onConflict: 'id' })
+        const { error } = await supabase.from('fb_players').upsert(playersToUpsert, { onConflict: 'id' })
         if (error) throw error
       }
       addProgress(`Synced ${playersToUpsert.length} players for team ${teamId}.`)
@@ -187,6 +180,123 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
     setLoading(null)
   }
 
+  type LeagueRecord = {
+    id: string
+    name?: string | null
+    api_league_id?: number | null
+    season?: string | number | null
+  }
+
+  const syncFixturesForLeagues = async (leagues: LeagueRecord[]) => {
+    if (!leagues || leagues.length === 0) {
+      addProgress('No leagues provided for fixtures sync.')
+      return 0
+    }
+
+    let totalSynced = 0
+
+    for (const league of leagues) {
+      if (!league?.api_league_id) {
+        addProgress(`Skipping league ${league?.name ?? league?.id}: missing api_league_id.`)
+        continue
+      }
+
+      const leagueLabel = `${league.name ?? 'Unknown League'} (#${league.api_league_id})`
+      const resolvedSeason =
+        league?.season !== null &&
+        league?.season !== undefined &&
+        String(league.season).trim().length > 0
+          ? String(league.season).trim()
+          : undefined
+
+      const today = new Date()
+      const fromDate = today.toISOString().split('T')[0]
+      const futureDate = new Date(today)
+      futureDate.setDate(futureDate.getDate() + 30)
+      const toDate = futureDate.toISOString().split('T')[0]
+
+      const baseParams: Record<string, string | number> = {
+        league: String(league.api_league_id),
+        from: fromDate,
+        to: toDate,
+      }
+      if (resolvedSeason) {
+        baseParams.season = resolvedSeason
+        addProgress(`Fetching fixtures for ${leagueLabel} (season ${resolvedSeason}) from ${fromDate} to ${toDate}...`)
+      } else {
+        addProgress(`Fetching fixtures for ${leagueLabel} from ${fromDate} to ${toDate}...`)
+      }
+
+      let data = await apiFootball<ApiFixtureInfo>('/fixtures', baseParams)
+      let responses = Array.isArray(data?.response) ? data.response : []
+
+      if (responses.length === 0) {
+        addProgress(`No fixtures returned for ${leagueLabel} in the next 30 days, retrying without date filter...`)
+        const fallbackParams: Record<string, string | number> = {
+          league: String(league.api_league_id),
+        }
+        if (resolvedSeason) {
+          fallbackParams.season = resolvedSeason
+        }
+        data = await apiFootball<ApiFixtureInfo>('/fixtures', fallbackParams)
+        responses = Array.isArray(data?.response) ? data.response : []
+      }
+
+      if (responses.length === 0) {
+        addProgress(`No fixtures returned for ${leagueLabel}.`)
+        continue
+      }
+
+      const fixturesToUpsert =
+        responses
+          .map((r) => {
+            const fixtureId = r?.fixture?.id
+            const fixtureDate = r?.fixture?.date
+            const homeId = r?.teams?.home?.id
+            const awayId = r?.teams?.away?.id
+
+            if (!fixtureId || !fixtureDate || !homeId || !awayId) {
+              addProgress(`Skipping fixture with missing data in ${leagueLabel}.`)
+              return null
+            }
+
+            return {
+              id: fixtureId,
+              date: fixtureDate,
+              status: r?.fixture?.status?.short ?? 'NS',
+              league_id: String(league.id),
+              home_team_id: homeId,
+              away_team_id: awayId,
+              goals_home: r?.goals?.home ?? null,
+              goals_away: r?.goals?.away ?? null,
+            }
+          })
+          .filter(Boolean) as {
+          id: number
+          date: string
+          status: string
+          league_id: string
+          home_team_id: number
+          away_team_id: number
+          goals_home: number | null
+          goals_away: number | null
+        }[]
+
+      if (fixturesToUpsert.length === 0) {
+        addProgress(`No valid fixtures to upsert for ${leagueLabel}.`)
+        continue
+      }
+
+      const { error: fxErr } = await supabase.from('fb_fixtures').upsert(fixturesToUpsert, { onConflict: 'id' })
+      if (fxErr) throw fxErr
+
+      totalSynced += fixturesToUpsert.length
+      addProgress(`Synced ${fixturesToUpsert.length} fixtures for ${leagueLabel}.`)
+    }
+
+    return totalSynced
+  }
+
   // MANUAL SYNC — fixtures / odds
   const handleManualSync = async (endpoint: string) => {
     setLoading(endpoint)
@@ -196,76 +306,73 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
     try {
       if (endpoint === 'fixtures') {
         const { data: leagues, error: leaguesErr } = await supabase
-          .from('leagues')
-          .select('api_league_id,season')
+          .from('fb_leagues')
+          .select('id, name, api_league_id, season')
         if (leaguesErr) throw leaguesErr
         if (!leagues || leagues.length === 0)
           throw new Error('No leagues found in DB to sync fixtures for.')
 
-        for (const lg of leagues) {
-          const leagueApiId = lg.api_league_id
-          addProgress(`Fetching fixtures for league ${leagueApiId}...`)
-          const data = await apiFootball<ApiFixtureInfo>('fixtures', {
-            league: String(leagueApiId),
+        const totalSynced = await syncFixturesForLeagues(
+          (leagues as LeagueRecord[]).map((lg) => ({
+            id: String(lg.id),
+            name: lg.name,
+            api_league_id: lg.api_league_id,
             season: lg.season,
-          })
+          }))
+        )
 
-          const fixturesToUpsert =
-            data?.response?.map(({ fixture, league, teams, goals }) => ({
-              id: fixture.id,
-              league_id: league.id,
-              home_team_id: teams.home.id,
-              away_team_id: teams.away.id,
-              date: fixture.date,
-              status: fixture.status.short,
-              goals_home: goals.home,
-              goals_away: goals.away,
-            })) ?? []
-
-          if (fixturesToUpsert.length > 0) {
-            const { error: fxErr } = await supabase.from('fixtures').upsert(fixturesToUpsert, { onConflict: 'id' })
-            if (fxErr) throw fxErr
-          }
-          addProgress(`Synced ${fixturesToUpsert.length} fixtures for league ${leagueApiId}.`)
-        }
+        addProgress(`Finished fixtures sync. Total fixtures processed: ${totalSynced}.`)
       } else if (endpoint === 'odds') {
+        // First, check all fixtures to understand what we have
+        const { data: allFixtures } = await supabase
+          .from('fb_fixtures')
+          .select('id, status, date')
+          .order('date', { ascending: false })
+          .limit(10)
+
+        addProgress(`Latest fixtures in DB: ${allFixtures?.map(f => `${f.id} (${f.status}, ${f.date})`).join(', ') || 'none'}`)
+
         const { data: fixtures, error: fixErr } = await supabase
-          .from('fixtures')
+          .from('fb_fixtures')
           .select('id, status')
           .in('status', ['NS', 'TBD', '1H', 'HT', '2H', 'ET', 'P'])
         if (fixErr) throw fixErr
-        if (!fixtures || fixtures.length === 0) throw new Error('No upcoming fixtures to fetch odds for.')
 
-        for (const fx of fixtures) {
-          addProgress(`Fetching odds for fixture ${fx.id}...`)
-          const data = await apiFootball<ApiOddsInfo>('odds', { fixture: String(fx.id) })
+        addProgress(`Found ${fixtures?.length || 0} upcoming fixtures`)
+        if (fixtures && fixtures.length > 0) {
+          for (const fx of fixtures) {
+            addProgress(`Fetching odds for fixture ${fx.id}...`)
+            const data = await apiFootball<ApiOddsInfo>('/odds', { fixture: String(fx.id) })
 
-          const matchWinnerBet =
-            data?.response?.[0]?.bookmakers?.[0]?.bets?.find((b: any) => b.name === 'Match Winner')
+            const matchWinnerBet =
+              data?.response?.[0]?.bookmakers?.[0]?.bets?.find((b: any) => b.name === 'Match Winner')
 
-          if (matchWinnerBet) {
-            const home = matchWinnerBet.values.find((v: any) => v.value === 'Home')?.odd || '0'
-            const draw = matchWinnerBet.values.find((v: any) => v.value === 'Draw')?.odd || '0'
-            const away = matchWinnerBet.values.find((v: any) => v.value === 'Away')?.odd || '0'
+            if (matchWinnerBet) {
+              const home = matchWinnerBet.values.find((v: any) => v.value === 'Home')?.odd || '0'
+              const draw = matchWinnerBet.values.find((v: any) => v.value === 'Draw')?.odd || '0'
+              const away = matchWinnerBet.values.find((v: any) => v.value === 'Away')?.odd || '0'
 
-            const { error: oddsErr } = await supabase
-              .from('odds')
-              .upsert(
-                {
-                  fixture_id: fx.id,
-                  home_win: parseFloat(home),
-                  draw: parseFloat(draw),
-                  away_win: parseFloat(away),
-                  bookmaker_name: data?.response?.[0]?.bookmakers?.[0]?.name || 'Unknown',
-                },
-                { onConflict: 'fixture_id' }
-              )
-            if (oddsErr) throw oddsErr
+              const { error: oddsErr } = await supabase
+                .from('fb_odds')
+                .upsert(
+                  {
+                    fixture_id: fx.id,
+                    home_win: parseFloat(home),
+                    draw: parseFloat(draw),
+                    away_win: parseFloat(away),
+                    bookmaker_name: data?.response?.[0]?.bookmakers?.[0]?.name || 'Unknown',
+                  },
+                  { onConflict: 'fixture_id,bookmaker_name' }
+                )
+              if (oddsErr) throw oddsErr
 
-            addProgress(`Synced odds for fixture ${fx.id}.`)
-          } else {
-            addProgress(`No match-winner odds for fixture ${fx.id}.`)
+              addProgress(`Synced odds for fixture ${fx.id}.`)
+            } else {
+              addProgress(`No match-winner odds for fixture ${fx.id}.`)
+            }
           }
+        } else {
+          addProgress('No upcoming fixtures available for odds. Run the fixtures sync first.')
         }
       }
 
@@ -283,42 +390,80 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
     setLoading(null)
   }
 
+  const handleBackfillUcl = async () => {
+    setLoading('ucl-backfill')
+    setProgress([])
+    addProgress('Starting Champions League backfill...')
+
+    try {
+      const { data: leagues, error } = await supabase
+        .from('fb_leagues')
+        .select('id, name, api_league_id, season')
+        .or('name.ilike.%Champions%,api_league_id.eq.2')
+
+      if (error) throw error
+
+      const targetLeagues =
+        (leagues as LeagueRecord[] | null)?.filter((lg) => !!lg.api_league_id) ?? []
+
+      if (targetLeagues.length === 0) {
+        addProgress('No Champions League entries found in leagues table.')
+        throw new Error('Champions League league not found in database.')
+      }
+
+      await syncFixturesForLeagues(
+        targetLeagues.map((lg) => ({
+          id: String(lg.id),
+          name: lg.name,
+          api_league_id: lg.api_league_id,
+          season: lg.season,
+        }))
+      )
+
+      addToast('UCL fixtures backfilled successfully!', 'success')
+    } catch (e: any) {
+      addToast(`UCL backfill failed: ${e?.message ?? 'unknown error'}`, 'error')
+    } finally {
+      setLoading(null)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Initial Import Section */}
-      <div className="bg-white rounded-2xl shadow-lg p-5 space-y-4">
+      <div className="bg-navy-accent rounded-2xl shadow-lg p-5 space-y-4 border border-electric-blue/20">
         <div className="flex items-center gap-3">
-          <div className="bg-purple-100 p-2 rounded-full">
-            <DownloadCloud className="w-6 h-6 text-purple-600" />
+          <div className="bg-electric-blue/20 p-2 rounded-full">
+            <DownloadCloud className="w-6 h-6 text-electric-blue" />
           </div>
-          <h3 className="font-bold text-lg text-gray-800">Initial Data Import</h3>
+          <h3 className="font-bold text-lg text-text-primary">Initial Data Import</h3>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-text-secondary mb-1">
             League IDs (comma-separated)
           </label>
           <input
             type="text"
             value={leagueIds}
             onChange={(e) => setLeagueIds(e.target.value)}
-            className="w-full p-2 border-2 border-gray-200 rounded-xl"
-            placeholder="e.g., 39, 140, 135"
+            className="w-full p-2 bg-deep-navy border-2 border-electric-blue/30 rounded-xl text-text-primary placeholder:text-text-disabled focus:border-electric-blue focus:outline-none"
+            placeholder="e.g., 2, 39, 140, 135"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Season (Year)</label>
+          <label className="block text-sm font-medium text-text-secondary mb-1">Season (Year)</label>
           <input
             type="text"
             value={season}
             onChange={(e) => setSeason(e.target.value)}
-            className="w-full p-2 border-2 border-gray-200 rounded-xl"
-            placeholder="e.g., 2023"
+            className="w-full p-2 bg-deep-navy border-2 border-electric-blue/30 rounded-xl text-text-primary placeholder:text-text-disabled focus:border-electric-blue focus:outline-none"
+            placeholder="e.g., 2025"
           />
         </div>
         <button
           onClick={handleFullImport}
           disabled={!!loading}
-          className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-semibold shadow-lg disabled:opacity-50"
+          className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-electric-blue to-neon-cyan text-white rounded-xl font-semibold shadow-lg hover:shadow-electric-blue/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >
           {loading === 'import' ? <RefreshCw className="animate-spin" /> : <Play />}
           Sync Leagues, Teams & Players
@@ -326,12 +471,12 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
       </div>
 
       {/* Ongoing Sync Section */}
-      <div className="bg-white rounded-2xl shadow-lg p-5 space-y-4">
+      <div className="bg-navy-accent rounded-2xl shadow-lg p-5 space-y-4 border border-electric-blue/20">
         <div className="flex items-center gap-3">
-          <div className="bg-blue-100 p-2 rounded-full">
-            <Settings className="w-6 h-6 text-blue-600" />
+          <div className="bg-warm-yellow/20 p-2 rounded-full">
+            <Settings className="w-6 h-6 text-warm-yellow" />
           </div>
-          <h3 className="font-bold text-lg text-gray-800">Ongoing Synchronization</h3>
+          <h3 className="font-bold text-lg text-text-primary">Ongoing Synchronization</h3>
         </div>
         <div className="space-y-3">
           {SYNC_ENDPOINTS.map((endpoint) => {
@@ -339,14 +484,14 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
             return (
               <div
                 key={endpoint}
-                className="bg-gray-50 p-3 rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+                className="bg-deep-navy p-3 rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border border-electric-blue/10"
               >
-                <span className="font-semibold capitalize">{endpoint}</span>
+                <span className="font-semibold capitalize text-text-primary">{endpoint}</span>
                 <div className="flex items-center gap-2">
                   <select
                     value={config?.frequency || 'Manual'}
                     onChange={(e) => handleFrequencyChange(endpoint, e.target.value)}
-                    className="p-2 border-2 border-gray-200 rounded-lg text-sm"
+                    className="p-2 bg-navy-accent border-2 border-electric-blue/30 rounded-lg text-sm text-text-primary focus:border-electric-blue focus:outline-none"
                   >
                     {FREQUENCIES.map((freq) => (
                       <option key={freq} value={freq}>
@@ -357,7 +502,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
                   <button
                     onClick={() => handleManualSync(endpoint)}
                     disabled={!!loading}
-                    className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
+                    className="p-2 bg-electric-blue text-white rounded-lg hover:bg-neon-cyan disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     title={`Sync ${endpoint} now`}
                   >
                     {loading === endpoint ? (
@@ -371,7 +516,16 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
             )
           })}
         </div>
-        <p className="text-xs text-gray-500 text-center pt-2">
+        <div className="pt-3 border-t border-electric-blue/20">
+          <button
+            onClick={handleBackfillUcl}
+            disabled={!!loading}
+            className="w-full flex items-center justify-center gap-2 py-2 bg-hot-red text-white rounded-lg font-semibold shadow hover:bg-hot-red/80 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          >
+            Backfill UCL Now
+          </button>
+        </div>
+        <p className="text-xs text-text-disabled text-center pt-2">
           Note: Automatic syncing requires a backend scheduler (e.g., Supabase Edge Functions on a
           cron schedule) to trigger these functions based on the saved frequency.
         </p>
@@ -379,14 +533,14 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
 
       {/* Progress Log */}
       {loading && (
-        <div className="bg-gray-800 text-white rounded-2xl shadow-lg p-5 space-y-2">
-          <div className="flex items-center gap-2 font-semibold text-lg">
+        <div className="bg-deep-navy rounded-2xl shadow-lg p-5 space-y-2 border border-lime-glow/30">
+          <div className="flex items-center gap-2 font-semibold text-lg text-lime-glow">
             <Server />
             <span>Sync Log</span>
           </div>
-          <div className="h-48 overflow-y-auto bg-black/30 p-3 rounded-lg font-mono text-xs space-y-1">
+          <div className="h-48 overflow-y-auto bg-black/50 p-3 rounded-lg font-mono text-xs space-y-1 border border-lime-glow/20">
             {progress.map((msg, i) => (
-              <p key={i} className="animate-scale-in">{`> ${msg}`}</p>
+              <p key={i} className="animate-scale-in text-text-secondary">{`> ${msg}`}</p>
             ))}
           </div>
         </div>
