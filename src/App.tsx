@@ -290,12 +290,8 @@ function App() {
   const handleClaimStreak = () => {
     if (!profile) return;
     const { reward, streakDay } = claimDailyStreak(profile.id);
-    
-    let rewardMessage = '';
-    if (reward.coins) rewardMessage = `You earned +${reward.coins} coins!`;
-    if (reward.ticket) rewardMessage = `You earned a ${reward.ticket} Ticket!`;
 
-    addToast(`Day ${streakDay} streak claimed! ${rewardMessage}`, 'success');
+    // Toast désactivé pour les streaks quotidiens
     setDailyStreakData({ isOpen: false, streakDay: 0 });
   };
 
@@ -316,8 +312,9 @@ function App() {
     initializeUserSpinState(profile.id);
 
     if (!isGuest) {
-      const { isAvailable, streakDay } = checkDailyStreak(profile.id);
-      if (isAvailable) {
+      const { isAvailable, streakDay, isFirstTime } = checkDailyStreak(profile.id);
+      // Ne montrer le modal QUE si ce n'est pas la première fois
+      if (isAvailable && !isFirstTime) {
         setDailyStreakData({ isOpen: true, streakDay });
       }
     }

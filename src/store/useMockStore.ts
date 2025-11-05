@@ -39,7 +39,7 @@ import {
   FunZoneState,
   FreeSpinReward,
 } from '../types';
-import { isToday, addDays, isBefore, parseISO, differenceInHours } from 'date-fns';
+import { isToday, addDays, isBefore, parseISO, differenceInHours, differenceInDays } from 'date-fns';
 import { DAILY_STREAK_REWARDS, STREAK_RESET_THRESHOLD_HOURS, TICKET_RULES } from '../config/constants';
 import { processGameWeek } from '../services/fantasyService';
 
@@ -548,15 +548,60 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
 
   checkDailyStreak: (userId) => {
     const userStreak = get().userStreaks.find(s => s.user_id === userId);
-    const lastClaimed = userStreak ? parseISO(userStreak.last_claimed_at) : new Date(0);
-    const hoursSinceLast = differenceInHours(new Date(), lastClaimed);
-    
-    if (hoursSinceLast >= 24) {
-        const currentDay = userStreak?.current_day || 0;
-        const newDay = hoursSinceLast > STREAK_RESET_THRESHOLD_HOURS ? 1 : (currentDay % 7) + 1;
-        return { isAvailable: true, streakDay: newDay };
+    const now = new Date();
+
+    // Si aucun streak n'existe, c'est la première fois
+    if (!userStreak) {
+      return {
+        isAvailable: true,
+        streakDay: 1,
+        isFirstTime: true
+      };
     }
-    return { isAvailable: false, streakDay: 0 };
+
+    // Définir le "jour streak" : de 8h00 aujourd'hui à 7h59 demain
+    const currentStreakDay = new Date(now);
+    if (now.getHours() < 8) {
+      // Avant 8h, on est encore dans le "jour streak" d'hier
+      currentStreakDay.setDate(currentStreakDay.getDate() - 1);
+    }
+    currentStreakDay.setHours(8, 0, 0, 0);
+
+    const lastClaimed = parseISO(userStreak.last_claimed_at);
+    const lastClaimedStreakDay = new Date(lastClaimed);
+    if (lastClaimedStreakDay.getHours() < 8) {
+      lastClaimedStreakDay.setDate(lastClaimedStreakDay.getDate() - 1);
+    }
+    lastClaimedStreakDay.setHours(8, 0, 0, 0);
+
+    const daysDifference = differenceInDays(currentStreakDay, lastClaimedStreakDay);
+
+    // Déjà claimé aujourd'hui
+    if (daysDifference === 0) {
+      return {
+        isAvailable: false,
+        streakDay: 0,
+        isFirstTime: false
+      };
+    }
+
+    // Peut claim aujourd'hui - streak continue
+    if (daysDifference === 1) {
+      const currentDay = userStreak.current_day || 0;
+      const newDay = (currentDay % 7) + 1;
+      return {
+        isAvailable: true,
+        streakDay: newDay,
+        isFirstTime: false
+      };
+    }
+
+    // Plus d'un jour d'inactivité - streak reset
+    return {
+      isAvailable: true,
+      streakDay: 1,
+      isFirstTime: false
+    };
   },
 
   claimDailyStreak: (userId) => {
@@ -564,12 +609,34 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
     const userStreak = userStreaks.find(s => s.user_id === userId);
     const now = new Date();
 
-    const currentDay = userStreak?.current_day || 0;
-    const hoursSinceLast = userStreak ? differenceInHours(now, parseISO(userStreak.last_claimed_at)) : Infinity;
-    const newDay = hoursSinceLast > STREAK_RESET_THRESHOLD_HOURS ? 1 : (currentDay % 7) + 1;
+    // Calculer le "jour streak" actuel (8h00-23h59)
+    const currentStreakDay = new Date(now);
+    if (now.getHours() < 8) {
+      currentStreakDay.setDate(currentStreakDay.getDate() - 1);
+    }
+    currentStreakDay.setHours(8, 0, 0, 0);
+
+    let newDay = 1;
+    if (userStreak) {
+      const lastClaimed = parseISO(userStreak.last_claimed_at);
+      const lastClaimedStreakDay = new Date(lastClaimed);
+      if (lastClaimedStreakDay.getHours() < 8) {
+        lastClaimedStreakDay.setDate(lastClaimedStreakDay.getDate() - 1);
+      }
+      lastClaimedStreakDay.setHours(8, 0, 0, 0);
+
+      const daysDifference = differenceInDays(currentStreakDay, lastClaimedStreakDay);
+
+      if (daysDifference === 1) {
+        // Streak continue
+        const currentDay = userStreak.current_day || 0;
+        newDay = (currentDay % 7) + 1;
+      }
+      // sinon daysDifference > 1 → reset à Day 1 (déjà initialisé)
+    }
 
     const reward = DAILY_STREAK_REWARDS[newDay as keyof typeof DAILY_STREAK_REWARDS];
-    
+
     if (reward.coins) {
         const user = allUsers.find(u => u.id === userId);
         if (user) setCoinBalance(userId, user.coins_balance + reward.coins);
@@ -578,11 +645,11 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
         addTicket(userId, reward.ticket as TournamentType);
     }
 
-    const updatedStreak: UserStreak = { 
-        user_id: userId, 
-        current_day: newDay, 
-        last_claimed_at: now.toISOString(), 
-        total_cycles_completed: newDay === 7 ? (userStreak?.total_cycles_completed || 0) + 1 : (userStreak?.total_cycles_completed || 0) 
+    const updatedStreak: UserStreak = {
+        user_id: userId,
+        current_day: newDay,
+        last_claimed_at: now.toISOString(),
+        total_cycles_completed: newDay === 7 ? (userStreak?.total_cycles_completed || 0) + 1 : (userStreak?.total_cycles_completed || 0)
     };
 
     set({

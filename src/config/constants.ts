@@ -10,7 +10,7 @@ export const DAILY_STREAK_REWARDS: Record<number, { coins?: number; ticket?: Tou
   7: { ticket: 'rookie' }
 };
 
-export const STREAK_RESET_THRESHOLD_HOURS = 48;
+export const STREAK_RESET_THRESHOLD_HOURS = 24;
 
 const DEFAULT_LEVEL_BET_LIMIT = 500;
 
