@@ -31,10 +31,10 @@ export const PreferencesStep: React.FC<PreferencesStepProps> = ({ onSave, onSkip
   };
 
   return (
-    <div className="w-full max-w-md mx-auto p-8 bg-white rounded-3xl shadow-2xl space-y-8 animate-scale-in">
+    <div className="w-full max-w-md mx-auto p-8 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-3xl shadow-2xl border border-purple-500/20 space-y-8 animate-scale-in">
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-900">Define your fan preferences ⚡</h1>
-        <p className="text-gray-500 mt-2">Choose your favorite club and national team — or skip and do it later from your profile.</p>
+        <h1 className="text-3xl font-bold text-white">Define your fan preferences</h1>
+        <p className="text-gray-300 mt-2">Choose your favorite club and national team — or skip and do it later from your profile.</p>
       </div>
 
       <div className="space-y-6">
@@ -58,14 +58,14 @@ export const PreferencesStep: React.FC<PreferencesStepProps> = ({ onSave, onSkip
         <button
           onClick={handleSave}
           disabled={loading}
-          className="w-full py-3.5 bg-purple-600 text-white font-bold rounded-xl shadow-lg shadow-purple-500/30 hover:bg-purple-700 disabled:bg-gray-300 disabled:shadow-none transition-all"
+          className="w-full py-3.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold rounded-xl shadow-lg shadow-purple-500/30 hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >
           {loading ? <Loader2 className="animate-spin mx-auto" /> : 'Save & Continue'}
         </button>
         <button
           onClick={onSkip}
           disabled={loading}
-          className="w-full py-3 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+          className="w-full py-3 text-sm font-semibold text-gray-400 hover:bg-gray-700/50 rounded-xl transition-colors disabled:opacity-50"
         >
           Skip for now
         </button>

@@ -180,7 +180,27 @@ function App() {
     const normalizedEmail = profile.email?.toLowerCase() ?? '';
     const matchesPendingEmail = pendingSignupEmail && normalizedEmail === pendingSignupEmail;
     const isGuestProfile = profile.user_type === 'guest' || profile.is_guest;
+    const hasGuestUsername = profile.username?.startsWith('guest_') ?? false;
+    const needsOnboarding = !profile.username || hasGuestUsername;
 
+    // If user just verified OTP and needs onboarding, trigger it
+    if (pendingSignupMode === 'signin' && matchesPendingEmail && needsOnboarding) {
+      if (authFlow !== 'onboarding') {
+        setAuthFlow('onboarding');
+        setShowSignUpPrompt(false);
+      }
+      return;
+    }
+
+    // If authenticated user with guest username, force onboarding
+    if (!isGuestProfile && needsOnboarding && !pendingSignupMode) {
+      if (authFlow !== 'onboarding') {
+        setAuthFlow('onboarding');
+      }
+      return;
+    }
+
+    // Legacy upgrade flow
     if (pendingSignupMode === 'upgrade' && matchesPendingEmail && isGuestProfile) {
       if (authFlow !== 'onboarding') {
         setAuthFlow('onboarding');
@@ -189,7 +209,8 @@ function App() {
       return;
     }
 
-    if (pendingSignupMode === 'signin' && matchesPendingEmail) {
+    // Clear pending state after successful authentication with complete profile
+    if (pendingSignupMode === 'signin' && matchesPendingEmail && !needsOnboarding) {
       setPendingSignupEmail(null);
       setPendingSignupMode(null);
       setShowSignUpPrompt(false);
@@ -199,7 +220,7 @@ function App() {
       return;
     }
 
-    if (!isGuestProfile && pendingSignupMode) {
+    if (!isGuestProfile && !needsOnboarding && pendingSignupMode) {
       setPendingSignupEmail(null);
       setPendingSignupMode(null);
     }

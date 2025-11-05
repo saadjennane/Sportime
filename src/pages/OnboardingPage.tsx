@@ -63,7 +63,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ profile, onCompl
   };
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-purple-100 via-blue-50 to-pink-100 flex items-center justify-center p-4">
+    <div className="min-h-screen w-full bg-gradient-to-br from-gray-900 via-gray-800 to-black flex items-center justify-center p-4">
       {step === 1 && (
         <UserInfoStep profile={profile} onContinue={handleUserInfoContinue} loading={loading} />
       )}
@@ -75,7 +75,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ profile, onCompl
             loading={loading}
           />
           {error && (
-            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
+            <div className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-3">
               <AlertCircle className="w-5 h-5" />
               <span>{error}</span>
             </div>
