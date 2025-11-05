@@ -12,6 +12,7 @@ interface AuthContextValue {
   signOut: () => Promise<void>
   ensureGuest: () => Promise<{ userId: string }>
   refreshProfile: () => Promise<void>
+  sendMagicLink: (email: string) => Promise<string>
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -93,6 +94,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { userId: signInData.session.user.id }
   }, [user, loadProfile])
 
+  const sendMagicLink = useCallback(async (email: string): Promise<string> => {
+    const normalizedEmail = email.trim().toLowerCase()
+    const redirectTo = window.location.origin
+
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: normalizedEmail,
+        options: {
+          emailRedirectTo: redirectTo,
+          shouldCreateUser: true,
+        },
+      })
+
+      if (error) {
+        throw error
+      }
+
+      return 'Check your inbox! We sent you a magic link. It expires in 15 minutes.'
+    } catch (error: any) {
+      console.error('[AuthContext] Failed to send magic link:', error)
+      throw new Error(error.message || 'Unable to send magic link. Please try again.')
+    }
+  }, [])
+
   const value = useMemo<AuthContextValue>(() => ({
     user,
     session,
@@ -101,7 +126,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signOut,
     ensureGuest,
     refreshProfile: loadProfile,
-  }), [user, session, profile, isLoading, signOut, ensureGuest, loadProfile])
+    sendMagicLink,
+  }), [user, session, profile, isLoading, signOut, ensureGuest, loadProfile, sendMagicLink])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
