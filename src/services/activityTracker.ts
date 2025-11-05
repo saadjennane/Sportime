@@ -21,6 +21,15 @@ import { supabase } from './supabase';
 const activityDebounceMap = new Map<string, number>();
 const DEBOUNCE_DELAY = 5 * 60 * 1000; // 5 minutes
 
+function logTrackerError(context: string, error: any) {
+  if (!error) return;
+  if (error.code === '42501' || error.code === 'PGRST116') {
+    // RLS / no rows — safe to ignore for guest users
+    return;
+  }
+  console.error(`[ActivityTracker] Error ${context}:`, error);
+}
+
 /**
  * Validate if a string is a valid UUID v4 format
  */
@@ -62,9 +71,7 @@ export async function trackActivity(userId: string): Promise<void> {
       p_user_id: userId,
     });
 
-    if (error) {
-      console.error('[ActivityTracker] Error tracking activity:', error);
-    }
+    logTrackerError('tracking activity', error);
   } catch (err) {
     console.error('[ActivityTracker] Exception tracking activity:', err);
   }
@@ -85,9 +92,7 @@ export async function trackPrediction(
       p_is_correct: isCorrect,
     });
 
-    if (error) {
-      console.error('[ActivityTracker] Error tracking prediction:', error);
-    }
+    logTrackerError('tracking prediction', error);
   } catch (err) {
     console.error('[ActivityTracker] Exception tracking prediction:', err);
   }
@@ -112,9 +117,7 @@ export async function trackBet(
       p_odds: odds,
     });
 
-    if (error) {
-      console.error('[ActivityTracker] Error tracking bet:', error);
-    }
+    logTrackerError('tracking bet', error);
   } catch (err) {
     console.error('[ActivityTracker] Exception tracking bet:', err);
   }
@@ -135,9 +138,7 @@ export async function trackFantasyGame(
       p_score: score,
     });
 
-    if (error) {
-      console.error('[ActivityTracker] Error tracking fantasy game:', error);
-    }
+    logTrackerError('tracking fantasy game', error);
   } catch (err) {
     console.error('[ActivityTracker] Exception tracking fantasy game:', err);
   }
@@ -158,9 +159,7 @@ export async function trackGameType(
       p_game_type: gameType,
     });
 
-    if (error) {
-      console.error('[ActivityTracker] Error tracking game type:', error);
-    }
+    logTrackerError('tracking game type', error);
   } catch (err) {
     console.error('[ActivityTracker] Exception tracking game type:', err);
   }

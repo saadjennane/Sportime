@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { v4 as uuidv4 } from 'uuid';
+import { AuthApiError } from '@supabase/supabase-js';
 import { Header } from './components/Header';
 import { BetModal } from './components/BetModal';
 import { FooterNav } from './components/FooterNav';
 import { mockMatches } from './data/mockMatches';
 import { mockChallengeMatches } from './data/mockChallenges';
 import { mockFantasyPlayers } from './data/mockFantasy.tsx';
-import { Match, Bet, UserChallengeEntry, Profile, LevelConfig, Badge, UserBadge, UserFantasyTeam, UserTicket, SportimeGame, SpinTier, SwipeMatchDay, FantasyGame, ActiveSession, ContextualPromptType } from './types';
+import { Match, Bet, UserChallengeEntry, Profile, LevelConfig, Badge, UserBadge, UserFantasyTeam, UserTicket, SportimeGame, SpinTier, SwipeMatchDay, FantasyGame, ActiveSession, ContextualPromptType, DailyChallengeEntry, ChallengeMatch, ChallengeBet } from './types';
 import AdminPage from './pages/Admin';
 import GamesListPage from './pages/GamesListPage';
 import ChallengeRoomPage from './pages/ChallengeRoomPage';
@@ -25,8 +25,7 @@ import { getLevelBetLimit } from './config/constants';
 import MatchesPage from './pages/MatchesPage';
 import { FantasyGameWeekPage } from './pages/FantasyGameWeekPage';
 import { USE_SUPABASE } from './config/env';
-import { mockUsers } from './data/mockUsers';
-import { OnboardingPage } from './pages/OnboardingPage';
+import { OnboardingPage, OnboardingCompletePayload } from './pages/OnboardingPage';
 import { SignUpPromptModal } from './components/SignUpPromptModal';
 import { SignUpStep } from './pages/onboarding/SignUpStep';
 import LeaguesListPage from './pages/LeaguesListPage';
@@ -62,6 +61,32 @@ import { CoinShopModal } from './components/shop/CoinShopModal';
 import { DailyStreakModal } from './components/streaks/DailyStreakModal';
 import { ContextualPremiumPrompt } from './components/premium/ContextualPremiumPrompt';
 import { useActivityTracker } from './hooks/useActivityTracker';
+import { useAuth } from './contexts/AuthContext';
+import { useChallengesCatalog } from './features/challenges/useChallengesCatalog';
+import { useChallengeMatches } from './features/challenges/useChallengeMatches';
+import { completeGuestRegistration } from './services/userService';
+import { updateUserProfile } from './services/profileService';
+import { joinChallenge as joinChallengeOnSupabase } from './services/challengeService';
+import { saveDailyEntry, ensureChallengeEntry } from './services/challengeEntryService';
+
+function createEmptyChallengeEntry(challengeId: string, userId: string, matches: ChallengeMatch[]): UserChallengeEntry {
+  const uniqueDays = Array.from(new Set(matches.map(match => match.day))).sort((a, b) => a - b);
+  const dailyEntries: DailyChallengeEntry[] = uniqueDays.map(day => ({
+    day,
+    bets: [],
+  }));
+
+  if (dailyEntries.length === 0) {
+    dailyEntries.push({ day: 1, bets: [] });
+  }
+
+  return {
+    user_id: userId,
+    challengeId,
+    dailyEntries,
+    entryMethod: 'coins',
+  };
+}
 
 
 export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'leagues' | 'funzone';
@@ -71,6 +96,8 @@ function App() {
   const [loading, setLoading] = useState(true);
   const { toasts, addToast, removeToast } = useToast();
   const [authFlow, setAuthFlow] = useState<AuthFlowState>('guest');
+  const [pendingSignupEmail, setPendingSignupEmail] = useState<string | null>(null);
+  const [pendingSignupMode, setPendingSignupMode] = useState<'upgrade' | 'signin' | null>(null);
   const [showSignUpPrompt, setShowSignUpPrompt] = useState(false);
   const [isTicketWalletOpen, setIsTicketWalletOpen] = useState(false);
   const [spinWheelState, setSpinWheelState] = useState<{ isOpen: boolean; tier: SpinTier | null }>({ isOpen: false, tier: null });
@@ -92,28 +119,97 @@ function App() {
 
   // --- Store State ---
   const {
-    currentUserId, setCurrentUserId, allUsers, updateUser, ensureUserExists,
-    games, userLeagues, leagueMembers, leagueGames, liveGames, predictionChallenges,
-    userTickets, userStreaks, createLeague, linkGameToLeagues, createLeagueAndLink,
+    currentUserId, setCurrentUserId, allUsers, ensureUserExists,
+    games: mockGames, userChallengeEntries: mockUserChallengeEntries, userSwipeEntries: mockUserSwipeEntries,
+    userFantasyTeams: mockUserFantasyTeams, userLeagues, leagueMembers, leagueGames, liveGames, predictionChallenges,
+    userTickets: mockUserTickets, userStreaks, createLeague, linkGameToLeagues, createLeagueAndLink,
     createLiveGame, submitLiveGamePrediction, editLiveGamePrediction, placeLiveBet,
     tickLiveGame, joinChallenge: joinChallengeAction, joinSwipeGame,
-    notifications, markNotificationAsRead, markAllNotificationsAsRead, subscribeToPremium,
+    notifications: mockNotifications, markNotificationAsRead, markAllNotificationsAsRead, subscribeToPremium,
     checkDailyStreak, claimDailyStreak,
   } = useMockStore();
 
-  const profile = useMemo(() => allUsers.find(u => u.id === currentUserId), [allUsers, currentUserId]);
+  const { user: authUser, profile: authProfile, isLoading: authLoading, ensureGuest, signOut: supabaseSignOut, refreshProfile: reloadProfile } = useAuth();
+
+  useEffect(() => {
+    if (authLoading) return;
+    ensureGuest().catch(err => console.error('[App] Failed to ensure guest session', err));
+  }, [authLoading, ensureGuest]);
+
+  useEffect(() => {
+    if (!authProfile) return;
+
+    const normalizedProfile: Profile = {
+      ...authProfile,
+      is_guest: authProfile.is_guest ?? authProfile.user_type === 'guest',
+      level: authProfile.level ?? authProfile.current_level ?? authProfile.level,
+    };
+
+    ensureUserExists(normalizedProfile);
+    setCurrentUserId(normalizedProfile.id);
+  }, [authProfile, ensureUserExists, setCurrentUserId]);
+
+
+  const storeProfile = useMemo(() => allUsers.find(u => u.id === currentUserId), [allUsers, currentUserId]);
+  const profile = authProfile ?? storeProfile;
+  const isGuest = profile ? (profile.is_guest ?? profile.user_type === 'guest') : true;
+
+  const {
+    games: supabaseGames,
+    userChallengeEntries: supabaseChallengeEntries,
+    userSwipeEntries: supabaseSwipeEntries,
+    userFantasyTeams: supabaseFantasyTeams,
+    joinedChallengeSet,
+    isLoading: challengesLoading,
+    hasError: challengesError,
+    refresh: refreshChallenges,
+  } = useChallengesCatalog(profile?.id ?? null, USE_SUPABASE);
+
+  const shouldUseSupabaseChallenges = USE_SUPABASE && !challengesError;
+
+  const games = shouldUseSupabaseChallenges ? supabaseGames : mockGames;
+  const userChallengeEntries = shouldUseSupabaseChallenges ? supabaseChallengeEntries : mockUserChallengeEntries;
+  const userSwipeEntries = shouldUseSupabaseChallenges ? supabaseSwipeEntries : mockUserSwipeEntries;
+  const userFantasyTeams = shouldUseSupabaseChallenges ? supabaseFantasyTeams : mockUserFantasyTeams;
+  const userTickets = mockUserTickets; // Supabase integration pending
+  const notifications = mockNotifications;
+
+  useEffect(() => {
+    if (!profile) return;
+
+    const normalizedEmail = profile.email?.toLowerCase() ?? '';
+    const matchesPendingEmail = pendingSignupEmail && normalizedEmail === pendingSignupEmail;
+    const isGuestProfile = profile.user_type === 'guest' || profile.is_guest;
+
+    if (pendingSignupMode === 'upgrade' && matchesPendingEmail && isGuestProfile) {
+      if (authFlow !== 'onboarding') {
+        setAuthFlow('onboarding');
+        setShowSignUpPrompt(false);
+      }
+      return;
+    }
+
+    if (pendingSignupMode === 'signin' && matchesPendingEmail) {
+      setPendingSignupEmail(null);
+      setPendingSignupMode(null);
+      setShowSignUpPrompt(false);
+      if (authFlow !== 'authenticated') {
+        setAuthFlow('authenticated');
+      }
+      return;
+    }
+
+    if (!isGuestProfile && pendingSignupMode) {
+      setPendingSignupEmail(null);
+      setPendingSignupMode(null);
+    }
+  }, [profile, pendingSignupEmail, pendingSignupMode, authFlow]);
 
   // ✅ Auto-track user activity for XP calculation
-  useActivityTracker(profile?.id || null);
+  useActivityTracker(isGuest ? null : (profile?.id || null));
 
   const { initializeUserSpinState } = useSpinStore();
-  
-  const { userChallengeEntries, userSwipeEntries, userFantasyTeams } = useMockStore(state => ({
-    userChallengeEntries: state.userChallengeEntries,
-    userSwipeEntries: state.userSwipeEntries,
-    userFantasyTeams: state.userFantasyTeams,
-  }));
-  
+
   const [levelsConfig, setLevelsConfig] = useState<LevelConfig[]>([]);
   const [badges, setBadges] = useState<Badge[]>([]);
   const [userBadges, setUserBadges] = useState<UserBadge[]>(mockUserBadges);
@@ -143,6 +239,16 @@ function App() {
   const [showSelectLeaguesModal, setShowSelectLeaguesModal] = useState(false);
   const [showMiniCreateLeagueModal, setShowMiniCreateLeagueModal] = useState(false);
 
+  const {
+    matches: activeChallengeMatches,
+    isLoading: activeChallengeMatchesLoading,
+  } = useChallengeMatches(activeChallengeId, shouldUseSupabaseChallenges && !!activeChallengeId);
+
+  const {
+    matches: leaderboardChallengeMatches,
+    isLoading: leaderboardChallengeMatchesLoading,
+  } = useChallengeMatches(viewingLeaderboardFor, shouldUseSupabaseChallenges && !!viewingLeaderboardFor);
+
   useEffect(() => {
     const fetchStaticData = async () => {
       setLevelsConfig(mockLevelsConfig);
@@ -160,35 +266,6 @@ function App() {
       }
   }, []);
 
-  // Effect 1: Initialize user session on mount
-  useEffect(() => {
-    const setupInitialUser = () => {
-      // For the mock environment, always start with the default user from mocks
-      // to ensure consistency and reflect any developer changes to the mock data.
-      const defaultUser = mockUsers.find(u => u.id === 'user-1');
-      
-      if (defaultUser) {
-        const userToEnsure = defaultUser;
-        const userIdToSet = userToEnsure.id;
-        
-        // We still use localStorage to simulate a session, but we overwrite it
-        // on load to guarantee the data is fresh from the mock file.
-        localStorage.setItem('sportime_user', JSON.stringify(userToEnsure));
-        
-        ensureUserExists(userToEnsure);
-        setCurrentUserId(userIdToSet);
-      } else {
-        // Fallback to guest if default user is not found for some reason
-        const guestId = `guest-${uuidv4()}`;
-        const guestProfile: Profile = { id: guestId, username: 'Guest', coins_balance: 1000, created_at: new Date().toISOString(), is_guest: true, verified: false, email: null };
-        ensureUserExists(guestProfile);
-        setCurrentUserId(guestId);
-      }
-    };
-
-    setupInitialUser();
-  }, [ensureUserExists, setCurrentUserId]);
-
   const handleClaimStreak = () => {
     if (!profile) return;
     const { reward, streakDay } = claimDailyStreak(profile.id);
@@ -203,30 +280,37 @@ function App() {
 
   // Effect 2: React to profile changes to set up the rest of the app state
   useEffect(() => {
-    if (profile) {
-      setAuthFlow(profile.is_guest ? 'guest' : 'authenticated');
-      
-      initializeUserSpinState(profile.id);
-      
-      if (!profile.is_guest) {
-        const { isAvailable, streakDay } = checkDailyStreak(profile.id);
-        if (isAvailable) {
-          setDailyStreakData({ isOpen: true, streakDay });
-        }
-      }
-
-      const seenTutorial = localStorage.getItem('sportime_seen_swipe_tutorial');
-      if (seenTutorial) {
-        setHasSeenSwipeTutorial(true);
-      }
-      
-      setLoading(false);
-    } else {
+    if (!profile) {
       setLoading(true);
+      return;
     }
-  }, [profile, initializeUserSpinState, checkDailyStreak]);
+
+    if (shouldUseSupabaseChallenges && challengesLoading) {
+      setLoading(true);
+      return;
+    }
+
+    setAuthFlow(isGuest ? 'guest' : 'authenticated');
+
+    initializeUserSpinState(profile.id);
+
+    if (!isGuest) {
+      const { isAvailable, streakDay } = checkDailyStreak(profile.id);
+      if (isAvailable) {
+        setDailyStreakData({ isOpen: true, streakDay });
+      }
+    }
+
+    const seenTutorial = localStorage.getItem('sportime_seen_swipe_tutorial');
+    if (seenTutorial) {
+      setHasSeenSwipeTutorial(true);
+    }
+
+    setLoading(false);
+  }, [profile, isGuest, initializeUserSpinState, checkDailyStreak, challengesLoading, shouldUseSupabaseChallenges]);
 
   const coinBalance = profile?.coins_balance ?? 0;
+  const profileLevel = profile ? profile.level ?? profile.current_level ?? profile.level : undefined;
 
   const handleSetCoinBalance = (newBalance: number) => {
     if (profile) {
@@ -235,7 +319,7 @@ function App() {
   };
 
   const handleTriggerSignUp = () => {
-    if (profile?.is_guest) {
+    if (isGuest) {
       setShowSignUpPrompt(true);
     }
   };
@@ -246,84 +330,135 @@ function App() {
   };
 
   const handleCancelSignUp = () => {
-    setAuthFlow(profile?.is_guest ? 'guest' : 'authenticated');
+    setPendingSignupEmail(null);
+    setPendingSignupMode(null);
+    setShowSignUpPrompt(false);
+    setAuthFlow(isGuest ? 'guest' : 'authenticated');
   };
 
-  const handleMagicLinkSent = (email: string) => {
-    const completeSignUp = () => {
-        const newUser: Profile = {
-            id: uuidv4(),
-            email,
-            username: `user_${uuidv4().slice(0, 4)}`,
-            coins_balance: 1000,
-            created_at: new Date().toISOString(),
-            is_guest: false,
-            verified: true,
-        };
-        ensureUserExists(newUser);
-        setCurrentUserId(newUser.id);
-        setAuthFlow('onboarding');
-    };
+  const handleMagicLinkSent = async (email: string): Promise<string> => {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!USE_SUPABASE) {
+      addToast('Magic link flow requires Supabase to be enabled.', 'info');
+      return 'Magic links are unavailable offline. Please try again later.';
+    }
+    setPendingSignupMode(null);
+    try {
+      const { error: updateError } = await supabase.auth.updateUser(
+        { email: normalizedEmail },
+        { emailRedirectTo: window.location.origin }
+      );
 
-    if (useMockStore.getState().isTestMode) {
-      addToast('Test Mode: Skipping verification...', 'info');
-      completeSignUp();
-    } else {
-      addToast('Simulating Magic Link verification...', 'info');
-      setTimeout(() => {
-          completeSignUp();
-          addToast('Verification successful! Please set up your profile.', 'success');
-      }, 1500);
+      if (!updateError) {
+        setPendingSignupEmail(normalizedEmail);
+        setPendingSignupMode('upgrade');
+        addToast('Check your inbox to confirm your account. Link expires in 15 minutes.', 'success');
+        return 'We emailed you a confirmation link. It expires in 15 minutes.';
+      }
+
+      const isAlreadyRegistered = updateError instanceof AuthApiError && updateError.message?.toLowerCase().includes('already registered');
+
+      if (!isAlreadyRegistered) {
+        throw updateError;
+      }
+
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email: normalizedEmail,
+        options: {
+          emailRedirectTo: window.location.origin,
+        },
+      });
+
+      if (otpError) {
+        throw otpError;
+      }
+
+      setPendingSignupEmail(normalizedEmail);
+      setPendingSignupMode('signin');
+      addToast('Magic link sent! Sign in through your email.', 'success');
+      return 'We sent you a sign-in link. Use it within 15 minutes to access your account.';
+    } catch (error) {
+      console.error('[App] Failed to send magic link', error);
+      addToast('Unable to send magic link. Please try again.', 'error');
+      throw error;
     }
   };
 
   const handleSignOut = async () => {
-    localStorage.removeItem('sportime_user');
-    const guestId = `guest-${uuidv4()}`;
-    const guestProfile: Profile = {
-        id: guestId, username: 'Guest', coins_balance: 1000,
-        created_at: new Date().toISOString(), is_guest: true, verified: false, email: null,
-    };
-    ensureUserExists(guestProfile);
-    setCurrentUserId(guestProfile.id);
+    await supabaseSignOut();
+    setPendingSignupEmail(null);
+    setPendingSignupMode(null);
+    setAuthFlow('guest');
+    setShowSignUpPrompt(false);
+    setCurrentUserId(null);
     setPage('challenges');
     addToast('You have been signed out.', 'info');
   };
 
   const handleUpdateProfile = async (updatedData: { username: string; displayName: string; newProfilePic: File | null; favoriteClub?: string | null; favoriteNationalTeam?: string | null; }) => {
-    if (!profile || profile.is_guest) return;
-    setLoading(true);
+    if (!profile || isGuest) return;
     addToast('Updating profile...', 'info');
 
-    let newProfilePictureUrl = profile.profile_picture_url;
-    if (updatedData.newProfilePic) {
-        newProfilePictureUrl = URL.createObjectURL(updatedData.newProfilePic);
-    }
+    try {
+      const payload: {
+        username: string;
+        displayName: string;
+        favoriteClub?: string | null;
+        favoriteNationalTeam?: string | null;
+      } = {
+        username: updatedData.username,
+        displayName: updatedData.displayName,
+      };
 
-    const newProfileData: Partial<Profile> = {
-      username: updatedData.username,
-      display_name: updatedData.displayName,
-      profile_picture_url: newProfilePictureUrl,
-      favorite_club: updatedData.favoriteClub === null ? undefined : updatedData.favoriteClub || profile.favorite_club,
-      favorite_national_team: updatedData.favoriteNationalTeam === null ? undefined : updatedData.favoriteNationalTeam || profile.favorite_national_team,
-    };
-    newProfileData.sports_preferences = { ...profile.sports_preferences, football: { club: newProfileData.favorite_club, national_team: newProfileData.favorite_national_team } };
-    
-    updateUser(profile.id, newProfileData);
-    localStorage.setItem('sportime_user', JSON.stringify({ ...profile, ...newProfileData }));
-    addToast('Profile updated successfully!', 'success');
-    setLoading(false);
+      if (updatedData.favoriteClub !== undefined) {
+        payload.favoriteClub = updatedData.favoriteClub;
+      }
+
+      if (updatedData.favoriteNationalTeam !== undefined) {
+        payload.favoriteNationalTeam = updatedData.favoriteNationalTeam;
+      }
+
+      await updateUserProfile(profile.id, payload);
+
+      await reloadProfile();
+      addToast('Profile updated successfully!', 'success');
+    } catch (error) {
+      console.error('[App] Failed to update profile', error);
+      addToast('We could not update your profile. Please try again.', 'error');
+    }
   };
 
   const handleUpdateEmail = async (newEmail: string) => { /* ... */ };
   const handleDeleteAccount = async () => { /* ... */ };
 
-  const handleCompleteOnboarding = (updatedProfileData: Partial<Profile>) => {
+  const handleCompleteOnboarding = async (payload: OnboardingCompletePayload) => {
     if (!profile) return;
-    const finalProfile = { ...profile, ...updatedProfileData, verified: true };
-    updateUser(profile.id, finalProfile);
-    localStorage.setItem('sportime_user', JSON.stringify(finalProfile));
-    addToast(`Welcome to Sportime, ${finalProfile.display_name || finalProfile.username}!`, 'success');
+    setLoading(true);
+
+    try {
+      await completeGuestRegistration({
+        username: payload.username,
+        displayName: payload.displayName ?? payload.username,
+        email: pendingSignupEmail ?? profile.email ?? undefined,
+      });
+
+      await updateUserProfile(profile.id, {
+        favoriteClub: payload.favoriteClub ?? null,
+        favoriteNationalTeam: payload.favoriteNationalTeam ?? null,
+      });
+
+      await reloadProfile();
+      setPendingSignupEmail(null);
+      setPendingSignupMode(null);
+      setAuthFlow('authenticated');
+      addToast(`Welcome to Sportime, ${payload.displayName || payload.username}!`, 'success');
+    } catch (error) {
+      console.error('[App] Failed to complete onboarding', error);
+      addToast('Unable to finish onboarding. Please try again.', 'error');
+      throw error;
+    } finally {
+      setLoading(false);
+    }
   };
   
   const handleBetClick = (match: Match, prediction: 'teamA' | 'draw' | 'teamB', odds: number) => {
@@ -361,11 +496,59 @@ function App() {
     }
   };
 
-  const handleUpdateDailyBets = async (challengeId: string, day: number, newBets: any) => {
-    console.log("Updating daily bets (UI event):", { challengeId, day, newBets });
+  const handleUpdateDailyBets = async (challengeId: string, day: number, newBets: ChallengeBet[]) => {
+    if (shouldUseSupabaseChallenges && profile) {
+      try {
+        const existingEntry = userChallengeEntries.find(entry => entry.challengeId === challengeId && entry.user_id === profile.id);
+        const dailyEntry = existingEntry?.dailyEntries.find(d => d.day === day);
+        await saveDailyEntry({
+          challengeId,
+          userId: profile.id,
+          day,
+          bets: newBets,
+          booster: dailyEntry?.booster,
+          entryMethod: existingEntry?.entryMethod ?? 'coins',
+          ticketId: existingEntry?.ticketId ?? null,
+        });
+        await refreshChallenges();
+        if (!result.alreadyJoined && method === 'coins') {
+          await reloadProfile();
+        }
+        addToast('Your bets are saved.', 'success');
+      } catch (error) {
+        console.error('[App] Failed to save challenge bets', error);
+        addToast('Unable to save your bets. Please try again.', 'error');
+      }
+      return;
+    }
+
+    console.log('Updating daily bets (mock):', { challengeId, day, newBets });
   };
-  const handleSetDailyBooster = async (challengeId: string, day: number, booster: any) => {
-    console.log("Setting daily booster (UI event):", { challengeId, day, booster });
+
+  const handleSetDailyBooster = async (challengeId: string, day: number, booster: { type: 'x2' | 'x3'; matchId: string } | undefined) => {
+    if (shouldUseSupabaseChallenges && profile) {
+      try {
+        const existingEntry = userChallengeEntries.find(entry => entry.challengeId === challengeId && entry.user_id === profile.id);
+        const dailyEntry = existingEntry?.dailyEntries.find(d => d.day === day);
+        await saveDailyEntry({
+          challengeId,
+          userId: profile.id,
+          day,
+          bets: dailyEntry?.bets ?? [],
+          booster,
+          entryMethod: existingEntry?.entryMethod ?? 'coins',
+          ticketId: existingEntry?.ticketId ?? null,
+        });
+        await refreshChallenges();
+        addToast('Booster updated!', 'success');
+      } catch (error) {
+        console.error('[App] Failed to update booster', error);
+        addToast('Unable to update booster right now.', 'error');
+      }
+      return;
+    }
+
+    console.log('Setting daily booster (mock):', { challengeId, day, booster });
   };
   
   const handleUpdateBoosterPreferences = (booster: 'x2' | 'x3') => {
@@ -375,7 +558,7 @@ function App() {
   };
   
   const handleJoinSwipeGame = (gameId: string) => {
-    if (profile?.is_guest) {
+    if (isGuest) {
       handleTriggerSignUp();
       return;
     }
@@ -385,7 +568,7 @@ function App() {
 
   const handleConfirmJoinSwipeGame = async () => {
     const { game } = joinSwipeGameModalState;
-    if (!game || !profile || profile.is_guest) return;
+    if (!game || !profile || isGuest) return;
 
     if (coinBalance >= game.entry_cost) {
         try {
@@ -445,7 +628,7 @@ function App() {
   };
   
   const handleCreateLeague = (name: string, description: string, image_url: string | null) => {
-      if (!profile || profile.is_guest) {
+      if (!profile || isGuest) {
           handleTriggerSignUp();
           return;
       }
@@ -457,7 +640,7 @@ function App() {
   };
 
   const handleJoinLeague = (inviteCode: string) => {
-      if (!profile || profile.is_guest) {
+      if (!profile || isGuest) {
           handleTriggerSignUp();
           return;
       }
@@ -509,7 +692,7 @@ function App() {
   }, [profile, leagueMembers, userLeagues]);
 
   const handleOpenLinkGameFlow = (game: Game) => {
-    if (profile?.is_guest) {
+    if (isGuest) {
       handleTriggerSignUp();
       return;
     }
@@ -529,7 +712,7 @@ function App() {
   };
 
   const handleCreateLeagueAndLink = async (name: string, description: string) => {
-    if (!profile || profile.is_guest || !linkingGame) return;
+    if (!profile || isGuest || !linkingGame) return;
     setIsLinkingLoading(true);
     
     createLeagueAndLink(name, description, linkingGame, profile);
@@ -552,8 +735,33 @@ function App() {
     setIsLinkingLoading(false);
   };
 
-  const handleConfirmJoinChallenge = (challengeId: string, method: 'coins' | 'ticket') => {
+  const handleConfirmJoinChallenge = async (challengeId: string, method: 'coins' | 'ticket') => {
     if (!profile) return;
+
+    if (shouldUseSupabaseChallenges) {
+      try {
+        const result = await joinChallengeOnSupabase(challengeId, profile.id, method);
+        if (result.insufficientCoins) {
+          addToast('Not enough coins to join this challenge.', 'error');
+          return;
+        }
+
+        if (result.alreadyJoined) {
+          addToast('You already joined this challenge.', 'info');
+        } else {
+          await ensureChallengeEntry(challengeId, profile.id, method, null);
+          addToast('Challenge joined! Good luck! ⚽', 'success');
+        }
+        await refreshChallenges();
+        setActiveChallengeId(challengeId);
+      } catch (error) {
+        console.error('[App] Failed to join challenge', error);
+        addToast('Failed to join challenge. Please try again.', 'error');
+      } finally {
+        setChallengeToJoin(null);
+      }
+      return;
+    }
     
     const result = joinChallengeAction(challengeId, profile.id, method);
 
@@ -567,7 +775,7 @@ function App() {
   };
 
   const handleJoinChallenge = (game: SportimeGame) => {
-    if (!profile || profile.is_guest) {
+    if (!profile || isGuest) {
       handleTriggerSignUp();
       return;
     }
@@ -583,9 +791,9 @@ function App() {
     if (validTicket && hasEnoughCoins) {
       setChallengeToJoin(game);
     } else if (validTicket) {
-      handleConfirmJoinChallenge(game.id, 'ticket');
+      void handleConfirmJoinChallenge(game.id, 'ticket');
     } else if (hasEnoughCoins) {
-      handleConfirmJoinChallenge(game.id, 'coins');
+      void handleConfirmJoinChallenge(game.id, 'coins');
     } else {
       addToast("You don't have enough coins or a valid ticket to join.", 'error');
     }
@@ -593,7 +801,7 @@ function App() {
 
 
   const handlePageChange = (newPage: Page) => {
-    if ((newPage === 'profile' || newPage === 'leagues' || newPage === 'funzone') && profile?.is_guest) {
+    if ((newPage === 'profile' || newPage === 'leagues' || newPage === 'funzone') && isGuest) {
         handleTriggerSignUp();
         return;
     }
@@ -627,14 +835,30 @@ function App() {
   };
 
   const myGamesCount = useMemo(() => {
-    if (!profile || profile.is_guest) return 0;
-    const myJoinedGameIds = new Set([
-      ...userChallengeEntries.map(e => e.challengeId),
-      ...userSwipeEntries.map(e => e.matchDayId),
-      ...userFantasyTeams.map(t => t.gameId),
-    ]);
-    return games.filter(g => myJoinedGameIds.has(g.id) && (g.status === 'Upcoming' || g.status === 'Ongoing')).length;
-  }, [profile, games, userChallengeEntries, userSwipeEntries, userFantasyTeams]);
+    if (!profile || isGuest) return 0;
+
+    const myJoinedGameIds = USE_SUPABASE
+      ? joinedChallengeSet
+      : new Set<string>([
+          ...userChallengeEntries.map(e => e.challengeId),
+          ...userSwipeEntries.map(e => e.matchDayId),
+          ...userFantasyTeams.map(t => t.gameId),
+        ]);
+
+    return games.filter(
+      g =>
+        myJoinedGameIds.has(g.id) &&
+        (g.status === 'Upcoming' || g.status === 'Ongoing')
+    ).length;
+  }, [
+    profile,
+    isGuest,
+    games,
+    userChallengeEntries,
+    userSwipeEntries,
+    userFantasyTeams,
+    joinedChallengeSet,
+  ]);
 
   const linkableGames = useMemo(() => games.filter(g => g.is_linkable), [games]);
 
@@ -681,12 +905,26 @@ function App() {
     }
     
     if (viewingLeaderboardFor) {
+      if (USE_SUPABASE && leaderboardChallengeMatchesLoading) {
+        return (
+          <div className="min-h-screen flex items-center justify-center bg-deep-navy">
+            <div className="text-2xl font-semibold text-text-secondary">Loading leaderboard...</div>
+          </div>
+        );
+      }
+
       const challenge = games.find(c => c.id === viewingLeaderboardFor && c.game_type === 'betting');
       if (challenge && profile) {
-        const userEntry = userChallengeEntries.find(e => e.challengeId === viewingLeaderboardFor && e.user_id === profile.id);
+        const matchesForLeaderboard = USE_SUPABASE
+          ? leaderboardChallengeMatches
+          : mockChallengeMatches.filter(m => m.challengeId === viewingLeaderboardFor);
+
+        const existingEntry = userChallengeEntries.find(e => e.challengeId === viewingLeaderboardFor && e.user_id === profile.id);
+        const userEntry = existingEntry ?? (USE_SUPABASE ? createEmptyChallengeEntry(challenge.id, profile.id, matchesForLeaderboard) : undefined);
+
         return <LeaderboardPage
           challenge={challenge}
-          matches={mockChallengeMatches}
+          matches={matchesForLeaderboard}
           userEntry={userEntry}
           onBack={handleLeaderboardBack}
           initialLeagueContext={leaderboardContext}
@@ -700,25 +938,41 @@ function App() {
     }
 
     if (activeChallengeId) {
+      if (USE_SUPABASE && activeChallengeMatchesLoading) {
+        return (
+          <div className="min-h-screen flex items-center justify-center bg-deep-navy">
+            <div className="text-2xl font-semibold text-text-secondary">Loading challenge...</div>
+          </div>
+        );
+      }
+
       const challenge = games.find(c => c.id === activeChallengeId && c.game_type === 'betting');
-      const userEntry = userChallengeEntries.find(e => e.challengeId === activeChallengeId && e.user_id === profile.id);
-      if (challenge && userEntry && profile) {
-        return <ChallengeRoomPage
-          challenge={challenge}
-          matches={mockChallengeMatches.filter(m => m.challengeId === activeChallengeId)}
-          userEntry={userEntry}
-          onUpdateDailyBets={handleUpdateDailyBets}
-          onSetDailyBooster={handleSetDailyBooster}
-          onBack={() => setActiveChallengeId(null)}
-          onViewLeaderboard={() => setViewingLeaderboardFor(activeChallengeId)}
-          boosterInfoPreferences={boosterInfoPreferences}
-          onUpdateBoosterPreferences={handleUpdateBoosterPreferences}
-          onLinkGame={handleOpenLinkGameFlow}
-          profile={profile}
-          userLeagues={myLeagues}
-          leagueMembers={leagueMembers}
-          leagueGames={leagueGames}
-        />;
+      if (challenge && profile) {
+        const matchesForChallenge = USE_SUPABASE
+          ? activeChallengeMatches
+          : mockChallengeMatches.filter(m => m.challengeId === activeChallengeId);
+
+        const existingEntry = userChallengeEntries.find(e => e.challengeId === activeChallengeId && e.user_id === profile.id);
+        const userEntry = existingEntry ?? (USE_SUPABASE ? createEmptyChallengeEntry(activeChallengeId, profile.id, matchesForChallenge) : undefined);
+
+        if (userEntry) {
+          return <ChallengeRoomPage
+            challenge={challenge}
+            matches={matchesForChallenge}
+            userEntry={userEntry}
+            onUpdateDailyBets={handleUpdateDailyBets}
+            onSetDailyBooster={handleSetDailyBooster}
+            onBack={() => setActiveChallengeId(null)}
+            onViewLeaderboard={() => setViewingLeaderboardFor(activeChallengeId)}
+            boosterInfoPreferences={boosterInfoPreferences}
+            onUpdateBoosterPreferences={handleUpdateBoosterPreferences}
+            onLinkGame={handleOpenLinkGameFlow}
+            profile={profile}
+            userLeagues={myLeagues}
+            leagueMembers={leagueMembers}
+            leagueGames={leagueGames}
+          />;
+        }
       }
     }
 
@@ -878,7 +1132,7 @@ function App() {
       case 'admin':
         return <AdminPage profile={profile} addToast={addToast} />;
       case 'profile':
-        if (profile && !profile.is_guest) {
+        if (profile && !isGuest) {
           return <ProfilePage profile={profile} levels={levelsConfig} allBadges={badges} userBadges={userBadges} userStreaks={userStreaks} onUpdateProfile={handleUpdateProfile} onUpdateEmail={handleUpdateEmail} onSignOut={handleSignOut} onDeleteAccount={handleDeleteAccount} onOpenSpinWheel={handleOpenSpinWheel} onOpenPremiumModal={() => setIsPremiumModalOpen(true)} />;
         }
         return null;
@@ -888,7 +1142,7 @@ function App() {
   }
   
   const userBetForModal = modalState.match ? bets.find(b => b.matchId === modalState.match!.id) : undefined;
-  const currentBetLimit = useMemo(() => getLevelBetLimit(profile?.level), [profile?.level]);
+  const currentBetLimit = useMemo(() => getLevelBetLimit(profileLevel), [profileLevel]);
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center bg-deep-navy"><div className="text-2xl font-semibold text-text-secondary">Loading...</div></div>;
@@ -1052,7 +1306,7 @@ function App() {
     />
     {contextualPrompt && <ContextualPremiumPrompt {...contextualPrompt} />}
     </div>
-  );
+    );
 }
 
 export default App;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { User, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { USERNAME_REGEX } from '../../utils/validation';
-import { useMockStore } from '../../store/useMockStore';
+import { isUsernameTaken } from '../../services/profileService';
 
 interface UsernameInputProps {
   value: string;
@@ -14,9 +14,10 @@ type Availability = 'checking' | 'available' | 'taken' | 'invalid' | null;
 
 export const UsernameInput: React.FC<UsernameInputProps> = ({ value, onChange, currentUserId, setExternalError }) => {
   const [availability, setAvailability] = useState<Availability>(null);
-  const { checkUsernameAvailability } = useMockStore();
+  const [requestError, setRequestError] = useState<string | null>(null);
 
   const getValidationState = useCallback(async (username: string) => {
+    setRequestError(null);
     if (!username) {
       setAvailability(null);
       setExternalError(null);
@@ -29,23 +30,34 @@ export const UsernameInput: React.FC<UsernameInputProps> = ({ value, onChange, c
     }
 
     setAvailability('checking');
-    const isTaken = await checkUsernameAvailability(username, currentUserId);
-    if (isTaken) {
-      setAvailability('taken');
-      setExternalError('This username is already taken.');
-    } else {
-      setAvailability('available');
-      setExternalError(null);
+    try {
+      const taken = await isUsernameTaken(username, currentUserId);
+      if (taken) {
+        setAvailability('taken');
+        setExternalError('This username is already taken.');
+      } else {
+        setAvailability('available');
+        setExternalError(null);
+      }
+    } catch (error) {
+      console.error('[UsernameInput] Failed to validate username', error);
+      setAvailability(null);
+      setRequestError('Unable to validate username right now. Try again in a moment.');
+      setExternalError('Unable to validate username.');
     }
-  }, [checkUsernameAvailability, currentUserId, setExternalError]);
+  }, [currentUserId, setExternalError]);
 
   useEffect(() => {
+    let isCancelled = false;
     const handler = setTimeout(() => {
-      getValidationState(value);
+      if (!isCancelled) {
+        getValidationState(value);
+      }
     }, 500);
 
     return () => {
       clearTimeout(handler);
+      isCancelled = true;
     };
   }, [value, getValidationState]);
 
@@ -64,7 +76,7 @@ export const UsernameInput: React.FC<UsernameInputProps> = ({ value, onChange, c
         case 'invalid': return "3-20 chars, lowercase, numbers, '.', '_'";
         case 'taken': return "This username is already taken.";
         case 'available': return "This username is available.";
-        default: return null;
+        default: return requestError;
     }
   }
 
@@ -87,7 +99,11 @@ export const UsernameInput: React.FC<UsernameInputProps> = ({ value, onChange, c
         />
         <div className="absolute right-3 top-1/2 -translate-y-1/2">{getStatusIcon()}</div>
       </div>
-      {getMessage() && <p className={`text-xs mt-1 ${availability === 'available' ? 'text-green-600' : 'text-red-500'}`}>{getMessage()}</p>}
+      {getMessage() && (
+        <p className={`text-xs mt-1 ${availability === 'available' ? 'text-green-600' : 'text-red-500'}`}>
+          {getMessage()}
+        </p>
+      )}
     </div>
   );
 };

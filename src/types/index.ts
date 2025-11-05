@@ -96,11 +96,14 @@ export interface Profile {
   coins_balance: number;
   created_at: string;
   is_guest?: boolean;
+  user_type?: 'guest' | 'user' | 'admin' | 'super_admin';
   verified?: boolean;
   email: string | null;
   profile_picture_url?: string;
   level?: string;
+  current_level?: string;
   xp?: number;
+  xp_total?: number;
   favorite_club?: string;
   favorite_national_team?: string;
   sports_preferences?: {
@@ -117,6 +120,8 @@ export interface Profile {
   referralsRewarded?: number;
   daily_games_played?: number;
   last_premium_prompt_at?: Record<string, string>;
+  last_active_at?: string;
+  updated_at?: string;
   paidTournamentsCreatedThisMonth?: number;
   activePaidTournaments?: number;
   giftCards?: { amount: string; provider: string; status: 'Mock' }[];
