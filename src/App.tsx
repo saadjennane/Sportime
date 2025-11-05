@@ -129,7 +129,7 @@ function App() {
     checkDailyStreak, claimDailyStreak,
   } = useMockStore();
 
-  const { user: authUser, profile: authProfile, isLoading: authLoading, ensureGuest, signOut: supabaseSignOut, refreshProfile: reloadProfile } = useAuth();
+  const { user: authUser, profile: authProfile, isLoading: authLoading, ensureGuest, signOut: supabaseSignOut, refreshProfile: reloadProfile, sendMagicLink } = useAuth();
 
   useEffect(() => {
     if (authLoading) return;
@@ -342,44 +342,17 @@ function App() {
       addToast('Magic link flow requires Supabase to be enabled.', 'info');
       return 'Magic links are unavailable offline. Please try again later.';
     }
-    setPendingSignupMode(null);
+
     try {
-      const { error: updateError } = await supabase.auth.updateUser(
-        { email: normalizedEmail },
-        { emailRedirectTo: window.location.origin }
-      );
-
-      if (!updateError) {
-        setPendingSignupEmail(normalizedEmail);
-        setPendingSignupMode('upgrade');
-        addToast('Check your inbox to confirm your account. Link expires in 15 minutes.', 'success');
-        return 'We emailed you a confirmation link. It expires in 15 minutes.';
-      }
-
-      const isAlreadyRegistered = updateError instanceof AuthApiError && updateError.message?.toLowerCase().includes('already registered');
-
-      if (!isAlreadyRegistered) {
-        throw updateError;
-      }
-
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        email: normalizedEmail,
-        options: {
-          emailRedirectTo: window.location.origin,
-        },
-      });
-
-      if (otpError) {
-        throw otpError;
-      }
-
+      const message = await sendMagicLink(normalizedEmail);
       setPendingSignupEmail(normalizedEmail);
       setPendingSignupMode('signin');
-      addToast('Magic link sent! Sign in through your email.', 'success');
-      return 'We sent you a sign-in link. Use it within 15 minutes to access your account.';
-    } catch (error) {
+      addToast('Magic link sent! Check your email.', 'success');
+      return message;
+    } catch (error: any) {
       console.error('[App] Failed to send magic link', error);
-      addToast('Unable to send magic link. Please try again.', 'error');
+      const errorMessage = error?.message || 'Unable to send magic link. Please try again.';
+      addToast(errorMessage, 'error');
       throw error;
     }
   };
