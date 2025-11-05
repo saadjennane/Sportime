@@ -21,6 +21,7 @@ import { useToast } from './hooks/useToast';
 import { ToastContainer } from './components/Toast';
 import ProfilePage from './pages/ProfilePage';
 import { mockBadges, mockLevelsConfig, mockUserBadges } from './data/mockProgression';
+import { getLevelBetLimit } from './config/constants';
 import MatchesPage from './pages/MatchesPage';
 import { FantasyGameWeekPage } from './pages/FantasyGameWeekPage';
 import { USE_SUPABASE } from './config/env';
@@ -60,6 +61,7 @@ import { PremiumModal } from './components/premium/PremiumModal';
 import { CoinShopModal } from './components/shop/CoinShopModal';
 import { DailyStreakModal } from './components/streaks/DailyStreakModal';
 import { ContextualPremiumPrompt } from './components/premium/ContextualPremiumPrompt';
+import { useActivityTracker } from './hooks/useActivityTracker';
 
 
 export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'leagues' | 'funzone';
@@ -100,6 +102,9 @@ function App() {
   } = useMockStore();
 
   const profile = useMemo(() => allUsers.find(u => u.id === currentUserId), [allUsers, currentUserId]);
+
+  // ✅ Auto-track user activity for XP calculation
+  useActivityTracker(profile?.id || null);
 
   const { initializeUserSpinState } = useSpinStore();
   
@@ -326,6 +331,11 @@ function App() {
   };
 
   const handleConfirmBet = (amount: number, prediction: 'teamA' | 'draw' | 'teamB', odds: number) => {
+    const betLimit = getLevelBetLimit(profile?.level);
+    if (betLimit !== null && amount > betLimit) {
+      addToast(`Your level limit is ${betLimit.toLocaleString()} coins per match.`, 'error');
+      return;
+    }
     if (modalState.match) {
       const newBetData = { prediction, amount, odds };
       const existingBetIndex = bets.findIndex(b => b.matchId === modalState.match!.id);
@@ -378,54 +388,42 @@ function App() {
     if (!game || !profile || profile.is_guest) return;
 
     if (coinBalance >= game.entry_cost) {
-        handleSetCoinBalance(coinBalance - game.entry_cost);
-        const result = joinSwipeGame(game.id, profile.id);
-        
-        if (result.success) {
+        try {
+          // Import service dynamically to use it
+          const { joinSwipeChallenge } = await import('./services/swipeGameService');
+
+          handleSetCoinBalance(coinBalance - game.entry_cost);
+          const result = await joinSwipeChallenge(game.id, profile.id);
+
+          if (result.alreadyJoined) {
+            addToast(`You've already joined "${game.name}"!`, 'info');
+          } else {
+            addToast(`Successfully joined "${game.name}"!`, 'success');
+          }
+
           setJoinSwipeGameModalState({ isOpen: false, game: null });
-          addToast(`Successfully joined "${game.name}"!`, 'success');
           setSwipeGameViewMode('swiping');
           setActiveSwipeGameId(game.id);
-        } else {
-          addToast(result.message, 'error');
+        } catch (err: any) {
+          addToast(err.message || 'Failed to join game', 'error');
           handleSetCoinBalance(coinBalance); // Refund
         }
     } else {
         addToast('Insufficient funds to join this game.', 'error');
     }
   };
-  const handlePlaySwipeGame = (matchDayId: string) => {
-    const matchDay = games.find(md => md.id === matchDayId && md.game_type === 'prediction');
-    const userEntry = userSwipeEntries.find(e => e.user_id === profile?.id && e.matchDayId === matchDayId);
-    if (matchDay && userEntry) {
-        const hasMadeAllPicks = userEntry.predictions.length >= (matchDay.matches?.length || 0);
-        const isEditable = matchDay.status === 'Upcoming';
-        if (isEditable && !hasMadeAllPicks) {
-            setSwipeGameViewMode('swiping');
-        } else {
-            setSwipeGameViewMode('recap');
-        }
-    } else {
-        setSwipeGameViewMode('swiping');
-    }
-    setActiveSwipeGameId(matchDayId);
+  const handlePlaySwipeGame = async (challengeId: string) => {
+    // When clicking on a swipe game, default to recap view
+    // Users can click "Swipe" button to go to swiping mode
+    setSwipeGameViewMode('recap');
+    setActiveSwipeGameId(challengeId);
   };
-  const handleSwipePrediction = (matchDayId: string, matchId: string, prediction: any) => {
-    if (profile?.is_guest) {
-        handleTriggerSignUp();
-        return;
-    }
-    useMockStore.getState().handleSwipePrediction(matchDayId, profile!.id, matchId, prediction);
-    const matchDay = games.find(md => md.id === matchDayId);
-    const userEntry = userSwipeEntries.find(e => e.user_id === profile?.id && e.matchDayId === matchDayId);
-    if (matchDay && userEntry && userEntry.predictions.length + 1 >= (matchDay.matches?.length || 0)) {
-        setTimeout(() => setSwipeGameViewMode('recap'), 350);
-    }
+  // Swipe game handlers - now using live API
+  const handleSwipeComplete = () => {
+    // When all predictions are made, switch to recap view
+    setTimeout(() => setSwipeGameViewMode('recap'), 350);
   };
-  const handleUpdateSwipePrediction = (matchDayId: string, matchId: string, prediction: any) => {
-    useMockStore.getState().updateSwipePrediction(matchDayId, profile!.id, matchId, prediction);
-    addToast('Prediction updated!', 'info');
-  };
+
   const handleEditSwipePicks = () => {
     if (activeSwipeGameId) {
       setSwipeGameViewMode('swiping');
@@ -738,57 +736,47 @@ function App() {
       }
     }
 
-    if (viewingSwipeLeaderboardFor) {
-      const matchDay = games.find(md => md.id === viewingSwipeLeaderboardFor && md.game_type === 'prediction');
-      if (matchDay && profile) {
-        const userEntry = userSwipeEntries.find(e => e.user_id === profile.id && e.matchDayId === viewingSwipeLeaderboardFor);
-        return <SwipeLeaderboardPage
-          matchDay={matchDay as SwipeMatchDay}
-          userEntry={userEntry}
-          onBack={handleLeaderboardBack}
-          initialLeagueContext={leaderboardContext}
-          allUsers={allUsers}
+    if (viewingSwipeLeaderboardFor && profile) {
+      return <SwipeLeaderboardPage
+        challengeId={viewingSwipeLeaderboardFor}
+        userId={profile.id}
+        onBack={handleLeaderboardBack}
+        initialLeagueContext={leaderboardContext}
+        allUsers={allUsers}
+        userLeagues={myLeagues}
+        leagueMembers={leagueMembers}
+        leagueGames={leagueGames}
+        currentUserId={profile.id}
+      />;
+    }
+
+    if (activeSwipeGameId && profile) {
+      if (swipeGameViewMode === 'swiping') {
+        return <SwipeGamePage
+          challengeId={activeSwipeGameId}
+          userId={profile.id}
+          hasSeenSwipeTutorial={hasSeenSwipeTutorial}
+          onDismissTutorial={handleDismissSwipeTutorial}
+          onExit={handleExitSwiping}
+          onComplete={handleSwipeComplete}
+        />;
+      } else {
+        return <SwipeRecapPage
+          challengeId={activeSwipeGameId}
+          userId={profile.id}
+          onBack={() => setActiveSwipeGameId(null)}
+          onViewLeaderboard={() => setViewingSwipeLeaderboardFor(activeSwipeGameId)}
+          onSelectMatchday={(matchdayId) => {
+            // When switching matchdays, stay in recap mode
+            setActiveSwipeGameId(activeSwipeGameId);
+          }}
+          onEditPicks={handleEditSwipePicks}
+          onLinkGame={handleOpenLinkGameFlow}
+          profile={profile}
           userLeagues={myLeagues}
           leagueMembers={leagueMembers}
           leagueGames={leagueGames}
-          currentUserId={profile.id}
         />;
-      }
-    }
-
-    if (activeSwipeGameId) {
-      const matchDay = games.find(md => md.id === activeSwipeGameId && md.game_type === 'prediction');
-      const userEntry = userSwipeEntries.find(e => e.user_id === profile?.id && e.matchDayId === activeSwipeGameId);
-
-      if (matchDay && userEntry && profile) {
-        const isEditable = matchDay.status === 'Upcoming';
-        
-        if (swipeGameViewMode === 'swiping' && isEditable) {
-          return <SwipeGamePage
-            matchDay={matchDay as SwipeMatchDay}
-            userEntry={userEntry}
-            onSwipePrediction={handleSwipePrediction}
-            hasSeenSwipeTutorial={hasSeenSwipeTutorial}
-            onDismissTutorial={handleDismissSwipeTutorial}
-            onExit={handleExitSwiping}
-          />;
-        } else {
-          return <SwipeRecapPage
-            allMatchDays={games.filter(g => g.game_type === 'prediction' && userSwipeEntries.some(e => e.user_id === profile?.id && e.matchDayId === g.id)) as SwipeMatchDay[]}
-            selectedMatchDayId={activeSwipeGameId}
-            userEntry={userEntry}
-            onBack={() => setActiveSwipeGameId(null)}
-            onUpdatePrediction={isEditable ? handleUpdateSwipePrediction : undefined}
-            onViewLeaderboard={() => setViewingSwipeLeaderboardFor(activeSwipeGameId)}
-            onSelectMatchDay={handlePlaySwipeGame}
-            onEditPicks={isEditable ? handleEditSwipePicks : undefined}
-            onLinkGame={handleOpenLinkGameFlow}
-            profile={profile}
-            userLeagues={myLeagues}
-            leagueMembers={leagueMembers}
-            leagueGames={leagueGames}
-          />;
-        }
       }
     }
     
@@ -900,6 +888,7 @@ function App() {
   }
   
   const userBetForModal = modalState.match ? bets.find(b => b.matchId === modalState.match!.id) : undefined;
+  const currentBetLimit = useMemo(() => getLevelBetLimit(profile?.level), [profile?.level]);
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center bg-deep-navy"><div className="text-2xl font-semibold text-text-secondary">Loading...</div></div>;
@@ -932,7 +921,20 @@ function App() {
 
       <FooterNav activePage={page} onPageChange={handlePageChange} />
 
-      {modalState.match && modalState.prediction && ( <BetModal isOpen={modalState.isOpen} onClose={() => setModalState({ ...modalState, isOpen: false })} match={modalState.match} prediction={modalState.prediction} odds={modalState.odds} balance={coinBalance} onConfirm={handleConfirmBet} userBet={userBetForModal} onCancelBet={handleCancelBet} /> )}
+      {modalState.match && modalState.prediction && (
+        <BetModal
+          isOpen={modalState.isOpen}
+          onClose={() => setModalState({ ...modalState, isOpen: false })}
+          match={modalState.match}
+          prediction={modalState.prediction}
+          odds={modalState.odds}
+          balance={coinBalance}
+          betLimit={currentBetLimit}
+          onConfirm={handleConfirmBet}
+          userBet={userBetForModal}
+          onCancelBet={handleCancelBet}
+        />
+      )}
       {challengeToJoin && (
         <ChooseEntryMethodModal
           isOpen={!!challengeToJoin}

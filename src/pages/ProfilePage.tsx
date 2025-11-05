@@ -5,7 +5,7 @@ import { ProfileSettingsModal } from '../components/profile/ProfileSettingsModal
 import { mockTeams } from '../data/mockTeams';
 import { mockCountries } from '../data/mockCountries';
 import { DailyStreakTracker } from '../components/DailyStreakTracker';
-import { LEVEL_BET_LIMITS } from '../config/constants';
+import { getLevelBetLimit } from '../config/constants';
 import { useSpinStore } from '../store/useSpinStore';
 import { UserProfileStats } from '../components/profile/UserProfileStats';
 import { FrequentPlayersList } from '../components/squad/FrequentPlayersList';
@@ -13,6 +13,8 @@ import { useMockStore } from '../store/useMockStore';
 import { DisplayName } from '../components/shared/DisplayName';
 import { PremiumUnlockCard } from '../components/premium/PremiumUnlockCard';
 import { PremiumStatusCard } from '../components/premium/PremiumStatusCard';
+import { XPProgressBar } from '../components/progression/XPProgressBar';
+import { BadgeDisplay } from '../components/progression/BadgeDisplay';
 
 interface ProfilePageProps {
   profile: Profile;
@@ -50,7 +52,9 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
   const preferencesSkipped = !profile.is_guest && !profile.favorite_club && !profile.favorite_national_team;
   
   const userStreak = userStreaks.find(s => s.user_id === profile.id);
-  const maxBet = currentLevel ? LEVEL_BET_LIMITS[currentLevel.level_name] : 'N/A';
+  const levelBetLimit = getLevelBetLimit(profile.level ?? currentLevel?.level_name);
+  const maxBetLabel =
+    levelBetLimit === null ? 'No Limit' : `${levelBetLimit.toLocaleString()} coins`;
 
   const PreferenceItem: React.FC<{
     icon: React.ReactNode;
@@ -182,25 +186,9 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
                   onClick={() => setIsSettingsOpen(true)}
               />
             </div>
-            <div className="card-base p-5">
-              <div className="flex justify-between items-center mb-2">
-                <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2"><Star size={20} className="text-warm-yellow" /> XP Progress</h3>
-                <span className="font-bold text-sm text-text-secondary">
-                  {profile.xp?.toLocaleString() || 0} / {nextLevel ? nextLevel.min_xp.toLocaleString() : 'Max'} XP
-                </span>
-              </div>
-              <div className="w-full bg-disabled rounded-full h-4">
-                <div
-                  className="bg-gradient-to-r from-neon-cyan to-warm-yellow h-4 rounded-full transition-all duration-500"
-                  style={{ width: `${progressPercentage}%` }}
-                ></div>
-              </div>
-              {nextLevel && (
-                <p className="text-xs text-text-disabled text-center mt-2">
-                  {nextLevel.min_xp - (profile.xp ?? 0)} XP to reach {nextLevel.level_name}
-                </p>
-              )}
-            </div>
+
+            {/* ✅ New XP Progress Component with real-time updates */}
+            <XPProgressBar userId={profile.id} />
             <div className="card-base p-5">
               <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2 mb-2">
                   <Target size={20} className="text-lime-glow" /> Betting Limit
@@ -208,7 +196,7 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
               <div className="bg-deep-navy p-3 rounded-lg text-center">
                   <p className="text-sm text-text-secondary">Max bet per match</p>
                   <p className="text-2xl font-bold text-warm-yellow">
-                      {maxBet ? `${maxBet.toLocaleString()} coins` : 'No Limit'}
+                      {maxBetLabel}
                   </p>
               </div>
               {nextLevel && (
@@ -217,25 +205,13 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
                   </p>
               )}
             </div>
+
+            {/* ✅ New Badge Display Component with dynamic badge loading */}
             <div className="card-base p-5">
-              <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2 mb-4"><Shield size={20} className="text-neon-cyan" /> Earned Badges</h3>
-              {earnedBadges.length > 0 ? (
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
-                  {earnedBadges.map(badge => (
-                    <div key={badge.id} className="flex flex-col items-center text-center space-y-2 group">
-                      <div className="bg-deep-navy group-hover:bg-electric-blue/20 transition-colors w-16 h-16 rounded-full flex items-center justify-center text-3xl shadow-inner">
-                        {badge.icon_url}
-                      </div>
-                      <p className="text-xs font-semibold text-text-secondary">{badge.name}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 bg-deep-navy rounded-xl">
-                  <p className="text-text-secondary font-medium">No badges earned yet.</p>
-                  <p className="text-sm text-text-disabled mt-1">Keep playing to unlock them!</p>
-                </div>
-              )}
+              <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2 mb-4">
+                <Shield size={20} className="text-neon-cyan" /> Badges
+              </h3>
+              <BadgeDisplay userId={profile.id} showLocked={true} />
             </div>
           </div>
         )}

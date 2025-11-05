@@ -9,8 +9,11 @@ import { TestModeToggle } from '../components/TestModeToggle';
 import { Coins, Trash2, Play } from 'lucide-react';
 import { CelebrateSeasonalWinnersModal } from '../components/admin/CelebrateSeasonalWinnersModal';
 import { CelebrationFeed } from '../components/admin/CelebrationFeed';
+import { SwipeGameAdmin } from '../components/admin/SwipeGameAdmin';
+import { BadgeManager } from '../components/admin/BadgeManager';
+import { Zap } from 'lucide-react';
 
-type AdminSection = 'challenges' | 'progression' | 'datasync' | 'feed' | 'developer';
+type AdminSection = 'challenges' | 'swipe' | 'progression' | 'datasync' | 'feed' | 'developer';
 
 interface AdminPageProps {
   profile: Profile | null;
@@ -75,8 +78,9 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-3 sm:grid-cols-5 bg-navy-accent rounded-xl p-1 gap-1">
+      <div className="grid grid-cols-3 sm:grid-cols-6 bg-navy-accent rounded-xl p-1 gap-1">
         <AdminSectionButton section="challenges" icon={<Gamepad2 size={16} />} label="Games" />
+        <AdminSectionButton section="swipe" icon={<Zap size={16} />} label="Swipe" />
         <AdminSectionButton section="feed" icon={<Newspaper size={16} />} label="Feed" />
         <AdminSectionButton section="progression" icon={<Star size={16} />} label="Progression" />
         <AdminSectionButton section="datasync" icon={<DatabaseZap size={16} />} label="Data Sync" />
@@ -97,6 +101,12 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
         </div>
       )}
       
+      {activeSection === 'swipe' && (
+        <div className="animate-scale-in">
+          <SwipeGameAdmin addToast={addToast} />
+        </div>
+      )}
+
       {activeSection === 'feed' && (
         <div className="animate-scale-in">
           <CelebrationFeed celebrations={celebrations} />
@@ -104,8 +114,8 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
       )}
 
       {activeSection === 'progression' && (
-        <div className="animate-scale-in">
-          <ProgressionAdmin 
+        <div className="animate-scale-in space-y-6">
+          <ProgressionAdmin
             levels={levels}
             badges={badges}
             onAddLevel={() => addToast('This feature is not implemented in mock mode.', 'info')}
@@ -115,6 +125,9 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
             onUpdateBadge={() => addToast('This feature is not implemented in mock mode.', 'info')}
             onDeleteBadge={() => addToast('This feature is not implemented in mock mode.', 'info')}
           />
+
+          {/* ✅ New Dynamic Badge Manager */}
+          <BadgeManager addToast={addToast} />
         </div>
       )}
 

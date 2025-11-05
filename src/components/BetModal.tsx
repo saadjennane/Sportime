@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { X, Coins, TrendingUp } from 'lucide-react';
 import { Match, Bet } from '../types';
 
@@ -9,6 +9,7 @@ interface BetModalProps {
   prediction: 'teamA' | 'draw' | 'teamB';
   odds: number;
   balance: number;
+  betLimit?: number | null;
   onConfirm: (amount: number, prediction: 'teamA' | 'draw' | 'teamB', odds: number) => void;
   userBet?: Bet;
   onCancelBet: (matchId: string) => void;
@@ -21,6 +22,7 @@ export const BetModal: React.FC<BetModalProps> = ({
   prediction,
   odds,
   balance,
+  betLimit,
   onConfirm,
   userBet,
   onCancelBet
@@ -46,8 +48,30 @@ export const BetModal: React.FC<BetModalProps> = ({
   if (!isOpen) return null;
 
   const numAmount = parseInt(amount) || 0;
+  const availableFunds = balance + (userBet?.amount ?? 0);
+  const maxPerLevel = betLimit ?? null;
+  const effectiveMax = Math.max(
+    0,
+    maxPerLevel !== null ? Math.min(maxPerLevel, availableFunds) : availableFunds
+  );
   const potentialWin = numAmount * selectedOdds;
-  const isConfirmDisabled = numAmount <= 0 || numAmount > balance;
+  const overBalance = numAmount > availableFunds;
+  const overLevelLimit = maxPerLevel !== null && numAmount > maxPerLevel;
+  const isConfirmDisabled = numAmount <= 0 || overBalance || overLevelLimit;
+
+  const quickAmounts = useMemo(() => {
+    if (effectiveMax <= 0) return [] as number[];
+    const presets = [100, 250, 500, 1000, 2500, 5000];
+    const filtered = presets
+      .filter((value) => value > 0 && value <= effectiveMax)
+      .slice(0, 4);
+    if (!filtered.includes(effectiveMax) && effectiveMax > 0) {
+      filtered.push(effectiveMax);
+    }
+    const unique = Array.from(new Set(filtered.map((value) => Math.floor(value))));
+    unique.sort((a, b) => a - b);
+    return unique;
+  }, [effectiveMax]);
 
   const handleConfirm = () => {
     if (!isConfirmDisabled) {
@@ -67,8 +91,6 @@ export const BetModal: React.FC<BetModalProps> = ({
     }
     return value.toString();
   }
-
-  const quickAmounts = [100, 500, 1000, 2500];
 
   const renderTeamIcon = (
     team: Match['teamA'],
@@ -203,20 +225,41 @@ export const BetModal: React.FC<BetModalProps> = ({
               placeholder="0"
               className="input-base pl-12 text-lg"
               min="0"
-              max={balance}
+              max={effectiveMax}
             />
           </div>
-          <div className="flex gap-2 mt-2">
-            {quickAmounts.map((quickAmount) => (
-              <button
-                key={quickAmount}
-                onClick={() => setAmount(quickAmount.toString())}
-                className="flex-1 py-2 px-2 bg-deep-navy hover:bg-electric-blue/20 rounded-lg text-sm font-semibold text-text-secondary hover:text-electric-blue transition-colors"
-              >
-                {formatQuickAmount(quickAmount)}
-              </button>
-            ))}
-          </div>
+          {maxPerLevel !== null && (
+            <p className="text-xs text-text-secondary mt-2">
+              Level limit: <span className="font-semibold text-warm-yellow">{maxPerLevel.toLocaleString()} coins</span>
+            </p>
+          )}
+          {overLevelLimit && (
+            <p className="text-xs text-hot-red mt-1">You can bet up to {maxPerLevel?.toLocaleString()} coins at your current level.</p>
+          )}
+          {overBalance && (
+            <p className="text-xs text-hot-red mt-1">Insufficient balance (available: {(availableFunds).toLocaleString()} coins).</p>
+          )}
+          {quickAmounts.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {quickAmounts.map((quickAmount) => (
+                <button
+                  key={quickAmount}
+                  onClick={() => setAmount(quickAmount.toString())}
+                  className="flex-1 min-w-[80px] py-2 px-2 bg-deep-navy hover:bg-electric-blue/20 rounded-lg text-sm font-semibold text-text-secondary hover:text-electric-blue transition-colors"
+                >
+                  {quickAmount === effectiveMax ? 'Max' : formatQuickAmount(quickAmount)}
+                </button>
+              ))}
+              {effectiveMax > 0 && (
+                <button
+                  onClick={() => setAmount(Math.floor(effectiveMax).toString())}
+                  className="py-2 px-3 bg-electric-blue text-white rounded-lg text-sm font-semibold hover:bg-electric-blue/90 transition-colors"
+                >
+                  All In
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="bg-lime-glow/10 border border-lime-glow/20 rounded-xl p-3">

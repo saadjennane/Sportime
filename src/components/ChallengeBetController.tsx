@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { ChallengeMatch, ChallengeBet, Profile } from '../types';
 import { TrendingUp, Zap } from 'lucide-react';
-import { LEVEL_BET_LIMITS } from '../config/constants';
+import { getLevelBetLimit } from '../config/constants';
 
 interface ChallengeBetControllerProps {
   match: ChallengeMatch;
@@ -21,8 +21,9 @@ export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ 
   const selectedPrediction = bet?.prediction;
   const amount = bet?.amount || '';
 
-  const betLimit = profile.level ? LEVEL_BET_LIMITS[profile.level] : 500;
-  const effectiveMaxAmount = betLimit ? Math.min(maxAmount, betLimit) : maxAmount;
+  const betLimit = getLevelBetLimit(profile.level);
+  const effectiveMaxAmount =
+    betLimit === null ? maxAmount : Math.min(maxAmount, betLimit);
 
   const handlePredictionClick = (prediction: 'teamA' | 'draw' | 'teamB') => {
     if (disabled) return;
@@ -121,7 +122,7 @@ export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ 
           min="0"
           className="w-full p-2 bg-deep-navy border-2 border-disabled rounded-lg focus:border-electric-blue focus:outline-none disabled:bg-navy-accent disabled:cursor-not-allowed"
         />
-        {betLimit && Number(amount) > betLimit && (
+        {betLimit !== null && Number(amount) > betLimit && (
             <p className="text-xs text-hot-red mt-1 text-center">Max bet for your level is {betLimit} coins.</p>
         )}
         {selectedPrediction && !disabled && quickBetAmounts.length > 0 && (

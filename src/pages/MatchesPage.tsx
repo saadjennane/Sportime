@@ -25,7 +25,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [selectedMatchForStats, setSelectedMatchForStats] = useState<Match | null>(null);
 
-  const { groups, loading, error } = useMatchesOfTheDay();
+  const { data: groups, isLoading: loading, error } = useMatchesOfTheDay();
 
   const toLegacyMatch = useCallback((m: UiMatch): Match => {
     const fallbackEmoji = (name: string) => (name ? name.charAt(0).toUpperCase() : '⚽');
@@ -45,11 +45,9 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
       teamB: m.odds?.away ?? 0,
     };
 
-    const fixtureId = Number(m.id)
-    const homeTeamId =
-      m.homeTeamId ?? (m.home.id ? Number(m.home.id) : Number.NaN)
-    const awayTeamId =
-      m.awayTeamId ?? (m.away.id ? Number(m.away.id) : Number.NaN)
+    const fixtureId = Number(m.id);
+    const homeTeamId = m.homeTeamId ?? (m.home.id ? Number(m.home.id) : Number.NaN);
+    const awayTeamId = m.awayTeamId ?? (m.away.id ? Number(m.away.id) : Number.NaN);
 
     const meta =
       Number.isFinite(fixtureId) &&
@@ -57,7 +55,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
       Number.isFinite(awayTeamId)
         ? {
             fixtureId,
-            leagueId: m.leagueInternalId,
+            leagueId: m.leagueInternalId ?? m.league.id,
             apiLeagueId: m.league.apiId ?? null,
             season: m.season ?? null,
             homeTeamId,
@@ -66,7 +64,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
         : undefined;
 
     return {
-      id: m.code,
+      id: m.code ?? m.id,
       leagueName: m.league.name,
       leagueLogo,
       teamA: {
@@ -85,18 +83,25 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
       isLive: m.isLive,
       result,
       score:
-        m.status === 'played'
+        m.status === 'played' || m.isLive
           ? {
               teamA: goalsHome ?? 0,
               teamB: goalsAway ?? 0,
             }
           : undefined,
-      hasLineup: false,
+      hasLineup: m.hasLineup ?? false,
       meta,
     } as Match;
   }, []);
 
   const { upcomingMatches, groupedUpcoming } = useMemo(() => {
+    if (!groups || groups.length === 0) {
+      return {
+        upcomingMatches: [],
+        groupedUpcoming: {},
+      };
+    }
+
     const grouped = groups.reduce((acc, group) => {
       const mapped = group.matches.map(toLegacyMatch);
       acc[group.leagueName] = mapped;

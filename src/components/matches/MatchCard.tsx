@@ -11,8 +11,8 @@ interface MatchCardProps {
 }
 
 export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats, onPlayGame, userBet }) => {
-  const isUpcoming = match.status === 'upcoming';
   const isLive = !!match.isLive;
+  const isUpcoming = match.status === 'upcoming' && !isLive;
   const betPlaced = !!userBet;
 
   const getResultStyling = (prediction: 'teamA' | 'draw' | 'teamB') => {
@@ -20,17 +20,19 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
       return betPlaced && userBet?.prediction === prediction
         ? 'border-electric-blue bg-electric-blue/10'
         : 'border-disabled bg-deep-navy hover:border-electric-blue hover:shadow-lg hover:scale-105';
-    } else {
-      // Played match styling
-      const isCorrectPrediction = match.result === prediction;
-      if (betPlaced && userBet.prediction === prediction) {
-        return isCorrectPrediction ? 'border-lime-glow bg-lime-glow/10' : 'border-hot-red bg-hot-red/10';
-      }
-      if (isCorrectPrediction) {
-        return 'border-lime-glow/50 bg-lime-glow/5'; // Highlight the winning outcome
-      }
-      return 'border-disabled bg-navy-accent cursor-not-allowed';
     }
+    if (isLive) {
+      return 'border-hot-red/40 bg-hot-red/5 cursor-not-allowed';
+    }
+    // Played match styling
+    const isCorrectPrediction = match.result === prediction;
+    if (betPlaced && userBet?.prediction === prediction) {
+      return isCorrectPrediction ? 'border-lime-glow bg-lime-glow/10' : 'border-hot-red bg-hot-red/10';
+    }
+    if (isCorrectPrediction) {
+      return 'border-lime-glow/50 bg-lime-glow/5'; // Highlight the winning outcome
+    }
+    return 'border-disabled bg-navy-accent cursor-not-allowed';
   };
 
   const BetButton: React.FC<{ 
@@ -42,7 +44,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
     const won = userBet?.status === 'won' && isSelected;
     const lost = userBet?.status === 'lost' && isSelected;
     const displayOdds = odds !== undefined ? `${odds.toFixed(2)}x` : '--';
-    const isDisabled = !isUpcoming || odds === undefined;
+    const isDisabled = !isUpcoming || odds === undefined || isLive;
 
     return (
       <button
@@ -92,17 +94,17 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
   };
 
   const badgeContent = (() => {
-    if (!isUpcoming) {
-      return (
-        <span className="bg-disabled text-text-disabled text-xs px-3 py-1 rounded-full font-semibold">
-          Finished
-        </span>
-      );
-    }
     if (isLive) {
       return (
         <span className="text-white text-xs px-3 py-1 rounded-full font-semibold bg-gradient-to-r from-hot-red to-electric-blue animate-pulse">
           Live
+        </span>
+      );
+    }
+    if (!isUpcoming) {
+      return (
+        <span className="bg-disabled text-text-disabled text-xs px-3 py-1 rounded-full font-semibold">
+          Finished
         </span>
       );
     }
@@ -123,9 +125,11 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
   const teamAOdds = match.odds?.teamA && match.odds.teamA > 0 ? match.odds.teamA : undefined;
   const drawOdds = match.odds?.draw && match.odds.draw > 0 ? match.odds.draw : undefined;
   const teamBOdds = match.odds?.teamB && match.odds.teamB > 0 ? match.odds.teamB : undefined;
+  const showScore = isLive || match.status === 'played';
+  const cardHoverClass = isUpcoming ? 'hover:border-neon-cyan/50' : isLive ? 'border-hot-red/40' : '';
 
   return (
-    <div className={`card-base p-5 transition-all duration-300 ${isUpcoming ? 'hover:border-neon-cyan/50' : ''}`}>
+    <div className={`card-base p-5 transition-all duration-300 ${cardHoverClass}`}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2 text-text-secondary">
           <Clock className="w-4 h-4" />
@@ -141,12 +145,19 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
         </div>
         
         <div className="px-4 text-center">
-          {isUpcoming ? (
-            <div className="text-2xl font-bold text-disabled">VS</div>
-          ) : (
-            <div className="text-2xl font-bold text-text-primary">
-              {match.score?.teamA} - {match.score?.teamB}
+          {showScore ? (
+            <div className="flex flex-col items-center">
+              <div className={`text-2xl font-bold ${isLive ? 'text-hot-red' : 'text-text-primary'}`}>
+                {match.score?.teamA ?? 0} - {match.score?.teamB ?? 0}
+              </div>
+              {isLive && (
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-hot-red/80">
+                  Live
+                </span>
+              )}
             </div>
+          ) : (
+            <div className="text-2xl font-bold text-disabled">VS</div>
           )}
         </div>
 
@@ -161,7 +172,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
           <div className="flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-electric-blue" />
             <span className="text-xs font-semibold text-text-secondary uppercase">
-              {isUpcoming ? 'Place Your Bet' : 'Final Odds'}
+              {isUpcoming ? 'Place Your Bet' : isLive ? 'Match In Progress' : 'Final Odds'}
             </span>
           </div>
           <div className="flex items-center gap-2">

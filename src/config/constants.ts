@@ -12,14 +12,49 @@ export const DAILY_STREAK_REWARDS: Record<number, { coins?: number; ticket?: Tou
 
 export const STREAK_RESET_THRESHOLD_HOURS = 48;
 
+const DEFAULT_LEVEL_BET_LIMIT = 500;
+
 export const LEVEL_BET_LIMITS: Record<string, number | null> = {
-  Amateur: 500,
-  Pro: 1000,
-  Expert: 2000,
-  Master: 5000,
-  Legend: 10000,
+  Rookie: 500,
+  'Rising Star': 1000,
+  Pro: 2000,
+  Elite: 5000,
+  Legend: 15000,
+  Master: 40000,
   GOAT: null, // no limit
-};
+}
+
+export function getLevelBetLimit(level?: string | null): number | null {
+  if (!level) return DEFAULT_LEVEL_BET_LIMIT
+  const normalized = level.trim()
+  if (!normalized) return DEFAULT_LEVEL_BET_LIMIT
+
+  if (Object.prototype.hasOwnProperty.call(LEVEL_BET_LIMITS, normalized)) {
+    return LEVEL_BET_LIMITS[normalized]
+  }
+
+  const lower = normalized.toLowerCase()
+  switch (lower) {
+    case 'rookie':
+      return LEVEL_BET_LIMITS.Rookie
+    case 'rising_star':
+    case 'rising star':
+      return LEVEL_BET_LIMITS['Rising Star']
+    case 'pro':
+      return LEVEL_BET_LIMITS.Pro
+    case 'elite':
+    case 'expert':
+      return LEVEL_BET_LIMITS.Elite
+    case 'legend':
+      return LEVEL_BET_LIMITS.Legend
+    case 'master':
+      return LEVEL_BET_LIMITS.Master
+    case 'goat':
+      return LEVEL_BET_LIMITS.GOAT
+    default:
+      return DEFAULT_LEVEL_BET_LIMIT
+  }
+}
 
 export const TICKET_RULES: Record<TournamentType, { expiry_days: number; max_quantity: number }> = {
   rookie: { expiry_days: 30, max_quantity: 5 },
