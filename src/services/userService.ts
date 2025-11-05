@@ -58,7 +58,20 @@ export async function setUserRole(userId: string, role: 'guest' | 'user' | 'admi
 }
 
 export async function refreshProfile() {
-  const { data, error } = await supabase.from('users').select('*').single()
+  // Get current authenticated user
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    throw new Error('No authenticated user')
+  }
+
+  // Fetch profile for the authenticated user only
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', user.id)
+    .single()
+
   if (error) {
     console.error('[userService] Failed to fetch current profile', error)
     throw error
