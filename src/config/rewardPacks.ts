@@ -7,7 +7,7 @@ const createReward = (type: any, tier?: any, value?: any) => ({ id: uuidv4(), ty
 
 export const BASE_REWARD_PACKS: RewardPackMatrix = {
   amateur: {
-    matchday: [
+    flash: [
       { id: uuidv4(), positionType: 'rank', start: 1, rewards: [createReward("ticket", "master"), createReward("xp", undefined, 200)] },
       { id: uuidv4(), positionType: 'rank', start: 2, rewards: [createReward("spin", "amateur"), createReward("xp", undefined, 100)] },
       { id: uuidv4(), positionType: 'rank', start: 3, rewards: [createReward("xp", undefined, 50)] },
@@ -22,7 +22,7 @@ export const BASE_REWARD_PACKS: RewardPackMatrix = {
     ],
   },
   master: {
-    matchday: [
+    flash: [
       { id: uuidv4(), positionType: 'rank', start: 1, rewards: [createReward("ticket", "apex"), createReward("xp", undefined, 1000)] },
       { id: uuidv4(), positionType: 'rank', start: 2, rewards: [createReward("spin", "master"), createReward("xp", undefined, 500)] },
       { id: uuidv4(), positionType: 'rank', start: 3, rewards: [createReward("xp", undefined, 250)] },
@@ -37,7 +37,7 @@ export const BASE_REWARD_PACKS: RewardPackMatrix = {
     ],
   },
   apex: {
-    matchday: [
+    flash: [
       { id: uuidv4(), positionType: 'rank', start: 1, rewards: [createReward("premium_7d"), createReward("xp", undefined, 2500)] },
       { id: uuidv4(), positionType: 'rank', start: 2, rewards: [createReward("spin", "apex"), createReward("xp", undefined, 1200)] },
       { id: uuidv4(), positionType: 'rank', start: 3, rewards: [createReward("xp", undefined, 600)] },

@@ -63,7 +63,7 @@ export const TICKET_RULES: Record<TournamentType, { expiry_days: number; max_qua
 };
 
 export const TOURNAMENT_COSTS: Record<TournamentType, { base: number; multipliers: Record<string, number> }> = {
-  amateur: { base: 2000, multipliers: { matchday: 1, series: 2, season: 4 } },
-  master: { base: 10000, multipliers: { matchday: 1, series: 2, season: 4 } },
-  apex: { base: 20000, multipliers: { matchday: 1, series: 2, season: 4 } },
+  amateur: { base: 2000, multipliers: { flash: 1, series: 2, season: 4 } },
+  master: { base: 10000, multipliers: { flash: 1, series: 2, season: 4 } },
+  apex: { base: 20000, multipliers: { flash: 1, series: 2, season: 4 } },
 };
