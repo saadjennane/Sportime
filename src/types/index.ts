@@ -494,7 +494,7 @@ export interface PredictionChallenge {
   createdAt: string;
 }
 
-export type TournamentType = 'rookie' | 'pro' | 'elite';
+export type TournamentType = 'amateur' | 'master' | 'apex';
 
 export interface UserTicket {
   id: string;
@@ -544,7 +544,7 @@ export interface SportimeGame {
   end_date: string;
   game_type: GameType;
   tier?: TournamentType;
-  duration_type?: 'daily' | 'mini-series' | 'seasonal';
+  duration_type?: 'flash' | 'series' | 'season';
   entry_cost: number;
   custom_entry_cost_enabled?: boolean;
   is_linkable?: boolean;
@@ -570,7 +570,7 @@ export interface CelebrationEvent {
   id: string;
   gameId: string;
   gameName: string;
-  type: 'seasonal' | 'private_league';
+  type: 'season' | 'private_league';
   period: { start: string; end: string };
   topPlayers: { userId: string; username: string; rank: number; reward: RewardItem }[];
   createdAt: string;
@@ -655,7 +655,7 @@ export interface Toast {
   type: 'success' | 'error' | 'info';
 }
 
-export type SpinTier = 'free' | 'rookie' | 'pro' | 'elite' | 'premium';
+export type SpinTier = 'free' | 'amateur' | 'master' | 'apex' | 'premium';
 
 export interface SpinReward {
   id: string;

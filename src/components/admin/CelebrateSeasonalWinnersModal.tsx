@@ -26,7 +26,7 @@ export const CelebrateSeasonalWinnersModal: React.FC<CelebrateSeasonalWinnersMod
   // Reward state
   const [rewardType, setRewardType] = useState<RewardItem['type']>('coins');
   const [rewardValue, setRewardValue] = useState<number>(1000);
-  const [rewardTicketTier, setRewardTicketTier] = useState<TournamentType>('rookie');
+  const [rewardTicketTier, setRewardTicketTier] = useState<TournamentType>('amateur');
   
   // Message state
   const [message, setMessage] = useState('');
@@ -137,9 +137,9 @@ export const CelebrateSeasonalWinnersModal: React.FC<CelebrateSeasonalWinnersMod
               </select>
               {rewardType === 'ticket' ? (
                 <select value={rewardTicketTier} onChange={e => setRewardTicketTier(e.target.value as TournamentType)} className="input-base text-sm">
-                  <option value="rookie">Rookie</option>
-                  <option value="pro">Pro</option>
-                  <option value="elite">Elite</option>
+                  <option value="amateur">Amateur</option>
+                  <option value="master">Master</option>
+                  <option value="apex">Apex</option>
                 </select>
               ) : (
                 <input type="number" value={rewardValue} onChange={e => setRewardValue(Number(e.target.value))} placeholder="Amount" className="input-base text-sm" />

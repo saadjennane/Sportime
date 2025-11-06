@@ -14,7 +14,7 @@
   6. Add indexes for performance
 
   ## Standardized Levels
-  - Level 1: Rookie (0 XP)
+  - Level 1: Amateur (0 XP)
   - Level 2: Rising Star (5,000 XP)
   - Level 3: Pro (15,000 XP)
   - Level 4: Elite (35,000 XP)
@@ -38,7 +38,7 @@ CREATE TABLE public.levels_config (
 
 -- Insert standardized level data
 INSERT INTO public.levels_config (level, name, xp_required) VALUES
-  (1, 'Rookie', 0),
+  (1, 'Amateur', 0),
   (2, 'Rising Star', 5000),
   (3, 'Pro', 15000),
   (4, 'Elite', 35000),
@@ -79,7 +79,7 @@ BEGIN
     SELECT 1 FROM information_schema.columns
     WHERE table_name = 'users' AND column_name = 'level_name'
   ) THEN
-    ALTER TABLE public.users ADD COLUMN level_name TEXT NOT NULL DEFAULT 'Rookie';
+    ALTER TABLE public.users ADD COLUMN level_name TEXT NOT NULL DEFAULT 'Amateur';
   END IF;
 
   -- last_active_date
@@ -100,7 +100,7 @@ BEGIN
 END $$;
 
 -- Update any existing users with old level names to new standardized names
-UPDATE public.users SET level_name = 'Rookie' WHERE level_name IN ('Amateur', 'rookie');
+UPDATE public.users SET level_name = 'Amateur' WHERE level_name IN ('Rookie', 'rookie', 'amateur');
 UPDATE public.users SET level_name = 'Rising Star' WHERE level_name IN ('rising_star', 'Rising star');
 UPDATE public.users SET level_name = 'Pro' WHERE level_name = 'pro';
 UPDATE public.users SET level_name = 'Elite' WHERE level_name IN ('Expert', 'elite');
