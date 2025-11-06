@@ -20,7 +20,7 @@ interface CoinShopModalProps {
 
 export const CoinShopModal: React.FC<CoinShopModalProps> = ({ isOpen, onClose, profile, addToast, onOpenPremiumModal, onTriggerSignUp }) => {
   const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
-  const { reloadProfile } = useAuth();
+  const { refreshProfile } = useAuth();
 
   if (!isOpen) return null;
 
@@ -39,7 +39,7 @@ export const CoinShopModal: React.FC<CoinShopModalProps> = ({ isOpen, onClose, p
       await purchaseCoinPack(profile.id, selectedPackId, pack.coins);
 
       // Refresh profile to get updated balance
-      await reloadProfile();
+      await refreshProfile();
 
       addToast(`+${pack.coins.toLocaleString()} coins added!`, 'success');
       setSelectedPackId(null);
