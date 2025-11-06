@@ -251,13 +251,13 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
       return;
     }
   
-    const validTiers = ["Rookie", "Pro", "Elite"];
-    const tier = validTiers.includes(rewardTier) ? rewardTier : "Rookie";
-  
+    const validTiers = ["Amateur", "Master", "Apex"];
+    const tier = validTiers.includes(rewardTier) ? rewardTier : "Amateur";
+
     const tierRewards = {
-      Rookie: { ticket: "rookie" as TournamentType, spin: "rookie" as SpinTier },
-      Pro: { ticket: "pro" as TournamentType, spin: "pro" as SpinTier },
-      Elite: { ticket: "elite" as TournamentType, spin: "elite" as SpinTier },
+      Amateur: { ticket: "amateur" as TournamentType, spin: "amateur" as SpinTier },
+      Master: { ticket: "master" as TournamentType, spin: "master" as SpinTier },
+      Apex: { ticket: "apex" as TournamentType, spin: "apex" as SpinTier },
     };
   
     const firstPrize = parseFloat((prizePool * 0.55).toFixed(2));
@@ -669,9 +669,9 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
   // ... other actions
   createGame: (config) => {
     const { rewardPacks } = get();
-    const durationKey = config.duration_type === 'daily' ? 'matchday' : config.duration_type || 'matchday';
+    const durationKey = config.duration_type === 'flash' ? 'matchday' : config.duration_type || 'matchday';
     const baseRewards = rewardPacks[config.tier]?.[durationKey] || [];
-    
+
     const newGame: SportimeGame = {
       ...config,
       id: `game-${uuidv4()}`,
@@ -1121,7 +1121,7 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
   celebrateSeasonalWinners: (gameId, period, topN, reward, message) => {
     const { games, allUsers, leaderboardScores, addXp, setCoinBalance, addTicket } = get();
     const game = games.find(g => g.id === gameId);
-    if (!game || game.duration_type !== 'seasonal' || !game.gameWeeks) return;
+    if (!game || game.duration_type !== 'season' || !game.gameWeeks) return;
 
     const periodStart = new Date(period.start);
     const periodEnd = new Date(period.end);
@@ -1166,7 +1166,7 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
         id: uuidv4(),
         gameId,
         gameName: game.name,
-        type: 'seasonal',
+        type: 'season',
         period,
         topPlayers: winners.map((winner, index) => ({
             userId: winner.userId,

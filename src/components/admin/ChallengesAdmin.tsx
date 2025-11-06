@@ -50,7 +50,7 @@ export const ChallengesAdmin: React.FC<ChallengesAdminProps> = (props) => {
                 <p className="text-xs text-text-disabled">Min Players: {game.minimum_players || 'N/A'}, Current: {game.participants.length}</p>
               </div>
               <div className="flex items-center gap-2">
-                {game.duration_type === 'seasonal' && (
+                {game.duration_type === 'season' && (
                   <button
                     onClick={() => onCelebrate(game)}
                     className="p-2 text-warm-yellow hover:bg-warm-yellow/10 rounded-lg"

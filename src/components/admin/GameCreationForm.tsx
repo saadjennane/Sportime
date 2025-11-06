@@ -22,8 +22,8 @@ const initialFormState: Omit<SportimeGame, 'id' | 'status' | 'totalPlayers' | 'p
   start_date: new Date().toISOString().split('T')[0],
   end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
   game_type: 'betting',
-  tier: 'rookie',
-  duration_type: 'daily',
+  tier: 'amateur',
+  duration_type: 'flash',
   entry_cost: 2000,
   custom_entry_cost_enabled: false,
   is_linkable: true,
@@ -47,9 +47,9 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
     if (!formState.tier || !formState.duration_type) return;
 
     const durationMap: Record<string, string> = {
-      daily: 'matchday',
-      'mini-series': 'mini-series',
-      seasonal: 'season'
+      flash: 'matchday',
+      series: 'series',
+      season: 'season'
     };
     const normalizedKey = durationMap[formState.duration_type] || formState.duration_type;
     const basePack = BASE_REWARD_PACKS?.[formState.tier]?.[normalizedKey];
@@ -63,7 +63,7 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
   }, [formState.tier, formState.duration_type]);
 
   const calculatedCost = useMemo(() => {
-    const durationKey = formState.duration_type === 'daily' ? 'matchday' : formState.duration_type;
+    const durationKey = formState.duration_type === 'flash' ? 'matchday' : formState.duration_type;
     return TOURNAMENT_COSTS[formState.tier].base * (TOURNAMENT_COSTS[formState.tier].multipliers[durationKey!] || 1);
   }, [formState.tier, formState.duration_type]);
 
@@ -80,7 +80,7 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
     const newState = { ...formState, [name]: finalValue };
 
     if (!newState.custom_entry_cost_enabled && (name === 'tier' || name === 'duration_type')) {
-        const durationKey = newState.duration_type === 'daily' ? 'matchday' : newState.duration_type;
+        const durationKey = newState.duration_type === 'flash' ? 'matchday' : newState.duration_type;
         const newCost = TOURNAMENT_COSTS[newState.tier].base * (TOURNAMENT_COSTS[newState.tier].multipliers[durationKey!] || 1);
         newState.entry_cost = newCost;
     }
@@ -132,12 +132,12 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
           {(['betting', 'prediction', 'fantasy'] as GameType[]).map(t => <option key={t} value={t} className="capitalize">{t}</option>)}
         </select>
         <select name="tier" value={formState.tier} onChange={handleChange} className={formFieldClasses}>
-          {(['rookie', 'pro', 'elite'] as TournamentType[]).map(t => <option key={t} value={t} className="capitalize">{t}</option>)}
+          {(['amateur', 'master', 'apex'] as TournamentType[]).map(t => <option key={t} value={t} className="capitalize">{t}</option>)}
         </select>
         <select name="duration_type" value={formState.duration_type} onChange={handleChange} className={formFieldClasses}>
-          <option value="daily">Daily</option>
-          <option value="mini-series">Mini-Series</option>
-          <option value="seasonal">Seasonal</option>
+          <option value="flash">Flash</option>
+          <option value="series">Series</option>
+          <option value="season">Season</option>
         </select>
       </div>
 

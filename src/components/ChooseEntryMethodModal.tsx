@@ -10,9 +10,9 @@ interface ChooseEntryMethodModalProps {
 }
 
 const tierDetails: Record<TournamentType, { label: string; color: string }> = {
-  rookie: { label: 'Rookie', color: 'text-lime-glow' },
-  pro: { label: 'Pro', color: 'text-warm-yellow' },
-  elite: { label: 'Elite', color: 'text-hot-red' },
+  amateur: { label: 'Amateur', color: 'text-lime-glow' },
+  master: { label: 'Master', color: 'text-warm-yellow' },
+  apex: { label: 'Apex', color: 'text-hot-red' },
 };
 
 export const ChooseEntryMethodModal: React.FC<ChooseEntryMethodModalProps> = ({

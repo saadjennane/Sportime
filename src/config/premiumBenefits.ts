@@ -12,7 +12,7 @@ export const PREMIUM_BENEFITS: PremiumBenefit[] = [
   },
   {
     icon: '🎟️',
-    title: 'Double Daily Tickets',
+    title: 'Double Flash Tickets',
     description: 'Receive two free tickets every day to enter exclusive tournaments.'
   },
   {

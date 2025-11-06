@@ -10,9 +10,9 @@ interface TicketWalletModalProps {
 }
 
 const tierDetails: Record<TournamentType, { label: string; color: string, iconColor: string }> = {
-  rookie: { label: 'Rookie', color: 'border-lime-glow', iconColor: 'text-lime-glow' },
-  pro: { label: 'Pro', color: 'border-warm-yellow', iconColor: 'text-warm-yellow' },
-  elite: { label: 'Elite', color: 'border-hot-red', iconColor: 'text-hot-red' },
+  amateur: { label: 'Amateur', color: 'border-lime-glow', iconColor: 'text-lime-glow' },
+  master: { label: 'Master', color: 'border-warm-yellow', iconColor: 'text-warm-yellow' },
+  apex: { label: 'Apex', color: 'border-hot-red', iconColor: 'text-hot-red' },
 };
 
 export const TicketWalletModal: React.FC<TicketWalletModalProps> = ({ isOpen, onClose, tickets }) => {
@@ -36,7 +36,7 @@ export const TicketWalletModal: React.FC<TicketWalletModalProps> = ({ isOpen, on
             <Ticket size={20} className={details.iconColor} />
             <h3 className={`text-lg font-bold ${details.iconColor}`}>{details.label}</h3>
           </div>
-          <span className="font-bold text-text-primary">{tierTickets.length} <span className="text-sm text-text-disabled">/ {tier === 'rookie' ? 5 : tier === 'pro' ? 3 : 2}</span></span>
+          <span className="font-bold text-text-primary">{tierTickets.length} <span className="text-sm text-text-disabled">/ {tier === 'amateur' ? 5 : tier === 'master' ? 3 : 2}</span></span>
         </div>
         {oldestTicket && (
           <p className="text-xs text-text-disabled mt-1">
@@ -63,9 +63,9 @@ export const TicketWalletModal: React.FC<TicketWalletModalProps> = ({ isOpen, on
           <h4 className="text-sm font-semibold text-text-secondary uppercase">Active Tickets</h4>
           {activeTickets.length > 0 ? (
             <>
-              <TicketTierSection tier="rookie" />
-              <TicketTierSection tier="pro" />
-              <TicketTierSection tier="elite" />
+              <TicketTierSection tier="amateur" />
+              <TicketTierSection tier="master" />
+              <TicketTierSection tier="apex" />
             </>
           ) : (
             <p className="text-center text-text-disabled py-4">You have no active tickets. Win them in tournaments!</p>
