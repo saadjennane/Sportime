@@ -3,10 +3,11 @@ import { Profile } from '../../types';
 import { COIN_PACKS } from '../../config/coinPacks';
 import { CoinsShopCard } from '../shop/CoinsShopCard';
 import { PurchaseConfirmationModal } from '../shop/PurchaseConfirmationModal';
-import { useMockStore } from '../../store/useMockStore';
 import { PremiumPromoCard } from '../premium/PremiumPromoCard';
 import { PremiumStatusCard } from '../premium/PremiumStatusCard';
 import { X, Copy, Coins } from 'lucide-react';
+import { purchaseCoinPack } from '../../services/coinService';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface CoinShopModalProps {
   isOpen: boolean;
@@ -19,7 +20,7 @@ interface CoinShopModalProps {
 
 export const CoinShopModal: React.FC<CoinShopModalProps> = ({ isOpen, onClose, profile, addToast, onOpenPremiumModal, onTriggerSignUp }) => {
   const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
-  const { purchaseCoinPack } = useMockStore();
+  const { reloadProfile } = useAuth();
 
   if (!isOpen) return null;
 
@@ -27,14 +28,24 @@ export const CoinShopModal: React.FC<CoinShopModalProps> = ({ isOpen, onClose, p
     setSelectedPackId(packId);
   };
 
-  const handleConfirmPurchase = () => {
-    if (profile && selectedPackId) {
-      purchaseCoinPack(selectedPackId, profile.id);
-      const pack = COIN_PACKS.find(p => p.id === selectedPackId);
-      if (pack) {
-        addToast(`+${pack.coins.toLocaleString()} coins added!`, 'success');
-      }
+  const handleConfirmPurchase = async () => {
+    if (!profile || !selectedPackId) return;
+
+    const pack = COIN_PACKS.find(p => p.id === selectedPackId);
+    if (!pack) return;
+
+    try {
+      // Purchase coins via Supabase (no payment, just adds coins)
+      await purchaseCoinPack(profile.id, selectedPackId, pack.coins);
+
+      // Refresh profile to get updated balance
+      await reloadProfile();
+
+      addToast(`+${pack.coins.toLocaleString()} coins added!`, 'success');
       setSelectedPackId(null);
+    } catch (error) {
+      console.error('[CoinShopModal] Purchase failed:', error);
+      addToast('Failed to purchase coins. Please try again.', 'error');
     }
   };
 

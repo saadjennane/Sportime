@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
+import { grantPremiumBonus } from '../services/coinService';
 import {
   SportimeGame,
   UserLeague,
@@ -364,8 +365,8 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
   },
 
   // ... other actions
-  subscribeToPremium: (userId, plan) => {
-    const { allUsers, setCoinBalance } = get();
+  subscribeToPremium: async (userId, plan) => {
+    const { allUsers } = get();
     const user = allUsers.find(u => u.id === userId);
     if (!user) return;
 
@@ -381,9 +382,13 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
       subscription_expires_at: newExpiry.toISOString(),
     };
 
-    // Add welcome bonus only on first subscription
+    // Add welcome bonus only on first subscription via Supabase
     if (!wasAlreadyPremium) {
-      setCoinBalance(userId, user.coins_balance + 5000);
+      try {
+        await grantPremiumBonus(userId);
+      } catch (error) {
+        console.error('[subscribeToPremium] Failed to grant bonus:', error);
+      }
     }
 
     set(state => ({

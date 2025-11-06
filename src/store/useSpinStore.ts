@@ -5,6 +5,7 @@ import { spinWheel } from '../modules/spin/SpinEngine';
 import { ADAPTIVE_RULES, RARE_REWARD_CATEGORIES } from '../config/spinConstants';
 import { addDays, isAfter } from 'date-fns';
 import { useMockStore } from './useMockStore';
+import { addCoins } from '../services/coinService';
 
 interface SpinState {
   userSpinStates: Record<string, UserSpinState>;
@@ -77,7 +78,7 @@ export const useSpinStore = create<SpinState & SpinActions>((set, get) => ({
       newAvailableSpins[tier] -= 1;
     }
 
-    // Apply other rewards via the main store
+    // Apply other rewards via the main store or services
     const { addTicket, addXp, grantPremium } = useMockStore.getState();
     if (reward.id.startsWith('ticket_')) {
       addTicket(userId, reward.id.replace('ticket_', '') as TournamentType);
@@ -85,6 +86,12 @@ export const useSpinStore = create<SpinState & SpinActions>((set, get) => ({
       addXp(userId, parseInt(reward.id.replace('boost_', '')));
     } else if (reward.id.startsWith('premium_')) {
       grantPremium(userId, parseInt(reward.id.replace('premium_', '').replace('d', '')));
+    } else if (reward.id.startsWith('coins_')) {
+      // Handle coin rewards from spin wheel via Supabase
+      const amount = parseInt(reward.id.replace('coins_', ''));
+      addCoins(userId, amount, 'spin_wheel', { tier, reward_id: reward.id }).catch((error) => {
+        console.error('[SpinWheel] Failed to add coins:', error);
+      });
     }
 
     const spinResult: SpinResult = {
