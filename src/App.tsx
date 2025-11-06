@@ -38,6 +38,7 @@ import { MiniCreateLeagueModal } from './components/leagues/MiniCreateLeagueModa
 import { SelectLeaguesToLinkModal } from './components/leagues/SelectLeaguesToLinkModal';
 import { useMockStore } from './store/useMockStore';
 import { useSpinStore } from './store/useSpinStore';
+import * as streakService from './services/streakService';
 import LiveGameSetupPage from './pages/live-game/LiveGameSetupPage';
 import LiveGamePlayPage from './pages/live-game/LiveGamePlayPage';
 import LiveGameResultsPage from './pages/live-game/LiveGameResultsPage';
@@ -126,7 +127,6 @@ function App() {
     createLiveGame, submitLiveGamePrediction, editLiveGamePrediction, placeLiveBet,
     tickLiveGame, joinChallenge: joinChallengeAction, joinSwipeGame,
     notifications: mockNotifications, markNotificationAsRead, markAllNotificationsAsRead, subscribeToPremium,
-    checkDailyStreak, claimDailyStreak,
   } = useMockStore();
 
   const { user: authUser, profile: authProfile, isLoading: authLoading, ensureGuest, signOut: supabaseSignOut, refreshProfile: reloadProfile, sendMagicLink } = useAuth();
@@ -287,12 +287,21 @@ function App() {
       }
   }, []);
 
-  const handleClaimStreak = () => {
+  const handleClaimStreak = async () => {
     if (!profile) return;
-    const { reward, streakDay } = claimDailyStreak(profile.id);
 
-    // Toast désactivé pour les streaks quotidiens
-    setDailyStreakData({ isOpen: false, streakDay: 0 });
+    try {
+      const result = await streakService.claimDailyStreak(profile.id);
+
+      // Refresh profile to get updated coins balance
+      await reloadProfile();
+
+      // Toast désactivé pour les streaks quotidiens
+      setDailyStreakData({ isOpen: false, streakDay: 0 });
+    } catch (error) {
+      console.error('[App] Failed to claim streak:', error);
+      addToast('Failed to claim daily streak', 'error');
+    }
   };
 
   // Effect 2: React to profile changes to set up the rest of the app state
@@ -312,11 +321,16 @@ function App() {
     initializeUserSpinState(profile.id);
 
     if (!isGuest) {
-      const { isAvailable, streakDay, isFirstTime } = checkDailyStreak(profile.id);
-      // Ne montrer le modal QUE si ce n'est pas la première fois
-      if (isAvailable && !isFirstTime) {
-        setDailyStreakData({ isOpen: true, streakDay });
-      }
+      streakService.checkDailyStreak(profile.id)
+        .then((result) => {
+          // Ne montrer le modal QUE si ce n'est pas la première fois
+          if (result.is_available && !result.is_first_time) {
+            setDailyStreakData({ isOpen: true, streakDay: result.streak_day });
+          }
+        })
+        .catch((error) => {
+          console.error('[App] Failed to check daily streak:', error);
+        });
     }
 
     const seenTutorial = localStorage.getItem('sportime_seen_swipe_tutorial');
@@ -325,7 +339,7 @@ function App() {
     }
 
     setLoading(false);
-  }, [profile, isGuest, initializeUserSpinState, checkDailyStreak, challengesLoading, shouldUseSupabaseChallenges]);
+  }, [profile, isGuest, initializeUserSpinState, challengesLoading, shouldUseSupabaseChallenges]);
 
   const coinBalance = profile?.coins_balance ?? 0;
   const profileLevel = profile ? profile.level ?? profile.current_level ?? profile.level : undefined;
