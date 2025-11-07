@@ -1,8 +1,8 @@
 import { supabase } from './supabase';
 import { SpinTier, SpinReward, UserSpinState, SpinResult } from '../types';
 import { SPIN_REWARDS, ADAPTIVE_RULES, PITY_TIMER_THRESHOLD, PITY_MULTIPLIER, RARE_REWARD_CATEGORIES } from '../config/spinConstants';
-import { addCoins } from './coinService';
 import { grantTicket } from './ticketService';
+import { addXpToUser } from './progressionService';
 
 // =====================================================
 // CORE SPIN STATE FUNCTIONS
@@ -22,19 +22,19 @@ export async function getUserSpinState(userId: string): Promise<UserSpinState> {
   }
 
   return {
-    userId: data.user_id,
-    pityCounter: data.pity_counter,
-    adaptiveMultipliers: data.adaptive_multipliers || {},
-    availableSpins: data.available_spins || {
+    userId: data.out_user_id,
+    pityCounter: data.out_pity_counter,
+    adaptiveMultipliers: data.out_adaptive_multipliers || {},
+    availableSpins: data.out_available_spins || {
       free: 0,
       amateur: 0,
       master: 0,
       apex: 0,
       premium: 0,
     },
-    lastFreeSpinAt: data.last_free_spin_at ? new Date(data.last_free_spin_at) : null,
-    freeSpinStreak: data.free_spin_streak,
-    updatedAt: new Date(data.updated_at),
+    lastFreeSpinAt: data.out_last_free_spin_at ? new Date(data.out_last_free_spin_at) : null,
+    freeSpinStreak: data.out_free_spin_streak,
+    updatedAt: new Date(data.out_updated_at),
   };
 }
 
@@ -210,7 +210,7 @@ async function grantSpinReward(userId: string, reward: SpinReward): Promise<void
       const xpMatch = label.match(/\+(\d+)/);
       if (xpMatch) {
         const xpAmount = parseInt(xpMatch[1], 10);
-        await addCoins(userId, xpAmount); // Using coins as XP for now
+        await addXpToUser(userId, xpAmount);
       }
     } else if (category === 'masterpass') {
       // TODO: Implement masterpass granting when system is ready
