@@ -12,6 +12,8 @@ import { CelebrationFeed } from '../components/admin/CelebrationFeed';
 import { SwipeGameAdmin } from '../components/admin/SwipeGameAdmin';
 import { BadgeManager } from '../components/admin/BadgeManager';
 import { Zap } from 'lucide-react';
+import { USE_SUPABASE } from '../config/env';
+import * as challengeService from '../services/challengeService';
 
 type AdminSection = 'challenges' | 'swipe' | 'progression' | 'datasync' | 'feed' | 'developer';
 
@@ -56,9 +58,81 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
   const [activeSection, setActiveSection] = useState<AdminSection>('challenges');
   const [celebratingGame, setCelebratingGame] = useState<SportimeGame | null>(null);
 
-  const handleStartChallenge = (challengeId: string) => {
-    const result = processChallengeStart(challengeId);
-    addToast(result.message, result.success ? 'success' : 'error');
+  // ==================== CHALLENGE ADMIN HANDLERS ====================
+
+  const handleCreateGame = async (config: Omit<SportimeGame, 'id' | 'status' | 'totalPlayers' | 'participants'>) => {
+    if (USE_SUPABASE) {
+      try {
+        // Map SportimeGame to CreateChallengeParams
+        const params: challengeService.CreateChallengeParams = {
+          name: config.name,
+          description: config.description || null,
+          game_type: config.game_type || 'betting',
+          format: config.format || 'leaderboard',
+          sport: 'football', // Default to football
+          start_date: config.start_date,
+          end_date: config.end_date,
+          entry_cost: config.entry_cost || 0,
+          prizes: config.rewards || [],
+          rules: {
+            tier: config.tier,
+            duration_type: config.duration_type,
+            custom_entry_cost_enabled: config.custom_entry_cost_enabled,
+            is_linkable: config.is_linkable,
+            reward_tier: config.reward_tier,
+            minimum_players: config.minimum_players,
+            maximum_players: config.maximum_players,
+            challengeBalance: config.challengeBalance,
+          },
+          status: 'upcoming',
+          entry_conditions: {
+            requires_subscription: config.requires_subscription,
+            minimum_level: config.minimum_level,
+            required_badges: config.required_badges,
+            conditions_logic: config.conditions_logic,
+          },
+          configs: [
+            { config_type: 'tier', config_data: { tier: config.tier } },
+            { config_type: 'duration_type', config_data: { duration_type: config.duration_type } },
+          ],
+          league_ids: config.league_id ? [config.league_id] : [],
+          match_ids: [], // Matches can be added later
+        };
+
+        const result = await challengeService.createChallenge(params);
+        addToast('Game created successfully!', 'success');
+        // TODO: Refresh games list
+      } catch (error) {
+        console.error('[AdminPage] Failed to create game:', error);
+        addToast('Failed to create game. Please try again.', 'error');
+      }
+    } else {
+      // Fallback to MockStore
+      createGame(config);
+      addToast('Game created successfully!', 'success');
+    }
+  };
+
+  const handleStartChallenge = async (challengeId: string) => {
+    if (USE_SUPABASE) {
+      try {
+        // In Supabase mode, challenges start automatically based on start_date
+        // This function just updates the status manually if needed
+        await challengeService.updateChallenge({
+          challenge_id: challengeId,
+          status: 'active',
+        });
+        addToast('Challenge started successfully!', 'success');
+        // TODO: Refresh games list
+      } catch (error) {
+        console.error('[AdminPage] Failed to start challenge:', error);
+        addToast('Failed to start challenge. Please try again.', 'error');
+      }
+    } else {
+      // Fallback to MockStore
+      const result = processChallengeStart(challengeId);
+      addToast(result.message, result.success ? 'success' : 'error');
+    }
   };
 
   const handleConfirmCelebration = (gameId: string, period: { start: string; end: string }, topN: number, reward: RewardItem, message: string) => {
@@ -89,9 +163,9 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
 
       {activeSection === 'challenges' && (
         <div className="animate-scale-in">
-          <ChallengesAdmin 
-            games={games} 
-            onCreateGame={createGame} 
+          <ChallengesAdmin
+            games={games}
+            onCreateGame={handleCreateGame}
             onProcessChallengeStart={handleStartChallenge}
             addToast={addToast}
             updateBasePack={updateBasePack}
