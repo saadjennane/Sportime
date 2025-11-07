@@ -35,7 +35,7 @@ const initialFormState: Omit<SportimeGame, 'id' | 'status' | 'totalPlayers' | 'p
   start_date: new Date().toISOString().split('T')[0],
   end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
   game_type: 'betting',
-  tier: 'amateur',
+  tier: 'amateur', // Challenge tier (Amateur/Master/Apex)
   duration_type: 'flash',
   entry_cost: 2000,
   custom_entry_cost_enabled: false,
@@ -43,7 +43,7 @@ const initialFormState: Omit<SportimeGame, 'id' | 'status' | 'totalPlayers' | 'p
   reward_tier: 'tier1',
   format: 'leaderboard',
   requires_subscription: false,
-  minimum_level: 'Amateur',
+  minimum_level: 'Rookie', // Progression level (Rookie/Rising Star/Pro/Elite/Legend/GOAT)
   required_badges: [],
   conditions_logic: 'and',
   minimum_players: 0,
@@ -101,9 +101,9 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
     } catch (err) {
       console.error('Error loading levels:', err);
       addToast('Failed to load levels', 'error');
-      // Fallback to default levels from Supabase schema
+      // Fallback to default progression levels (NOT tiers)
       setLevels([
-        { name: 'Amateur' },
+        { name: 'Rookie' },
         { name: 'Rising Star' },
         { name: 'Pro' },
         { name: 'Elite' },
@@ -265,7 +265,7 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
         </label>
         <select name="minimum_level" value={formState.minimum_level} onChange={handleChange} className={formFieldClasses}>
           {levels.length === 0 ? (
-            <option value="Amateur">Min Level: Amateur</option>
+            <option value="Rookie">Min Level: Rookie</option>
           ) : (
             levels.map(l => (
               <option key={l.name} value={l.name}>

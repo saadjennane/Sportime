@@ -27,7 +27,7 @@ const SWIPE_TIER_COSTS: Record<SwipeTier, { base: number; multipliers: Record<Du
 
 const DEFAULT_DURATION: DurationKey = 'flash'
 const DEFAULT_TIER: SwipeTier = 'amateur'
-const DEFAULT_MIN_LEVEL = 'Amateur'
+const DEFAULT_MIN_LEVEL = 'Rookie' // Progression level, not tier
 
 interface SwipeGameAdminProps {
   addToast: (message: string, type: 'success' | 'error' | 'info') => void;
