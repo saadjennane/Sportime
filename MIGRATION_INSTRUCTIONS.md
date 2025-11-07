@@ -37,6 +37,13 @@ You need to apply 3 new SQL migrations to your Supabase remote database to enabl
    - Click "Run"
    - Verify success
 
+5. **Apply Migration 4: Fix Level Names**
+   - Click "New Query"
+   - Copy the entire contents of: `supabase/migrations/20250628000003_fix_level_names.sql`
+   - Paste into the SQL Editor
+   - Click "Run"
+   - Verify success (fixes Amateur → Rookie for progression levels)
+
 ### Option 2: Using Supabase CLI (If Available)
 
 If you have Supabase CLI installed:
@@ -74,6 +81,12 @@ supabase db push
 - `distribute_challenge_prizes()` - Distribute all prizes based on rankings
 - `trigger_distribute_prizes_on_finalize()` - Auto-trigger when challenge finalized
 - **Trigger**: `on_challenge_finalized_distribute_prizes` on `challenges` table
+
+### Migration 4: Fix Level Names (20250628000003)
+- Fixes incorrect level name: `Amateur` → `Rookie`
+- Updates `levels_config` table (level 1)
+- Updates existing users with level_name = 'Amateur'
+- Clarifies distinction between **Progression Levels** (Rookie, Rising Star, Pro, Elite, Legend, GOAT) and **Challenge Tiers** (Amateur, Master, Apex)
 
 ## Verification
 
