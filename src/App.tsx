@@ -65,6 +65,7 @@ import { useActivityTracker } from './hooks/useActivityTracker';
 import { useAuth } from './contexts/AuthContext';
 import { useChallengesCatalog } from './features/challenges/useChallengesCatalog';
 import { useChallengeMatches } from './features/challenges/useChallengeMatches';
+import { useUserTickets } from './hooks/useUserTickets';
 import { completeGuestRegistration } from './services/userService';
 import { updateUserProfile } from './services/profileService';
 import { joinChallenge as joinChallengeOnSupabase } from './services/challengeService';
@@ -179,7 +180,18 @@ function App() {
   const userChallengeEntries = shouldUseSupabaseChallenges ? supabaseChallengeEntries : mockUserChallengeEntries;
   const userSwipeEntries = shouldUseSupabaseChallenges ? supabaseSwipeEntries : mockUserSwipeEntries;
   const userFantasyTeams = shouldUseSupabaseChallenges ? supabaseFantasyTeams : mockUserFantasyTeams;
-  const userTickets = mockUserTickets; // Supabase integration pending
+
+  const {
+    tickets: supabaseTickets,
+    isLoading: ticketsLoading,
+    error: ticketsError,
+    refresh: refreshTickets,
+  } = useUserTickets({
+    userId: profile?.id ?? null,
+    enabled: USE_SUPABASE,
+  });
+
+  const userTickets = USE_SUPABASE && !ticketsError ? supabaseTickets : mockUserTickets;
   const notifications = mockNotifications;
 
   useEffect(() => {
