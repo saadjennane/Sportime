@@ -39,6 +39,11 @@ import { SelectLeaguesToLinkModal } from './components/leagues/SelectLeaguesToLi
 import { useMockStore } from './store/useMockStore';
 import { useSpinStore } from './store/useSpinStore';
 import * as streakService from './services/streakService';
+// Load diagnostic tools in dev mode
+if (import.meta.env.DEV) {
+  import('./utils/spinDiagnostic');
+  import('./utils/spinTestHelper');
+}
 import LiveGameSetupPage from './pages/live-game/LiveGameSetupPage';
 import LiveGamePlayPage from './pages/live-game/LiveGamePlayPage';
 import LiveGameResultsPage from './pages/live-game/LiveGameResultsPage';
