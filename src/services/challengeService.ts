@@ -915,6 +915,23 @@ export async function finalizeChallenge(challengeId: string) {
   }
 }
 
+/**
+ * Manually recalculate all points and rankings for a challenge (admin only)
+ */
+export async function recalculateAllChallengePoints(challengeId: string) {
+  const { data, error } = await supabase
+    .rpc('recalculate_all_challenge_points', {
+      p_challenge_id: challengeId,
+    })
+
+  if (error) {
+    console.error('[challengeService] Failed to recalculate points:', error)
+    throw error
+  }
+
+  return data || []
+}
+
 // ==================== END ADMIN FUNCTIONS ====================
 
 export async function fetchChallengeMatches(challengeId: string) {
