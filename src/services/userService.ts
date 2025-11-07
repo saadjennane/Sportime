@@ -91,8 +91,10 @@ export async function refreshProfile() {
         coins_balance: 1000,
         xp: 0,
         xp_total: 0,
-        current_level: 'bronze',
+        current_level: 1, // Integer: level ID (1 = Amateur/Bronze)
+        level_name: 'Amateur',
         user_type: 'user',
+        is_premium: false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
