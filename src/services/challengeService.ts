@@ -932,6 +932,23 @@ export async function recalculateAllChallengePoints(challengeId: string) {
   return data || []
 }
 
+/**
+ * Manually distribute prizes for a challenge (admin only)
+ */
+export async function distributeChallengePrizes(challengeId: string) {
+  const { data, error } = await supabase
+    .rpc('distribute_challenge_prizes', {
+      p_challenge_id: challengeId,
+    })
+
+  if (error) {
+    console.error('[challengeService] Failed to distribute prizes:', error)
+    throw error
+  }
+
+  return data || []
+}
+
 // ==================== END ADMIN FUNCTIONS ====================
 
 export async function fetchChallengeMatches(challengeId: string) {
