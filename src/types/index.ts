@@ -671,23 +671,27 @@ export interface SpinReward {
   label: string;
   baseChance: number;
   category: string;
+  value?: string | number;
 }
 
 export interface UserSpinState {
   userId: string;
-  adaptiveMultipliers: Record<string, { multiplier: number, expiresAt: string }>;
   pityCounter: number;
-  spinHistory: SpinResult[];
+  adaptiveMultipliers: Record<string, { multiplier: number; expiresAt: string }>;
   availableSpins: Record<SpinTier, number>;
+  lastFreeSpinAt: Date | null;
+  freeSpinStreak: number;
+  updatedAt: Date;
 }
 
 export interface SpinResult {
-  id: string;
-  tier: SpinTier;
   rewardId: string;
   rewardLabel: string;
-  timestamp: string;
+  rewardCategory: string;
+  rewardValue?: string;
   wasPity: boolean;
+  finalChances: Record<string, number>;
+  timestamp: Date;
 }
 
 export interface SpinTelemetryLog {
