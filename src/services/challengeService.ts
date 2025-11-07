@@ -12,6 +12,7 @@ import type {
   ChallengeBet,
 } from '../types'
 import type { Challenge, ChallengeMatch } from '../types'
+import { normalizeTournamentTier, normalizeDurationType } from '../config/constants'
 
 type ChallengeConfigRow = {
   config_type: string
@@ -177,12 +178,16 @@ function mapChallengeRow(
   const entryConditions = row.entry_conditions ?? {}
   const configs = row.challenge_configs ?? []
 
-  const tier =
-    extractConfigValue<TournamentType>(configs, 'tier') ??
-    (rules?.tier as TournamentType | undefined)
-  const durationType =
-    extractConfigValue<'daily' | 'mini-series' | 'seasonal'>(configs, 'duration_type') ??
-    (rules?.duration_type as 'daily' | 'mini-series' | 'seasonal' | undefined)
+  const tierRaw =
+    extractConfigValue<string>(configs, 'tier') ??
+    (rules?.tier as string | undefined)
+  const durationRaw =
+    extractConfigValue<string>(configs, 'duration_type') ??
+    (rules?.duration_type as string | undefined)
+
+  const tier = normalizeTournamentTier(tierRaw) ?? 'amateur'
+  const durationType = normalizeDurationType(durationRaw) ?? 'flash'
+
   const minimumLevel =
     extractConfigValue<string>(configs, 'minimum_level') ??
     (entryConditions?.minimum_level as string | undefined)

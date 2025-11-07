@@ -133,8 +133,16 @@ function App() {
 
   useEffect(() => {
     if (authLoading) return;
+    if (!USE_SUPABASE) {
+      // In mock mode, use default user
+      if (!currentUserId) {
+        setCurrentUserId('user-1');
+      }
+      setLoading(false);
+      return;
+    }
     ensureGuest().catch(err => console.error('[App] Failed to ensure guest session', err));
-  }, [authLoading, ensureGuest]);
+  }, [authLoading, ensureGuest, currentUserId, setCurrentUserId]);
 
   useEffect(() => {
     if (!authProfile) return;

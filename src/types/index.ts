@@ -495,11 +495,12 @@ export interface PredictionChallenge {
 }
 
 export type TournamentType = 'amateur' | 'master' | 'apex';
+export type TicketTier = 'amateur' | 'master' | 'apex';
 
 export interface UserTicket {
   id: string;
   user_id: string;
-  type: TournamentType;
+  type: TicketTier;
   is_used: boolean;
   created_at: string;
   expires_at: string;
@@ -575,6 +576,14 @@ export interface CelebrationEvent {
   topPlayers: { userId: string; username: string; rank: number; reward: RewardItem }[];
   createdAt: string;
   message: string;
+}
+
+export interface GameFilters {
+  type: GameType | 'all';
+  format: GameFormat | 'all';
+  tier: TournamentType | 'all';
+  duration: 'flash' | 'series' | 'season' | 'all';
+  eligibleOnly: boolean;
 }
 
 export interface ActiveSession {

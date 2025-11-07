@@ -5,7 +5,7 @@ type RewardPackMatrix = Record<TournamentType, Record<string, GameRewardTier[]>>
 
 const createReward = (type: any, tier?: any, value?: any) => ({ id: uuidv4(), type, tier, value });
 
-export const BASE_REWARD_PACKS: RewardPackMatrix = {
+const CORE_REWARD_PACKS = {
   amateur: {
     flash: [
       { id: uuidv4(), positionType: 'rank', start: 1, rewards: [createReward("ticket", "master"), createReward("xp", undefined, 200)] },
@@ -51,4 +51,10 @@ export const BASE_REWARD_PACKS: RewardPackMatrix = {
       { id: uuidv4(), positionType: 'percent', start: 10, rewards: [createReward("premium_3d")] },
     ],
   },
+} as const;
+
+export const BASE_REWARD_PACKS: RewardPackMatrix = {
+  amateur: CORE_REWARD_PACKS.amateur,
+  master: CORE_REWARD_PACKS.master,
+  apex: CORE_REWARD_PACKS.apex,
 };

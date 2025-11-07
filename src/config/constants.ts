@@ -1,4 +1,4 @@
-import { TournamentType } from '../types';
+import { TournamentType, TicketTier } from '../types';
 
 export const DAILY_STREAK_REWARDS: Record<number, { coins?: number; ticket?: TournamentType }> = {
   1: { coins: 100 },
@@ -56,14 +56,64 @@ export function getLevelBetLimit(level?: string | null): number | null {
   }
 }
 
-export const TICKET_RULES: Record<TournamentType, { expiry_days: number; max_quantity: number }> = {
+export const TICKET_RULES: Record<TicketTier, { expiry_days: number; max_quantity: number }> = {
   amateur: { expiry_days: 30, max_quantity: 5 },
   master: { expiry_days: 45, max_quantity: 3 },
   apex: { expiry_days: 60, max_quantity: 2 },
 };
 
-export const TOURNAMENT_COSTS: Record<TournamentType, { base: number; multipliers: Record<string, number> }> = {
-  amateur: { base: 2000, multipliers: { flash: 1, series: 2, season: 4 } },
-  master: { base: 10000, multipliers: { flash: 1, series: 2, season: 4 } },
-  apex: { base: 20000, multipliers: { flash: 1, series: 2, season: 4 } },
+const BASE_MULTIPLIERS = {
+  flash: 1,
+  series: 2,
+  season: 4,
+} as const;
+
+const createCostEntry = (base: number) => ({
+  base,
+  multipliers: { ...BASE_MULTIPLIERS },
+});
+
+export const TOURNAMENT_COSTS: Record<TournamentType, { base: number; multipliers: Record<keyof typeof BASE_MULTIPLIERS, number> }> = {
+  amateur: createCostEntry(2000),
+  master: createCostEntry(10000),
+  apex: createCostEntry(20000),
 };
+
+const TIER_ALIASES: Record<string, TournamentType> = {
+  rookie: 'amateur',
+  pro: 'master',
+  elite: 'apex',
+  amateurs: 'amateur',
+  masters: 'master',
+  elites: 'apex',
+};
+
+const DURATION_ALIASES: Record<string, keyof typeof BASE_MULTIPLIERS> = {
+  daily: 'flash',
+  matchday: 'flash',
+  'mini-series': 'series',
+  mini_series: 'series',
+  series: 'series',
+  seasonal: 'season',
+  season: 'season',
+};
+
+export function normalizeTournamentTier(value?: string | null): TournamentType | undefined {
+  if (!value) return undefined;
+  const lower = value.toLowerCase();
+  if (TIER_ALIASES[lower]) return TIER_ALIASES[lower];
+  if (lower === 'amateur' || lower === 'master' || lower === 'apex') {
+    return lower as TournamentType;
+  }
+  return undefined;
+}
+
+export function normalizeDurationType(value?: string | null): keyof typeof BASE_MULTIPLIERS | undefined {
+  if (!value) return undefined;
+  const lower = value.toLowerCase();
+  if (DURATION_ALIASES[lower]) return DURATION_ALIASES[lower];
+  if (lower === 'flash' || lower === 'series' || lower === 'season') {
+    return lower as keyof typeof BASE_MULTIPLIERS;
+  }
+  return undefined;
+}
