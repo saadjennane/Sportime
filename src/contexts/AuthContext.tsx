@@ -39,6 +39,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const init = async () => {
+      if (!supabase) {
+        setIsLoading(false)
+        return
+      }
       const { data } = await supabase.auth.getSession()
       setSession(data.session)
       setUser(data.session?.user ?? null)
@@ -46,6 +50,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     init()
+
+    if (!supabase) {
+      return
+    }
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession)
@@ -67,7 +75,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user, loadProfile])
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut()
+    if (supabase) {
+      await supabase.auth.signOut()
+    }
     setSession(null)
     setUser(null)
     setProfile(null)
@@ -75,6 +85,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const ensureGuest = useCallback(async () => {
     if (user) return { userId: user.id }
+
+    if (!supabase) {
+      throw new Error('Supabase is not configured')
+    }
 
     const guest = await createGuestAccount()
 
@@ -95,6 +109,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user, loadProfile])
 
   const sendMagicLink = useCallback(async (email: string): Promise<string> => {
+    if (!supabase) {
+      throw new Error('Supabase is not configured')
+    }
+
     const normalizedEmail = email.trim().toLowerCase()
     const redirectTo = window.location.origin
 
