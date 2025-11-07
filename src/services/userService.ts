@@ -81,22 +81,15 @@ export async function refreshProfile() {
   if (!data) {
     console.log('[userService] Profile not found, creating new profile for user', user.id)
 
+    // Create profile with only base columns (let DB defaults handle the rest)
     const { data: newProfile, error: insertError } = await supabase
       .from('users')
       .insert({
         id: user.id,
         email: user.email || null,
-        username: user.email?.split('@')[0] || `user_${user.id.slice(0, 8)}`,
-        display_name: user.email?.split('@')[0] || `User ${user.id.slice(0, 8)}`,
-        coins_balance: 1000,
-        xp: 0,
-        xp_total: 0,
-        current_level: 1, // Integer: level ID (1 = Amateur/Bronze)
-        level_name: 'Amateur',
-        user_type: 'user',
-        is_premium: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        username: user.email?.split('@')[0] || `user_${user.id.slice(0, 8)}`
+        // coins_balance, created_at, is_premium have defaults in DB
+        // xp, current_level, level_name added by migrations
       })
       .select()
       .single()
