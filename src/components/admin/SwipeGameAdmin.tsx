@@ -16,18 +16,18 @@ import { MultiSelect } from './MultiSelect'
 import { getMatchdayDate, formatMatchdayDate } from '../../features/swipe/swipeMappers';
 import type { GameRewardTier } from '../../types'
 
-type DurationKey = 'daily' | 'mini-series' | 'seasonal'
-type SwipeTier = 'rookie' | 'pro' | 'elite'
+type DurationKey = 'flash' | 'series' | 'season'
+type SwipeTier = 'amateur' | 'master' | 'apex'
 
 const SWIPE_TIER_COSTS: Record<SwipeTier, { base: number; multipliers: Record<DurationKey, number> }> = {
-  rookie: { base: 2000, multipliers: { daily: 1, 'mini-series': 2, seasonal: 4 } },
-  pro: { base: 10000, multipliers: { daily: 1, 'mini-series': 2, seasonal: 4 } },
-  elite: { base: 20000, multipliers: { daily: 1, 'mini-series': 2, seasonal: 4 } },
+  amateur: { base: 2000, multipliers: { flash: 1, series: 2, season: 4 } },
+  master: { base: 10000, multipliers: { flash: 1, series: 2, season: 4 } },
+  apex: { base: 20000, multipliers: { flash: 1, series: 2, season: 4 } },
 }
 
-const DEFAULT_DURATION: DurationKey = 'daily'
-const DEFAULT_TIER: SwipeTier = 'rookie'
-const DEFAULT_MIN_LEVEL = 'Rookie'
+const DEFAULT_DURATION: DurationKey = 'flash'
+const DEFAULT_TIER: SwipeTier = 'amateur'
+const DEFAULT_MIN_LEVEL = 'Amateur'
 
 interface SwipeGameAdminProps {
   addToast: (message: string, type: 'success' | 'error' | 'info') => void;
@@ -465,8 +465,7 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
 
   const effectiveEntryCost = customEntryEnabled ? entryCost : computeEntryCost(tier, durationType)
   const tierLabel = (value: SwipeTier) => value.charAt(0).toUpperCase() + value.slice(1)
-  const durationLabel = (value: DurationKey) =>
-    value === 'mini-series' ? 'Mini-Series' : value.charAt(0).toUpperCase() + value.slice(1)
+  const durationLabel = (value: DurationKey) => value.charAt(0).toUpperCase() + value.slice(1)
 
   return (
     <form onSubmit={handleSubmit} className="card-base p-4 space-y-3">
@@ -568,7 +567,7 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
             onChange={(e) => setTier(e.target.value as SwipeTier)}
             className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
           >
-            {(['rookie', 'pro', 'elite'] as SwipeTier[]).map((option) => (
+            {(['amateur', 'master', 'apex'] as SwipeTier[]).map((option) => (
               <option key={option} value={option}>
                 {tierLabel(option)}
               </option>
@@ -584,7 +583,7 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
             onChange={(e) => setDurationType(e.target.value as DurationKey)}
             className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
           >
-            {(['daily', 'mini-series', 'seasonal'] as DurationKey[]).map((option) => (
+            {(['flash', 'series', 'season'] as DurationKey[]).map((option) => (
               <option key={option} value={option}>
                 {durationLabel(option)}
               </option>
@@ -740,7 +739,7 @@ const CollapsibleSummary: React.FC<{
   players: { min: number; max: number }
 }> = ({ tier, duration, cost, minimumLevel, subscription, dateRange, players }) => {
   const [open, setOpen] = useState(false)
-  const formattedDuration = duration === 'mini-series' ? 'Mini-Series' : duration.charAt(0).toUpperCase() + duration.slice(1)
+  const formattedDuration = duration.charAt(0).toUpperCase() + duration.slice(1)
 
   return (
     <div className="border-t border-disabled/50 pt-3">
