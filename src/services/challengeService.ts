@@ -745,6 +745,178 @@ function buildMatchesFromChallengeMatches(challengeId: string, rows: ChallengeMa
     .sort((a, b) => a.day - b.day)
 }
 
+// ==================== ADMIN FUNCTIONS ====================
+
+export type CreateChallengeParams = {
+  name: string
+  description?: string | null
+  game_type?: string
+  format?: string
+  sport?: string
+  start_date?: string
+  end_date?: string
+  entry_cost?: number
+  prizes?: any
+  rules?: Record<string, any>
+  status?: string
+  entry_conditions?: Record<string, any>
+  configs?: Array<{ config_type: string; config_data: Record<string, any> }>
+  league_ids?: string[]
+  match_ids?: string[]
+}
+
+export type UpdateChallengeParams = {
+  challenge_id: string
+  name?: string | null
+  description?: string | null
+  start_date?: string | null
+  end_date?: string | null
+  entry_cost?: number | null
+  prizes?: any | null
+  rules?: Record<string, any> | null
+  status?: string | null
+  entry_conditions?: Record<string, any> | null
+  configs?: Array<{ config_type: string; config_data: Record<string, any> }> | null
+  league_ids?: string[] | null
+  match_ids?: string[] | null
+}
+
+/**
+ * Create a new challenge (admin only)
+ */
+export async function createChallenge(params: CreateChallengeParams) {
+  const { data, error } = await supabase
+    .rpc('create_challenge', {
+      p_name: params.name,
+      p_description: params.description ?? null,
+      p_game_type: params.game_type ?? 'betting',
+      p_format: params.format ?? 'leaderboard',
+      p_sport: params.sport ?? 'football',
+      p_start_date: params.start_date ?? new Date().toISOString(),
+      p_end_date: params.end_date ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      p_entry_cost: params.entry_cost ?? 0,
+      p_prizes: params.prizes ?? [],
+      p_rules: params.rules ?? {},
+      p_status: params.status ?? 'upcoming',
+      p_entry_conditions: params.entry_conditions ?? {},
+      p_configs: params.configs ?? [],
+      p_league_ids: params.league_ids ?? [],
+      p_match_ids: params.match_ids ?? [],
+    })
+    .single()
+
+  if (error) {
+    console.error('[challengeService] Failed to create challenge:', error)
+    throw error
+  }
+
+  return {
+    challengeId: data.out_challenge_id,
+    success: data.out_success,
+    message: data.out_message,
+  }
+}
+
+/**
+ * Update a challenge (admin only)
+ */
+export async function updateChallenge(params: UpdateChallengeParams) {
+  const { data, error } = await supabase
+    .rpc('update_challenge', {
+      p_challenge_id: params.challenge_id,
+      p_name: params.name,
+      p_description: params.description,
+      p_start_date: params.start_date,
+      p_end_date: params.end_date,
+      p_entry_cost: params.entry_cost,
+      p_prizes: params.prizes,
+      p_rules: params.rules,
+      p_status: params.status,
+      p_entry_conditions: params.entry_conditions,
+      p_configs: params.configs,
+      p_league_ids: params.league_ids,
+      p_match_ids: params.match_ids,
+    })
+    .single()
+
+  if (error) {
+    console.error('[challengeService] Failed to update challenge:', error)
+    throw error
+  }
+
+  return {
+    success: data.out_success,
+    message: data.out_message,
+  }
+}
+
+/**
+ * Delete a challenge (admin only)
+ */
+export async function deleteChallenge(challengeId: string) {
+  const { data, error } = await supabase
+    .rpc('delete_challenge', {
+      p_challenge_id: challengeId,
+    })
+    .single()
+
+  if (error) {
+    console.error('[challengeService] Failed to delete challenge:', error)
+    throw error
+  }
+
+  return {
+    success: data.out_success,
+    message: data.out_message,
+  }
+}
+
+/**
+ * Cancel a challenge and refund participants (admin only)
+ */
+export async function cancelChallenge(challengeId: string) {
+  const { data, error } = await supabase
+    .rpc('cancel_challenge', {
+      p_challenge_id: challengeId,
+    })
+    .single()
+
+  if (error) {
+    console.error('[challengeService] Failed to cancel challenge:', error)
+    throw error
+  }
+
+  return {
+    success: data.out_success,
+    message: data.out_message,
+    refundedUsers: data.out_refunded_users,
+  }
+}
+
+/**
+ * Finalize a challenge (admin only)
+ */
+export async function finalizeChallenge(challengeId: string) {
+  const { data, error } = await supabase
+    .rpc('finalize_challenge', {
+      p_challenge_id: challengeId,
+    })
+    .single()
+
+  if (error) {
+    console.error('[challengeService] Failed to finalize challenge:', error)
+    throw error
+  }
+
+  return {
+    success: data.out_success,
+    message: data.out_message,
+    totalParticipants: data.out_total_participants,
+  }
+}
+
+// ==================== END ADMIN FUNCTIONS ====================
+
 export async function fetchChallengeMatches(challengeId: string) {
   const { data: challengeRow, error } = await supabase
     .from('challenges')
