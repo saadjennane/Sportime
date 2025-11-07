@@ -669,7 +669,7 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
   // ... other actions
   createGame: (config) => {
     const { rewardPacks } = get();
-    const durationKey = config.duration_type === 'flash' ? 'matchday' : config.duration_type || 'matchday';
+    const durationKey = config.duration_type ?? 'flash';
     const baseRewards = rewardPacks[config.tier]?.[durationKey] || [];
 
     const newGame: SportimeGame = {

@@ -3,6 +3,7 @@ import { SportimeGame, TournamentType, Profile, UserTicket, GameType } from '../
 import { format, parseISO, isBefore, formatDistanceToNowStrict } from 'date-fns';
 import { Calendar, Coins, Gift, ArrowRight, Check, Clock, Users, Ticket, Ban, Star, Trophy, Award, ScrollText, Bell, Flame } from 'lucide-react';
 import { CtaState } from '../pages/GamesListPage';
+import { normalizeTournamentTier } from '../config/constants';
 
 interface GameCardProps {
   game: SportimeGame;
@@ -23,20 +24,21 @@ const gameTypeDetails: Record<GameType, { tag: string; color: string }> = {
 };
 
 const tournamentTierDetails: Record<TournamentType, { label: string; color: string }> = {
-  rookie: { label: 'Rookie', color: 'bg-lime-glow/20 text-lime-glow' },
-  pro: { label: 'Pro', color: 'bg-warm-yellow/20 text-warm-yellow' },
-  elite: { label: 'Elite', color: 'bg-hot-red/20 text-hot-red' },
+  amateur: { label: 'Amateur', color: 'bg-lime-glow/20 text-lime-glow' },
+  master: { label: 'Master', color: 'bg-warm-yellow/20 text-warm-yellow' },
+  apex: { label: 'Apex', color: 'bg-hot-red/20 text-hot-red' },
 };
 
 export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick, onPlay, onShowRewards, onShowRules, profile, userTickets }) => {
   const details = gameTypeDetails[game.game_type as keyof typeof gameTypeDetails];
-  const tierDetails = game.tier ? tournamentTierDetails[game.tier] : null;
+  const normalizedTier = normalizeTournamentTier(game.tier);
+  const tierDetails = normalizedTier ? tournamentTierDetails[normalizedTier] : null;
 
   const { hasTicket, hasEnoughCoins } = useMemo(() => {
     if (!profile) return { hasTicket: false, hasEnoughCoins: false };
     const validTicket = userTickets.find(t => 
       t.user_id === profile.id &&
-      t.type === game.tier &&
+      t.type === normalizedTier &&
       !t.is_used &&
       isBefore(new Date(), parseISO(t.expires_at))
     );
@@ -44,7 +46,7 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
       hasTicket: !!validTicket,
       hasEnoughCoins: profile.coins_balance >= game.entry_cost,
     };
-  }, [profile, userTickets, game]);
+  }, [profile, userTickets, game, normalizedTier]);
 
   const joinButtonContent = () => {
     if (!hasTicket && !hasEnoughCoins) {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, Ticket } from 'lucide-react';
-import { UserTicket, TournamentType } from '../types';
+import { UserTicket, TicketTier } from '../types';
 import { formatDistanceToNowStrict, parseISO, isBefore, format } from 'date-fns';
 
 interface TicketWalletModalProps {
@@ -9,7 +9,7 @@ interface TicketWalletModalProps {
   tickets: UserTicket[];
 }
 
-const tierDetails: Record<TournamentType, { label: string; color: string, iconColor: string }> = {
+const tierDetails: Record<TicketTier, { label: string; color: string, iconColor: string }> = {
   amateur: { label: 'Amateur', color: 'border-lime-glow', iconColor: 'text-lime-glow' },
   master: { label: 'Master', color: 'border-warm-yellow', iconColor: 'text-warm-yellow' },
   apex: { label: 'Apex', color: 'border-hot-red', iconColor: 'text-hot-red' },
@@ -22,9 +22,9 @@ export const TicketWalletModal: React.FC<TicketWalletModalProps> = ({ isOpen, on
   const activeTickets = tickets.filter(t => !t.is_used && isBefore(now, parseISO(t.expires_at)));
   const expiredTickets = tickets.filter(t => !t.is_used && !isBefore(now, parseISO(t.expires_at)));
   
-  const ticketsByType = (tier: TournamentType) => activeTickets.filter(t => t.type === tier);
+  const ticketsByType = (tier: TicketTier) => activeTickets.filter(t => t.type === tier);
 
-  const TicketTierSection: React.FC<{ tier: TournamentType }> = ({ tier }) => {
+  const TicketTierSection: React.FC<{ tier: TicketTier }> = ({ tier }) => {
     const details = tierDetails[tier];
     const tierTickets = ticketsByType(tier);
     const oldestTicket = tierTickets.length > 0 ? tierTickets.sort((a, b) => new Date(a.expires_at).getTime() - new Date(b.expires_at).getTime())[0] : null;

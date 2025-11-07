@@ -103,15 +103,15 @@ export const GamesFilterPanel: React.FC<GamesFilterPanelProps> = ({ filters, onF
                 </select>
                 <select name="tier" value={filters.tier} onChange={handleSelectChange} className="input-base text-sm">
                   <option value="all">All Tiers</option>
-                  <option value="rookie">Rookie</option>
-                  <option value="pro">Pro</option>
-                  <option value="elite">Elite</option>
+                  <option value="amateur">Amateur</option>
+                  <option value="master">Master</option>
+                  <option value="apex">Apex</option>
                 </select>
                 <select name="duration" value={filters.duration} onChange={handleSelectChange} className="input-base text-sm">
                   <option value="all">All Durations</option>
-                  <option value="daily">Daily</option>
-                  <option value="mini-series">Mini-Series</option>
-                  <option value="seasonal">Seasonal</option>
+                  <option value="flash">Flash</option>
+                  <option value="series">Series</option>
+                  <option value="season">Season</option>
                 </select>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
@@ -128,8 +128,19 @@ export const GamesFilterPanel: React.FC<GamesFilterPanelProps> = ({ filters, onF
                 {activeFilters.length > 0 && (
                   <div className="flex items-center gap-2 flex-wrap">
                     {activeFilters.map(([key, value]) => {
-                      const label = key === 'eligibleOnly' ? 'Eligible Only' : `${key}: ${value}`;
-                      return <FilterChip key={key} label={label} onRemove={() => removeFilter(key as keyof GameFilters)} />;
+                      let label = '';
+                      if (key === 'eligibleOnly') {
+                        label = 'Eligible Only';
+                      } else if (key === 'tier') {
+                        const map: Record<string, string> = { amateur: 'Amateur', master: 'Master', apex: 'Apex' };
+                        label = `Tier: ${map[String(value)] || value}`;
+                      } else if (key === 'duration') {
+                        const map: Record<string, string> = { flash: 'Flash', series: 'Series', season: 'Season' };
+                        label = `Duration: ${map[String(value)] || value}`;
+                      } else {
+                        label = `${key}: ${value}`;
+                      }
+                      return <FilterChip key={`${key}-${value}`} label={label} onRemove={() => removeFilter(key as keyof GameFilters)} />;
                     })}
                     <button onClick={clearAll} className="text-xs font-semibold text-hot-red hover:underline">Clear All</button>
                   </div>

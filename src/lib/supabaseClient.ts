@@ -8,10 +8,10 @@ if (USE_SUPABASE) {
   const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error("Supabase URL and Anon Key must be defined in .env file. Please create a .env file with VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
+    console.warn("Supabase URL and Anon Key must be defined in .env file. Supabase features will be disabled.");
+  } else {
+    supabase = createClient(supabaseUrl, supabaseAnonKey);
   }
-
-  supabase = createClient(supabaseUrl, supabaseAnonKey);
 }
 
 export { supabase };

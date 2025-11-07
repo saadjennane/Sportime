@@ -6,7 +6,7 @@
  */
 
 import { supabase } from '../lib/supabaseClient';
-import { TournamentType, UserTicket } from '../types';
+import { TicketTier, UserTicket } from '../types';
 
 export interface GrantTicketResponse {
   success: boolean;
@@ -35,7 +35,7 @@ export interface TicketCounts {
  */
 export async function grantTicket(
   userId: string,
-  ticketType: TournamentType,
+  ticketType: TicketTier,
   reason: string = 'reward'
 ): Promise<GrantTicketResponse> {
   try {
@@ -117,7 +117,7 @@ export async function useTicket(
  */
 export async function getUserTickets(
   userId: string,
-  ticketType?: TournamentType,
+  ticketType?: TicketTier,
   includeExpired: boolean = false,
   includeUsed: boolean = false
 ): Promise<UserTicket[]> {
@@ -142,7 +142,7 @@ export async function getUserTickets(
     return data.map((ticket: any) => ({
       id: ticket.id,
       user_id: userId,
-      type: ticket.ticket_type as TournamentType,
+      type: ticket.ticket_type as TicketTier,
       is_used: ticket.is_used,
       created_at: ticket.created_at,
       expires_at: ticket.expires_at,
@@ -199,7 +199,7 @@ export async function getTicketCounts(userId: string): Promise<TicketCounts> {
  */
 export async function hasValidTicket(
   userId: string,
-  tierRequired: TournamentType
+  tierRequired: TicketTier
 ): Promise<boolean> {
   const tickets = await getUserTickets(userId, tierRequired, false, false);
   return tickets.length > 0;
@@ -214,7 +214,7 @@ export async function hasValidTicket(
  */
 export async function getOldestTicket(
   userId: string,
-  ticketType: TournamentType
+  ticketType: TicketTier
 ): Promise<UserTicket | null> {
   const tickets = await getUserTickets(userId, ticketType, false, false);
 

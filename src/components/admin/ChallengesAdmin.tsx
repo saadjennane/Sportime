@@ -87,7 +87,7 @@ export const ChallengesAdmin: React.FC<ChallengesAdminProps> = (props) => {
                 <p className="font-bold text-text-primary">{game.name}</p>
                 <p className={`text-xs font-bold ${game.status === 'Cancelled' ? 'text-hot-red' : 'text-text-disabled'}`}>Status: {game.status}</p>
               </div>
-              {game.duration_type === 'seasonal' && (
+              {game.duration_type === 'season' && (
                 <button
                   onClick={() => onCelebrate(game)}
                   className="p-2 text-warm-yellow hover:bg-warm-yellow/10 rounded-lg"
