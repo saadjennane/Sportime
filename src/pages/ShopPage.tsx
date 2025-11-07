@@ -3,7 +3,7 @@ import { Profile } from '../types';
 import { COIN_PACKS } from '../config/coinPacks';
 import { CoinsShopCard } from '../components/shop/CoinsShopCard';
 import { PurchaseConfirmationModal } from '../components/shop/PurchaseConfirmationModal';
-import { useMockStore } from '../store/useMockStore';
+import { purchaseCoinPack } from '../services/coinService';
 import { PremiumPromoCard } from '../components/premium/PremiumPromoCard';
 import { PremiumStatusCard } from '../components/premium/PremiumStatusCard';
 
@@ -15,20 +15,24 @@ interface ShopPageProps {
 
 const ShopPage: React.FC<ShopPageProps> = ({ profile, addToast, onOpenPremiumModal }) => {
   const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
-  const { purchaseCoinPack } = useMockStore();
 
   const handlePurchase = (packId: string) => {
     setSelectedPackId(packId);
   };
 
-  const handleConfirmPurchase = () => {
+  const handleConfirmPurchase = async () => {
     if (profile && selectedPackId) {
-      purchaseCoinPack(selectedPackId, profile.id);
-      const pack = COIN_PACKS.find(p => p.id === selectedPackId);
-      if (pack) {
-        addToast(`+${pack.coins.toLocaleString()} coins added!`, 'success');
+      try {
+        const pack = COIN_PACKS.find(p => p.id === selectedPackId);
+        if (pack) {
+          await purchaseCoinPack(profile.id, selectedPackId, pack.coins);
+          addToast(`+${pack.coins.toLocaleString()} coins added!`, 'success');
+        }
+        setSelectedPackId(null);
+      } catch (error) {
+        console.error('Failed to purchase coin pack:', error);
+        addToast('Failed to purchase coins. Please try again.', 'error');
       }
-      setSelectedPackId(null);
     }
   };
 
