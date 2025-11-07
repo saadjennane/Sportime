@@ -49,26 +49,25 @@ BEGIN
   INSERT INTO public.leagues (
     id,                    -- Generate new UUID
     name,                  -- From fb_leagues.name
-    description,           -- Default to name
+    description,           -- Default to name (with country if available)
     logo,                  -- From fb_leagues.logo
     type,                  -- From fb_leagues.type (or default to 'football_competition')
     api_league_id,         -- From fb_leagues.api_league_id
     created_by,            -- Admin user
-    invite_code,           -- Generated from name
-    country_or_region,     -- From fb_leagues.country
-    season                 -- From fb_leagues.season (cast to TEXT)
+    invite_code            -- Generated from name
   )
   SELECT
     gen_random_uuid(),                                           -- Generate UUID
     fl.name,                                                      -- League name
-    fl.name,                                                      -- Description = name
+    CASE
+      WHEN fl.country IS NOT NULL THEN fl.name || ' (' || fl.country || ')'
+      ELSE fl.name
+    END,                                                          -- Description = name with country
     fl.logo,                                                      -- Logo URL
     COALESCE(fl.type, 'football_competition'),                   -- Type (default if NULL)
     fl.api_league_id::INTEGER,                                   -- API league ID (cast BIGINT to INTEGER)
     admin_user_id,                                               -- Creator
-    UPPER(REPLACE(REGEXP_REPLACE(fl.name, '[^a-zA-Z0-9 ]', '', 'g'), ' ', '_')), -- Invite code from name
-    fl.country,                                                  -- Country/region
-    fl.season::TEXT                                              -- Season as TEXT
+    UPPER(REPLACE(REGEXP_REPLACE(fl.name, '[^a-zA-Z0-9 ]', '', 'g'), ' ', '_')) -- Invite code from name
   FROM public.fb_leagues fl
   WHERE fl.api_league_id IS NOT NULL;  -- Only leagues with valid API IDs
 
@@ -99,21 +98,20 @@ BEGIN
       type,
       api_league_id,
       created_by,
-      invite_code,
-      country_or_region,
-      season
+      invite_code
     )
     VALUES (
       gen_random_uuid(),
       NEW.name,
-      NEW.name,
+      CASE
+        WHEN NEW.country IS NOT NULL THEN NEW.name || ' (' || NEW.country || ')'
+        ELSE NEW.name
+      END,
       NEW.logo,
       COALESCE(NEW.type, 'football_competition'),
       NEW.api_league_id::INTEGER,
       admin_user_id,
-      UPPER(REPLACE(REGEXP_REPLACE(NEW.name, '[^a-zA-Z0-9 ]', '', 'g'), ' ', '_')),
-      NEW.country,
-      NEW.season::TEXT
+      UPPER(REPLACE(REGEXP_REPLACE(NEW.name, '[^a-zA-Z0-9 ]', '', 'g'), ' ', '_'))
     );
 
     RETURN NEW;
@@ -123,11 +121,12 @@ BEGIN
     UPDATE public.leagues
     SET
       name = NEW.name,
-      description = NEW.name,
+      description = CASE
+        WHEN NEW.country IS NOT NULL THEN NEW.name || ' (' || NEW.country || ')'
+        ELSE NEW.name
+      END,
       logo = NEW.logo,
       type = COALESCE(NEW.type, 'football_competition'),
-      country_or_region = NEW.country,
-      season = NEW.season::TEXT,
       updated_at = NOW()
     WHERE api_league_id = NEW.api_league_id::INTEGER;
 
@@ -157,9 +156,9 @@ SELECT
   l.id AS league_uuid,
   l.name,
   l.api_league_id,
-  l.country_or_region,
-  l.season,
-  l.type
+  l.description,
+  l.type,
+  l.invite_code
 FROM public.leagues l
 ORDER BY l.name
 LIMIT 20;
