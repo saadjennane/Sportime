@@ -70,11 +70,42 @@ export async function refreshProfile() {
     .from('users')
     .select('*')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
   if (error) {
     console.error('[userService] Failed to fetch current profile', error)
     throw error
   }
+
+  // If profile doesn't exist, create it
+  if (!data) {
+    console.log('[userService] Profile not found, creating new profile for user', user.id)
+
+    const { data: newProfile, error: insertError } = await supabase
+      .from('users')
+      .insert({
+        id: user.id,
+        email: user.email || null,
+        username: user.email?.split('@')[0] || `user_${user.id.slice(0, 8)}`,
+        display_name: user.email?.split('@')[0] || `User ${user.id.slice(0, 8)}`,
+        coins_balance: 1000,
+        xp: 0,
+        xp_total: 0,
+        current_level: 'bronze',
+        user_type: 'user',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single()
+
+    if (insertError) {
+      console.error('[userService] Failed to create profile', insertError)
+      throw insertError
+    }
+
+    return newProfile
+  }
+
   return data
 }
