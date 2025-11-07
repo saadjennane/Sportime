@@ -63,6 +63,7 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
   }, [formState.tier, formState.duration_type]);
 
   const calculatedCost = useMemo(() => {
+    if (!formState.tier || !formState.duration_type) return 0;
     const durationKey = formState.duration_type;
     return TOURNAMENT_COSTS[formState.tier].base * (TOURNAMENT_COSTS[formState.tier].multipliers[durationKey!] || 1);
   }, [formState.tier, formState.duration_type]);
@@ -80,9 +81,11 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
     const newState = { ...formState, [name]: finalValue };
 
     if (!newState.custom_entry_cost_enabled && (name === 'tier' || name === 'duration_type')) {
-        const durationKey = newState.duration_type;
-        const newCost = TOURNAMENT_COSTS[newState.tier].base * (TOURNAMENT_COSTS[newState.tier].multipliers[durationKey!] || 1);
-        newState.entry_cost = newCost;
+        if (newState.tier && newState.duration_type) {
+          const durationKey = newState.duration_type;
+          const newCost = TOURNAMENT_COSTS[newState.tier].base * (TOURNAMENT_COSTS[newState.tier].multipliers[durationKey!] || 1);
+          newState.entry_cost = newCost;
+        }
     }
 
     setFormState(newState);
