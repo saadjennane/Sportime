@@ -1,4 +1,4 @@
-import { supabase } from '../config/supabase';
+import { supabase } from './supabase';
 import { SpinTier, SpinReward, UserSpinState, SpinResult } from '../types';
 import { SPIN_REWARDS, ADAPTIVE_RULES, PITY_TIMER_THRESHOLD, PITY_MULTIPLIER, RARE_REWARD_CATEGORIES } from '../config/spinConstants';
 import { addCoins } from './coinService';

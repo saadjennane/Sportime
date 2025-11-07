@@ -3,7 +3,7 @@
  * Run this in the browser console to check the system status
  */
 
-import { supabase } from '../config/supabase';
+import { supabase } from '../services/supabase';
 
 export async function diagnoseSpin() {
   console.log('🔍 Running Spin System Diagnostic...\n');
