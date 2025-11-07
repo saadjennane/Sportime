@@ -127,11 +127,11 @@ function App() {
   // --- Store State ---
   const {
     currentUserId, setCurrentUserId, allUsers, ensureUserExists,
-    games: mockGames, userChallengeEntries: mockUserChallengeEntries, userSwipeEntries: mockUserSwipeEntries,
+    games: mockGames, userChallengeEntries: mockUserChallengeEntries,
     userFantasyTeams: mockUserFantasyTeams, userLeagues, leagueMembers, leagueGames, liveGames, predictionChallenges,
     userTickets: mockUserTickets, userStreaks, createLeague, linkGameToLeagues, createLeagueAndLink,
     createLiveGame, submitLiveGamePrediction, editLiveGamePrediction, placeLiveBet,
-    tickLiveGame, joinChallenge: joinChallengeAction, joinSwipeGame,
+    tickLiveGame, joinChallenge: joinChallengeAction,
     notifications: mockNotifications, markNotificationAsRead, markAllNotificationsAsRead, subscribeToPremium,
   } = useMockStore();
 

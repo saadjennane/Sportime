@@ -59,7 +59,6 @@ import { mockFantasyLiveBoosters } from '../data/mockFantasyLive.tsx';
 import { mockUserTickets } from '../data/mockTickets';
 import { mockLevelsConfig, mockBadges } from '../data/mockProgression';
 import { mockUserChallengeEntries } from '../data/mockUserChallengeEntries';
-import { mockUserSwipeEntries } from '../data/mockUserSwipeEntries';
 import { mockPlayerGameWeekStats } from '../data/mockPlayerStats';
 import { BASE_REWARD_PACKS } from '../config/rewardPacks';
 import { mockChallengeMatches } from '../data/mockChallenges';
@@ -216,7 +215,7 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
   }],
   userFantasyTeams: mockUserFantasyTeams,
   userChallengeEntries: mockUserChallengeEntries,
-  userSwipeEntries: mockUserSwipeEntries,
+  userSwipeEntries: [],
   allUsers: mockUsers,
   userTickets: mockUserTickets,
   userStreaks: [{ user_id: 'user-1', current_day: 3, last_claimed_at: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(), total_cycles_completed: 0 }],
@@ -791,30 +790,6 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
     return { success: true, message: `Successfully joined with ${method}!`, method };
   },
 
-  joinSwipeGame: (gameId, userId) => {
-    const { games, userSwipeEntries, allUsers } = get();
-    const game = games.find(g => g.id === gameId);
-    const user = allUsers.find(u => u.id === userId);
-  
-    if (!game || !user) {
-      return { success: false, message: "Game or user not found." };
-    }
-  
-    const hasJoined = userSwipeEntries.some(e => e.matchDayId === gameId && e.user_id === userId);
-    if (hasJoined) {
-      return { success: true, message: "Already joined." };
-    }
-  
-    const newUserEntry: UserSwipeEntry = {
-      user_id: userId,
-      matchDayId: gameId,
-      predictions: [],
-      submitted_at: null,
-    };
-  
-    set({ userSwipeEntries: [...userSwipeEntries, newUserEntry] });
-    return { success: true, message: "Successfully joined swipe game." };
-  },
 
   processChallengeStart: (challengeId) => {
     const { games, allUsers, userTickets, userChallengeEntries } = get();
@@ -976,33 +951,6 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
     callback(leagueToJoin);
   },
 
-  handleSwipePrediction: (matchDayId, userId, matchId, prediction) => {
-    set(state => {
-      let entry = state.userSwipeEntries.find(e => e.matchDayId === matchDayId && e.user_id === userId);
-      if (entry) {
-        const newPredictions = [...entry.predictions, { matchId, prediction }];
-        return {
-          userSwipeEntries: state.userSwipeEntries.map(e => e.matchDayId === matchDayId && e.user_id === userId ? { ...e, predictions: newPredictions } : e)
-        };
-      }
-      // This part might need adjustment if users can predict without joining first
-      return state;
-    });
-  },
-
-  updateSwipePrediction: (matchDayId, userId, matchId, prediction) => {
-    set(state => ({
-      userSwipeEntries: state.userSwipeEntries.map(e => {
-        if (e.matchDayId === matchDayId && e.user_id === userId) {
-          return {
-            ...e,
-            predictions: e.predictions.map(p => p.matchId === matchId ? { ...p, prediction } : p)
-          };
-        }
-        return e;
-      })
-    }));
-  },
 
   linkGameToLeagues: (game, leagueIds) => {
     const { leagueGames, leagueMembers, userLeagues } = get();
