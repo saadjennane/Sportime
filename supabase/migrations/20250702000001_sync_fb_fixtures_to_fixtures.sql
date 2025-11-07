@@ -13,11 +13,10 @@
   - fb_fixtures.home_team_id (INT)     → fixtures.home_team_id (UUID) - via teams.api_team_id lookup
   - fb_fixtures.away_team_id (INT)     → fixtures.away_team_id (UUID) - via teams.api_team_id lookup
   - fb_fixtures.league_id (BIGINT)     → fixtures.league_id (UUID) - via leagues.api_league_id lookup
-  - fb_fixtures.match_date             → fixtures.match_date
+  - fb_fixtures.date                   → fixtures.date
   - fb_fixtures.status                 → fixtures.status
-  - fb_fixtures.home_score             → fixtures.home_score
-  - fb_fixtures.away_score             → fixtures.away_score
-  - fb_fixtures.venue                  → fixtures.venue
+  - fb_fixtures.goals_home             → fixtures.goals_home
+  - fb_fixtures.goals_away             → fixtures.goals_away
 
   Note: This migration requires that teams sync migration (20250702000000) has been applied first.
 */
@@ -51,11 +50,10 @@ BEGIN
       home_team_id,          -- UUID from teams lookup
       away_team_id,          -- UUID from teams lookup
       league_id,             -- UUID from leagues lookup
-      match_date,            -- From fb_fixtures.match_date
+      date,                  -- From fb_fixtures.date
       status,                -- From fb_fixtures.status
-      home_score,            -- From fb_fixtures.home_score
-      away_score,            -- From fb_fixtures.away_score
-      venue,                 -- From fb_fixtures.venue
+      goals_home,            -- From fb_fixtures.goals_home
+      goals_away,            -- From fb_fixtures.goals_away
       api_id                 -- From fb_fixtures.id
     )
     SELECT
@@ -63,11 +61,10 @@ BEGIN
       ht.id,                                                        -- Home team UUID
       at.id,                                                        -- Away team UUID
       l.id,                                                         -- League UUID
-      ff.match_date,                                                -- Match date
+      ff.date,                                                      -- Match date
       ff.status,                                                    -- Status
-      ff.home_score,                                                -- Home score
-      ff.away_score,                                                -- Away score
-      ff.venue,                                                     -- Venue
+      ff.goals_home,                                                -- Home score
+      ff.goals_away,                                                -- Away score
       ff.id                                                         -- API fixture ID
     FROM public.fb_fixtures ff
     INNER JOIN public.teams ht ON ht.api_team_id = ff.home_team_id  -- Home team lookup
@@ -118,11 +115,10 @@ BEGIN
         home_team_id,
         away_team_id,
         league_id,
-        match_date,
+        date,
         status,
-        home_score,
-        away_score,
-        venue,
+        goals_home,
+        goals_away,
         api_id
       )
       VALUES (
@@ -130,11 +126,10 @@ BEGIN
         home_team_uuid,
         away_team_uuid,
         league_uuid,
-        NEW.match_date,
+        NEW.date,
         NEW.status,
-        NEW.home_score,
-        NEW.away_score,
-        NEW.venue,
+        NEW.goals_home,
+        NEW.goals_away,
         NEW.id
       )
       ON CONFLICT (api_id) DO NOTHING;
@@ -158,11 +153,10 @@ BEGIN
         home_team_id = home_team_uuid,
         away_team_id = away_team_uuid,
         league_id = league_uuid,
-        match_date = NEW.match_date,
+        date = NEW.date,
         status = NEW.status,
-        home_score = NEW.home_score,
-        away_score = NEW.away_score,
-        venue = NEW.venue,
+        goals_home = NEW.goals_home,
+        goals_away = NEW.goals_away,
         updated_at = NOW()
       WHERE api_id = NEW.id;
     END IF;
@@ -196,15 +190,15 @@ SELECT
   ht.name AS home_team,
   at.name AS away_team,
   l.name AS league,
-  f.match_date,
+  f.date,
   f.status,
-  CONCAT(COALESCE(f.home_score::TEXT, '-'), ' - ', COALESCE(f.away_score::TEXT, '-')) AS score
+  CONCAT(COALESCE(f.goals_home::TEXT, '-'), ' - ', COALESCE(f.goals_away::TEXT, '-')) AS score
 FROM public.fixtures f
 INNER JOIN public.teams ht ON f.home_team_id = ht.id
 INNER JOIN public.teams at ON f.away_team_id = at.id
 INNER JOIN public.leagues l ON f.league_id = l.id
 WHERE f.api_id IS NOT NULL
-ORDER BY f.match_date DESC
+ORDER BY f.date DESC
 LIMIT 20;
 
 COMMENT ON FUNCTION public.sync_fb_fixtures_to_fixtures() IS
