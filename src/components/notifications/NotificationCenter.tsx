@@ -1,19 +1,68 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Notification } from '../../types';
-import { X, CheckCheck } from 'lucide-react';
+import { X, CheckCheck, Loader2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { NotificationItem } from './NotificationItem';
+import { useNotifications } from '../../hooks/useNotifications';
+import type { Database } from '../../types/supabase';
+
+type SupabaseNotification = Database['public']['Tables']['notifications']['Row'];
 
 interface NotificationCenterProps {
   isOpen: boolean;
   onClose: () => void;
-  notifications: Notification[];
-  onMarkAsRead: (id: string) => void;
-  onMarkAllAsRead: () => void;
+  userId: string | null | undefined;
 }
 
-export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose, notifications, onMarkAsRead, onMarkAllAsRead }) => {
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+// Convert Supabase notification to frontend format
+function mapNotification(n: SupabaseNotification): Notification {
+  return {
+    id: n.id,
+    type: n.type as Notification['type'],
+    title: n.title,
+    message: n.message,
+    timestamp: n.created_at,
+    isRead: n.is_read,
+    action: n.action_label
+      ? {
+          label: n.action_label,
+          link: n.action_link || undefined,
+        }
+      : undefined,
+  };
+}
+
+export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose, userId }) => {
+  const {
+    notifications: supabaseNotifications,
+    unreadCount,
+    isLoading,
+    markAsRead,
+    markAllAsRead,
+    loadMore,
+    hasMore,
+  } = useNotifications(userId);
+
+  const notifications = supabaseNotifications.map(mapNotification);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Handle infinite scroll
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || !hasMore || isLoading) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+
+      if (isNearBottom) {
+        loadMore();
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [hasMore, isLoading, loadMore]);
 
   return (
     <AnimatePresence>
@@ -37,7 +86,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
               <h2 className="text-xl font-bold text-text-primary">Notifications</h2>
               <div className="flex items-center gap-2">
                 {unreadCount > 0 && (
-                  <button onClick={onMarkAllAsRead} className="text-xs font-semibold text-electric-blue hover:underline">
+                  <button onClick={markAllAsRead} className="text-xs font-semibold text-electric-blue hover:underline">
                     Mark all as read
                   </button>
                 )}
@@ -46,16 +95,27 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
                 </button>
               </div>
             </header>
-            
-            <div className="flex-1 overflow-y-auto">
+
+            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
               {notifications.length > 0 ? (
-                notifications.map(notification => (
-                  <NotificationItem
-                    key={notification.id}
-                    notification={notification}
-                    onMarkAsRead={() => onMarkAsRead(notification.id)}
-                  />
-                ))
+                <>
+                  {notifications.map(notification => (
+                    <NotificationItem
+                      key={notification.id}
+                      notification={notification}
+                      onMarkAsRead={() => markAsRead(notification.id)}
+                    />
+                  ))}
+                  {isLoading && (
+                    <div className="flex justify-center p-4">
+                      <Loader2 size={24} className="animate-spin text-electric-blue" />
+                    </div>
+                  )}
+                </>
+              ) : isLoading ? (
+                <div className="flex justify-center p-8">
+                  <Loader2 size={48} className="animate-spin text-electric-blue" />
+                </div>
               ) : (
                 <div className="text-center p-8 text-text-disabled">
                   <CheckCheck size={48} className="mx-auto mb-4" />

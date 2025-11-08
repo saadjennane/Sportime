@@ -76,6 +76,8 @@ import { completeGuestRegistration } from './services/userService';
 import { updateUserProfile } from './services/profileService';
 import { joinChallenge as joinChallengeOnSupabase } from './services/challengeService';
 import { saveDailyEntry, ensureChallengeEntry } from './services/challengeEntryService';
+import { initializeOneSignal, setupOneSignalForUser } from './services/oneSignalService';
+import { useNotifications } from './hooks/useNotifications';
 
 function createEmptyChallengeEntry(challengeId: string, userId: string, matches: ChallengeMatch[]): UserChallengeEntry {
   const uniqueDays = Array.from(new Set(matches.map(match => match.day))).sort((a, b) => a - b);
@@ -258,6 +260,30 @@ function App() {
 
   // ✅ Auto-track user activity for XP calculation
   useActivityTracker(isGuest ? null : (profile?.id || null));
+
+  // ✅ Initialize OneSignal on app load
+  useEffect(() => {
+    if (USE_SUPABASE) {
+      initializeOneSignal().catch(err =>
+        console.error('[App] Failed to initialize OneSignal:', err)
+      );
+    }
+  }, []);
+
+  // ✅ Setup OneSignal for authenticated users
+  useEffect(() => {
+    if (!USE_SUPABASE || !profile || isGuest) return;
+
+    // Setup OneSignal when user is authenticated and not a guest
+    setupOneSignalForUser(profile.id).catch(err =>
+      console.error('[App] Failed to setup OneSignal for user:', err)
+    );
+  }, [profile?.id, isGuest]);
+
+  // ✅ Get notifications unread count (only for authenticated users)
+  const { unreadCount: supabaseUnreadCount } = useNotifications(
+    USE_SUPABASE && !isGuest ? profile?.id : null
+  );
 
   const { initializeUserSpinState } = useSpinStore();
 
@@ -919,7 +945,12 @@ function App() {
     setGameModalState({ isOpen: true, matchId, matchName });
   };
 
-  const unreadNotificationsCount = useMemo(() => notifications.filter(n => !n.isRead).length, [notifications]);
+  const unreadNotificationsCount = useMemo(() => {
+    if (USE_SUPABASE && !isGuest) {
+      return supabaseUnreadCount;
+    }
+    return notifications.filter(n => !n.isRead).length;
+  }, [USE_SUPABASE, isGuest, supabaseUnreadCount, notifications]);
 
   const handleSubscribe = (plan: 'monthly' | 'seasonal') => {
     if (profile) {
@@ -1319,9 +1350,7 @@ function App() {
     <NotificationCenter
       isOpen={isNotificationCenterOpen}
       onClose={() => setIsNotificationCenterOpen(false)}
-      notifications={notifications}
-      onMarkAsRead={markNotificationAsRead}
-      onMarkAllAsRead={markAllNotificationsAsRead}
+      userId={profile?.id}
     />
     <PremiumModal
       isOpen={isPremiumModalOpen}
