@@ -65,6 +65,48 @@ You need to apply 3 new SQL migrations to your Supabase remote database to enabl
    - Click "Run"
    - Verify success (syncs fb_fixtures → fixtures with automatic trigger)
 
+9. **Apply Migration 8: Add Odds Snapshot to Challenge Bets**
+   - Click "New Query"
+   - Copy the entire contents of: `supabase/migrations/20250703000000_add_odds_to_bets.sql`
+   - Paste into the SQL Editor
+   - Click "Run"
+   - Verify success (adds odds_snapshot JSONB column to challenge_bets)
+
+10. **Apply Migration 9: Fix x3 Booster Penalty**
+    - Click "New Query"
+    - Copy the entire contents of: `supabase/migrations/20250703000001_fix_x3_penalty.sql`
+    - Paste into the SQL Editor
+    - Click "Run"
+    - Verify success (updates calculate_bet_points with -200 penalty for x3)
+
+11. **Apply Migration 10: Integrate Real Odds from Fixtures**
+    - Click "New Query"
+    - Copy the entire contents of: `supabase/migrations/20250703000002_integrate_real_odds.sql`
+    - Paste into the SQL Editor
+    - Click "Run"
+    - Verify success (recalculate_challenge_points now uses real odds from database)
+
+12. **Apply Migration 11: Add Challenge Leagues Junction Table**
+    - Click "New Query"
+    - Copy the entire contents of: `supabase/migrations/20250704000000_add_challenge_leagues_table.sql`
+    - Paste into the SQL Editor
+    - Click "Run"
+    - Verify success (creates challenge_leagues junction table)
+
+13. **Apply Migration 12: Fix Challenge Leagues Foreign Key**
+    - Click "New Query"
+    - Copy the entire contents of: `supabase/migrations/20250704000001_fix_challenge_leagues_fkey.sql`
+    - Paste into the SQL Editor
+    - Click "Run"
+    - Verify success (adds missing foreign key to leagues table)
+
+14. **Apply Migration 13: Finalize Prize Distribution**
+    - Click "New Query"
+    - Copy the entire contents of: `supabase/migrations/20250704000002_finalize_prize_distribution.sql`
+    - Paste into the SQL Editor
+    - Click "Run"
+    - Verify success (adds grant_spin function and placeholders for gift cards/masterpass)
+
 ### Option 2: Using Supabase CLI (If Available)
 
 If you have Supabase CLI installed:
@@ -141,6 +183,77 @@ supabase db push
   - `fb_fixtures.away_team_id` → `teams.api_team_id` → `teams.id` (UUID)
   - `fb_fixtures.league_id` → `leagues.api_league_id` → `leagues.id` (UUID)
 - Skips fixtures with missing team/league mappings (logs warnings)
+
+### Migration 8: Add Odds Snapshot to Challenge Bets (20250703000000)
+- **Purpose**: Capture odds at bet placement time for accurate historical calculations
+- Adds `odds_snapshot` JSONB column to `challenge_bets` table
+- Format: `{ "teamA": 2.0, "draw": 3.2, "teamB": 2.4 }`
+- Creates GIN index on `odds_snapshot` for faster JSON queries
+- Ensures points calculation accuracy even if odds change later
+- Integrated with `challengeEntryService.saveDailyEntry()` to auto-capture odds
+
+### Migration 9: Fix x3 Booster Penalty (20250703000001)
+- **Purpose**: Implement -200 point penalty for x3 booster on losing bets
+- Updates `calculate_bet_points()` function with gross gain model
+- **Scoring Rules**:
+  - Win (no booster): `points = odds × amount`
+  - Win (x2 booster): `points = (odds × amount) × 2`
+  - Win (x3 booster): `points = (odds × amount) × 3`
+  - Loss (no booster/x2): `points = 0`
+  - Loss (x3 booster): `points = -200` ⚠️ **PENALTY**
+- Includes 6 test cases to verify all scenarios
+- Aligns backend logic with frontend implementation
+
+### Migration 10: Integrate Real Odds from Fixtures (20250703000002)
+- **Purpose**: Fetch real odds from database instead of hardcoded values
+- Creates single-parameter version of `recalculate_challenge_points(p_challenge_id UUID)`
+- Coexists with 2-parameter version `(p_challenge_id UUID, p_user_id UUID)`
+- **Odds Priority**:
+  1. `odds_snapshot` from bet (captured at placement)
+  2. Latest odds from `odds` table (via fixtures join)
+  3. Default fallback: `{ teamA: 2.0, draw: 3.2, teamB: 2.4 }`
+- **Data Flow**: `challenge_matches` → `matches` → `fixtures` → `odds`
+- Applies gross gain model with x3 penalty
+- Automatically triggered when matches finish
+
+### Migration 11: Add Challenge Leagues Junction Table (20250704000000)
+- **Purpose**: Create junction table linking challenges to leagues (many-to-many relationship)
+- **Why Needed**: Required by `fetchChallengeCatalog()` which joins challenges → challenge_leagues → leagues
+- Creates `challenge_leagues` table with:
+  - Foreign keys to `challenges` and `leagues` (CASCADE on delete)
+  - Unique constraint on `(challenge_id, league_id)` to prevent duplicates
+- **RLS Policies**:
+  - Public read access (SELECT for all users)
+  - Admin-only write access (INSERT/UPDATE/DELETE requires `is_admin()`)
+- **Note**: Migration 12 is required to fix a missing foreign key
+
+### Migration 12: Fix Challenge Leagues Foreign Key (20250704000001)
+- **Purpose**: Add missing foreign key constraint from `challenge_leagues` to `leagues`
+- **Why Needed**: Migration 11 failed to create the foreign key to `leagues` table
+- **Fixes Error**: "Could not find a relationship between 'challenge_leagues' and 'leagues' in the schema cache"
+- Uses `ADD CONSTRAINT IF NOT EXISTS` to be idempotent
+- Enables Supabase PostgREST to follow the relationship chain properly
+- Required for admin panel to load challenges with league information
+
+### Migration 13: Finalize Prize Distribution (20250704000002)
+- **Purpose**: Complete prize distribution system with spin granting and placeholders
+- **New Functions**:
+  - `grant_spin(user_id, tier, quantity)` - Grants spins to users as rewards
+  - Supports 5 spin tiers: free, amateur, master, apex, premium
+  - Initializes `user_spin_states` if needed
+- **Updated Functions**:
+  - `distribute_reward_to_user()` - Now handles all reward types
+- **Reward Types Supported**:
+  - ✅ Coins (working)
+  - ✅ Tickets (working - 3 tiers with expiry)
+  - ✅ XP (working - via activity_log)
+  - ✅ Spins (NEW - via grant_spin)
+  - ✅ Premium subscriptions (working - 3d/7d)
+  - 🔧 Gift Cards (5000 coins placeholder)
+  - 🔧 MasterPass (5000 coins placeholder)
+- **Placeholder System**: Gift cards and MasterPass temporarily give 5000 coins with logging
+- **Frontend Integration**: `spinService.ts` updated with same placeholders for consistency
+- **Complete Flow**: Challenge finishes → trigger fires → prizes distributed → all reward types handled
 
 ## Verification
 
@@ -310,15 +423,38 @@ API-Football API
 
 ## Summary
 
-This migration completes Phase 2 of the Challenge System integration + Data Synchronization:
-- ✅ Phase 1A: Swipe cleanup
+This migration completes the full Challenge System integration + Data Synchronization + Challenge Betting Mode:
+
+### Phase 1: Swipe Cleanup
+- ✅ Removed deprecated swipe game code
+
+### Phase 2: Challenge System Integration
 - ✅ Phase 2A: Admin backend functions
 - ✅ Phase 2B: Service layer integration
 - ✅ Phase 2C: Admin UI migration
 - ✅ Phase 2D: Automatic leaderboard calculation
 - ✅ Phase 2E: Automatic prize distribution
+
+### Phase 3: Data Synchronization Pipeline
 - ✅ Phase 3A: League data synchronization (fb_leagues → leagues)
 - ✅ Phase 3B: Team data synchronization (fb_teams → teams)
 - ✅ Phase 3C: Fixture data synchronization (fb_fixtures → fixtures)
+
+### Phase 4: Challenge Betting Mode (NEW)
+- ✅ **Phase 4A**: Odds snapshot capture (Migration 8)
+- ✅ **Phase 4B**: x3 booster penalty implementation (Migration 9)
+- ✅ **Phase 4C**: Real odds integration (Migration 10)
+- ✅ **Frontend**: Validation + odds capture in `challengeEntryService`
+- ✅ **Frontend**: Real odds fetching in `challengeService`
+- ✅ **Admin Tools**: `ChallengeMatchSelector` component
+- ✅ **Documentation**: Complete implementation guide
+
+### Key Features Delivered
+- **Gross Gain Scoring**: `points = odds × amount × booster`
+- **x3 Penalty**: -200 points on losing bets with x3 booster
+- **Real-Time Odds**: Fetched from database with 3-tier fallback
+- **Historical Accuracy**: Odds snapshot captured at bet placement
+- **Automatic Sync**: API-Football data flows to application tables via triggers
+- **Full Validation**: Challenge status + daily balance checks
 
 All changes are committed locally. After verifying everything works, push to GitHub.
