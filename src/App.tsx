@@ -356,8 +356,8 @@ function App() {
     if (!isGuest) {
       streakService.checkDailyStreak(profile.id)
         .then((result) => {
-          // Ne montrer le modal QUE si ce n'est pas la première fois
-          if (result.is_available && !result.is_first_time) {
+          // Montrer le modal dès que le streak est disponible (2ème jour et au-delà)
+          if (result.is_available) {
             setDailyStreakData({ isOpen: true, streakDay: result.streak_day });
           }
         })
@@ -1343,6 +1343,7 @@ function App() {
       isOpen={dailyStreakData.isOpen}
       onClaim={handleClaimStreak}
       streakDay={dailyStreakData.streakDay}
+      previousStreakDay={supabaseStreak?.current_day ?? null}
     />
     {contextualPrompt && <ContextualPremiumPrompt {...contextualPrompt} />}
     </div>
