@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { streakService } from '../services/streakService';
+import { getUserStreak } from '../services/streakService';
 import type { UserStreak } from '../types';
 
 interface UseUserStreakResult {
@@ -30,7 +30,7 @@ export function useUserStreak(userId: string | null | undefined): UseUserStreakR
     setError(null);
 
     try {
-      const data = await streakService.getUserStreak(userId);
+      const data = await getUserStreak(userId);
       setStreak(data);
     } catch (err) {
       console.error('[useUserStreak] Failed to fetch streak:', err);
