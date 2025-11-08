@@ -301,7 +301,7 @@ export interface SwipeLeaderboardEntry {
   submission_timestamp: number;
 }
 
-export interface UserLeague {
+export interface Squad {
   id: string;
   name: string;
   description?: string;
@@ -311,30 +311,37 @@ export interface UserLeague {
   created_at: string;
   season_start_date?: string;
   season_end_date?: string;
+  updated_at?: string;
+  member_count?: number;
 }
 
-export interface LeagueMember {
+export interface SquadMember {
   id: string;
-  league_id: string;
+  squad_id: string;
   user_id: string;
   role: 'admin' | 'member';
   joined_at: string;
 }
 
-export interface LeagueGame {
+export interface SquadGame {
   id: string;
-  league_id: string;
+  squad_id: string;
   game_id: string;
   game_name: string;
   type: 'Fantasy' | 'Prediction' | 'Betting' | 'Private';
   members_joined: number;
   members_total: number;
-  user_rank_in_league: number;
+  user_rank_in_squad: number;
   user_rank_global: number;
   total_players_global: number;
   linked_at: string;
   leaderboard_period: LeaderboardPeriod | null;
 }
+
+// Legacy aliases for backward compatibility (to be removed after migration)
+export type UserLeague = Squad;
+export type LeagueMember = SquadMember;
+export type LeagueGame = SquadGame;
 
 export type LeaderboardPeriodStartType = 'season_start' | 'link_date' | 'last_member_joined' | 'custom';
 export type LeaderboardPeriodEndType = 'season_end' | 'custom';
