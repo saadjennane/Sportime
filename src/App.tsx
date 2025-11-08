@@ -135,8 +135,7 @@ function App() {
     userFantasyTeams: mockUserFantasyTeams, userLeagues, leagueMembers, leagueGames, liveGames, predictionChallenges,
     userTickets: mockUserTickets, userStreaks, createLeague, linkGameToLeagues, createLeagueAndLink,
     createLiveGame, submitLiveGamePrediction, editLiveGamePrediction, placeLiveBet,
-    tickLiveGame, joinChallenge: joinChallengeAction,
-    notifications: mockNotifications, markNotificationAsRead, markAllNotificationsAsRead, subscribeToPremium,
+    tickLiveGame, joinChallenge: joinChallengeAction, subscribeToPremium,
   } = useMockStore();
 
   const { user: authUser, profile: authProfile, isLoading: authLoading, ensureGuest, signOut: supabaseSignOut, refreshProfile: reloadProfile, sendMagicLink } = useAuth();
@@ -204,7 +203,6 @@ function App() {
   });
 
   const userTickets = USE_SUPABASE && !ticketsError ? supabaseTickets : mockUserTickets;
-  const notifications = mockNotifications;
 
   useEffect(() => {
     if (!profile) return;
@@ -946,11 +944,9 @@ function App() {
   };
 
   const unreadNotificationsCount = useMemo(() => {
-    if (USE_SUPABASE && !isGuest) {
-      return supabaseUnreadCount;
-    }
-    return notifications.filter(n => !n.isRead).length;
-  }, [USE_SUPABASE, isGuest, supabaseUnreadCount, notifications]);
+    // Always use Supabase for notifications (no mock fallback)
+    return USE_SUPABASE && !isGuest ? supabaseUnreadCount : 0;
+  }, [USE_SUPABASE, isGuest, supabaseUnreadCount]);
 
   const handleSubscribe = (plan: 'monthly' | 'seasonal') => {
     if (profile) {
