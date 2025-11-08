@@ -137,7 +137,7 @@ const LeaguePage: React.FC<LeaguePageProps> = (props) => {
   return (
     <div className="space-y-6">
       <button onClick={onBack} className="flex items-center gap-2 text-text-secondary font-semibold hover:text-electric-blue">
-        <ArrowLeft size={20} /> Back to Leagues
+        <ArrowLeft size={20} /> Back to Squads
       </button>
 
       {/* Header */}

@@ -97,7 +97,7 @@ function createEmptyChallengeEntry(challengeId: string, userId: string, matches:
 }
 
 
-export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'leagues' | 'funzone';
+export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'squads' | 'funzone';
 type AuthFlowState = 'guest' | 'authenticated' | 'signing_up' | 'onboarding';
 
 function App() {
@@ -671,7 +671,7 @@ function App() {
           return;
       }
       const newLeague = createLeague(name, description, profile);
-      addToast(`League "${name}" created!`, 'success');
+      addToast(`Squad "${name}" created!`, 'success');
       setShowCreateLeagueModal(false);
       setActiveLeagueId(newLeague.id);
       return newLeague;
@@ -704,7 +704,7 @@ function App() {
     if (!profile) return;
     const { linkedLeagueNames } = linkGameToLeagues(game, [leagueId]);
     if (linkedLeagueNames.length > 0) {
-      addToast(`"${game.name}" linked to your league!`, 'success');
+      addToast(`"${game.name}" linked to your squad!`, 'success');
     }
   };
 
@@ -755,7 +755,7 @@ function App() {
     
     createLeagueAndLink(name, description, linkingGame, profile);
     
-    addToast(`League "${name}" created and linked successfully! 🎉`, 'success');
+    addToast(`Squad "${name}" created and linked successfully! 🎉`, 'success');
     handleCloseLinkGameModals();
     setIsLinkingLoading(false);
   };
@@ -839,7 +839,7 @@ function App() {
 
 
   const handlePageChange = (newPage: Page) => {
-    if ((newPage === 'profile' || newPage === 'leagues' || newPage === 'funzone') && isGuest) {
+    if ((newPage === 'profile' || newPage === 'squads' || newPage === 'funzone') && isGuest) {
         handleTriggerSignUp();
         return;
     }
@@ -937,7 +937,7 @@ function App() {
             league={leagueToJoin || null}
             isMember={isMember}
             onJoin={() => handleJoinLeague(joinLeagueCode)}
-            onGoToLeague={() => { setActiveLeagueId(leagueToJoin!.id); setJoinLeagueCode(null); setPage('leagues'); }}
+            onGoToLeague={() => { setActiveLeagueId(leagueToJoin!.id); setJoinLeagueCode(null); setPage('squads'); }}
             onCancel={() => setJoinLeagueCode(null)}
         />
     }
@@ -1159,8 +1159,8 @@ function App() {
         return <MatchesPage matches={matches} bets={bets} onBet={handleBetClick} onPlayGame={handlePlayGameClick} />;
       case 'challenges':
         return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} />;
-      case 'leagues':
-          return <LeaguesListPage 
+      case 'squads':
+          return <LeaguesListPage
               leagues={myLeagues}
               onCreate={() => setShowCreateLeagueModal(true)}
               onViewLeague={setActiveLeagueId}
@@ -1246,8 +1246,8 @@ function App() {
             isOpen={!!modalAction}
             onClose={() => setModalAction(null)}
             onConfirm={() => modalAction.type === 'leave' ? handleLeaveLeague(modalAction.leagueId) : handleDeleteLeague(modalAction.leagueId)}
-            title={modalAction.type === 'leave' ? 'Leave League' : 'Delete League'}
-            message={modalAction.type === 'leave' ? 'Are you sure you want to leave this league?' : 'This action is irreversible and will delete the league for all members. Are you sure?'}
+            title={modalAction.type === 'leave' ? 'Leave Squad' : 'Delete Squad'}
+            message={modalAction.type === 'leave' ? 'Are you sure you want to leave this squad?' : 'This action is irreversible and will delete the squad for all members. Are you sure?'}
             confirmText={modalAction.type === 'leave' ? 'Leave' : 'Delete'}
             isDestructive={true}
         />
