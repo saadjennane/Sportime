@@ -1343,7 +1343,6 @@ function App() {
       isOpen={dailyStreakData.isOpen}
       onClaim={handleClaimStreak}
       streakDay={dailyStreakData.streakDay}
-      previousStreakDay={supabaseStreak?.current_day ?? null}
     />
     {contextualPrompt && <ContextualPremiumPrompt {...contextualPrompt} />}
     </div>
