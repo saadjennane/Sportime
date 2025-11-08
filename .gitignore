@@ -3,9 +3,9 @@ node_modules/
 vendor/
 bower_components/
 jspm_packages/
-package-lock.json
+# package-lock.json - Needed for Vercel npm deployments
 composer.lock
-# yarn.lock - Uncommented to allow Vercel deployments
+yarn.lock
 
 # Build et distribution
 dist/
