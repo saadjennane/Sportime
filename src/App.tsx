@@ -18,6 +18,7 @@ import { JoinSwipeGameConfirmationModal } from './components/JoinSwipeGameConfir
 import SwipeLeaderboardPage from './pages/SwipeLeaderboardPage';
 import { supabase } from './services/supabase';
 import { useToast } from './hooks/useToast';
+import { useUserStreak } from './hooks/useUserStreak';
 import { ToastContainer } from './components/Toast';
 import ProfilePage from './pages/ProfilePage';
 import { mockBadges, mockLevelsConfig, mockUserBadges } from './data/mockProgression';
@@ -128,6 +129,7 @@ function App() {
   const {
     currentUserId, setCurrentUserId, allUsers, ensureUserExists,
     games: mockGames, userChallengeEntries: mockUserChallengeEntries,
+    userSwipeEntries: mockUserSwipeEntries,
     userFantasyTeams: mockUserFantasyTeams, userLeagues, leagueMembers, leagueGames, liveGames, predictionChallenges,
     userTickets: mockUserTickets, userStreaks, createLeague, linkGameToLeagues, createLeagueAndLink,
     createLiveGame, submitLiveGamePrediction, editLiveGamePrediction, placeLiveBet,
@@ -136,6 +138,9 @@ function App() {
   } = useMockStore();
 
   const { user: authUser, profile: authProfile, isLoading: authLoading, ensureGuest, signOut: supabaseSignOut, refreshProfile: reloadProfile, sendMagicLink } = useAuth();
+
+  // Fetch user streak from Supabase (replaces mock store userStreaks)
+  const { streak: supabaseStreak, isLoading: streakLoading, refetch: refetchStreak } = useUserStreak(authProfile?.id);
 
   useEffect(() => {
     if (authLoading) return;
@@ -320,6 +325,9 @@ function App() {
 
       // Refresh profile to get updated coins balance
       await reloadProfile();
+
+      // Refresh streak data to update the display
+      await refetchStreak();
 
       // Toast désactivé pour les streaks quotidiens
       setDailyStreakData({ isOpen: false, streakDay: 0 });
@@ -1163,7 +1171,9 @@ function App() {
         return <AdminPage profile={profile} addToast={addToast} />;
       case 'profile':
         if (profile && !isGuest) {
-          return <ProfilePage profile={profile} levels={levelsConfig} allBadges={badges} userBadges={userBadges} userStreaks={userStreaks} onUpdateProfile={handleUpdateProfile} onUpdateEmail={handleUpdateEmail} onSignOut={handleSignOut} onDeleteAccount={handleDeleteAccount} onOpenSpinWheel={handleOpenSpinWheel} onOpenPremiumModal={() => setIsPremiumModalOpen(true)} />;
+          // Use Supabase streak data if available, fallback to mock for guests/errors
+          const profileStreaks = supabaseStreak ? [supabaseStreak] : userStreaks;
+          return <ProfilePage profile={profile} levels={levelsConfig} allBadges={badges} userBadges={userBadges} userStreaks={profileStreaks} onUpdateProfile={handleUpdateProfile} onUpdateEmail={handleUpdateEmail} onSignOut={handleSignOut} onDeleteAccount={handleDeleteAccount} onOpenSpinWheel={handleOpenSpinWheel} onOpenPremiumModal={() => setIsPremiumModalOpen(true)} />;
         }
         return null;
       default:
