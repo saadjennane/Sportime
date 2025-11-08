@@ -1,5 +1,6 @@
 import React from 'react';
-import { Flame } from 'lucide-react';
+import { Flame, Coins, Ticket } from 'lucide-react';
+import { DAILY_STREAK_REWARDS } from '../../config/constants';
 
 interface DailyStreakModalProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export const DailyStreakModal: React.FC<DailyStreakModalProps> = ({
   };
 
   const message = messages[streakDay] || "Your daily reward is ready!";
+  const reward = DAILY_STREAK_REWARDS[streakDay];
 
   return (
     <div className="fixed inset-0 bg-deep-navy/80 backdrop-blur-lg flex items-center justify-center p-4 z-[100] animate-scale-in">
@@ -35,6 +37,30 @@ export const DailyStreakModal: React.FC<DailyStreakModalProps> = ({
         </div>
         <h2 className="text-3xl font-bold text-text-primary">Day {streakDay} Streak!</h2>
         <p className="text-text-secondary">{message}</p>
+
+        {/* Reward Display */}
+        {reward && (
+          <div className="bg-surface-elevated/50 rounded-lg p-4 border border-warm-yellow/30">
+            <p className="text-sm text-text-secondary mb-2">Your Reward</p>
+            <div className="flex items-center justify-center gap-2">
+              {reward.coins && (
+                <>
+                  <Coins className="w-6 h-6 text-warm-yellow" />
+                  <span className="text-2xl font-bold text-warm-yellow">{reward.coins.toLocaleString()}</span>
+                  <span className="text-text-secondary">coins</span>
+                </>
+              )}
+              {reward.ticket && (
+                <>
+                  <Ticket className="w-6 h-6 text-warm-yellow" />
+                  <span className="text-2xl font-bold text-warm-yellow capitalize">{reward.ticket}</span>
+                  <span className="text-text-secondary">Ticket</span>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         <button onClick={onClaim} className="w-full primary-button text-lg">
           Claim Reward
         </button>
