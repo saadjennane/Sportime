@@ -31,11 +31,11 @@ export const MiniCreateLeagueModal: React.FC<MiniCreateLeagueModalProps> = ({ is
           <div className="inline-block bg-electric-blue/10 p-3 rounded-full mb-3">
             <Users className="w-8 h-8 text-electric-blue" />
           </div>
-          <h2 className="text-2xl font-bold text-text-primary">Create Your League</h2>
+          <h2 className="text-2xl font-bold text-text-primary">Create Your Squad</h2>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-text-secondary mb-1">League Name</label>
+            <label className="block text-sm font-medium text-text-secondary mb-1">Squad Name</label>
             <input type="text" value={name} onChange={e => setName(e.target.value)} className="input-base" required />
           </div>
           <div>
