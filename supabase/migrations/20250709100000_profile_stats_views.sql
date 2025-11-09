@@ -23,6 +23,10 @@ WHERE sp.created_at >= NOW() - INTERVAL '30 days'
 GROUP BY sp.user_id, DATE(sp.created_at)
 HAVING COUNT(*) >= 3; -- Minimum 3 predictions for valid HPI
 
+-- Create unique index to allow CONCURRENTLY refresh
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_daily_hpi_unique
+  ON public.user_daily_hpi(user_id, prediction_date);
+
 CREATE INDEX IF NOT EXISTS idx_user_daily_hpi_user_date
   ON public.user_daily_hpi(user_id, prediction_date DESC);
 
