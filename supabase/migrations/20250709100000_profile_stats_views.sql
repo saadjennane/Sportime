@@ -177,10 +177,10 @@ team_stats AS (
 game_type_stats AS (
   SELECT DISTINCT ON (cp.user_id)
     cp.user_id,
-    c.type as favorite_game_type
+    c.game_type::text as favorite_game_type
   FROM public.challenge_participants cp
   JOIN public.challenges c ON c.id = cp.challenge_id
-  GROUP BY cp.user_id, c.type
+  GROUP BY cp.user_id, c.game_type
   ORDER BY cp.user_id, COUNT(*) DESC
 ),
 
