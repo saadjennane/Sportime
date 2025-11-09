@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../services/supabase';
 import type { UserProfileStatsData } from '../types';
 
 interface ProfileStatsResponse {
