@@ -217,7 +217,7 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
         )}
 
         {activeTab === 'stats' && (
-          <UserProfileStats />
+          <UserProfileStats userId={profile.id} />
         )}
 
         {activeTab === 'squad' && (
