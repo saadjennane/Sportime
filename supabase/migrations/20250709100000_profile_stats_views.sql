@@ -141,10 +141,11 @@ badge_stats AS (
 league_stats AS (
   SELECT DISTINCT ON (sp.user_id)
     sp.user_id,
-    f.league as most_played_league
+    l.name as most_played_league
   FROM public.swipe_predictions sp
   JOIN public.fixtures f ON f.id = sp.fixture_id
-  GROUP BY sp.user_id, f.league
+  JOIN public.leagues l ON l.id = f.league_id
+  GROUP BY sp.user_id, l.name
   ORDER BY sp.user_id, COUNT(*) DESC
 ),
 
@@ -152,16 +153,24 @@ league_stats AS (
 team_stats AS (
   SELECT DISTINCT ON (sp.user_id)
     sp.user_id,
-    CASE
-      WHEN COUNT(CASE WHEN sp.prediction = f.home_team THEN 1 END) >
-           COUNT(CASE WHEN sp.prediction = f.away_team THEN 1 END)
-      THEN f.home_team
-      ELSE f.away_team
-    END as most_played_team
+    COALESCE(
+      (
+        SELECT t.name
+        FROM public.fixtures f
+        JOIN public.teams t ON (t.id = f.home_team_id OR t.id = f.away_team_id)
+        WHERE f.id IN (
+          SELECT sp2.fixture_id
+          FROM public.swipe_predictions sp2
+          WHERE sp2.user_id = sp.user_id
+        )
+        GROUP BY t.name
+        ORDER BY COUNT(*) DESC
+        LIMIT 1
+      ),
+      'Unknown'
+    ) as most_played_team
   FROM public.swipe_predictions sp
-  JOIN public.fixtures f ON f.id = sp.fixture_id
-  GROUP BY sp.user_id, f.home_team, f.away_team
-  ORDER BY sp.user_id, COUNT(*) DESC
+  GROUP BY sp.user_id
 ),
 
 -- Favorite game type
