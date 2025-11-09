@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { X, Gift } from 'lucide-react';
-import { useMockStore } from '../../store/useMockStore';
+import { X, Gift, Loader2 } from 'lucide-react';
+import { useSpinWheel } from '../../hooks/useSpinWheel';
 import { FREE_SPIN_REWARDS } from '../../data/mockFunZone';
 
 interface FreeSpinwheelModalProps {
@@ -12,43 +12,83 @@ interface FreeSpinwheelModalProps {
 }
 
 export const FreeSpinwheelModal: React.FC<FreeSpinwheelModalProps> = ({ isOpen, onClose, userId, addToast }) => {
-  const { performFreeSpin } = useMockStore();
+  const { spin, canClaimFreeSpin, claimFreeSpin, isLoading, nextFreeSpinAt } = useSpinWheel({ userId });
   const [isSpinning, setIsSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [finalReward, setFinalReward] = useState<string | null>(null);
 
   const anglePerSlice = 360 / FREE_SPIN_REWARDS.length;
 
-  const handleSpin = () => {
+  const handleSpin = async () => {
     if (isSpinning) return;
 
-    setIsSpinning(true);
-    setFinalReward(null);
-
-    const spinResult = performFreeSpin(userId);
-    if (!spinResult) {
-      addToast("You've already had your free spin today!", 'info');
-      setIsSpinning(false);
+    // First, try to claim the daily free spin
+    if (!canClaimFreeSpin) {
+      const hoursLeft = nextFreeSpinAt
+        ? Math.ceil((nextFreeSpinAt.getTime() - Date.now()) / (1000 * 60 * 60))
+        : 24;
+      addToast(`Next free spin in ${hoursLeft}h`, 'info');
       onClose();
       return;
     }
 
-    const winningIndex = FREE_SPIN_REWARDS.findIndex(r => r.label === spinResult.label);
-    const baseRotation = 360 * 5;
-    const targetAngle = (winningIndex * anglePerSlice) + (anglePerSlice / 2);
-    const randomOffset = Math.random() * (anglePerSlice * 0.8) - (anglePerSlice * 0.4);
-    const finalRotation = baseRotation - targetAngle - randomOffset;
+    try {
+      setIsSpinning(true);
+      setFinalReward(null);
 
-    setRotation(finalRotation);
+      // Claim the free spin first
+      const claimResult = await claimFreeSpin();
 
-    setTimeout(() => {
+      if (!claimResult.success) {
+        addToast(claimResult.message, 'info');
+        setIsSpinning(false);
+        onClose();
+        return;
+      }
+
+      // Perform the spin
+      const spinResult = await spin('free');
+
+      if (!spinResult) {
+        addToast('Spin failed. Please try again.', 'error');
+        setIsSpinning(false);
+        return;
+      }
+
+      // Find the winning slice index
+      const winningIndex = FREE_SPIN_REWARDS.findIndex(r =>
+        r.label === spinResult.reward.label ||
+        r.type === spinResult.reward.category
+      ) || 0;
+
+      const baseRotation = 360 * 5;
+      const targetAngle = (winningIndex * anglePerSlice) + (anglePerSlice / 2);
+      const randomOffset = Math.random() * (anglePerSlice * 0.8) - (anglePerSlice * 0.4);
+      const finalRotation = baseRotation - targetAngle - randomOffset;
+
+      setRotation(finalRotation);
+
+      setTimeout(() => {
+        setIsSpinning(false);
+        setFinalReward(spinResult.reward.label);
+        addToast(`You won: ${spinResult.reward.label}`, 'success');
+      }, 4000);
+    } catch (error) {
+      console.error('[FreeSpinwheelModal] Error:', error);
+      addToast('Failed to perform spin', 'error');
       setIsSpinning(false);
-      setFinalReward(spinResult.label);
-      addToast(`You won: ${spinResult.label}`, 'success');
-    }, 4000);
+    }
   };
 
   if (!isOpen) return null;
+
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 bg-deep-navy/80 backdrop-blur-xl flex items-center justify-center z-[60]">
+        <Loader2 size={48} className="animate-spin text-electric-blue" />
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-deep-navy/80 backdrop-blur-xl flex flex-col items-center justify-center z-[60] animate-scale-in">
@@ -98,14 +138,18 @@ export const FreeSpinwheelModal: React.FC<FreeSpinwheelModalProps> = ({ isOpen, 
         <div className="absolute w-1/3 h-1/3">
           <button
             onClick={handleSpin}
-            disabled={isSpinning}
-            className="w-full h-full rounded-full bg-deep-navy border-4 border-lime-glow flex flex-col items-center justify-center shadow-2xl transition-transform hover:scale-105 disabled:scale-100 disabled:cursor-not-allowed"
+            disabled={isSpinning || !canClaimFreeSpin}
+            className="w-full h-full rounded-full bg-deep-navy border-4 border-lime-glow flex flex-col items-center justify-center shadow-2xl transition-transform hover:scale-105 disabled:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:border-disabled"
           >
-            <span className="font-extrabold text-2xl tracking-wider text-white">SPIN</span>
+            {isSpinning ? (
+              <Loader2 size={24} className="animate-spin text-white" />
+            ) : (
+              <span className="font-extrabold text-2xl tracking-wider text-white">SPIN</span>
+            )}
           </button>
         </div>
       </div>
-      
+
       {finalReward && (
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
@@ -115,6 +159,20 @@ export const FreeSpinwheelModal: React.FC<FreeSpinwheelModalProps> = ({ isOpen, 
           <div className="bg-navy-accent/80 backdrop-blur-md p-4 rounded-xl shadow-lg flex items-center gap-2">
             <Gift size={20} className="text-warm-yellow" />
             <p className="text-lg font-bold text-warm-yellow">{finalReward}</p>
+          </div>
+        </motion.div>
+      )}
+
+      {!canClaimFreeSpin && nextFreeSpinAt && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="absolute bottom-10 text-center"
+        >
+          <div className="bg-navy-accent/80 backdrop-blur-md p-3 rounded-xl shadow-lg">
+            <p className="text-sm text-text-secondary">
+              Next free spin: {new Date(nextFreeSpinAt).toLocaleTimeString()}
+            </p>
           </div>
         </motion.div>
       )}
