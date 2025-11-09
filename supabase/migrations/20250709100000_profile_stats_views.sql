@@ -88,17 +88,19 @@ streak_stats AS (
 -- Betting stats
 bet_stats AS (
   SELECT
-    cb.user_id,
-    ROUND(AVG(cb.bet_amount)) as average_bet_coins,
-    -- Risk index: std deviation of odds variance
+    ce.user_id,
+    ROUND(AVG(cb.amount)) as average_bet_coins,
+    -- Risk index: std deviation of bet amounts (normalized to 1-10 scale)
     ROUND(
       LEAST(10, GREATEST(1,
-        5 + (STDDEV((cb.odds->>'odds')::decimal - 1.5) * 3)
+        5 + (STDDEV(cb.amount::decimal) / 100)
       )),
       1
     ) as risk_index
   FROM public.challenge_bets cb
-  GROUP BY cb.user_id
+  JOIN public.challenge_daily_entries cde ON cde.id = cb.daily_entry_id
+  JOIN public.challenge_entries ce ON ce.id = cde.challenge_entry_id
+  GROUP BY ce.user_id
 ),
 
 -- Games played and podiums
