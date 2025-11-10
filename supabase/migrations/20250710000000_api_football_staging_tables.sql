@@ -127,6 +127,18 @@ ALTER TABLE public.fb_players ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.fb_fixtures ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.fb_odds ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Allow public read access to fb_leagues" ON public.fb_leagues;
+DROP POLICY IF EXISTS "Allow public read access to fb_teams" ON public.fb_teams;
+DROP POLICY IF EXISTS "Allow public read access to fb_players" ON public.fb_players;
+DROP POLICY IF EXISTS "Allow public read access to fb_fixtures" ON public.fb_fixtures;
+DROP POLICY IF EXISTS "Allow public read access to fb_odds" ON public.fb_odds;
+DROP POLICY IF EXISTS "Allow service_role full access to fb_leagues" ON public.fb_leagues;
+DROP POLICY IF EXISTS "Allow service_role full access to fb_teams" ON public.fb_teams;
+DROP POLICY IF EXISTS "Allow service_role full access to fb_players" ON public.fb_players;
+DROP POLICY IF EXISTS "Allow service_role full access to fb_fixtures" ON public.fb_fixtures;
+DROP POLICY IF EXISTS "Allow service_role full access to fb_odds" ON public.fb_odds;
+
 -- Allow public read access for all staging tables
 CREATE POLICY "Allow public read access to fb_leagues"
   ON public.fb_leagues FOR SELECT
