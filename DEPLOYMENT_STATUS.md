@@ -1,27 +1,52 @@
 # Fantasy Data Seeding - Current Status and Next Steps
 
-## 🚨 LATEST ISSUE (Nov 10, 2025) - Edge Function Timeout
+## 🚨 LATEST ISSUE (Nov 10, 2025) - Missing api_id in Production Tables
 
 **Previous Errors RESOLVED**:
 - ✅ Schema cache error for 'code' column in fb_teams - FIXED
 - ✅ Schema cache error for 'number' column in fb_players - FIXED
+- ✅ Edge Function timeout - EXPECTED (will handle with manual batching)
 
-**Current Issue**: Edge Function shutdown due to execution time limit
+**Current Issue**: `"column players.api_id does not exist"`
 
 **What worked**:
-- ✅ Champions League: 20 teams, ~670 players seeded
-- ✅ Premier League: 20 teams, ~670 players seeded
-- ⏳ La Liga: Started processing but hit timeout
+- ✅ Champions League: 20 teams, ~670 players seeded to staging (fb_*)
+- ✅ Premier League: 20 teams, ~670 players seeded to staging (fb_*)
+- ⏳ La Liga: Started processing but hit timeout (expected)
+- ⚠️ Phase 2.5: Sync to production failed - missing api_id columns
 
-**Total progress**: ~1,340 players successfully seeded before shutdown
+**Total progress**: ~1,340 players in staging tables (fb_players)
 
-**Root Cause**: Supabase Edge Functions have max execution time (2-5 minutes). Processing 3 full leagues requires ~15-20 minutes.
+**Root Cause**: Production tables (`teams`, `players`, `leagues`, `fixtures`) don't have `api_id` columns needed for syncing from staging tables (`fb_*`).
 
-**Problem**: Need to redesign Edge Function to work in resumable chunks within timeout limits.
+**Problem**: Edge Function's Phase 2.5 tries to sync but can't match records without api_id.
 
-### IMMEDIATE ACTION: Quick Workaround (Manual Batching)
+### IMMEDIATE ACTION: Add api_id Columns to Production Tables
 
-**Since 2 leagues already succeeded**, just finish La Liga manually:
+**Run this migration to add api_id columns**:
+
+1. Open Supabase SQL Editor:
+   https://supabase.com/dashboard/project/crypuzduplbzbmvefvzr/sql/new
+
+2. Copy the **entire content** from:
+   `supabase/migrations/20250711000000_add_api_id_to_production_tables.sql`
+
+3. Paste into SQL Editor and click **RUN**
+
+4. This script will:
+   - Add `api_id` BIGINT UNIQUE column to `teams`, `players`, `leagues`, `fixtures` tables
+   - Add `code`, `logo`, `country` columns to `teams` (for compatibility)
+   - Add `name`, `photo` columns to `players` (for compatibility)
+   - Create indexes on all api_id columns
+   - Safe to run multiple times (idempotent)
+
+5. After successful migration, retry Fantasy Data Seeding (just La Liga: `140`)
+
+---
+
+### THEN: Complete La Liga Seeding (Manual Batching)
+
+**After adding api_id columns**, finish La Liga:
 
 1. **In Admin UI**, change League IDs field from `2, 39, 140` to just `140`
 2. Click "Start Fantasy Data Seeding"
