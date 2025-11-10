@@ -552,12 +552,58 @@ async function seedFantasyData(
       }
     }
 
+    // Phase 2.5: Sync staging data to production tables
+    progress.stage = 'Syncing to Production';
+    progress.message = 'Syncing teams and players to production tables...';
+    progressCallback?.(progress);
+
+    try {
+      // Sync teams: fb_teams → teams
+      const { data: fbTeams } = await supabase.from('fb_teams').select('*');
+
+      if (fbTeams && fbTeams.length > 0) {
+        for (const fbTeam of fbTeams) {
+          await supabase.from('teams').upsert({
+            api_id: fbTeam.id,
+            name: fbTeam.name,
+            code: fbTeam.code,
+            logo: fbTeam.logo,
+            country: fbTeam.country,
+          }, {
+            onConflict: 'api_id',
+          });
+        }
+        console.log(`[syncProduction] Synced ${fbTeams.length} teams`);
+      }
+
+      // Sync players: fb_players → players
+      const { data: fbPlayers } = await supabase.from('fb_players').select('*');
+
+      if (fbPlayers && fbPlayers.length > 0) {
+        for (const fbPlayer of fbPlayers) {
+          await supabase.from('players').upsert({
+            api_id: fbPlayer.id,
+            name: fbPlayer.name,
+            photo: fbPlayer.photo,
+            position: fbPlayer.position,
+            nationality: fbPlayer.nationality,
+          }, {
+            onConflict: 'api_id',
+          });
+        }
+        console.log(`[syncProduction] Synced ${fbPlayers.length} players`);
+      }
+    } catch (error) {
+      console.error('[syncProduction] Error syncing to production:', error);
+      progress.errors.push(`Sync to production: ${error.message}`);
+    }
+
     // Phase 3: Seed player stats (priority leagues only)
     progress.stage = 'Player Statistics';
     progress.message = 'Fetching player statistics...';
     progressCallback?.(progress);
 
-    // Get all players from priority leagues
+    // Get all players from production table (now synced from fb_players)
     const { data: players, error: playersError } = await supabase
       .from('players')
       .select('api_id')
