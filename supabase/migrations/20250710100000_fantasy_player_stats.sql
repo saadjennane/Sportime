@@ -382,6 +382,14 @@ ALTER TABLE public.player_season_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.player_match_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.player_transfers ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Allow authenticated read access to player_season_stats" ON public.player_season_stats;
+DROP POLICY IF EXISTS "Allow authenticated read access to player_match_stats" ON public.player_match_stats;
+DROP POLICY IF EXISTS "Allow authenticated read access to player_transfers" ON public.player_transfers;
+DROP POLICY IF EXISTS "Allow service_role full access to player_season_stats" ON public.player_season_stats;
+DROP POLICY IF EXISTS "Allow service_role full access to player_match_stats" ON public.player_match_stats;
+DROP POLICY IF EXISTS "Allow service_role full access to player_transfers" ON public.player_transfers;
+
 -- Allow authenticated users to read all data
 CREATE POLICY "Allow authenticated read access to player_season_stats"
   ON public.player_season_stats FOR SELECT
