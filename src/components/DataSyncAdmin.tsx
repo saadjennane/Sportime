@@ -10,7 +10,7 @@ import {
   ApiSyncConfig,
 } from '../types'
 import { DatabaseZap, DownloadCloud, Play, RefreshCw, Server, Settings, Sparkles } from 'lucide-react'
-import { PRIORITY_LEAGUES } from '../data/priorityLeagues'
+import { PRIORITY_LEAGUES, ALL_AVAILABLE_LEAGUES } from '../data/priorityLeagues'
 
 interface DataSyncAdminProps {
   addToast?: (message: string, type: 'success' | 'error' | 'info') => void
@@ -28,6 +28,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
   const [syncConfigs, setSyncConfigs] = useState<ApiSyncConfig[]>([])
 
   // Fantasy Data Seeding
+  const [fantasyLeagueIds, setFantasyLeagueIds] = useState('2, 39, 140') // UCL, Premier League, La Liga
   const [fantasyProgress, setFantasyProgress] = useState<{stage: string; current: number; total: number; message: string} | null>(null)
   const [fantasySeeding, setFantasySeeding] = useState(false)
 
@@ -434,8 +435,30 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
   }
 
   const handleFantasyDataSeed = async () => {
+    // Parse fantasy league IDs from input
+    const selectedLeagueIds = fantasyLeagueIds
+      .split(',')
+      .map(id => id.trim())
+      .filter(Boolean)
+      .map(id => parseInt(id))
+
+    if (selectedLeagueIds.length === 0) {
+      toast('Please enter at least one league ID for Fantasy seeding', 'error')
+      return
+    }
+
+    // Build league configs from selected IDs
+    const selectedLeagues = selectedLeagueIds
+      .map(apiId => ALL_AVAILABLE_LEAGUES.find(l => l.api_id === apiId))
+      .filter(Boolean)
+
+    if (selectedLeagues.length === 0) {
+      toast('No valid leagues found for the provided IDs', 'error')
+      return
+    }
+
     setFantasySeeding(true)
-    setFantasyProgress({ stage: 'Starting', current: 0, total: PRIORITY_LEAGUES.length, message: 'Initializing Fantasy data seeding...' })
+    setFantasyProgress({ stage: 'Starting', current: 0, total: selectedLeagues.length, message: 'Initializing Fantasy data seeding...' })
 
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
@@ -452,7 +475,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
           'Authorization': `Bearer ${supabaseAnonKey}`,
         },
         body: JSON.stringify({
-          leagues: PRIORITY_LEAGUES,
+          leagues: selectedLeagues,
           season: Number(season),
         }),
       })
@@ -596,20 +619,47 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
           <h3 className="font-bold text-lg text-text-primary">Fantasy Data Seeding</h3>
         </div>
         <div className="space-y-3">
+          {/* League IDs Input */}
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-1">
+              League IDs for Fantasy Seeding (comma-separated)
+            </label>
+            <input
+              type="text"
+              value={fantasyLeagueIds}
+              onChange={(e) => setFantasyLeagueIds(e.target.value)}
+              className="w-full p-2 bg-deep-navy border-2 border-warm-yellow/30 rounded-xl text-text-primary placeholder:text-text-disabled focus:border-warm-yellow focus:outline-none"
+              placeholder="e.g., 2, 39, 140"
+            />
+            <p className="text-xs text-text-disabled mt-1">
+              Default: 2 (Champions League), 39 (Premier League), 140 (La Liga)
+            </p>
+          </div>
+
           <div className="bg-deep-navy p-4 rounded-lg border border-warm-yellow/10">
-            <h4 className="font-semibold text-text-primary mb-2">Priority Leagues ({PRIORITY_LEAGUES.length})</h4>
+            <h4 className="font-semibold text-text-primary mb-2">
+              Selected Leagues ({fantasyLeagueIds.split(',').filter(id => id.trim()).length})
+            </h4>
             <p className="text-sm text-text-secondary mb-3">
               Full data including all players, season stats, match-by-match performance, and transfer history
             </p>
             <div className="flex flex-wrap gap-2">
-              {PRIORITY_LEAGUES.slice(0, 10).map((league) => (
-                <span key={league.api_id} className="px-2 py-1 bg-warm-yellow/10 text-warm-yellow text-xs rounded-lg border border-warm-yellow/20">
-                  {league.name}
-                </span>
-              ))}
-              {PRIORITY_LEAGUES.length > 10 && (
+              {fantasyLeagueIds.split(',').filter(id => id.trim()).slice(0, 10).map((id) => {
+                const apiId = parseInt(id.trim())
+                const league = ALL_AVAILABLE_LEAGUES.find(l => l.api_id === apiId)
+                return league ? (
+                  <span key={league.api_id} className="px-2 py-1 bg-warm-yellow/10 text-warm-yellow text-xs rounded-lg border border-warm-yellow/20">
+                    {league.name}
+                  </span>
+                ) : (
+                  <span key={id} className="px-2 py-1 bg-hot-red/10 text-hot-red text-xs rounded-lg border border-hot-red/20">
+                    ID {id} (unknown)
+                  </span>
+                )
+              })}
+              {fantasyLeagueIds.split(',').filter(id => id.trim()).length > 10 && (
                 <span className="px-2 py-1 bg-warm-yellow/10 text-warm-yellow text-xs rounded-lg border border-warm-yellow/20">
-                  +{PRIORITY_LEAGUES.length - 10} more
+                  +{fantasyLeagueIds.split(',').filter(id => id.trim()).length - 10} more
                 </span>
               )}
             </div>
@@ -618,9 +668,9 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
           <div className="bg-deep-navy p-4 rounded-lg border border-electric-blue/10">
             <h4 className="font-semibold text-text-primary mb-2">Data to be seeded</h4>
             <ul className="text-sm text-text-secondary space-y-1">
-              <li>• {PRIORITY_LEAGUES.length} leagues with full metadata</li>
-              <li>• ~{PRIORITY_LEAGUES.length * 20} teams with squad information</li>
-              <li>• ~{PRIORITY_LEAGUES.length * 20 * 30} players with complete profiles</li>
+              <li>• {fantasyLeagueIds.split(',').filter(id => id.trim()).length} leagues with full metadata</li>
+              <li>• ~{fantasyLeagueIds.split(',').filter(id => id.trim()).length * 20} teams with squad information</li>
+              <li>• ~{fantasyLeagueIds.split(',').filter(id => id.trim()).length * 20 * 30} players with complete profiles</li>
               <li>• Season statistics, match-by-match stats, transfer history</li>
               <li>• PGS (Player Game Score) calculation with correct formula</li>
               <li>• Player categorization (Star/Key/Wild)</li>
@@ -632,8 +682,9 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
               ⚠️ API Quota Warning
             </p>
             <p className="text-xs text-text-secondary mt-1">
-              This process will use approximately 12,000-15,000 API calls. With a 7,500 req/day quota,
-              seeding will take 2-3 days to complete. The process can be safely interrupted and resumed.
+              This process will use approximately {fantasyLeagueIds.split(',').filter(id => id.trim()).length * 600}-{fantasyLeagueIds.split(',').filter(id => id.trim()).length * 800} API calls.
+              With a 7,500 req/day quota, seeding will take {Math.ceil((fantasyLeagueIds.split(',').filter(id => id.trim()).length * 700) / 7500)} day{Math.ceil((fantasyLeagueIds.split(',').filter(id => id.trim()).length * 700) / 7500) > 1 ? 's' : ''} to complete.
+              The process can be safely interrupted and resumed.
             </p>
           </div>
 

@@ -1,6 +1,7 @@
 // ============================================================================
 // Priority Leagues Configuration for Fantasy Data Seeding
-// 20 leagues with full data (players, stats, transfers)
+// Initial seeding: 3 leagues with full data (players, stats, transfers)
+// Additional leagues can be selected via Admin UI
 // ============================================================================
 
 export interface PriorityLeague {
@@ -10,7 +11,15 @@ export interface PriorityLeague {
   priority: boolean;
 }
 
+// Initial 3 leagues for testing and first deployment
 export const PRIORITY_LEAGUES: PriorityLeague[] = [
+  { api_id: 2, name: 'UEFA Champions League', country: 'World', priority: true },
+  { api_id: 39, name: 'Premier League', country: 'England', priority: true },
+  { api_id: 140, name: 'La Liga', country: 'Spain', priority: true },
+];
+
+// All available leagues for reference (can be selected via Admin UI)
+export const ALL_AVAILABLE_LEAGUES: PriorityLeague[] = [
   // Top 5 European Leagues
   { api_id: 39, name: 'Premier League', country: 'England', priority: true },
   { api_id: 140, name: 'La Liga', country: 'Spain', priority: true },
@@ -56,4 +65,4 @@ export const BASIC_LEAGUES: PriorityLeague[] = [
   // Add more as needed
 ];
 
-export const ALL_LEAGUES = [...PRIORITY_LEAGUES, ...BASIC_LEAGUES];
+export const ALL_LEAGUES = [...ALL_AVAILABLE_LEAGUES, ...BASIC_LEAGUES];
