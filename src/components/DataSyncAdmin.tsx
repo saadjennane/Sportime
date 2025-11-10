@@ -9,7 +9,8 @@ import {
   ApiOddsInfo,
   ApiSyncConfig,
 } from '../types'
-import { DatabaseZap, DownloadCloud, Play, RefreshCw, Server, Settings } from 'lucide-react'
+import { DatabaseZap, DownloadCloud, Play, RefreshCw, Server, Settings, Sparkles } from 'lucide-react'
+import { PRIORITY_LEAGUES } from '../data/priorityLeagues'
 
 interface DataSyncAdminProps {
   addToast?: (message: string, type: 'success' | 'error' | 'info') => void
@@ -25,6 +26,10 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
   const [leagueIds, setLeagueIds] = useState('2, 39, 140, 135') // UCL, Premier League, La Liga, Serie A
   const [season, setSeason] = useState('2024')
   const [syncConfigs, setSyncConfigs] = useState<ApiSyncConfig[]>([])
+
+  // Fantasy Data Seeding
+  const [fantasyProgress, setFantasyProgress] = useState<{stage: string; current: number; total: number; message: string} | null>(null)
+  const [fantasySeeding, setFantasySeeding] = useState(false)
 
   const addProgress = (message: string) => setProgress((prev) => [message, ...prev])
 
@@ -428,6 +433,57 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
     }
   }
 
+  const handleFantasyDataSeed = async () => {
+    setFantasySeeding(true)
+    setFantasyProgress({ stage: 'Starting', current: 0, total: PRIORITY_LEAGUES.length, message: 'Initializing Fantasy data seeding...' })
+
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Supabase configuration missing')
+      }
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/seed-fantasy-data`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({
+          leagues: PRIORITY_LEAGUES,
+          season: Number(season),
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Fantasy data seeding failed')
+      }
+
+      const result = await response.json()
+
+      // Update progress from result
+      if (result.progress && result.progress.length > 0) {
+        const lastProgress = result.progress[result.progress.length - 1]
+        setFantasyProgress({
+          stage: lastProgress.stage,
+          current: lastProgress.current,
+          total: lastProgress.total,
+          message: lastProgress.message,
+        })
+      }
+
+      toast('Fantasy data seeded successfully!', 'success')
+    } catch (e: any) {
+      toast(`Fantasy data seeding failed: ${e?.message ?? 'unknown error'}`, 'error')
+      setFantasyProgress({ stage: 'Error', current: 0, total: 0, message: e?.message ?? 'Unknown error occurred' })
+    } finally {
+      setFantasySeeding(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Initial Import Section */}
@@ -529,6 +585,85 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
           Note: Automatic syncing requires a backend scheduler (e.g., Supabase Edge Functions on a
           cron schedule) to trigger these functions based on the saved frequency.
         </p>
+      </div>
+
+      {/* Fantasy Data Seeding Section */}
+      <div className="bg-navy-accent rounded-2xl shadow-lg p-5 space-y-4 border border-warm-yellow/20">
+        <div className="flex items-center gap-3">
+          <div className="bg-warm-yellow/20 p-2 rounded-full">
+            <Sparkles className="w-6 h-6 text-warm-yellow" />
+          </div>
+          <h3 className="font-bold text-lg text-text-primary">Fantasy Data Seeding</h3>
+        </div>
+        <div className="space-y-3">
+          <div className="bg-deep-navy p-4 rounded-lg border border-warm-yellow/10">
+            <h4 className="font-semibold text-text-primary mb-2">Priority Leagues ({PRIORITY_LEAGUES.length})</h4>
+            <p className="text-sm text-text-secondary mb-3">
+              Full data including all players, season stats, match-by-match performance, and transfer history
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {PRIORITY_LEAGUES.slice(0, 10).map((league) => (
+                <span key={league.api_id} className="px-2 py-1 bg-warm-yellow/10 text-warm-yellow text-xs rounded-lg border border-warm-yellow/20">
+                  {league.name}
+                </span>
+              ))}
+              {PRIORITY_LEAGUES.length > 10 && (
+                <span className="px-2 py-1 bg-warm-yellow/10 text-warm-yellow text-xs rounded-lg border border-warm-yellow/20">
+                  +{PRIORITY_LEAGUES.length - 10} more
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-deep-navy p-4 rounded-lg border border-electric-blue/10">
+            <h4 className="font-semibold text-text-primary mb-2">Data to be seeded</h4>
+            <ul className="text-sm text-text-secondary space-y-1">
+              <li>• {PRIORITY_LEAGUES.length} leagues with full metadata</li>
+              <li>• ~{PRIORITY_LEAGUES.length * 20} teams with squad information</li>
+              <li>• ~{PRIORITY_LEAGUES.length * 20 * 30} players with complete profiles</li>
+              <li>• Season statistics, match-by-match stats, transfer history</li>
+              <li>• PGS (Player Game Score) calculation with correct formula</li>
+              <li>• Player categorization (Star/Key/Wild)</li>
+            </ul>
+          </div>
+
+          <div className="bg-hot-red/10 p-3 rounded-lg border border-hot-red/20">
+            <p className="text-xs text-hot-red font-semibold">
+              ⚠️ API Quota Warning
+            </p>
+            <p className="text-xs text-text-secondary mt-1">
+              This process will use approximately 12,000-15,000 API calls. With a 7,500 req/day quota,
+              seeding will take 2-3 days to complete. The process can be safely interrupted and resumed.
+            </p>
+          </div>
+
+          <button
+            onClick={handleFantasyDataSeed}
+            disabled={fantasySeeding || !!loading}
+            className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-warm-yellow to-hot-red text-white rounded-xl font-semibold shadow-lg hover:shadow-warm-yellow/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          >
+            {fantasySeeding ? <RefreshCw className="animate-spin" /> : <Sparkles />}
+            {fantasySeeding ? 'Seeding in progress...' : 'Start Fantasy Data Seeding'}
+          </button>
+
+          {fantasyProgress && (
+            <div className="bg-deep-navy p-4 rounded-lg border border-lime-glow/20">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold text-lime-glow">{fantasyProgress.stage}</span>
+                <span className="text-xs text-text-secondary">
+                  {fantasyProgress.current} / {fantasyProgress.total}
+                </span>
+              </div>
+              <div className="w-full bg-black/50 rounded-full h-2 mb-2">
+                <div
+                  className="bg-gradient-to-r from-lime-glow to-warm-yellow h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${(fantasyProgress.current / fantasyProgress.total) * 100}%` }}
+                />
+              </div>
+              <p className="text-xs text-text-secondary">{fantasyProgress.message}</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Progress Log */}
