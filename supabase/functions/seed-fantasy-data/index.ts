@@ -670,11 +670,29 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    console.log('[seed-fantasy-data] Request received');
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+    }
+
+    console.log('[seed-fantasy-data] Environment variables OK');
+
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { leagues, season = 2024 } = await req.json();
+    let body;
+    try {
+      body = await req.json();
+      console.log('[seed-fantasy-data] Body parsed:', JSON.stringify(body));
+    } catch (parseError) {
+      console.error('[seed-fantasy-data] JSON parse error:', parseError);
+      throw new Error(`Failed to parse request body: ${parseError.message}`);
+    }
+
+    const { leagues, season = 2024 } = body;
 
     if (!leagues || !Array.isArray(leagues)) {
       return new Response(

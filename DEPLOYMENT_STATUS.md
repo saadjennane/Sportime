@@ -1,15 +1,111 @@
 # Fantasy Data Seeding - Current Status and Next Steps
 
-## ✅ LATEST UPDATE (Nov 10, 2025)
+## 🚨 LATEST ISSUE (Nov 10, 2025) - Schema Cache Error
+
+**Current Error**: `"Could not find the 'code' column of 'fb_teams' in the schema cache"`
+
+**Root Cause**: PostgREST schema cache hasn't refreshed after migration deployment, or the table was created without the 'code' column in an earlier version.
+
+**FIX REQUIRED**: Run the schema fix script to ensure the 'code' column exists.
+
+### IMMEDIATE ACTION: Fix fb_teams Schema
+
+**Problem**: Edge Function is trying to insert 'code' column but PostgREST schema cache doesn't recognize it.
+
+**Edge Function columns being inserted** (lines 154-163 of index.ts):
+- id, name, **code**, country, founded, national, logo, venue_name, venue_city, venue_capacity
+
+**Solution**: Try Option 1 first (safe, adds column if missing). If that doesn't work, use Option 2 (recreates table, deletes data).
+
+---
+
+#### **Option 1: Add Missing Column (SAFE - Try This First)**
+
+1. Open Supabase SQL Editor:
+   https://supabase.com/dashboard/project/crypuzduplbzbmvefvzr/sql/new
+
+2. Copy the **entire content** from:
+   `fix_fb_teams_schema.sql`
+
+3. Paste into SQL Editor and click **RUN**
+
+4. Expected output:
+   ```
+   NOTICE: Code column already exists in fb_teams
+   (or)
+   NOTICE: Added code column to fb_teams
+
+   | column_name | data_type | is_nullable |
+   | ----------- | --------- | ----------- |
+   | code        | text      | YES         |
+
+   | status                         |
+   | ------------------------------ |
+   | fb_teams schema fix complete!  |
+   ```
+
+5. After successful fix, retry Fantasy Data Seeding from Admin UI
+
+---
+
+#### **Option 2: Recreate Table (DESTRUCTIVE - Only if Option 1 Fails)**
+
+**WARNING**: This will delete all existing data in fb_teams table!
+
+1. Open Supabase SQL Editor:
+   https://supabase.com/dashboard/project/crypuzduplbzbmvefvzr/sql/new
+
+2. Copy the **entire content** from:
+   `fix_fb_teams_recreate.sql`
+
+3. Paste into SQL Editor and click **RUN**
+
+4. Expected output:
+   ```
+   | current_rows |
+   | ------------ |
+   | X            |  (shows how many rows will be deleted)
+
+   [DROP and CREATE statements execute...]
+
+   | column_name     | data_type | is_nullable |
+   | --------------- | --------- | ----------- |
+   | id              | bigint    | NO          |
+   | name            | text      | NO          |
+   | code            | text      | YES         |
+   | country         | text      | YES         |
+   | founded         | integer   | YES         |
+   | national        | boolean   | YES         |
+   | logo            | text      | YES         |
+   | venue_name      | text      | YES         |
+   | venue_city      | text      | YES         |
+   | venue_capacity  | integer   | YES         |
+   | payload         | jsonb     | YES         |
+   | created_at      | timestamptz | YES       |
+   | updated_at      | timestamptz | YES       |
+
+   | status                                 |
+   | -------------------------------------- |
+   | fb_teams table recreated successfully! |
+   ```
+
+5. After successful fix, retry Fantasy Data Seeding from Admin UI
+
+---
+
+## ✅ PREVIOUS FIXES (Nov 10, 2025)
 
 **Edge Function Fixed!** Resolved critical issues:
 1. ✅ Fixed table references: `fb_players` → staging, `players` → production
 2. ✅ Added Phase 2.5: Auto-sync staging → production before calculating stats
 3. ✅ Edge Function redeployed successfully
+4. ✅ Fixed fb_leagues schema mapping (api_league_id, country field)
+5. ✅ Added comprehensive logging for debugging
 
 **Previous Issue (RESOLVED)**: 500 error caused by:
 - Edge Function trying to query non-existent `players` table before syncing from staging
 - Missing synchronization step between staging tables and production tables
+- Schema field naming mismatches
 
 ## 🔍 WHAT WAS FIXED
 
