@@ -1,18 +1,44 @@
 # Fantasy Data Seeding - Current Status and Next Steps
 
-## 🚨 LATEST ISSUE (Nov 10, 2025) - Edge Function Timeout (HTTP 546)
+## 🚨 LATEST ISSUE (Nov 10, 2025) - Additional Schema Cache Errors
 
-**Previous Error RESOLVED**: ✅ Schema cache error for 'code' column - FIXED
+**Previous Error RESOLVED**: ✅ Schema cache error for 'code' column in fb_teams - FIXED
 
-**Current Error**: `POST https://crypuzduplbzbmvefvzr.supabase.co/functions/v1/seed-fantasy-data 546`
+**Current Error**: `"Could not find the 'number' column of 'fb_players' in the schema cache"`
 
-**Root Cause**: Edge Function is timing out. HTTP 546 is not a standard code - likely Supabase indicating function execution limit exceeded.
+**Good News**: Edge Function is NOT timing out! It's actually working and making progress:
+- ✅ Phase 1: Leagues seeded successfully
+- ✅ Phase 2: Teams being seeded
+- ⚠️ Phase 2: Players hitting schema cache error for 'number' column
 
-**Problem**: The Edge Function is designed to run for 4-8 hours, but Supabase Edge Functions have strict timeout limits (typically 1-5 minutes max).
+**Root Cause**: Same as before - PostgREST schema cache doesn't recognize the 'number' column (and potentially other columns) in fb_players table.
 
-**INVESTIGATION REQUIRED**: Check Edge Function logs to confirm timeout hypothesis.
+**Problem**: The migration defines these columns, but the schema cache hasn't refreshed or the table was created without them.
 
-### IMMEDIATE ACTION: Check Edge Function Logs
+### IMMEDIATE ACTION: Fix All Schema Columns
+
+**Run this comprehensive fix script**:
+
+1. Open Supabase SQL Editor:
+   https://supabase.com/dashboard/project/crypuzduplbzbmvefvzr/sql/new
+
+2. Copy the **entire content** from:
+   `fix_all_schema_columns.sql`
+
+3. Paste into SQL Editor and click **RUN**
+
+4. This script will:
+   - Add 'code' column to fb_teams (if missing)
+   - Add 'number' column to fb_players (if missing)
+   - Add ALL other columns needed by Edge Function (firstname, lastname, age, birth_date, birth_place, birth_country, nationality, height, weight, photo, position, payload)
+   - Show complete schema for both tables
+   - Safe to run multiple times (idempotent)
+
+5. After successful fix, retry Fantasy Data Seeding from Admin UI
+
+---
+
+### ~~IMMEDIATE ACTION: Check Edge Function Logs~~ ✅ DONE
 
 1. **Go to Edge Function Logs**:
    https://supabase.com/dashboard/project/crypuzduplbzbmvefvzr/functions/seed-fantasy-data/logs
