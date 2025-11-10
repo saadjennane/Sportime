@@ -112,16 +112,15 @@ async function seedLeagueBasic(
   const { error } = await supabase
     .from('fb_leagues')
     .upsert({
-      api_id: league.api_id,
+      api_league_id: league.api_id,
       name: apiLeague.league.name,
       type: apiLeague.league.type,
       logo: apiLeague.league.logo,
-      country_name: apiLeague.country.name,
-      country_code: apiLeague.country.code,
-      country_flag: apiLeague.country.flag,
+      country: apiLeague.country.name,
       season: season,
+      payload: apiLeague, // Store full response
     }, {
-      onConflict: 'api_id,season',
+      onConflict: 'api_league_id',
     });
 
   if (error) {
