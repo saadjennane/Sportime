@@ -152,7 +152,7 @@ async function seedLeagueTeams(
     const { error } = await supabase
       .from('fb_teams')
       .upsert({
-        api_id: teamData.team.id,
+        id: teamData.team.id,
         name: teamData.team.name,
         code: teamData.team.code,
         country: teamData.team.country,
@@ -163,7 +163,7 @@ async function seedLeagueTeams(
         venue_city: teamData.venue?.city,
         venue_capacity: teamData.venue?.capacity,
       }, {
-        onConflict: 'api_id',
+        onConflict: 'id',
       });
 
     if (error) {
@@ -203,7 +203,7 @@ async function seedTeamSquad(
     const { error } = await supabase
       .from('fb_players')
       .upsert({
-        api_id: playerData.id,
+        id: playerData.id,
         name: playerData.name,
         firstname: playerData.firstname,
         lastname: playerData.lastname,
@@ -218,7 +218,7 @@ async function seedTeamSquad(
         position: playerData.position,
         number: playerData.number,
       }, {
-        onConflict: 'api_id',
+        onConflict: 'id',
       });
 
     if (error) {

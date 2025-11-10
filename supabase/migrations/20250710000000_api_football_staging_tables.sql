@@ -28,8 +28,7 @@ CREATE INDEX IF NOT EXISTS idx_fb_leagues_season ON public.fb_leagues(season);
 -- Raw team data from API-Football
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS public.fb_teams (
-  id BIGINT PRIMARY KEY, -- API-Football team ID
-  api_id BIGINT UNIQUE NOT NULL, -- Alias for consistency
+  id BIGINT PRIMARY KEY, -- API-Football team ID (serves as both id and api_id)
   name TEXT NOT NULL,
   code TEXT, -- 3-letter code (e.g., 'MCI')
   country TEXT,
@@ -44,7 +43,7 @@ CREATE TABLE IF NOT EXISTS public.fb_teams (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_fb_teams_api_id ON public.fb_teams(api_id);
+CREATE INDEX IF NOT EXISTS idx_fb_teams_id ON public.fb_teams(id);
 CREATE INDEX IF NOT EXISTS idx_fb_teams_name ON public.fb_teams(name);
 
 -- =============================================================================
@@ -52,8 +51,7 @@ CREATE INDEX IF NOT EXISTS idx_fb_teams_name ON public.fb_teams(name);
 -- Raw player data from API-Football
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS public.fb_players (
-  id BIGINT PRIMARY KEY, -- API-Football player ID
-  api_id BIGINT UNIQUE NOT NULL, -- Alias for consistency
+  id BIGINT PRIMARY KEY, -- API-Football player ID (serves as both id and api_id)
   name TEXT NOT NULL,
   firstname TEXT,
   lastname TEXT,
@@ -72,7 +70,7 @@ CREATE TABLE IF NOT EXISTS public.fb_players (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_fb_players_api_id ON public.fb_players(api_id);
+CREATE INDEX IF NOT EXISTS idx_fb_players_id ON public.fb_players(id);
 CREATE INDEX IF NOT EXISTS idx_fb_players_name ON public.fb_players(name);
 CREATE INDEX IF NOT EXISTS idx_fb_players_position ON public.fb_players(position);
 
