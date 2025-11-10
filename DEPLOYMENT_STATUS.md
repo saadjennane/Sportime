@@ -1,16 +1,61 @@
 # Fantasy Data Seeding - Current Status and Next Steps
 
-## 🚨 LATEST ISSUE (Nov 10, 2025) - Schema Cache Error
+## 🚨 LATEST ISSUE (Nov 10, 2025) - Edge Function Timeout (HTTP 546)
 
-**Current Error**: `"Could not find the 'code' column of 'fb_teams' in the schema cache"`
+**Previous Error RESOLVED**: ✅ Schema cache error for 'code' column - FIXED
 
-**Root Cause**: PostgREST schema cache hasn't refreshed after migration deployment, or the table was created without the 'code' column in an earlier version.
+**Current Error**: `POST https://crypuzduplbzbmvefvzr.supabase.co/functions/v1/seed-fantasy-data 546`
 
-**FIX REQUIRED**: Run the schema fix script to ensure the 'code' column exists.
+**Root Cause**: Edge Function is timing out. HTTP 546 is not a standard code - likely Supabase indicating function execution limit exceeded.
 
-### IMMEDIATE ACTION: Fix fb_teams Schema
+**Problem**: The Edge Function is designed to run for 4-8 hours, but Supabase Edge Functions have strict timeout limits (typically 1-5 minutes max).
 
-**Problem**: Edge Function is trying to insert 'code' column but PostgREST schema cache doesn't recognize it.
+**INVESTIGATION REQUIRED**: Check Edge Function logs to confirm timeout hypothesis.
+
+### IMMEDIATE ACTION: Check Edge Function Logs
+
+1. **Go to Edge Function Logs**:
+   https://supabase.com/dashboard/project/crypuzduplbzbmvefvzr/functions/seed-fantasy-data/logs
+
+2. **Find Latest Invocation**: Look for the most recent execution (timestamp matching when you clicked "Start Fantasy Data Seeding")
+
+3. **Check for**:
+   - What phase did it reach? (Phase 1, 2, 2.5, 3, or 4)
+   - Last log message before stopping
+   - Any error messages
+   - How long did it run? (look at start/end timestamps)
+
+4. **Share the logs** so we can determine next steps
+
+### Potential Solutions (based on timeout hypothesis)
+
+If logs confirm timeout issue, we have 3 options:
+
+#### Option A: Test with Single League (Quick Test)
+- Change league IDs to just `"2"` (Champions League only)
+- See if it completes for 1 league
+- If yes → timeout confirmed, need redesign
+
+#### Option B: Client-Side Orchestration (Recommended)
+- Break seeding into multiple smaller Edge Function calls
+- Admin UI manages the sequence
+- Each call completes within timeout
+- Better progress tracking and error handling
+
+#### Option C: Database Queue System
+- Edge Function adds tasks to queue table
+- Separate process picks up and executes tasks
+- Runs in background over hours/days
+
+---
+
+## ✅ RESOLVED: Schema Cache Error (fb_teams 'code' column)
+
+**Previous Error**: `"Could not find the 'code' column of 'fb_teams' in the schema cache"`
+
+**Fix Applied**: ✅ Ran `fix_fb_teams_schema.sql` successfully
+
+**Problem**: Edge Function was trying to insert 'code' column but PostgREST schema cache didn't recognize it.
 
 **Edge Function columns being inserted** (lines 154-163 of index.ts):
 - id, name, **code**, country, founded, national, logo, venue_name, venue_city, venue_capacity
