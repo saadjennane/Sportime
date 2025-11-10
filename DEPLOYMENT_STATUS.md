@@ -1,23 +1,41 @@
 # Fantasy Data Seeding - Current Status and Next Steps
 
-## 🚨 LATEST ISSUE (Nov 10, 2025) - Additional Schema Cache Errors
+## 🚨 LATEST ISSUE (Nov 10, 2025) - Edge Function Timeout
 
-**Previous Error RESOLVED**: ✅ Schema cache error for 'code' column in fb_teams - FIXED
+**Previous Errors RESOLVED**:
+- ✅ Schema cache error for 'code' column in fb_teams - FIXED
+- ✅ Schema cache error for 'number' column in fb_players - FIXED
 
-**Current Error**: `"Could not find the 'number' column of 'fb_players' in the schema cache"`
+**Current Issue**: Edge Function shutdown due to execution time limit
 
-**Good News**: Edge Function is NOT timing out! It's actually working and making progress:
-- ✅ Phase 1: Leagues seeded successfully
-- ✅ Phase 2: Teams being seeded
-- ⚠️ Phase 2: Players hitting schema cache error for 'number' column
+**What worked**:
+- ✅ Champions League: 20 teams, ~670 players seeded
+- ✅ Premier League: 20 teams, ~670 players seeded
+- ⏳ La Liga: Started processing but hit timeout
 
-**Root Cause**: Same as before - PostgREST schema cache doesn't recognize the 'number' column (and potentially other columns) in fb_players table.
+**Total progress**: ~1,340 players successfully seeded before shutdown
 
-**Problem**: The migration defines these columns, but the schema cache hasn't refreshed or the table was created without them.
+**Root Cause**: Supabase Edge Functions have max execution time (2-5 minutes). Processing 3 full leagues requires ~15-20 minutes.
 
-### IMMEDIATE ACTION: Fix All Schema Columns
+**Problem**: Need to redesign Edge Function to work in resumable chunks within timeout limits.
 
-**Run this comprehensive fix script**:
+### IMMEDIATE ACTION: Quick Workaround (Manual Batching)
+
+**Since 2 leagues already succeeded**, just finish La Liga manually:
+
+1. **In Admin UI**, change League IDs field from `2, 39, 140` to just `140`
+2. Click "Start Fantasy Data Seeding"
+3. Should complete La Liga within timeout (~2-3 minutes)
+4. Then move to Phase 2.5 (Sync to production)
+5. Then Phases 3 & 4 (Stats & Transfers) - these will also need separate runs
+
+**Note**: For long-term solution, see `TIMEOUT_SOLUTION.md` for architecture redesign.
+
+---
+
+### ~~IMMEDIATE ACTION: Fix All Schema Columns~~ ✅ RESOLVED
+
+**Status**: Schema fixes successfully applied
 
 1. Open Supabase SQL Editor:
    https://supabase.com/dashboard/project/crypuzduplbzbmvefvzr/sql/new
