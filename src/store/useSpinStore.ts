@@ -6,6 +6,8 @@ import { ADAPTIVE_RULES, RARE_REWARD_CATEGORIES } from '../config/spinConstants'
 import { addDays, isAfter } from 'date-fns';
 import { useMockStore } from './useMockStore';
 import { addCoins } from '../services/coinService';
+import { grantTicket } from '../services/ticketService';
+import { addXpToUser } from '../services/progressionService';
 import { USE_SUPABASE } from '../config/env';
 import { performSpin as performSupabaseSpin } from '../services/spinService';
 
@@ -108,21 +110,23 @@ export const useSpinStore = create<SpinState & SpinActions>((set, get) => ({
       newAvailableSpins[tier] -= 1;
     }
 
-    // Apply other rewards via the main store or services
-    const { addTicket, addXp, grantPremium } = useMockStore.getState();
+    // Apply other rewards via Supabase services
     if (reward.id.startsWith('ticket_')) {
-      const tierMap: Record<string, TournamentType> = {
-        amateur: 'amateur',
-        master: 'master',
-        apex: 'apex',
-      };
-      const ticketTier = reward.id.replace('ticket_', '');
-      if (tierMap[ticketTier]) {
-        addTicket(userId, tierMap[ticketTier]);
+      const tierMatch = reward.id.match(/ticket_(amateur|master|apex)/);
+      if (tierMatch) {
+        const ticketTier = tierMatch[1] as 'amateur' | 'master' | 'apex';
+        grantTicket(userId, ticketTier, 7).catch((error) => {
+          console.error('[SpinWheel] Failed to grant ticket:', error);
+        });
       }
     } else if (reward.id.startsWith('boost_')) {
-      addXp(userId, parseInt(reward.id.replace('boost_', '')));
+      const xpAmount = parseInt(reward.id.replace('boost_', ''));
+      addXpToUser(userId, xpAmount).catch((error) => {
+        console.error('[SpinWheel] Failed to add XP:', error);
+      });
     } else if (reward.id.startsWith('premium_')) {
+      // Premium grants still use MockStore for now (to be migrated in future)
+      const { grantPremium } = useMockStore.getState();
       grantPremium(userId, parseInt(reward.id.replace('premium_', '').replace('d', '')));
     } else if (reward.id.startsWith('coins_')) {
       const amount = parseInt(reward.id.replace('coins_', ''));

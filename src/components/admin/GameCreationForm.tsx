@@ -1,8 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { SportimeGame, TournamentType, GameType, GameFormat, RewardTier, ConditionsLogic, GameRewardTier } from '../../types';
 import { TOURNAMENT_COSTS } from '../../config/constants';
-import { mockBadges } from '../../data/mockProgression';
-import { mockLeagues } from '../../data/mockLeagues';
+import { supabase } from '../../services/supabase';
 import { MultiSelect } from './MultiSelect';
 import { RewardsConfigurator } from './RewardsConfigurator';
 import { ChevronDown } from 'lucide-react';
@@ -15,14 +14,28 @@ interface GameCreationFormProps {
   addToast: (message: string, type: 'success' | 'error' | 'info') => void;
 }
 
+interface League {
+  id: string;
+  name: string;
+}
+
+interface Level {
+  name: string;
+}
+
+interface Badge {
+  id: string;
+  name: string;
+}
+
 const initialFormState: Omit<SportimeGame, 'id' | 'status' | 'totalPlayers' | 'participants'> = {
   name: '',
   description: '',
-  league_id: mockLeagues[0].id,
+  league_id: '',
   start_date: new Date().toISOString().split('T')[0],
   end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
   game_type: 'betting',
-  tier: 'amateur',
+  tier: 'amateur', // Challenge tier (Amateur/Master/Apex)
   duration_type: 'flash',
   entry_cost: 2000,
   custom_entry_cost_enabled: false,
@@ -30,7 +43,7 @@ const initialFormState: Omit<SportimeGame, 'id' | 'status' | 'totalPlayers' | 'p
   reward_tier: 'tier1',
   format: 'leaderboard',
   requires_subscription: false,
-  minimum_level: 'Amateur',
+  minimum_level: 'Rookie', // Progression level (Rookie/Rising Star/Pro/Elite/Legend/GOAT)
   required_badges: [],
   conditions_logic: 'and',
   minimum_players: 0,
@@ -41,7 +54,81 @@ const initialFormState: Omit<SportimeGame, 'id' | 'status' | 'totalPlayers' | 'p
 export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, onCancel, addToast }) => {
   const [formState, setFormState] = useState(initialFormState);
   const [isRewardsOpen, setIsRewardsOpen] = useState(false);
+  const [leagues, setLeagues] = useState<League[]>([]);
+  const [levels, setLevels] = useState<Level[]>([]);
+  const [badges, setBadges] = useState<Badge[]>([]);
   const { updateBasePack } = useMockStore();
+
+  // Load leagues, levels, and badges from Supabase
+  useEffect(() => {
+    loadLeagues();
+    loadLevels();
+    loadBadges();
+  }, []);
+
+  const loadLeagues = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('leagues')
+        .select('id, name')
+        .order('name');
+
+      if (error) throw error;
+
+      const leagueData = (data || []).map(l => ({ id: l.id, name: l.name })); // UUID is already a string
+      setLeagues(leagueData);
+
+      // Set first league as default if form state doesn't have one
+      if (leagueData.length > 0 && !formState.league_id) {
+        setFormState(prev => ({ ...prev, league_id: leagueData[0].id }));
+      }
+    } catch (err) {
+      console.error('Error loading leagues:', err);
+      addToast('Failed to load leagues', 'error');
+    }
+  };
+
+  const loadLevels = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('levels_config')
+        .select('name')
+        .order('level');
+
+      if (error) throw error;
+
+      setLevels((data || []).map(l => ({ name: l.name })));
+    } catch (err) {
+      console.error('Error loading levels:', err);
+      addToast('Failed to load levels', 'error');
+      // Fallback to default progression levels (NOT tiers)
+      setLevels([
+        { name: 'Rookie' },
+        { name: 'Rising Star' },
+        { name: 'Pro' },
+        { name: 'Elite' },
+        { name: 'Legend' },
+        { name: 'GOAT' }
+      ]);
+    }
+  };
+
+  const loadBadges = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('badges')
+        .select('id, name')
+        .order('name');
+
+      if (error) throw error;
+
+      setBadges(data || []);
+    } catch (err) {
+      console.error('Error loading badges:', err);
+      addToast('Failed to load badges', 'error');
+      setBadges([]);
+    }
+  };
 
   useEffect(() => {
     if (!formState.tier || !formState.duration_type) return;
@@ -101,6 +188,13 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate league is selected
+    if (!formState.league_id || formState.league_id === '') {
+      addToast('Please select a league', 'error');
+      return;
+    }
+
     onCreate(formState);
   };
 
@@ -111,8 +205,15 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
       {/* Basic Info */}
       <div className="grid grid-cols-2 gap-3">
         <input type="text" name="name" placeholder="Game Name" value={formState.name} onChange={handleChange} className={formFieldClasses} required />
-        <select name="league_id" value={formState.league_id} onChange={handleChange} className={formFieldClasses}>
-          {mockLeagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+        <select name="league_id" value={formState.league_id} onChange={handleChange} className={formFieldClasses} required>
+          {leagues.length === 0 ? (
+            <option value="">Loading leagues...</option>
+          ) : (
+            <>
+              <option value="">Select a league</option>
+              {leagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </>
+          )}
         </select>
       </div>
       <textarea name="description" placeholder="Description..." value={formState.description} onChange={handleChange} className={`${formFieldClasses} h-20`} />
@@ -170,14 +271,22 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
           Subscriber Only
         </label>
         <select name="minimum_level" value={formState.minimum_level} onChange={handleChange} className={formFieldClasses}>
-          <option value="Amateur">Min Level: Amateur</option>
-          <option value="Pro">Min Level: Pro</option>
-          <option value="Expert">Min Level: Expert</option>
-          <option value="Master">Min Level: Master</option>
-          <option value="Legend">Min Level: Legend</option>
-          <option value="GOAT">Min Level: GOAT</option>
+          {levels.length === 0 ? (
+            <option value="Rookie">Min Level: Rookie</option>
+          ) : (
+            levels.map(l => (
+              <option key={l.name} value={l.name}>
+                Min Level: {l.name}
+              </option>
+            ))
+          )}
         </select>
-        <MultiSelect options={mockBadges.map(b => ({ value: b.id, label: b.name }))} selectedValues={formState.required_badges} onChange={handleBadgeChange} placeholder="Select required badges..." />
+        <MultiSelect
+          options={badges.map(b => ({ value: b.id, label: b.name }))}
+          selectedValues={formState.required_badges}
+          onChange={handleBadgeChange}
+          placeholder="Select required badges..."
+        />
       </div>
 
       {/* Rewards Section */}

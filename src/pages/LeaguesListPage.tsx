@@ -14,20 +14,20 @@ const LeaguesListPage: React.FC<LeaguesListPageProps> = ({ leagues, onCreate, on
     <>
       <div className="space-y-4">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-text-primary">Your Leagues</h1>
+          <h1 className="text-2xl font-bold text-text-primary">Your Squads</h1>
           <button
             onClick={onCreate}
             className="flex items-center gap-2 text-sm font-semibold bg-lime-glow/20 text-lime-glow px-4 py-3 rounded-lg hover:bg-lime-glow/30"
           >
-            <Plus size={16} /> Create League
+            <Plus size={16} /> Create Squad
           </button>
         </div>
 
         {leagues.length === 0 ? (
           <div className="card-base p-8 text-center animate-scale-in">
             <div className="text-6xl mb-4">🤷‍♀️</div>
-            <p className="text-text-secondary font-medium">You haven't joined any leagues yet.</p>
-            <p className="text-sm text-text-disabled mt-2">Create a new league or join one with an invite link!</p>
+            <p className="text-text-secondary font-medium">You haven't joined any squads yet.</p>
+            <p className="text-sm text-text-disabled mt-2">Create a new squad or join one with an invite link!</p>
           </div>
         ) : (
           <div className="space-y-3">

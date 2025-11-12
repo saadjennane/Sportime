@@ -18,6 +18,7 @@ import { JoinSwipeGameConfirmationModal } from './components/JoinSwipeGameConfir
 import SwipeLeaderboardPage from './pages/SwipeLeaderboardPage';
 import { supabase } from './services/supabase';
 import { useToast } from './hooks/useToast';
+import { useUserStreak } from './hooks/useUserStreak';
 import { ToastContainer } from './components/Toast';
 import ProfilePage from './pages/ProfilePage';
 import { mockBadges, mockLevelsConfig, mockUserBadges } from './data/mockProgression';
@@ -75,6 +76,8 @@ import { completeGuestRegistration } from './services/userService';
 import { updateUserProfile } from './services/profileService';
 import { joinChallenge as joinChallengeOnSupabase } from './services/challengeService';
 import { saveDailyEntry, ensureChallengeEntry } from './services/challengeEntryService';
+import { initializeOneSignal, setupOneSignalForUser } from './services/oneSignalService';
+import { useNotifications } from './hooks/useNotifications';
 
 function createEmptyChallengeEntry(challengeId: string, userId: string, matches: ChallengeMatch[]): UserChallengeEntry {
   const uniqueDays = Array.from(new Set(matches.map(match => match.day))).sort((a, b) => a - b);
@@ -96,7 +99,7 @@ function createEmptyChallengeEntry(challengeId: string, userId: string, matches:
 }
 
 
-export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'leagues' | 'funzone';
+export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'squads' | 'funzone';
 type AuthFlowState = 'guest' | 'authenticated' | 'signing_up' | 'onboarding';
 
 function App() {
@@ -127,15 +130,18 @@ function App() {
   // --- Store State ---
   const {
     currentUserId, setCurrentUserId, allUsers, ensureUserExists,
-    games: mockGames, userChallengeEntries: mockUserChallengeEntries, userSwipeEntries: mockUserSwipeEntries,
+    games: mockGames, userChallengeEntries: mockUserChallengeEntries,
+    userSwipeEntries: mockUserSwipeEntries,
     userFantasyTeams: mockUserFantasyTeams, userLeagues, leagueMembers, leagueGames, liveGames, predictionChallenges,
     userTickets: mockUserTickets, userStreaks, createLeague, linkGameToLeagues, createLeagueAndLink,
     createLiveGame, submitLiveGamePrediction, editLiveGamePrediction, placeLiveBet,
-    tickLiveGame, joinChallenge: joinChallengeAction, joinSwipeGame,
-    notifications: mockNotifications, markNotificationAsRead, markAllNotificationsAsRead, subscribeToPremium,
+    tickLiveGame, joinChallenge: joinChallengeAction, subscribeToPremium,
   } = useMockStore();
 
   const { user: authUser, profile: authProfile, isLoading: authLoading, ensureGuest, signOut: supabaseSignOut, refreshProfile: reloadProfile, sendMagicLink } = useAuth();
+
+  // Fetch user streak from Supabase (replaces mock store userStreaks)
+  const { streak: supabaseStreak, isLoading: streakLoading, refetch: refetchStreak } = useUserStreak(authProfile?.id);
 
   useEffect(() => {
     if (authLoading) return;
@@ -197,7 +203,6 @@ function App() {
   });
 
   const userTickets = USE_SUPABASE && !ticketsError ? supabaseTickets : mockUserTickets;
-  const notifications = mockNotifications;
 
   useEffect(() => {
     if (!profile) return;
@@ -253,6 +258,30 @@ function App() {
 
   // ✅ Auto-track user activity for XP calculation
   useActivityTracker(isGuest ? null : (profile?.id || null));
+
+  // ✅ Initialize OneSignal on app load
+  useEffect(() => {
+    if (USE_SUPABASE) {
+      initializeOneSignal().catch(err =>
+        console.error('[App] Failed to initialize OneSignal:', err)
+      );
+    }
+  }, []);
+
+  // ✅ Setup OneSignal for authenticated users
+  useEffect(() => {
+    if (!USE_SUPABASE || !profile || isGuest) return;
+
+    // Setup OneSignal when user is authenticated and not a guest
+    setupOneSignalForUser(profile.id).catch(err =>
+      console.error('[App] Failed to setup OneSignal for user:', err)
+    );
+  }, [profile?.id, isGuest]);
+
+  // ✅ Get notifications unread count (only for authenticated users)
+  const { unreadCount: supabaseUnreadCount } = useNotifications(
+    USE_SUPABASE && !isGuest ? profile?.id : null
+  );
 
   const { initializeUserSpinState } = useSpinStore();
 
@@ -321,6 +350,9 @@ function App() {
       // Refresh profile to get updated coins balance
       await reloadProfile();
 
+      // Refresh streak data to update the display
+      await refetchStreak();
+
       // Toast désactivé pour les streaks quotidiens
       setDailyStreakData({ isOpen: false, streakDay: 0 });
     } catch (error) {
@@ -348,8 +380,8 @@ function App() {
     if (!isGuest) {
       streakService.checkDailyStreak(profile.id)
         .then((result) => {
-          // Ne montrer le modal QUE si ce n'est pas la première fois
-          if (result.is_available && !result.is_first_time) {
+          // Montrer le modal dès que le streak est disponible (2ème jour et au-delà)
+          if (result.is_available) {
             setDailyStreakData({ isOpen: true, streakDay: result.streak_day });
           }
         })
@@ -663,7 +695,7 @@ function App() {
           return;
       }
       const newLeague = createLeague(name, description, profile);
-      addToast(`League "${name}" created!`, 'success');
+      addToast(`Squad "${name}" created!`, 'success');
       setShowCreateLeagueModal(false);
       setActiveLeagueId(newLeague.id);
       return newLeague;
@@ -696,7 +728,7 @@ function App() {
     if (!profile) return;
     const { linkedLeagueNames } = linkGameToLeagues(game, [leagueId]);
     if (linkedLeagueNames.length > 0) {
-      addToast(`"${game.name}" linked to your league!`, 'success');
+      addToast(`"${game.name}" linked to your squad!`, 'success');
     }
   };
 
@@ -747,7 +779,7 @@ function App() {
     
     createLeagueAndLink(name, description, linkingGame, profile);
     
-    addToast(`League "${name}" created and linked successfully! 🎉`, 'success');
+    addToast(`Squad "${name}" created and linked successfully! 🎉`, 'success');
     handleCloseLinkGameModals();
     setIsLinkingLoading(false);
   };
@@ -831,7 +863,7 @@ function App() {
 
 
   const handlePageChange = (newPage: Page) => {
-    if ((newPage === 'profile' || newPage === 'leagues' || newPage === 'funzone') && isGuest) {
+    if ((newPage === 'profile' || newPage === 'squads' || newPage === 'funzone') && isGuest) {
         handleTriggerSignUp();
         return;
     }
@@ -911,7 +943,10 @@ function App() {
     setGameModalState({ isOpen: true, matchId, matchName });
   };
 
-  const unreadNotificationsCount = useMemo(() => notifications.filter(n => !n.isRead).length, [notifications]);
+  const unreadNotificationsCount = useMemo(() => {
+    // Always use Supabase for notifications (no mock fallback)
+    return USE_SUPABASE && !isGuest ? supabaseUnreadCount : 0;
+  }, [USE_SUPABASE, isGuest, supabaseUnreadCount]);
 
   const handleSubscribe = (plan: 'monthly' | 'seasonal') => {
     if (profile) {
@@ -929,7 +964,7 @@ function App() {
             league={leagueToJoin || null}
             isMember={isMember}
             onJoin={() => handleJoinLeague(joinLeagueCode)}
-            onGoToLeague={() => { setActiveLeagueId(leagueToJoin!.id); setJoinLeagueCode(null); setPage('leagues'); }}
+            onGoToLeague={() => { setActiveLeagueId(leagueToJoin!.id); setJoinLeagueCode(null); setPage('squads'); }}
             onCancel={() => setJoinLeagueCode(null)}
         />
     }
@@ -1151,8 +1186,8 @@ function App() {
         return <MatchesPage matches={matches} bets={bets} onBet={handleBetClick} onPlayGame={handlePlayGameClick} />;
       case 'challenges':
         return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} />;
-      case 'leagues':
-          return <LeaguesListPage 
+      case 'squads':
+          return <LeaguesListPage
               leagues={myLeagues}
               onCreate={() => setShowCreateLeagueModal(true)}
               onViewLeague={setActiveLeagueId}
@@ -1163,7 +1198,9 @@ function App() {
         return <AdminPage profile={profile} addToast={addToast} />;
       case 'profile':
         if (profile && !isGuest) {
-          return <ProfilePage profile={profile} levels={levelsConfig} allBadges={badges} userBadges={userBadges} userStreaks={userStreaks} onUpdateProfile={handleUpdateProfile} onUpdateEmail={handleUpdateEmail} onSignOut={handleSignOut} onDeleteAccount={handleDeleteAccount} onOpenSpinWheel={handleOpenSpinWheel} onOpenPremiumModal={() => setIsPremiumModalOpen(true)} />;
+          // Use Supabase streak data if available, fallback to mock for guests/errors
+          const profileStreaks = supabaseStreak ? [supabaseStreak] : userStreaks;
+          return <ProfilePage profile={profile} levels={levelsConfig} allBadges={badges} userBadges={userBadges} userStreaks={profileStreaks} onUpdateProfile={handleUpdateProfile} onUpdateEmail={handleUpdateEmail} onSignOut={handleSignOut} onDeleteAccount={handleDeleteAccount} onOpenSpinWheel={handleOpenSpinWheel} onOpenPremiumModal={() => setIsPremiumModalOpen(true)} />;
         }
         return null;
       default:
@@ -1236,8 +1273,8 @@ function App() {
             isOpen={!!modalAction}
             onClose={() => setModalAction(null)}
             onConfirm={() => modalAction.type === 'leave' ? handleLeaveLeague(modalAction.leagueId) : handleDeleteLeague(modalAction.leagueId)}
-            title={modalAction.type === 'leave' ? 'Leave League' : 'Delete League'}
-            message={modalAction.type === 'leave' ? 'Are you sure you want to leave this league?' : 'This action is irreversible and will delete the league for all members. Are you sure?'}
+            title={modalAction.type === 'leave' ? 'Leave Squad' : 'Delete Squad'}
+            message={modalAction.type === 'leave' ? 'Are you sure you want to leave this squad?' : 'This action is irreversible and will delete the squad for all members. Are you sure?'}
             confirmText={modalAction.type === 'leave' ? 'Leave' : 'Delete'}
             isDestructive={true}
         />
@@ -1309,9 +1346,7 @@ function App() {
     <NotificationCenter
       isOpen={isNotificationCenterOpen}
       onClose={() => setIsNotificationCenterOpen(false)}
-      notifications={notifications}
-      onMarkAsRead={markNotificationAsRead}
-      onMarkAllAsRead={markAllNotificationsAsRead}
+      userId={profile?.id}
     />
     <PremiumModal
       isOpen={isPremiumModalOpen}

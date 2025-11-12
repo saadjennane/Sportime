@@ -16,18 +16,18 @@ import { MultiSelect } from './MultiSelect'
 import { getMatchdayDate, formatMatchdayDate } from '../../features/swipe/swipeMappers';
 import type { GameRewardTier } from '../../types'
 
-type DurationKey = 'daily' | 'mini-series' | 'seasonal'
-type SwipeTier = 'rookie' | 'pro' | 'elite'
+type DurationKey = 'flash' | 'series' | 'season'
+type SwipeTier = 'amateur' | 'master' | 'apex'
 
 const SWIPE_TIER_COSTS: Record<SwipeTier, { base: number; multipliers: Record<DurationKey, number> }> = {
-  rookie: { base: 2000, multipliers: { daily: 1, 'mini-series': 2, seasonal: 4 } },
-  pro: { base: 10000, multipliers: { daily: 1, 'mini-series': 2, seasonal: 4 } },
-  elite: { base: 20000, multipliers: { daily: 1, 'mini-series': 2, seasonal: 4 } },
+  amateur: { base: 2000, multipliers: { flash: 1, series: 2, season: 4 } },
+  master: { base: 10000, multipliers: { flash: 1, series: 2, season: 4 } },
+  apex: { base: 20000, multipliers: { flash: 1, series: 2, season: 4 } },
 }
 
-const DEFAULT_DURATION: DurationKey = 'daily'
-const DEFAULT_TIER: SwipeTier = 'rookie'
-const DEFAULT_MIN_LEVEL = 'Rookie'
+const DEFAULT_DURATION: DurationKey = 'flash'
+const DEFAULT_TIER: SwipeTier = 'amateur'
+const DEFAULT_MIN_LEVEL = 'Rookie' // Progression level, not tier
 
 interface SwipeGameAdminProps {
   addToast: (message: string, type: 'success' | 'error' | 'info') => void;
@@ -76,38 +76,17 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
 
   const loadLeagues = async () => {
     try {
-      const primary = await supabase
-        .from('fb_leagues')
-        .select('id, name, logo, api_league_id')
-        .order('name')
-
-      if (primary.error) throw primary.error
-
-      const records = (primary.data ?? []).map((league) => ({
-        id: String(league.id),
-        name: league.name,
-        logo:
-          league.logo ??
-          (league.api_league_id
-            ? `https://media.api-sports.io/football/leagues/${league.api_league_id}.png`
-            : null),
-      }))
-
-      if (records.length) {
-        setLeagues(records)
-        return
-      }
-
-      const fallback = await supabase
+      // Load from 'leagues' table (UUID-based) instead of 'fb_leagues' (INTEGER-based)
+      const { data, error } = await supabase
         .from('leagues')
         .select('id, name, logo')
         .order('name')
 
-      if (fallback.error) throw fallback.error
+      if (error) throw error
 
       setLeagues(
-        (fallback.data ?? []).map((league) => ({
-          id: String(league.id),
+        (data ?? []).map((league) => ({
+          id: league.id, // Already a UUID, no need to convert to String
           name: league.name,
           logo: league.logo ?? null,
         }))
@@ -121,34 +100,60 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
 
   const loadChallenges = async () => {
     try {
-      const { data, error } = await supabase
+      // Step 1: Load challenges
+      const { data: challengesData, error: challengesError } = await supabase
         .from('challenges')
-        .select(`
-          id,
-          name,
-          start_date,
-          end_date,
-          entry_cost,
-          status,
-          challenge_leagues!inner(
-            league:leagues(id, name, logo)
-          )
-        `)
+        .select('id, name, start_date, end_date, entry_cost, status')
         .eq('game_type', 'prediction')
         .order('start_date', { ascending: false });
 
-      if (error) throw error;
+      if (challengesError) throw challengesError;
 
-      // Transform data
-      const transformed = data?.map(c => ({
+      if (!challengesData || challengesData.length === 0) {
+        setChallenges([]);
+        return;
+      }
+
+      // Step 2: Load challenge_leagues mappings
+      const challengeIds = challengesData.map(c => c.id);
+      const { data: leagueMappings, error: mappingsError } = await supabase
+        .from('challenge_leagues')
+        .select('challenge_id, league_id')
+        .in('challenge_id', challengeIds);
+
+      if (mappingsError) throw mappingsError;
+
+      // Step 3: Get unique league IDs
+      const leagueIds = [...new Set(leagueMappings?.map(m => m.league_id) || [])];
+
+      // Step 4: Load leagues (only if we have league IDs)
+      let leaguesData: any[] = [];
+      if (leagueIds.length > 0) {
+        const { data, error: leaguesError } = await supabase
+          .from('leagues')
+          .select('id, name, logo')
+          .in('id', leagueIds);
+
+        if (leaguesError) throw leaguesError;
+        leaguesData = data || [];
+      }
+
+      // Step 5: Create a map of challenge_id -> league
+      const leagueMap = new Map(leaguesData.map(l => [l.id, l]));
+      const challengeLeagueMap = new Map(
+        leagueMappings?.map(m => [m.challenge_id, leagueMap.get(m.league_id)]) || []
+      );
+
+      // Step 6: Transform data with league information
+      const transformed = challengesData.map(c => ({
         id: c.id,
         name: c.name,
         start_date: c.start_date,
         end_date: c.end_date,
         entry_cost: c.entry_cost,
         status: c.status,
-        league: c.challenge_leagues?.[0]?.league,
-      })) || [];
+        league: challengeLeagueMap.get(c.id),
+      }));
 
       setChallenges(transformed);
     } catch (err) {
@@ -200,6 +205,13 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
   }) => {
     setIsLoading(true);
     try {
+      // Validate league is selected
+      if (!formData.league_id || formData.league_id === '') {
+        addToast('Please select a league', 'error');
+        setIsLoading(false);
+        return;
+      }
+
       // 1. Create challenge
       const challenge = await swipeService.createSwipeChallenge({
         name: formData.name,
@@ -465,8 +477,7 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
 
   const effectiveEntryCost = customEntryEnabled ? entryCost : computeEntryCost(tier, durationType)
   const tierLabel = (value: SwipeTier) => value.charAt(0).toUpperCase() + value.slice(1)
-  const durationLabel = (value: DurationKey) =>
-    value === 'mini-series' ? 'Mini-Series' : value.charAt(0).toUpperCase() + value.slice(1)
+  const durationLabel = (value: DurationKey) => value.charAt(0).toUpperCase() + value.slice(1)
 
   return (
     <form onSubmit={handleSubmit} className="card-base p-4 space-y-3">
@@ -568,7 +579,7 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
             onChange={(e) => setTier(e.target.value as SwipeTier)}
             className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
           >
-            {(['rookie', 'pro', 'elite'] as SwipeTier[]).map((option) => (
+            {(['amateur', 'master', 'apex'] as SwipeTier[]).map((option) => (
               <option key={option} value={option}>
                 {tierLabel(option)}
               </option>
@@ -584,7 +595,7 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
             onChange={(e) => setDurationType(e.target.value as DurationKey)}
             className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
           >
-            {(['daily', 'mini-series', 'seasonal'] as DurationKey[]).map((option) => (
+            {(['flash', 'series', 'season'] as DurationKey[]).map((option) => (
               <option key={option} value={option}>
                 {durationLabel(option)}
               </option>
@@ -740,7 +751,7 @@ const CollapsibleSummary: React.FC<{
   players: { min: number; max: number }
 }> = ({ tier, duration, cost, minimumLevel, subscription, dateRange, players }) => {
   const [open, setOpen] = useState(false)
-  const formattedDuration = duration === 'mini-series' ? 'Mini-Series' : duration.charAt(0).toUpperCase() + duration.slice(1)
+  const formattedDuration = duration.charAt(0).toUpperCase() + duration.slice(1)
 
   return (
     <div className="border-t border-disabled/50 pt-3">

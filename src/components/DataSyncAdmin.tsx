@@ -9,7 +9,8 @@ import {
   ApiOddsInfo,
   ApiSyncConfig,
 } from '../types'
-import { DatabaseZap, DownloadCloud, Play, RefreshCw, Server, Settings } from 'lucide-react'
+import { DatabaseZap, DownloadCloud, Play, RefreshCw, Server, Settings, Sparkles } from 'lucide-react'
+import { PRIORITY_LEAGUES, ALL_AVAILABLE_LEAGUES } from '../data/priorityLeagues'
 
 interface DataSyncAdminProps {
   addToast?: (message: string, type: 'success' | 'error' | 'info') => void
@@ -23,8 +24,14 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
   const [loading, setLoading] = useState<string | null>(null)
   const [progress, setProgress] = useState<string[]>([])
   const [leagueIds, setLeagueIds] = useState('2, 39, 140, 135') // UCL, Premier League, La Liga, Serie A
-  const [season, setSeason] = useState('2024')
+  const [season, setSeason] = useState('2025')
   const [syncConfigs, setSyncConfigs] = useState<ApiSyncConfig[]>([])
+
+  // Fantasy Data Seeding
+  const [fantasyLeagueIds, setFantasyLeagueIds] = useState('2, 39, 140') // UCL, Premier League, La Liga
+  const [fantasyProgress, setFantasyProgress] = useState<{stage: string; current: number; total: number; message: string} | null>(null)
+  const [fantasySeeding, setFantasySeeding] = useState(false)
+  const [playerStatsCount, setPlayerStatsCount] = useState<{total: number; withStats: number} | null>(null)
 
   const addProgress = (message: string) => setProgress((prev) => [message, ...prev])
 
@@ -44,7 +51,38 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
 
   useEffect(() => {
     fetchSyncConfigs()
+    fetchPlayerStatsCount() // Fetch on mount
   }, [fetchSyncConfigs])
+
+  const fetchPlayerStatsCount = async () => {
+    try {
+      // Count total players
+      const { count: totalPlayers, error: totalError } = await supabase
+        .from('players')
+        .select('*', { count: 'exact', head: true })
+        .not('api_id', 'is', null)
+
+      if (totalError) throw totalError
+
+      // Count players with stats for current season
+      const { data: playersWithStats, error: statsError } = await supabase
+        .from('player_season_stats')
+        .select('player_id')
+        .eq('season', Number(season))
+
+      if (statsError) throw statsError
+
+      // Get unique player IDs (in case a player has multiple teams in same season)
+      const uniquePlayerIds = new Set(playersWithStats?.map(s => s.player_id) || [])
+
+      setPlayerStatsCount({
+        total: totalPlayers || 0,
+        withStats: uniquePlayerIds.size
+      })
+    } catch (error) {
+      console.error('Failed to fetch player stats count:', error)
+    }
+  }
 
   const handleFrequencyChange = async (endpoint: string, frequency: string) => {
     try {
@@ -428,6 +466,81 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
     }
   }
 
+  const handleFantasyDataSeed = async () => {
+    // Parse fantasy league IDs from input
+    const selectedLeagueIds = fantasyLeagueIds
+      .split(',')
+      .map(id => id.trim())
+      .filter(Boolean)
+      .map(id => parseInt(id))
+
+    if (selectedLeagueIds.length === 0) {
+      toast('Please enter at least one league ID for Fantasy seeding', 'error')
+      return
+    }
+
+    // Build league configs from selected IDs
+    const selectedLeagues = selectedLeagueIds
+      .map(apiId => ALL_AVAILABLE_LEAGUES.find(l => l.api_id === apiId))
+      .filter(Boolean)
+
+    if (selectedLeagues.length === 0) {
+      toast('No valid leagues found for the provided IDs', 'error')
+      return
+    }
+
+    setFantasySeeding(true)
+    setFantasyProgress({ stage: 'Starting', current: 0, total: selectedLeagues.length, message: 'Initializing Fantasy data seeding...' })
+
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Supabase configuration missing')
+      }
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/seed-fantasy-data`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({
+          leagues: selectedLeagues,
+          season: Number(season),
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Fantasy data seeding failed')
+      }
+
+      const result = await response.json()
+
+      // Update progress from result
+      if (result.progress && result.progress.length > 0) {
+        const lastProgress = result.progress[result.progress.length - 1]
+        setFantasyProgress({
+          stage: lastProgress.stage,
+          current: lastProgress.current,
+          total: lastProgress.total,
+          message: lastProgress.message,
+        })
+      }
+
+      toast('Fantasy data seeded successfully!', 'success')
+      // Refresh player stats count after successful seeding
+      fetchPlayerStatsCount()
+    } catch (e: any) {
+      toast(`Fantasy data seeding failed: ${e?.message ?? 'unknown error'}`, 'error')
+      setFantasyProgress({ stage: 'Error', current: 0, total: 0, message: e?.message ?? 'Unknown error occurred' })
+    } finally {
+      setFantasySeeding(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Initial Import Section */}
@@ -529,6 +642,147 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
           Note: Automatic syncing requires a backend scheduler (e.g., Supabase Edge Functions on a
           cron schedule) to trigger these functions based on the saved frequency.
         </p>
+      </div>
+
+      {/* Fantasy Data Seeding Section */}
+      <div className="bg-navy-accent rounded-2xl shadow-lg p-5 space-y-4 border border-warm-yellow/20">
+        <div className="flex items-center gap-3">
+          <div className="bg-warm-yellow/20 p-2 rounded-full">
+            <Sparkles className="w-6 h-6 text-warm-yellow" />
+          </div>
+          <h3 className="font-bold text-lg text-text-primary">Fantasy Data Seeding</h3>
+        </div>
+        <div className="space-y-3">
+          {/* League IDs Input */}
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-1">
+              League IDs for Fantasy Seeding (comma-separated)
+            </label>
+            <input
+              type="text"
+              value={fantasyLeagueIds}
+              onChange={(e) => setFantasyLeagueIds(e.target.value)}
+              className="w-full p-2 bg-deep-navy border-2 border-warm-yellow/30 rounded-xl text-text-primary placeholder:text-text-disabled focus:border-warm-yellow focus:outline-none"
+              placeholder="e.g., 2, 39, 140"
+            />
+            <p className="text-xs text-text-disabled mt-1">
+              Default: 2 (Champions League), 39 (Premier League), 140 (La Liga)
+            </p>
+          </div>
+
+          <div className="bg-deep-navy p-4 rounded-lg border border-warm-yellow/10">
+            <h4 className="font-semibold text-text-primary mb-2">
+              Selected Leagues ({fantasyLeagueIds.split(',').filter(id => id.trim()).length})
+            </h4>
+            <p className="text-sm text-text-secondary mb-3">
+              Full data including all players, season stats, match-by-match performance, and transfer history
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {fantasyLeagueIds.split(',').filter(id => id.trim()).slice(0, 10).map((id) => {
+                const apiId = parseInt(id.trim())
+                const league = ALL_AVAILABLE_LEAGUES.find(l => l.api_id === apiId)
+                return league ? (
+                  <span key={league.api_id} className="px-2 py-1 bg-warm-yellow/10 text-warm-yellow text-xs rounded-lg border border-warm-yellow/20">
+                    {league.name}
+                  </span>
+                ) : (
+                  <span key={id} className="px-2 py-1 bg-hot-red/10 text-hot-red text-xs rounded-lg border border-hot-red/20">
+                    ID {id} (unknown)
+                  </span>
+                )
+              })}
+              {fantasyLeagueIds.split(',').filter(id => id.trim()).length > 10 && (
+                <span className="px-2 py-1 bg-warm-yellow/10 text-warm-yellow text-xs rounded-lg border border-warm-yellow/20">
+                  +{fantasyLeagueIds.split(',').filter(id => id.trim()).length - 10} more
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-deep-navy p-4 rounded-lg border border-electric-blue/10">
+            <h4 className="font-semibold text-text-primary mb-2">Data to be seeded</h4>
+            <ul className="text-sm text-text-secondary space-y-1">
+              <li>• {fantasyLeagueIds.split(',').filter(id => id.trim()).length} leagues with full metadata</li>
+              <li>• ~{fantasyLeagueIds.split(',').filter(id => id.trim()).length * 20} teams with squad information</li>
+              <li>• ~{fantasyLeagueIds.split(',').filter(id => id.trim()).length * 20 * 30} players with complete profiles</li>
+              <li>• Season statistics, match-by-match stats, transfer history</li>
+              <li>• PGS (Player Game Score) calculation with correct formula</li>
+              <li>• Player categorization (Star/Key/Wild)</li>
+            </ul>
+          </div>
+
+          <div className="bg-hot-red/10 p-3 rounded-lg border border-hot-red/20">
+            <p className="text-xs text-hot-red font-semibold">
+              ⚠️ API Quota Warning
+            </p>
+            <p className="text-xs text-text-secondary mt-1">
+              This process will use approximately {fantasyLeagueIds.split(',').filter(id => id.trim()).length * 600}-{fantasyLeagueIds.split(',').filter(id => id.trim()).length * 800} API calls.
+              With a 7,500 req/day quota, seeding will take {Math.ceil((fantasyLeagueIds.split(',').filter(id => id.trim()).length * 700) / 7500)} day{Math.ceil((fantasyLeagueIds.split(',').filter(id => id.trim()).length * 700) / 7500) > 1 ? 's' : ''} to complete.
+              The process can be safely interrupted and resumed.
+            </p>
+          </div>
+
+          {/* Player Stats Progress Counter */}
+          {playerStatsCount && (
+            <div className="bg-lime-glow/10 p-4 rounded-lg border border-lime-glow/30">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold text-lime-glow">
+                  Player Stats Progress (Season {season})
+                </span>
+                <button
+                  onClick={fetchPlayerStatsCount}
+                  className="text-xs text-lime-glow hover:text-warm-yellow transition-colors"
+                  title="Refresh count"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-text-secondary">Players with stats:</span>
+                  <span className="font-bold text-lime-glow">{playerStatsCount.withStats.toLocaleString()} / {playerStatsCount.total.toLocaleString()}</span>
+                </div>
+                <div className="w-full bg-black/50 rounded-full h-3">
+                  <div
+                    className="bg-gradient-to-r from-lime-glow to-warm-yellow h-3 rounded-full transition-all duration-500"
+                    style={{ width: `${playerStatsCount.total > 0 ? (playerStatsCount.withStats / playerStatsCount.total) * 100 : 0}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-xs text-text-disabled">
+                  <span>{playerStatsCount.total > 0 ? Math.round((playerStatsCount.withStats / playerStatsCount.total) * 100) : 0}% complete</span>
+                  <span>~{Math.ceil((playerStatsCount.total - playerStatsCount.withStats) / 20)} batches remaining</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={handleFantasyDataSeed}
+            disabled={fantasySeeding || !!loading}
+            className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-warm-yellow to-hot-red text-white rounded-xl font-semibold shadow-lg hover:shadow-warm-yellow/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          >
+            {fantasySeeding ? <RefreshCw className="animate-spin" /> : <Sparkles />}
+            {fantasySeeding ? 'Seeding in progress...' : 'Start Fantasy Data Seeding'}
+          </button>
+
+          {fantasyProgress && (
+            <div className="bg-deep-navy p-4 rounded-lg border border-lime-glow/20">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold text-lime-glow">{fantasyProgress.stage}</span>
+                <span className="text-xs text-text-secondary">
+                  {fantasyProgress.current} / {fantasyProgress.total}
+                </span>
+              </div>
+              <div className="w-full bg-black/50 rounded-full h-2 mb-2">
+                <div
+                  className="bg-gradient-to-r from-lime-glow to-warm-yellow h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${(fantasyProgress.current / fantasyProgress.total) * 100}%` }}
+                />
+              </div>
+              <p className="text-xs text-text-secondary">{fantasyProgress.message}</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Progress Log */}

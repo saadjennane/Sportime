@@ -557,6 +557,7 @@ type ChallengeMatchRow = {
   day_number: number | null
   match: {
     id: string
+    fixture_id: string | null
     kickoff_time: string | null
     status: string | null
     score: Record<string, any> | null
@@ -692,8 +693,16 @@ function buildChallengeMatches(challengeId: string, matchdays: RawMatchday[] | n
   return matches
 }
 
-function buildMatchesFromChallengeMatches(challengeId: string, rows: ChallengeMatchRow[] | null | undefined): ChallengeMatch[] {
+async function buildMatchesFromChallengeMatches(challengeId: string, rows: ChallengeMatchRow[] | null | undefined): Promise<ChallengeMatch[]> {
   if (!rows || rows.length === 0) return []
+
+  // Extract fixture IDs to fetch odds
+  const fixtureIds = rows
+    .filter(row => row.match?.fixture_id)
+    .map(row => row.match!.fixture_id!)
+
+  // Fetch all odds for these fixtures
+  const oddsMap = await fetchMultipleFixtureOdds(fixtureIds)
 
   return rows
     .filter(row => row.match)
@@ -721,6 +730,16 @@ function buildMatchesFromChallengeMatches(challengeId: string, rows: ChallengeMa
               : 'teamB'
           : undefined
 
+      // Fetch real odds from oddsMap, fallback to defaults
+      const fixtureId = match.fixture_id
+      const odds = fixtureId && oddsMap.has(fixtureId)
+        ? oddsMap.get(fixtureId)!
+        : {
+            teamA: 2.0,
+            draw: 3.2,
+            teamB: 2.4,
+          }
+
       return {
         id: row.id,
         challengeId,
@@ -733,17 +752,219 @@ function buildMatchesFromChallengeMatches(challengeId: string, rows: ChallengeMa
           name: match.away?.name ?? 'Away',
           emoji: nameInitialEmoji(match.away?.name),
         },
-        odds: {
-          teamA: 2.0,
-          draw: 3.2,
-          teamB: 2.4,
-        },
+        odds,
         status,
         result,
       }
     })
     .sort((a, b) => a.day - b.day)
 }
+
+// ==================== ADMIN FUNCTIONS ====================
+
+export type CreateChallengeParams = {
+  name: string
+  description?: string | null
+  game_type?: string
+  format?: string
+  sport?: string
+  start_date?: string
+  end_date?: string
+  entry_cost?: number
+  prizes?: any
+  rules?: Record<string, any>
+  status?: string
+  entry_conditions?: Record<string, any>
+  configs?: Array<{ config_type: string; config_data: Record<string, any> }>
+  league_ids?: string[]
+  match_ids?: string[]
+}
+
+export type UpdateChallengeParams = {
+  challenge_id: string
+  name?: string | null
+  description?: string | null
+  start_date?: string | null
+  end_date?: string | null
+  entry_cost?: number | null
+  prizes?: any | null
+  rules?: Record<string, any> | null
+  status?: string | null
+  entry_conditions?: Record<string, any> | null
+  configs?: Array<{ config_type: string; config_data: Record<string, any> }> | null
+  league_ids?: string[] | null
+  match_ids?: string[] | null
+}
+
+/**
+ * Create a new challenge (admin only)
+ */
+export async function createChallenge(params: CreateChallengeParams) {
+  const { data, error } = await supabase
+    .rpc('create_challenge', {
+      p_name: params.name,
+      p_description: params.description ?? null,
+      p_game_type: params.game_type ?? 'betting',
+      p_format: params.format ?? 'leaderboard',
+      p_sport: params.sport ?? 'football',
+      p_start_date: params.start_date ?? new Date().toISOString(),
+      p_end_date: params.end_date ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      p_entry_cost: params.entry_cost ?? 0,
+      p_prizes: params.prizes ?? [],
+      p_rules: params.rules ?? {},
+      p_status: params.status ?? 'upcoming',
+      p_entry_conditions: params.entry_conditions ?? {},
+      p_configs: params.configs ?? [],
+      p_league_ids: params.league_ids ?? [],
+      p_match_ids: params.match_ids ?? [],
+    })
+    .single()
+
+  if (error) {
+    console.error('[challengeService] Failed to create challenge:', error)
+    throw error
+  }
+
+  return {
+    challengeId: data.out_challenge_id,
+    success: data.out_success,
+    message: data.out_message,
+  }
+}
+
+/**
+ * Update a challenge (admin only)
+ */
+export async function updateChallenge(params: UpdateChallengeParams) {
+  const { data, error } = await supabase
+    .rpc('update_challenge', {
+      p_challenge_id: params.challenge_id,
+      p_name: params.name,
+      p_description: params.description,
+      p_start_date: params.start_date,
+      p_end_date: params.end_date,
+      p_entry_cost: params.entry_cost,
+      p_prizes: params.prizes,
+      p_rules: params.rules,
+      p_status: params.status,
+      p_entry_conditions: params.entry_conditions,
+      p_configs: params.configs,
+      p_league_ids: params.league_ids,
+      p_match_ids: params.match_ids,
+    })
+    .single()
+
+  if (error) {
+    console.error('[challengeService] Failed to update challenge:', error)
+    throw error
+  }
+
+  return {
+    success: data.out_success,
+    message: data.out_message,
+  }
+}
+
+/**
+ * Delete a challenge (admin only)
+ */
+export async function deleteChallenge(challengeId: string) {
+  const { data, error } = await supabase
+    .rpc('delete_challenge', {
+      p_challenge_id: challengeId,
+    })
+    .single()
+
+  if (error) {
+    console.error('[challengeService] Failed to delete challenge:', error)
+    throw error
+  }
+
+  return {
+    success: data.out_success,
+    message: data.out_message,
+  }
+}
+
+/**
+ * Cancel a challenge and refund participants (admin only)
+ */
+export async function cancelChallenge(challengeId: string) {
+  const { data, error } = await supabase
+    .rpc('cancel_challenge', {
+      p_challenge_id: challengeId,
+    })
+    .single()
+
+  if (error) {
+    console.error('[challengeService] Failed to cancel challenge:', error)
+    throw error
+  }
+
+  return {
+    success: data.out_success,
+    message: data.out_message,
+    refundedUsers: data.out_refunded_users,
+  }
+}
+
+/**
+ * Finalize a challenge (admin only)
+ */
+export async function finalizeChallenge(challengeId: string) {
+  const { data, error } = await supabase
+    .rpc('finalize_challenge', {
+      p_challenge_id: challengeId,
+    })
+    .single()
+
+  if (error) {
+    console.error('[challengeService] Failed to finalize challenge:', error)
+    throw error
+  }
+
+  return {
+    success: data.out_success,
+    message: data.out_message,
+    totalParticipants: data.out_total_participants,
+  }
+}
+
+/**
+ * Manually recalculate all points and rankings for a challenge (admin only)
+ */
+export async function recalculateAllChallengePoints(challengeId: string) {
+  const { data, error } = await supabase
+    .rpc('recalculate_all_challenge_points', {
+      p_challenge_id: challengeId,
+    })
+
+  if (error) {
+    console.error('[challengeService] Failed to recalculate points:', error)
+    throw error
+  }
+
+  return data || []
+}
+
+/**
+ * Manually distribute prizes for a challenge (admin only)
+ */
+export async function distributeChallengePrizes(challengeId: string) {
+  const { data, error } = await supabase
+    .rpc('distribute_challenge_prizes', {
+      p_challenge_id: challengeId,
+    })
+
+  if (error) {
+    console.error('[challengeService] Failed to distribute prizes:', error)
+    throw error
+  }
+
+  return data || []
+}
+
+// ==================== END ADMIN FUNCTIONS ====================
 
 export async function fetchChallengeMatches(challengeId: string) {
   const { data: challengeRow, error } = await supabase
@@ -833,6 +1054,7 @@ export async function fetchChallengeMatches(challengeId: string) {
         day_number,
         match:matches (
           id,
+          fixture_id,
           kickoff_time,
           status,
           score,
@@ -854,7 +1076,7 @@ export async function fetchChallengeMatches(challengeId: string) {
     if (directError) {
       console.error('[challengeService] Failed to fetch challenge_matches fallback', directError)
     } else {
-      matches = buildMatchesFromChallengeMatches(challengeId, directRows as ChallengeMatchRow[])
+      matches = await buildMatchesFromChallengeMatches(challengeId, directRows as ChallengeMatchRow[])
     }
   }
 
@@ -865,4 +1087,156 @@ export async function fetchChallengeMatches(challengeId: string) {
     matches,
     totalPlayers: participantCount ?? 0,
   }
+}
+
+// ==================== MATCH MANAGEMENT ====================
+
+/**
+ * Add fixtures to a challenge with day assignments
+ * @param challengeId - The challenge ID
+ * @param matches - Array of { fixture_id, day_number }
+ */
+export async function addMatchesToChallenge(
+  challengeId: string,
+  matches: Array<{ fixture_id: string; day_number: number }>
+) {
+  // First, get the associated match_id for each fixture
+  const fixtureIds = matches.map(m => m.fixture_id)
+  const { data: matchesData, error: matchesError } = await supabase
+    .from('matches')
+    .select('id, fixture_id')
+    .in('fixture_id', fixtureIds)
+
+  if (matchesError) {
+    console.error('[addMatchesToChallenge] Failed to fetch matches', matchesError)
+    throw matchesError
+  }
+
+  // Create a mapping: fixture_id -> match_id
+  const fixtureToMatchMap = new Map(
+    matchesData?.map(m => [m.fixture_id, m.id]) ?? []
+  )
+
+  // Build challenge_matches rows
+  const challengeMatches = matches
+    .map(m => {
+      const matchId = fixtureToMatchMap.get(m.fixture_id)
+      if (!matchId) {
+        console.warn(`[addMatchesToChallenge] No match found for fixture ${m.fixture_id}`)
+        return null
+      }
+      return {
+        challenge_id: challengeId,
+        match_id: matchId,
+        day_number: m.day_number,
+      }
+    })
+    .filter((m): m is NonNullable<typeof m> => m !== null)
+
+  // Insert into challenge_matches
+  const { error: insertError } = await supabase
+    .from('challenge_matches')
+    .insert(challengeMatches)
+
+  if (insertError) {
+    console.error('[addMatchesToChallenge] Failed to insert challenge_matches', insertError)
+    throw insertError
+  }
+
+  return { success: true, count: challengeMatches.length }
+}
+
+/**
+ * Fetch odds for a specific fixture
+ * @param fixtureId - The fixture UUID
+ * @returns Odds object { teamA, draw, teamB } or null
+ */
+export async function fetchFixtureOdds(fixtureId: string): Promise<{
+  teamA: number
+  draw: number
+  teamB: number
+} | null> {
+  // Fetch latest odds from odds table for this fixture
+  const { data, error } = await supabase
+    .from('odds')
+    .select('home_win, draw, away_win, bookmaker_name, updated_at')
+    .eq('fixture_id', fixtureId)
+    .order('updated_at', { ascending: false })
+
+  if (error) {
+    console.error('[fetchFixtureOdds] Failed to fetch odds', error)
+    return null
+  }
+
+  if (!data || data.length === 0) {
+    console.warn(`[fetchFixtureOdds] No odds found for fixture ${fixtureId}`)
+    return null
+  }
+
+  // Find odds from priority bookmaker, or use latest odds
+  let selectedOdds = data.find(o => BOOKMAKER_PRIORITY.includes(o.bookmaker_name))
+  if (!selectedOdds) {
+    selectedOdds = data[0] // Use latest odds
+  }
+
+  return {
+    teamA: selectedOdds.home_win ?? 2.0,
+    draw: selectedOdds.draw ?? 3.2,
+    teamB: selectedOdds.away_win ?? 2.4,
+  }
+}
+
+/**
+ * Fetch odds for multiple fixtures at once
+ * @param fixtureIds - Array of fixture UUIDs
+ * @returns Map of fixtureId -> odds
+ */
+export async function fetchMultipleFixtureOdds(
+  fixtureIds: string[]
+): Promise<Map<string, { teamA: number; draw: number; teamB: number }>> {
+  const oddsMap = new Map<string, { teamA: number; draw: number; teamB: number }>()
+
+  if (fixtureIds.length === 0) return oddsMap
+
+  // Fetch all odds for these fixtures
+  const { data, error } = await supabase
+    .from('odds')
+    .select('fixture_id, home_win, draw, away_win, bookmaker_name, updated_at')
+    .in('fixture_id', fixtureIds)
+    .order('updated_at', { ascending: false })
+
+  if (error) {
+    console.error('[fetchMultipleFixtureOdds] Failed to fetch odds', error)
+    return oddsMap
+  }
+
+  if (!data || data.length === 0) {
+    console.warn('[fetchMultipleFixtureOdds] No odds found for any fixtures')
+    return oddsMap
+  }
+
+  // Group odds by fixture_id
+  const oddsByFixture = new Map<string, typeof data>()
+  for (const odd of data) {
+    if (!oddsByFixture.has(odd.fixture_id)) {
+      oddsByFixture.set(odd.fixture_id, [])
+    }
+    oddsByFixture.get(odd.fixture_id)!.push(odd)
+  }
+
+  // For each fixture, select best odds
+  for (const [fixtureId, fixtureOdds] of oddsByFixture.entries()) {
+    let selectedOdds = fixtureOdds.find(o => BOOKMAKER_PRIORITY.includes(o.bookmaker_name))
+    if (!selectedOdds) {
+      selectedOdds = fixtureOdds[0] // Use latest odds
+    }
+
+    oddsMap.set(fixtureId, {
+      teamA: selectedOdds.home_win ?? 2.0,
+      draw: selectedOdds.draw ?? 3.2,
+      teamB: selectedOdds.away_win ?? 2.4,
+    })
+  }
+
+  return oddsMap
 }

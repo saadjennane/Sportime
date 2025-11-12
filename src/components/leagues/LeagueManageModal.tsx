@@ -38,18 +38,18 @@ export const LeagueManageModal: React.FC<LeagueManageModalProps> = ({ isOpen, on
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-scale-in">
       <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full h-auto max-h-[90vh] flex flex-col">
         <div className="flex justify-between items-center p-6 border-b">
-          <h2 className="text-xl font-bold">Manage League</h2>
+          <h2 className="text-xl font-bold">Manage Squad</h2>
           <button onClick={onClose} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full">
             <X size={24} />
           </button>
         </div>
-        
+
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {/* Edit Details */}
           <div className="space-y-4">
-            <h3 className="font-semibold text-gray-700">League Details</h3>
+            <h3 className="font-semibold text-gray-700">Squad Details</h3>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">League Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Squad Name</label>
               <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full p-3 bg-gray-100 border-2 border-gray-200 rounded-xl" />
             </div>
             <div>
@@ -77,10 +77,10 @@ export const LeagueManageModal: React.FC<LeagueManageModalProps> = ({ isOpen, on
             <h3 className="font-bold text-red-800 mb-3">Danger Zone</h3>
             <div className="space-y-2">
                 <button onClick={handleLeaveClick} className="w-full flex items-center justify-center gap-2 text-sm font-semibold bg-red-100 text-red-700 px-4 py-2 rounded-lg hover:bg-red-200">
-                    <LogOut size={16} /> Leave League
+                    <LogOut size={16} /> Leave Squad
                 </button>
                 <button onClick={handleDeleteClick} className="w-full flex items-center justify-center gap-2 text-sm font-semibold bg-red-100 text-red-700 px-4 py-2 rounded-lg hover:bg-red-200">
-                    <Trash2 size={16} /> Delete League
+                    <Trash2 size={16} /> Delete Squad
                 </button>
             </div>
           </div>

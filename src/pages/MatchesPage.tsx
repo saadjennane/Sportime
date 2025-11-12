@@ -6,6 +6,7 @@ import { DailySummaryHeader } from '../components/matches/DailySummaryHeader';
 import { format } from 'date-fns';
 import { Settings } from 'lucide-react';
 import { useLeagueOrder } from '../hooks/useLeagueOrder';
+import { useImportedLeagues } from '../hooks/useImportedLeagues';
 import { LeagueOrderModal } from '../components/matches/LeagueOrderModal';
 import { MatchStatsDrawer } from '../components/matches/stats/MatchStatsDrawer';
 import { useMatchesOfTheDay } from '../features/matches/useMatchesOfTheDay';
@@ -26,6 +27,11 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
   const [selectedMatchForStats, setSelectedMatchForStats] = useState<Match | null>(null);
 
   const { data: groups, isLoading: loading, error } = useMatchesOfTheDay();
+  const { leagues: importedLeagues, isLoading: leaguesLoading, error: leaguesError } = useImportedLeagues();
+
+  console.log('[MatchesPage] Imported leagues:', importedLeagues);
+  console.log('[MatchesPage] Leagues loading:', leaguesLoading);
+  console.log('[MatchesPage] Leagues error:', leaguesError);
 
   const toLegacyMatch = useCallback((m: UiMatch): Match => {
     const fallbackEmoji = (name: string) => (name ? name.charAt(0).toUpperCase() : '⚽');
@@ -116,9 +122,26 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
     };
   }, [groups, toLegacyMatch]);
 
-  const { orderedLeagues, setOrderedLeagues } = useLeagueOrder(upcomingMatches);
+  // For now, we only show upcoming matches from useMatchesOfTheDay
+  // Played matches would need to come from the same hook to be properly filtered
+  const playedMatches: Match[] = [];
 
-  const playedMatches = matches.filter(m => m.status === 'played');
+  // Create mock matches array with all imported leagues for useLeagueOrder
+  const allLeaguesAsMatches = useMemo(() => {
+    return importedLeagues.map(league => ({
+      id: `league-${league.id}`,
+      leagueName: league.name,
+      leagueLogo: league.logo || '',
+      teamA: { name: '', emoji: '', logo: undefined },
+      teamB: { name: '', emoji: '', logo: undefined },
+      kickoffTime: '',
+      odds: { teamA: 0, draw: 0, teamB: 0 },
+      status: 'upcoming' as const,
+      isLive: false,
+    })) as Match[];
+  }, [importedLeagues]);
+
+  const { orderedLeagues, setOrderedLeagues } = useLeagueOrder(allLeaguesAsMatches);
 
   const groupedPlayed = useMemo(() => {
     return playedMatches.reduce((acc, match) => {
@@ -136,15 +159,36 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
     return Object.keys(groupedPlayed);
   }, [orderedLeagues, groupedUpcoming, groupedPlayed]);
 
+  // Use ALL imported leagues for the modal, not just those with matches today
   const uniqueLeaguesWithLogos = useMemo(() => {
-    const leagueMap = new Map<string, string>();
-    upcomingMatches.forEach(match => {
-      if (!leagueMap.has(match.leagueName)) {
-        leagueMap.set(match.leagueName, match.leagueLogo);
-      }
-    });
-    return Array.from(leagueMap.entries()).map(([name, logo]) => ({ name, logo }));
-  }, [upcomingMatches]);
+    console.log('[MatchesPage] Building uniqueLeaguesWithLogos from:', importedLeagues);
+
+    // Convert imported leagues to the format expected by the modal
+    const allLeagues = importedLeagues.map(league => ({
+      name: league.name,
+      logo: league.logo || `https://media.api-sports.io/football/leagues/${league.api_league_id}.png`
+    }));
+
+    console.log('[MatchesPage] All leagues for modal:', allLeagues);
+
+    // Apply saved order if it exists
+    if (orderedLeagues.length > 0) {
+      // Sort leagues according to saved order
+      const sorted = allLeagues.sort((a, b) => {
+        const indexA = orderedLeagues.indexOf(a.name);
+        const indexB = orderedLeagues.indexOf(b.name);
+        if (indexA === -1 && indexB === -1) return 0;
+        if (indexA === -1) return 1;
+        if (indexB === -1) return -1;
+        return indexA - indexB;
+      });
+      console.log('[MatchesPage] Sorted leagues for modal:', sorted);
+      return sorted;
+    }
+
+    console.log('[MatchesPage] Unsorted leagues for modal:', allLeagues);
+    return allLeagues;
+  }, [importedLeagues, orderedLeagues]);
 
   const headerData = useMemo(() => {
     const picksCount = bets.filter(bet => upcomingMatches.some(m => m.id === bet.matchId)).length;

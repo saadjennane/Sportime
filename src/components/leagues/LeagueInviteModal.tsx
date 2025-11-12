@@ -29,7 +29,7 @@ export const LeagueInviteModal: React.FC<LeagueInviteModalProps> = ({ isOpen, on
         </button>
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900">Invite Members</h2>
-          <p className="text-gray-500 mt-1">Share this link with others to let them join your league.</p>
+          <p className="text-gray-500 mt-1">Share this link with others to let them join your squad.</p>
         </div>
         
         <div className="bg-gray-100 p-3 rounded-xl flex items-center gap-2">

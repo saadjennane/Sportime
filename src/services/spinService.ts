@@ -213,14 +213,35 @@ async function grantSpinReward(userId: string, reward: SpinReward): Promise<void
         await addXpToUser(userId, xpAmount);
       }
     } else if (category === 'masterpass') {
-      // TODO: Implement masterpass granting when system is ready
-      console.log(`TODO: Grant masterpass ${id} to user ${userId}`);
+      // PLACEHOLDER: Give 5000 coins instead of MasterPass
+      const { addCoins } = await import('./coinService');
+      await addCoins(userId, 5000, 'spin_wheel', {
+        reward_id: id,
+        reward_label: label,
+        placeholder: 'masterpass_not_implemented',
+        message: 'MasterPass reward (5000 coins placeholder)'
+      });
+      console.log(`MasterPass reward converted to 5000 coins placeholder for user ${userId}`);
     } else if (category === 'premium') {
-      // TODO: Implement premium membership granting
-      console.log(`TODO: Grant premium ${id} to user ${userId}`);
+      // PLACEHOLDER: Give 5000 coins instead of Premium
+      const { addCoins } = await import('./coinService');
+      await addCoins(userId, 5000, 'spin_wheel', {
+        reward_id: id,
+        reward_label: label,
+        placeholder: 'premium_not_implemented',
+        message: 'Premium subscription reward (5000 coins placeholder)'
+      });
+      console.log(`Premium reward converted to 5000 coins placeholder for user ${userId}`);
     } else if (category === 'gift_card') {
-      // TODO: Implement gift card granting
-      console.log(`TODO: Grant gift card ${id} to user ${userId}`);
+      // PLACEHOLDER: Give 5000 coins instead of Gift Card
+      const { addCoins } = await import('./coinService');
+      await addCoins(userId, 5000, 'spin_wheel', {
+        reward_id: id,
+        reward_label: label,
+        placeholder: 'giftcard_not_implemented',
+        message: 'Gift card reward (5000 coins placeholder)'
+      });
+      console.log(`Gift card reward converted to 5000 coins placeholder for user ${userId}`);
     }
   } catch (error) {
     console.error('Error granting reward:', error);
