@@ -116,9 +116,11 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
     };
   }, [groups, toLegacyMatch]);
 
-  const { orderedLeagues, setOrderedLeagues } = useLeagueOrder(upcomingMatches);
-
   const playedMatches = matches.filter(m => m.status === 'played');
+
+  // Pass all matches (upcoming + played) to useLeagueOrder so saved order persists
+  const allMatches = useMemo(() => [...upcomingMatches, ...playedMatches], [upcomingMatches, playedMatches]);
+  const { orderedLeagues, setOrderedLeagues } = useLeagueOrder(allMatches);
 
   const groupedPlayed = useMemo(() => {
     return playedMatches.reduce((acc, match) => {
