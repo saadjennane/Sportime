@@ -553,11 +553,41 @@ async function seedFantasyData(
 
     // Phase 2.5: Sync staging data to production tables
     progress.stage = 'Syncing to Production';
-    progress.message = 'Syncing teams and players to production tables...';
+    progress.message = 'Syncing leagues, teams and players to production tables...';
     progressCallback?.(progress);
 
     try {
-      // Sync teams: fb_teams → teams
+      // Sync leagues: fb_leagues → leagues (CRITICAL FOR PHASE 3!)
+      const { data: fbLeagues } = await supabase.from('fb_leagues').select('*');
+
+      if (fbLeagues && fbLeagues.length > 0) {
+        // Get first user to use as created_by
+        const { data: firstUser } = await supabase
+          .from('users')
+          .select('id')
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .single();
+
+        const createdBy = firstUser?.id || '00000000-0000-0000-0000-000000000000';
+
+        for (const fbLeague of fbLeagues) {
+          await supabase.from('leagues').upsert({
+            api_id: fbLeague.api_league_id,
+            name: fbLeague.name,
+            invite_code: `AUTO-${fbLeague.api_league_id}`,
+            created_by: createdBy,
+            logo: fbLeague.logo,
+            type: fbLeague.type,
+            season: fbLeague.season?.toString(),
+          }, {
+            onConflict: 'api_id',
+          });
+        }
+        console.log(`[syncProduction] Synced ${fbLeagues.length} leagues`);
+      }
+
+      // Sync teams: fb_teams → teams (FIX COLUMN NAMES)
       const { data: fbTeams } = await supabase.from('fb_teams').select('*');
 
       if (fbTeams && fbTeams.length > 0) {
@@ -566,7 +596,7 @@ async function seedFantasyData(
             api_id: fbTeam.id,
             name: fbTeam.name,
             code: fbTeam.code,
-            logo: fbTeam.logo,
+            logo_url: fbTeam.logo || 'https://via.placeholder.com/150', // FIX: logo → logo_url
             country: fbTeam.country,
           }, {
             onConflict: 'api_id',
@@ -575,17 +605,24 @@ async function seedFantasyData(
         console.log(`[syncProduction] Synced ${fbTeams.length} teams`);
       }
 
-      // Sync players: fb_players → players
+      // Sync players: fb_players → players (FIX COLUMN NAMES)
       const { data: fbPlayers } = await supabase.from('fb_players').select('*');
 
       if (fbPlayers && fbPlayers.length > 0) {
         for (const fbPlayer of fbPlayers) {
+          // Extract first/last name from full name
+          const nameParts = (fbPlayer.name || '').split(' ');
+          const firstName = fbPlayer.firstname || nameParts[0] || 'Unknown';
+          const lastName = fbPlayer.lastname || nameParts.slice(1).join(' ') || 'Player';
+
           await supabase.from('players').upsert({
             api_id: fbPlayer.id,
-            name: fbPlayer.name,
-            photo: fbPlayer.photo,
-            position: fbPlayer.position,
-            nationality: fbPlayer.nationality,
+            first_name: firstName, // FIX: name → first_name
+            last_name: lastName, // FIX: added last_name
+            photo_url: fbPlayer.photo || 'https://via.placeholder.com/150', // FIX: photo → photo_url
+            position: fbPlayer.position || 'Unknown',
+            nationality: fbPlayer.nationality || 'Unknown',
+            birthdate: fbPlayer.birth_date || '2000-01-01', // FIX: added birthdate
           }, {
             onConflict: 'api_id',
           });
@@ -597,57 +634,89 @@ async function seedFantasyData(
       progress.errors.push(`Sync to production: ${error.message}`);
     }
 
-    // Phase 3: Seed player stats (priority leagues only)
+    // Phase 3: Seed player stats (BATCHED to avoid timeout)
     progress.stage = 'Player Statistics';
-    progress.message = 'Fetching player statistics...';
+    progress.message = 'Fetching player statistics (batched)...';
     progressCallback?.(progress);
 
-    // Get all players from production table (now synced from fb_players)
-    const { data: players, error: playersError } = await supabase
+    // BATCH PROCESSING: Only process 20 players without stats (reduced to avoid timeout)
+    const BATCH_SIZE = 20;
+
+    // Get players that don't have season stats yet
+    const { data: allPlayers, error: playersError } = await supabase
       .from('players')
-      .select('api_id')
+      .select('id, api_id')
       .not('api_id', 'is', null);
 
     if (playersError) {
       throw playersError;
     }
 
-    progress.total = players.length;
+    // Filter to only players without stats
+    const playersToProcess = [];
+    for (const player of allPlayers) {
+      if (playersToProcess.length >= BATCH_SIZE) break;
 
-    for (let i = 0; i < players.length; i++) {
-      const player = players[i];
-      progress.current = i + 1;
-      progress.message = `Processing player ${player.api_id}...`;
-      progressCallback?.(progress);
+      const { data: existingStats } = await supabase
+        .from('player_season_stats')
+        .select('id')
+        .eq('player_id', player.id)
+        .eq('season', season)
+        .limit(1);
 
-      try {
-        await seedPlayerStats(supabase, player.api_id, season);
-        await delay(500);
-      } catch (error) {
-        console.error(`[seedFantasyData] Error seeding stats for player ${player.api_id}:`, error);
-        progress.errors.push(`Player stats ${player.api_id}: ${error.message}`);
+      if (!existingStats || existingStats.length === 0) {
+        playersToProcess.push(player);
       }
     }
 
-    // Phase 4: Seed transfers (priority leagues only)
-    progress.stage = 'Transfers';
-    progress.message = 'Fetching transfer history...';
-    progressCallback?.(progress);
+    if (playersToProcess.length === 0) {
+      console.log('[Phase 3] All players already have stats, skipping...');
+    } else {
+      progress.total = playersToProcess.length;
+      console.log(`[Phase 3] Processing ${playersToProcess.length} players`);
 
-    for (let i = 0; i < players.length; i++) {
-      const player = players[i];
-      progress.current = i + 1;
-      progress.message = `Processing transfers for player ${player.api_id}...`;
-      progressCallback?.(progress);
+      for (let i = 0; i < playersToProcess.length; i++) {
+        const player = playersToProcess[i];
+        progress.current = i + 1;
+        progress.message = `Processing player ${player.api_id}... (${i + 1}/${playersToProcess.length})`;
+        progressCallback?.(progress);
 
-      try {
-        await seedPlayerTransfers(supabase, player.api_id);
-        await delay(500);
-      } catch (error) {
-        console.error(`[seedFantasyData] Error seeding transfers for player ${player.api_id}:`, error);
-        progress.errors.push(`Transfers ${player.api_id}: ${error.message}`);
+        try {
+          await seedPlayerStats(supabase, player.api_id, season);
+          await delay(500);
+        } catch (error) {
+          console.error(`[seedFantasyData] Error seeding stats for player ${player.api_id}:`, error);
+          progress.errors.push(`Player stats ${player.api_id}: ${error.message}`);
+        }
       }
     }
+
+    // Phase 4: SKIP transfers for now to avoid timeout
+    // Will run Phase 4 separately after Phase 3 is complete
+    console.log('[Phase 4] Skipping transfers (will run separately after Phase 3 complete)');
+
+    /* COMMENTED OUT - Will re-enable after Phase 3 is complete
+    if (playersToProcess.length > 0) {
+      progress.stage = 'Transfers';
+      progress.message = 'Fetching transfer history (batched)...';
+      progressCallback?.(progress);
+
+      for (let i = 0; i < playersToProcess.length; i++) {
+        const player = playersToProcess[i];
+        progress.current = i + 1;
+        progress.message = `Processing transfers for player ${player.api_id}... (${i + 1}/${playersToProcess.length})`;
+        progressCallback?.(progress);
+
+        try {
+          await seedPlayerTransfers(supabase, player.api_id);
+          await delay(500);
+        } catch (error) {
+          console.error(`[seedFantasyData] Error seeding transfers for player ${player.api_id}:`, error);
+          progress.errors.push(`Transfers ${player.api_id}: ${error.message}`);
+        }
+      }
+    }
+    */
 
     progress.stage = 'Complete';
     progress.message = 'Fantasy data seeding complete!';

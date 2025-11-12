@@ -31,6 +31,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
   const [fantasyLeagueIds, setFantasyLeagueIds] = useState('2, 39, 140') // UCL, Premier League, La Liga
   const [fantasyProgress, setFantasyProgress] = useState<{stage: string; current: number; total: number; message: string} | null>(null)
   const [fantasySeeding, setFantasySeeding] = useState(false)
+  const [playerStatsCount, setPlayerStatsCount] = useState<{total: number; withStats: number} | null>(null)
 
   const addProgress = (message: string) => setProgress((prev) => [message, ...prev])
 
@@ -50,7 +51,38 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
 
   useEffect(() => {
     fetchSyncConfigs()
+    fetchPlayerStatsCount() // Fetch on mount
   }, [fetchSyncConfigs])
+
+  const fetchPlayerStatsCount = async () => {
+    try {
+      // Count total players
+      const { count: totalPlayers, error: totalError } = await supabase
+        .from('players')
+        .select('*', { count: 'exact', head: true })
+        .not('api_id', 'is', null)
+
+      if (totalError) throw totalError
+
+      // Count players with stats for current season
+      const { data: playersWithStats, error: statsError } = await supabase
+        .from('player_season_stats')
+        .select('player_id')
+        .eq('season', Number(season))
+
+      if (statsError) throw statsError
+
+      // Get unique player IDs (in case a player has multiple teams in same season)
+      const uniquePlayerIds = new Set(playersWithStats?.map(s => s.player_id) || [])
+
+      setPlayerStatsCount({
+        total: totalPlayers || 0,
+        withStats: uniquePlayerIds.size
+      })
+    } catch (error) {
+      console.error('Failed to fetch player stats count:', error)
+    }
+  }
 
   const handleFrequencyChange = async (endpoint: string, frequency: string) => {
     try {
@@ -499,6 +531,8 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
       }
 
       toast('Fantasy data seeded successfully!', 'success')
+      // Refresh player stats count after successful seeding
+      fetchPlayerStatsCount()
     } catch (e: any) {
       toast(`Fantasy data seeding failed: ${e?.message ?? 'unknown error'}`, 'error')
       setFantasyProgress({ stage: 'Error', current: 0, total: 0, message: e?.message ?? 'Unknown error occurred' })
@@ -687,6 +721,40 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
               The process can be safely interrupted and resumed.
             </p>
           </div>
+
+          {/* Player Stats Progress Counter */}
+          {playerStatsCount && (
+            <div className="bg-lime-glow/10 p-4 rounded-lg border border-lime-glow/30">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold text-lime-glow">
+                  Player Stats Progress (Season {season})
+                </span>
+                <button
+                  onClick={fetchPlayerStatsCount}
+                  className="text-xs text-lime-glow hover:text-warm-yellow transition-colors"
+                  title="Refresh count"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-text-secondary">Players with stats:</span>
+                  <span className="font-bold text-lime-glow">{playerStatsCount.withStats.toLocaleString()} / {playerStatsCount.total.toLocaleString()}</span>
+                </div>
+                <div className="w-full bg-black/50 rounded-full h-3">
+                  <div
+                    className="bg-gradient-to-r from-lime-glow to-warm-yellow h-3 rounded-full transition-all duration-500"
+                    style={{ width: `${playerStatsCount.total > 0 ? (playerStatsCount.withStats / playerStatsCount.total) * 100 : 0}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-xs text-text-disabled">
+                  <span>{playerStatsCount.total > 0 ? Math.round((playerStatsCount.withStats / playerStatsCount.total) * 100) : 0}% complete</span>
+                  <span>~{Math.ceil((playerStatsCount.total - playerStatsCount.withStats) / 20)} batches remaining</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           <button
             onClick={handleFantasyDataSeed}
