@@ -116,11 +116,12 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
     };
   }, [groups, toLegacyMatch]);
 
-  const playedMatches = matches.filter(m => m.status === 'played');
+  // For now, we only show upcoming matches from useMatchesOfTheDay
+  // Played matches would need to come from the same hook to be properly filtered
+  const playedMatches: Match[] = [];
 
-  // Pass all matches (upcoming + played) to useLeagueOrder so saved order persists
-  const allMatches = useMemo(() => [...upcomingMatches, ...playedMatches], [upcomingMatches, playedMatches]);
-  const { orderedLeagues, setOrderedLeagues } = useLeagueOrder(allMatches);
+  // Only use upcomingMatches (which are properly filtered by imported leagues)
+  const { orderedLeagues, setOrderedLeagues } = useLeagueOrder(upcomingMatches);
 
   const groupedPlayed = useMemo(() => {
     return playedMatches.reduce((acc, match) => {
@@ -140,8 +141,8 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
 
   const uniqueLeaguesWithLogos = useMemo(() => {
     const leagueMap = new Map<string, string>();
-    // Get leagues from both upcoming and played matches
-    [...upcomingMatches, ...playedMatches].forEach(match => {
+    // Only get leagues from upcomingMatches (which are properly filtered by imported leagues)
+    upcomingMatches.forEach(match => {
       if (!leagueMap.has(match.leagueName)) {
         leagueMap.set(match.leagueName, match.leagueLogo);
       }
@@ -162,7 +163,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
     }
 
     return leagueEntries.map(([name, logo]) => ({ name, logo }));
-  }, [upcomingMatches, playedMatches, orderedLeagues]);
+  }, [upcomingMatches, orderedLeagues]);
 
   const headerData = useMemo(() => {
     const picksCount = bets.filter(bet => upcomingMatches.some(m => m.id === bet.matchId)).length;
