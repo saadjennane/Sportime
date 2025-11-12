@@ -122,13 +122,23 @@ export function useMatchesOfTheDay(): HookState {
     setIsLoading(true)
     setError(null)
     try {
-      // IMPORTANT: adjust relation names if your FK names differ.
-      // We expect:
-      // - fixtures.league_id → leagues.id
-      // - fixtures.home_team_id → teams.id (FK name: fixtures_home_team_id_fkey)
-      // - fixtures.away_team_id → teams.id (FK name: fixtures_away_team_id_fkey)
-      // - odds.fixture_id → fixtures.id (FK name: odds_fixture_id_fkey)
-      const { data: rows, error: dbError } = await supabase
+      // Step 1: Get imported league IDs from fb_leagues
+      const { data: importedLeagues, error: leaguesError } = await supabase
+        .from('fb_leagues')
+        .select('id')
+
+      if (leaguesError) throw leaguesError
+
+      if (!importedLeagues || importedLeagues.length === 0) {
+        setBaseGroups([])
+        setIsLoading(false)
+        return
+      }
+
+      const importedLeagueIds = importedLeagues.map(l => l.id)
+
+      // Step 2: Fetch fixtures only for imported leagues
+      const { data: rows, error: dbError} = await supabase
         .from('fb_fixtures')
         .select(`
           id,
@@ -149,6 +159,7 @@ export function useMatchesOfTheDay(): HookState {
         `)
         .gte('date', startISO)
         .lt('date', endISO)
+        .in('league_id', importedLeagueIds)
         .order('date', { ascending: true })
 
       if (dbError) throw dbError
