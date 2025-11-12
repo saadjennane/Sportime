@@ -136,28 +136,15 @@ export function useMatchesOfTheDay(): HookState {
           status,
           goals_home,
           goals_away,
-          league:fb_leagues (
+          home_team_id,
+          away_team_id,
+          league_id,
+          league:fb_leagues!fb_fixtures_league_id_fkey (
             id,
             name,
             logo,
             api_league_id,
             season
-          ),
-          home:fb_teams!fb_fixtures_home_team_id_fkey (
-            id,
-            name,
-            logo
-          ),
-          away:fb_teams!fb_fixtures_away_team_id_fkey (
-            id,
-            name,
-            logo
-          ),
-          odds:fb_odds!left (
-            home_win,
-            draw,
-            away_win,
-            bookmaker_name
           )
         `)
         .gte('date', startISO)
@@ -166,19 +153,28 @@ export function useMatchesOfTheDay(): HookState {
 
       if (dbError) throw dbError
 
+      // Get unique team IDs to fetch team data
+      const teamIds = new Set<number>()
+      ;(rows ?? []).forEach((r: any) => {
+        if (r.home_team_id) teamIds.add(r.home_team_id)
+        if (r.away_team_id) teamIds.add(r.away_team_id)
+      })
+
+      // Fetch team data if we have any team IDs
+      const teamsMap = new Map<number, any>()
+      if (teamIds.size > 0) {
+        const { data: teamsData } = await supabase
+          .from('fb_teams')
+          .select('id, name, logo')
+          .in('id', Array.from(teamIds))
+
+        ;(teamsData ?? []).forEach((team: any) => {
+          teamsMap.set(team.id, team)
+        })
+      }
+
       // Map rows → UiMatch
       const mapped: UiMatch[] = (rows ?? []).map((r: any) => {
-        // odds can come back as array; take first if present
-        const o = Array.isArray(r.odds) ? r.odds[0] : r.odds
-        const odds = o
-          ? {
-              home: safeNum(o.home_win),
-              draw: safeNum(o.draw),
-              away: safeNum(o.away_win),
-              bookmaker: o.bookmaker_name ?? undefined,
-            }
-          : undefined
-
         const rawStatus = typeof r.status === 'string' ? r.status : 'NS'
         const statusUpper = rawStatus.toUpperCase()
         const norm = normalizeStatus(statusUpper)
@@ -190,8 +186,9 @@ export function useMatchesOfTheDay(): HookState {
         const leagueLogo =
           r.league?.logo ?? leagueLogoFallback(r.league?.api_league_id ?? null)
         const leagueId = r.league?.id != null ? String(r.league.id) : ''
-        const homeTeamId = typeof r.home?.id === 'number' ? r.home.id : null
-        const awayTeamId = typeof r.away?.id === 'number' ? r.away.id : null
+
+        const homeTeam = r.home_team_id ? teamsMap.get(r.home_team_id) : null
+        const awayTeam = r.away_team_id ? teamsMap.get(r.away_team_id) : null
 
         const match: UiMatch = {
           id: String(r.id),
@@ -202,21 +199,21 @@ export function useMatchesOfTheDay(): HookState {
           rawStatus: statusUpper,
           normalized: norm,
           isLive,
-          homeTeamId,
-          awayTeamId,
+          homeTeamId: r.home_team_id ?? null,
+          awayTeamId: r.away_team_id ?? null,
           season: typeof r.league?.season === 'number' ? r.league.season : null,
           leagueInternalId: leagueId,
           hasLineup: false,
           home: {
-            id: homeTeamId != null ? String(homeTeamId) : '',
-            name: r.home?.name ?? 'Home',
-            logo: r.home?.logo ?? null,
+            id: r.home_team_id != null ? String(r.home_team_id) : '',
+            name: homeTeam?.name ?? 'Home',
+            logo: homeTeam?.logo ?? null,
             goals: r.goals_home ?? null,
           },
           away: {
-            id: awayTeamId != null ? String(awayTeamId) : '',
-            name: r.away?.name ?? 'Away',
-            logo: r.away?.logo ?? null,
+            id: r.away_team_id != null ? String(r.away_team_id) : '',
+            name: awayTeam?.name ?? 'Away',
+            logo: awayTeam?.logo ?? null,
             goals: r.goals_away ?? null,
           },
           league: {
@@ -225,7 +222,7 @@ export function useMatchesOfTheDay(): HookState {
             logo: leagueLogo,
             apiId: r.league?.api_league_id ?? undefined,
           },
-          odds,
+          odds: undefined, // Odds removed for simplicity - can be added back later if needed
         }
         return match
       })
