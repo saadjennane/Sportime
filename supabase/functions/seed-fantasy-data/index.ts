@@ -761,7 +761,7 @@ serve(async (req) => {
       throw new Error(`Failed to parse request body: ${parseError.message}`);
     }
 
-    const { leagues, season = 2024 } = body;
+    const { leagues, season = 2025 } = body;
 
     if (!leagues || !Array.isArray(leagues)) {
       return new Response(

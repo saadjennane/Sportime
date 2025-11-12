@@ -24,7 +24,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
   const [loading, setLoading] = useState<string | null>(null)
   const [progress, setProgress] = useState<string[]>([])
   const [leagueIds, setLeagueIds] = useState('2, 39, 140, 135') // UCL, Premier League, La Liga, Serie A
-  const [season, setSeason] = useState('2024')
+  const [season, setSeason] = useState('2025')
   const [syncConfigs, setSyncConfigs] = useState<ApiSyncConfig[]>([])
 
   // Fantasy Data Seeding
