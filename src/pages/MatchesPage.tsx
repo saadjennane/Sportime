@@ -138,13 +138,29 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
 
   const uniqueLeaguesWithLogos = useMemo(() => {
     const leagueMap = new Map<string, string>();
-    upcomingMatches.forEach(match => {
+    // Get leagues from both upcoming and played matches
+    [...upcomingMatches, ...playedMatches].forEach(match => {
       if (!leagueMap.has(match.leagueName)) {
         leagueMap.set(match.leagueName, match.leagueLogo);
       }
     });
-    return Array.from(leagueMap.entries()).map(([name, logo]) => ({ name, logo }));
-  }, [upcomingMatches]);
+
+    // Apply saved order if it exists
+    const leagueEntries = Array.from(leagueMap.entries());
+    if (orderedLeagues.length > 0) {
+      // Sort leagues according to saved order
+      return leagueEntries.sort((a, b) => {
+        const indexA = orderedLeagues.indexOf(a[0]);
+        const indexB = orderedLeagues.indexOf(b[0]);
+        if (indexA === -1 && indexB === -1) return 0;
+        if (indexA === -1) return 1;
+        if (indexB === -1) return -1;
+        return indexA - indexB;
+      }).map(([name, logo]) => ({ name, logo }));
+    }
+
+    return leagueEntries.map(([name, logo]) => ({ name, logo }));
+  }, [upcomingMatches, playedMatches, orderedLeagues]);
 
   const headerData = useMemo(() => {
     const picksCount = bets.filter(bet => upcomingMatches.some(m => m.id === bet.matchId)).length;
