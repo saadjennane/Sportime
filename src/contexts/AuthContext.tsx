@@ -63,6 +63,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     loadProfile()
+
+    // Setup real-time subscription for profile updates (balance, XP, etc.)
+    if (!supabase) return
+
+    const channel = supabase
+      .channel(`user_profile_${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'users',
+          filter: `id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('[AuthContext] Real-time profile update received:', payload)
+          // Update profile with new data from database
+          if (payload.new) {
+            setProfile(prev => prev ? { ...prev, ...payload.new } as Profile : null)
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [user, loadProfile])
 
   const signOut = useCallback(async () => {
