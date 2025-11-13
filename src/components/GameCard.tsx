@@ -12,6 +12,7 @@ interface GameCardProps {
   onPlay: () => void;
   onShowRewards: () => void;
   onShowRules: () => void;
+  onViewLeaderboard?: () => void;
   profile: Profile | null;
   userTickets: UserTicket[];
 }
@@ -29,10 +30,13 @@ const tournamentTierDetails: Record<TournamentType, { label: string; color: stri
   apex: { label: 'Apex', color: 'bg-hot-red/20 text-hot-red' },
 };
 
-export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick, onPlay, onShowRewards, onShowRules, profile, userTickets }) => {
+export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick, onPlay, onShowRewards, onShowRules, onViewLeaderboard, profile, userTickets }) => {
   const details = gameTypeDetails[game.game_type as keyof typeof gameTypeDetails];
   const normalizedTier = normalizeTournamentTier(game.tier);
   const tierDetails = normalizedTier ? tournamentTierDetails[normalizedTier] : null;
+
+  // Check if game is live (ongoing status)
+  const isLiveGame = game.status === 'Ongoing';
 
   const { hasTicket, hasEnoughCoins } = useMemo(() => {
     if (!profile) return { hasTicket: false, hasEnoughCoins: false };
@@ -120,13 +124,26 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
             )}
           </div>
         </div>
-        <span className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${
-          isCancelled ? 'bg-hot-red/20 text-hot-red' :
-          game.status === 'Upcoming' ? 'bg-electric-blue/20 text-electric-blue' : 
-          game.status === 'Ongoing' ? 'bg-lime-glow/20 text-lime-glow' : 'bg-disabled text-text-disabled'
-        }`}>
-          {game.status}
-        </span>
+        <div className="flex flex-col items-end gap-1.5">
+          {/* LIVE Badge (shown for ongoing games) */}
+          {isLiveGame && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-hot-red/20 border border-hot-red/50">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-hot-red opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-hot-red"></span>
+              </span>
+              <span className="text-xs font-bold text-hot-red">LIVE</span>
+            </div>
+          )}
+          {/* Status Badge */}
+          <span className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${
+            isCancelled ? 'bg-hot-red/20 text-hot-red' :
+            game.status === 'Upcoming' ? 'bg-electric-blue/20 text-electric-blue' :
+            game.status === 'Ongoing' ? 'bg-lime-glow/20 text-lime-glow' : 'bg-disabled text-text-disabled'
+          }`}>
+            {game.status}
+          </span>
+        </div>
       </div>
       
       {isCancelled && (
@@ -169,12 +186,24 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
             <ScrollText size={20} />
           </button>
         </div>
-        
+
         <div className="flex-1 flex justify-end items-center gap-2">
           {startsIn && ctaState === 'NOTIFY' && <span className="text-xs text-text-disabled font-semibold">{startsIn}</span>}
-          <button 
-            onClick={currentCta.onClick} 
-            disabled={currentCta.disabled} 
+
+          {/* View Leaderboard button for live games not joined */}
+          {isLiveGame && ctaState === 'IN_PROGRESS' && onViewLeaderboard && (
+            <button
+              onClick={onViewLeaderboard}
+              className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all bg-warm-yellow/20 text-warm-yellow hover:bg-warm-yellow/30 border border-warm-yellow/50"
+            >
+              <Trophy size={16} />
+              <span>View Leaderboard</span>
+            </button>
+          )}
+
+          <button
+            onClick={currentCta.onClick}
+            disabled={currentCta.disabled}
             className={`flex items-center justify-center gap-2 font-bold rounded-lg transition-all ${buttonStyles[currentCta.style]}`}
           >
             {ctaState === 'JOIN' ? (

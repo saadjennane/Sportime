@@ -12,6 +12,39 @@ import { Zap, Clock, Flag } from 'lucide-react';
 export type CtaState = 'JOIN' | 'PLACE_BETS' | 'MAKE_PREDICTIONS' | 'SELECT_TEAM' | 'COMPLETE_TEAM' | 'AWAITING' | 'RESULTS' | 'IN_PROGRESS';
 type GamesTab = 'my-games' | 'browse';
 
+/**
+ * Determines the real status of a game by validating start_date and end_date
+ * against the current time, regardless of what the status field says.
+ * Priority: end_date > start_date > stored status
+ */
+function getRealGameStatus(game: SportimeGame, now: Date): 'Upcoming' | 'Ongoing' | 'Finished' | 'Cancelled' {
+  // Cancelled games stay cancelled
+  if (game.status === 'Cancelled') {
+    return 'Cancelled';
+  }
+
+  const startDate = parseISO(game.start_date);
+  const endDate = parseISO(game.end_date);
+
+  // Priority 1: End date passed → Always Finished
+  if (endDate < now) {
+    return 'Finished';
+  }
+
+  // Priority 2: Start date passed but not end → Ongoing
+  if (startDate < now && endDate >= now) {
+    return 'Ongoing';
+  }
+
+  // Priority 3: Start date not passed → Upcoming
+  if (startDate >= now) {
+    return 'Upcoming';
+  }
+
+  // Fallback to stored status
+  return game.status as 'Upcoming' | 'Ongoing' | 'Finished' | 'Cancelled';
+}
+
 interface GamesListPageProps {
   games: SportimeGame[];
   userChallengeEntries: UserChallengeEntry[];
@@ -78,9 +111,11 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       const hasJoined = myGameIds.has(game.id);
       if (!hasJoined) continue; // My Games = only joined games
 
-      if (game.status === 'Finished' || game.status === 'Cancelled') {
+      const realStatus = getRealGameStatus(game, now);
+
+      if (realStatus === 'Finished' || realStatus === 'Cancelled') {
         finished.push(game);
-      } else if (game.status === 'Ongoing' || game.status === 'Upcoming') {
+      } else if (realStatus === 'Ongoing' || realStatus === 'Upcoming') {
         // Determine if user has completed their submissions
         let isComplete = false;
 
@@ -127,44 +162,45 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
     return { activeGames: active, awaitingGames: awaiting, finishedGames: finished };
   }, [processedGames, myGameIds, userChallengeEntries, userSwipeEntries, userFantasyTeams]);
 
-  // All games for Browse tab (sorted by start date)
-  const browseGames = useMemo(() => {
+  // Separate upcoming/ongoing games from past games for Browse tab
+  const { browseGames, pastGames } = useMemo(() => {
     const now = new Date('2025-07-24T00:00:00Z');
 
-    // Filter out "Upcoming" games whose start date has passed (data inconsistency)
-    const validGames = processedGames.filter(game => {
-      const gameStartDate = parseISO(game.start_date);
+    const upcoming: (SportimeGame & { isEligible: boolean })[] = [];
+    const past: (SportimeGame & { isEligible: boolean })[] = [];
 
-      // If game status is "Upcoming" but date has passed, exclude from browse
-      // (These should have been updated to "Ongoing" or "Finished")
-      if (game.status === 'Upcoming' && gameStartDate < now) {
-        return false;
+    for (const game of processedGames) {
+      const realStatus = getRealGameStatus(game, now);
+
+      if (realStatus === 'Finished' || realStatus === 'Cancelled') {
+        past.push(game);
+      } else {
+        // Upcoming or Ongoing games
+        upcoming.push(game);
       }
-
-      return true;
-    });
+    }
 
     const sortByStartDate = (a: SportimeGame, b: SportimeGame) => parseISO(a.start_date).getTime() - parseISO(b.start_date).getTime();
-    return validGames.sort(sortByStartDate);
+    const sortByEndDateDesc = (a: SportimeGame, b: SportimeGame) => parseISO(b.end_date).getTime() - parseISO(a.end_date).getTime();
+
+    return {
+      browseGames: upcoming.sort(sortByStartDate),
+      pastGames: past.sort(sortByEndDateDesc)
+    };
   }, [processedGames]);
 
   const getCtaState = (game: SportimeGame & { isEligible: boolean }, isInMyGamesTab: boolean): CtaState => {
     const hasJoined = myGameIds.has(game.id);
     const now = new Date('2025-07-24T00:00:00Z');
-    const gameStartDate = parseISO(game.start_date);
+    const realStatus = getRealGameStatus(game, now);
 
     // Finished games
-    if (game.status === 'Finished' || game.status === 'Cancelled') {
+    if (realStatus === 'Finished' || realStatus === 'Cancelled') {
       return 'RESULTS';
     }
 
-    // Game has already started (date passed) but status is still "Upcoming" - treat as IN_PROGRESS
-    if (game.status === 'Upcoming' && gameStartDate < now && !hasJoined) {
-      return 'IN_PROGRESS';
-    }
-
-    // Browse tab: Ongoing games not joined
-    if (!isInMyGamesTab && game.status === 'Ongoing' && !hasJoined) {
+    // Browse tab: Ongoing games not joined (FOMO state)
+    if (!isInMyGamesTab && realStatus === 'Ongoing' && !hasJoined) {
       return 'IN_PROGRESS';
     }
 
@@ -214,6 +250,13 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
     if (game.game_type === 'prediction') onPlayAction = () => onPlaySwipeGame(game.id);
     if (game.game_type === 'fantasy') onPlayAction = () => onViewFantasyGame(game.id);
 
+    // For live games not joined, show leaderboard in read-only mode
+    const handleViewLeaderboard = () => {
+      if (game.game_type === 'betting') onViewChallenge(game.id);
+      if (game.game_type === 'prediction') onPlaySwipeGame(game.id);
+      if (game.game_type === 'fantasy') onViewFantasyGame(game.id);
+    };
+
     return (
       <GameCard
         key={game.id}
@@ -223,6 +266,7 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
         onPlay={onPlayAction}
         onShowRewards={() => setViewingRewardsFor(game)}
         onShowRules={() => setIsRulesModalOpen(true)}
+        onViewLeaderboard={handleViewLeaderboard}
         profile={profile}
         userTickets={userTickets}
       />
@@ -312,6 +356,17 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
               </div>
             )}
           </div>
+
+          {/* Past Games Section (Lazy Loaded) */}
+          <GameSection
+            title="Past Games"
+            count={pastGames.length}
+            icon={<Flag />}
+            colorClass="text-text-disabled"
+            defaultOpen={false}
+          >
+            {pastGames.map(game => renderGameCard(game, false))}
+          </GameSection>
         </>
       )}
 
