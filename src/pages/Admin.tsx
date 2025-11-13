@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Profile, SportimeGame, RewardItem } from '../types';
-import { Gamepad2, Star, DatabaseZap, Terminal, Newspaper } from 'lucide-react';
+import { Gamepad2, Star, DatabaseZap, Terminal, Newspaper, Gift } from 'lucide-react';
 import { useMockStore } from '../store/useMockStore';
 import { ChallengesAdmin } from '../components/admin/ChallengesAdmin';
 import { ProgressionAdmin } from '../components/ProgressionAdmin';
@@ -11,12 +11,13 @@ import { CelebrateSeasonalWinnersModal } from '../components/admin/CelebrateSeas
 import { CelebrationFeed } from '../components/admin/CelebrationFeed';
 import { SwipeGameAdmin } from '../components/admin/SwipeGameAdmin';
 import { BadgeManager } from '../components/admin/BadgeManager';
+import { RewardFulfillmentManager } from '../components/admin/RewardFulfillmentManager';
 import { Zap } from 'lucide-react';
 import { USE_SUPABASE } from '../config/env';
 import * as challengeService from '../services/challengeService';
 import * as seasonalRewardsService from '../services/seasonalRewardsService';
 
-type AdminSection = 'challenges' | 'swipe' | 'progression' | 'datasync' | 'feed' | 'developer';
+type AdminSection = 'challenges' | 'swipe' | 'progression' | 'datasync' | 'feed' | 'developer' | 'fulfillments';
 
 interface AdminPageProps {
   profile: Profile | null;
@@ -176,15 +177,15 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-3 sm:grid-cols-6 bg-navy-accent rounded-xl p-1 gap-1">
+      <div className="grid grid-cols-3 sm:grid-cols-7 bg-navy-accent rounded-xl p-1 gap-1">
         <AdminSectionButton section="challenges" icon={<Gamepad2 size={16} />} label="Games" />
         <AdminSectionButton section="swipe" icon={<Zap size={16} />} label="Swipe" />
         <AdminSectionButton section="feed" icon={<Newspaper size={16} />} label="Feed" />
+        <AdminSectionButton section="fulfillments" icon={<Gift size={16} />} label="Rewards" />
         <AdminSectionButton section="progression" icon={<Star size={16} />} label="Progression" />
         <AdminSectionButton section="datasync" icon={<DatabaseZap size={16} />} label="Data Sync" />
         <AdminSectionButton section="developer" icon={<Terminal size={16} />} label="Dev" />
       </div>
-
       {activeSection === 'challenges' && (
         <div className="animate-scale-in">
           <ChallengesAdmin
@@ -232,6 +233,12 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
       {activeSection === 'datasync' && (
         <div className="animate-scale-in">
           <DataSyncAdmin addToast={addToast} />
+        </div>
+      )}
+
+      {activeSection === 'fulfillments' && (
+        <div className="animate-scale-in">
+          <RewardFulfillmentManager addToast={addToast} />
         </div>
       )}
 
