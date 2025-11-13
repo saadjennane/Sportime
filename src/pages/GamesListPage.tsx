@@ -129,16 +129,38 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
 
   // All games for Browse tab (sorted by start date)
   const browseGames = useMemo(() => {
+    const now = new Date('2025-07-24T00:00:00Z');
+
+    // Filter out "Upcoming" games whose start date has passed (data inconsistency)
+    const validGames = processedGames.filter(game => {
+      const gameStartDate = parseISO(game.start_date);
+
+      // If game status is "Upcoming" but date has passed, exclude from browse
+      // (These should have been updated to "Ongoing" or "Finished")
+      if (game.status === 'Upcoming' && gameStartDate < now) {
+        return false;
+      }
+
+      return true;
+    });
+
     const sortByStartDate = (a: SportimeGame, b: SportimeGame) => parseISO(a.start_date).getTime() - parseISO(b.start_date).getTime();
-    return [...processedGames].sort(sortByStartDate);
+    return validGames.sort(sortByStartDate);
   }, [processedGames]);
 
   const getCtaState = (game: SportimeGame & { isEligible: boolean }, isInMyGamesTab: boolean): CtaState => {
     const hasJoined = myGameIds.has(game.id);
+    const now = new Date('2025-07-24T00:00:00Z');
+    const gameStartDate = parseISO(game.start_date);
 
     // Finished games
     if (game.status === 'Finished' || game.status === 'Cancelled') {
       return 'RESULTS';
+    }
+
+    // Game has already started (date passed) but status is still "Upcoming" - treat as IN_PROGRESS
+    if (game.status === 'Upcoming' && gameStartDate < now && !hasJoined) {
+      return 'IN_PROGRESS';
     }
 
     // Browse tab: Ongoing games not joined
