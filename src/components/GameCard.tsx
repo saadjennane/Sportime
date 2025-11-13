@@ -68,13 +68,13 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
 
   const ctaConfig = {
     JOIN: { onClick: onJoinClick, disabled: isJoinDisabled, style: 'primary', content: joinButtonContent() },
-    PLAY: { text: game.game_type === 'betting' ? 'Place Bets' : 'Make Picks', onClick: onPlay, disabled: false, style: 'primary', icon: <ArrowRight size={16} /> },
-    SUBMITTED: { text: game.game_type === 'betting' ? 'Bets Submitted' : 'Picks Submitted', onClick: onPlay, disabled: false, style: 'secondary', icon: <Check size={16} /> },
-    AWAITING: { text: 'Matches Awaiting', onClick: () => {}, disabled: true, style: 'disabled', icon: <Clock size={16} /> },
+    PLACE_BETS: { text: 'Place your bets', onClick: onPlay, disabled: false, style: 'primary', icon: <ArrowRight size={16} /> },
+    MAKE_PREDICTIONS: { text: 'Make your predictions', onClick: onPlay, disabled: false, style: 'primary', icon: <ArrowRight size={16} /> },
+    SELECT_TEAM: { text: 'Select your team', onClick: onPlay, disabled: false, style: 'primary', icon: <ArrowRight size={16} /> },
+    COMPLETE_TEAM: { text: 'Complete your team', onClick: onPlay, disabled: false, style: 'primary', icon: <ArrowRight size={16} /> },
+    AWAITING: { text: 'Awaiting results', onClick: () => {}, disabled: true, style: 'disabled', icon: <Clock size={16} /> },
     RESULTS: { text: 'View Results', onClick: onPlay, disabled: false, style: 'primary', icon: <ArrowRight size={16} /> },
-    VIEW_TEAM: { text: 'View Team', onClick: onPlay, disabled: false, style: 'primary', icon: <ArrowRight size={16} /> },
-    NOTIFY: { text: 'Notify Me', onClick: () => alert('Notification set!'), disabled: false, style: 'secondary', icon: <Bell size={16} /> },
-    IN_PROGRESS: { text: 'In Progress', onClick: () => {}, disabled: true, style: 'disabled', icon: <Flame size={16} /> },
+    IN_PROGRESS: { text: 'Live Now (Can\'t Join)', onClick: () => {}, disabled: true, style: 'disabled', icon: <Flame size={16} /> },
   };
 
   const currentCta = ctaConfig[ctaState];

@@ -7,9 +7,10 @@ import { GamesFilterPanel } from '../components/filters/GamesFilterPanel';
 import { checkEligibility } from '../lib/eligibility';
 import { GameSection } from '../components/GameSection';
 import { add, isWithinInterval, parseISO } from 'date-fns';
-import { Zap, Hourglass, Flame, Flag } from 'lucide-react';
+import { Zap, Clock, Flag } from 'lucide-react';
 
-export type CtaState = 'JOIN' | 'PLAY' | 'SUBMITTED' | 'AWAITING' | 'RESULTS' | 'VIEW_TEAM' | 'NOTIFY' | 'IN_PROGRESS';
+export type CtaState = 'JOIN' | 'PLACE_BETS' | 'MAKE_PREDICTIONS' | 'SELECT_TEAM' | 'COMPLETE_TEAM' | 'AWAITING' | 'RESULTS' | 'IN_PROGRESS';
+type GamesTab = 'my-games' | 'browse';
 
 interface GamesListPageProps {
   games: SportimeGame[];
@@ -28,7 +29,8 @@ interface GamesListPageProps {
 
 const GamesListPage: React.FC<GamesListPageProps> = (props) => {
   const { games, userChallengeEntries, userSwipeEntries, userFantasyTeams, onJoinChallenge, onViewChallenge, onJoinSwipeGame, onPlaySwipeGame, onViewFantasyGame, profile, userTickets } = props;
-  
+
+  const [activeTab, setActiveTab] = useState<GamesTab>('my-games');
   const [filters, setFilters] = useState<GameFilters>({
     type: 'all',
     format: 'all',
@@ -64,92 +66,127 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       });
   }, [games, profile, userTickets, filters]);
 
-  const { playableToday, comingSoon, inProgress, finished } = useMemo(() => {
+  // Categorization for My Games tab
+  const { activeGames, awaitingGames, finishedGames } = useMemo(() => {
     const now = new Date('2025-07-24T00:00:00Z'); // Fixed date for stable mock environment
-    const twentyFourHoursFromNow = add(now, { hours: 24 });
 
-    const sections: {
-      playableToday: (SportimeGame & { isEligible: boolean })[];
-      comingSoon: (SportimeGame & { isEligible: boolean })[];
-      inProgress: (SportimeGame & { isEligible: boolean })[];
-      finished: (SportimeGame & { isEligible: boolean })[];
-    } = {
-      playableToday: [],
-      comingSoon: [],
-      inProgress: [],
-      finished: [],
-    };
+    const active: (SportimeGame & { isEligible: boolean })[] = [];
+    const awaiting: (SportimeGame & { isEligible: boolean })[] = [];
+    const finished: (SportimeGame & { isEligible: boolean })[] = [];
 
     for (const game of processedGames) {
-      const gameStartDate = parseISO(game.start_date);
       const hasJoined = myGameIds.has(game.id);
+      if (!hasJoined) continue; // My Games = only joined games
 
       if (game.status === 'Finished' || game.status === 'Cancelled') {
-        sections.finished.push(game);
-      } else if (game.status === 'Ongoing') {
-        if (hasJoined) {
-          sections.playableToday.push(game);
-        } else {
-          sections.inProgress.push(game);
-        }
-      } else if (game.status === 'Upcoming') {
-        if (gameStartDate <= twentyFourHoursFromNow) {
-          if (game.isEligible) {
-            sections.playableToday.push(game);
-          } else {
-            // Not eligible, but starts soon. It's "coming soon" for this user.
-            sections.comingSoon.push(game);
+        finished.push(game);
+      } else if (game.status === 'Ongoing' || game.status === 'Upcoming') {
+        // Determine if user has completed their submissions
+        let isComplete = false;
+
+        if (game.game_type === 'betting') {
+          const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
+          if (userEntry) {
+            isComplete = userEntry.dailyEntries.every((daily: any) => {
+              const totalBet = daily.bets.reduce((sum: number, b: any) => sum + b.amount, 0);
+              return totalBet >= (game.challengeBalance || 1000);
+            });
           }
+        } else if (game.game_type === 'prediction') {
+          const userEntry = userSwipeEntries.find(e => e.matchDayId === game.id);
+          if (userEntry) {
+            isComplete = userEntry.predictions.length >= (game.matches?.length || 0);
+          }
+        } else if (game.game_type === 'fantasy') {
+          const userTeam = userFantasyTeams.find(t => t.gameId === game.id);
+          // For fantasy, if team exists, assume it can always be edited (Complete Team CTA)
+          isComplete = false;
+        }
+
+        // If incomplete, goes to Active
+        // If complete, goes to Awaiting
+        if (!isComplete) {
+          active.push(game);
         } else {
-          // Starts more than 24 hours from now.
-          sections.comingSoon.push(game);
+          awaiting.push(game);
         }
       }
     }
 
+    // Sorting
     const sortByStartDate = (a: SportimeGame, b: SportimeGame) => parseISO(a.start_date).getTime() - parseISO(b.start_date).getTime();
     const sortByEndDateDesc = (a: SportimeGame, b: SportimeGame) => parseISO(b.end_date).getTime() - parseISO(a.end_date).getTime();
 
-    sections.playableToday.sort(sortByStartDate);
-    sections.comingSoon.sort(sortByStartDate);
-    sections.inProgress.sort(sortByStartDate);
-    sections.finished.sort(sortByEndDateDesc);
+    // Active: Sort by urgency (earliest start date first)
+    active.sort(sortByStartDate);
+    // Awaiting: Sort by start date (most recent first)
+    awaiting.sort(sortByStartDate);
+    // Finished: Sort by end date (most recent first)
+    finished.sort(sortByEndDateDesc);
 
-    return sections;
-  }, [processedGames, myGameIds]);
+    return { activeGames: active, awaitingGames: awaiting, finishedGames: finished };
+  }, [processedGames, myGameIds, userChallengeEntries, userSwipeEntries, userFantasyTeams]);
 
-  const getCtaState = (game: SportimeGame & { isEligible: boolean }): CtaState => {
+  // All games for Browse tab (sorted by start date)
+  const browseGames = useMemo(() => {
+    const sortByStartDate = (a: SportimeGame, b: SportimeGame) => parseISO(a.start_date).getTime() - parseISO(b.start_date).getTime();
+    return [...processedGames].sort(sortByStartDate);
+  }, [processedGames]);
+
+  const getCtaState = (game: SportimeGame & { isEligible: boolean }, isInMyGamesTab: boolean): CtaState => {
     const hasJoined = myGameIds.has(game.id);
-    const now = new Date('2025-07-24T00:00:00Z');
-    const isPlayableSoon = isWithinInterval(new Date(game.start_date), { start: now, end: add(now, { days: 1 }) });
-    
-    if (game.status === 'Finished' || game.status === 'Cancelled') return 'RESULTS';
-    if (game.status === 'Ongoing' && !hasJoined) return 'IN_PROGRESS';
-    if (game.status === 'Upcoming' && !isPlayableSoon && !hasJoined) return 'NOTIFY';
-    if (!hasJoined) return 'JOIN';
 
-    if (game.game_type === 'fantasy') return 'VIEW_TEAM';
-    if (game.status === 'Ongoing') return 'AWAITING';
-
-    if (game.game_type === 'betting') {
-        const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
-        if (!userEntry) return 'PLAY';
-        const isComplete = userEntry.dailyEntries.every((daily: any) => {
-            const totalBet = daily.bets.reduce((sum: number, b: any) => sum + b.amount, 0);
-            return totalBet >= (game.challengeBalance || 1000);
-        });
-        return isComplete ? 'SUBMITTED' : 'PLAY';
-    } else { // prediction
-        const userEntry = userSwipeEntries.find(e => e.matchDayId === game.id);
-        if (!userEntry) return 'PLAY';
-        const isComplete = userEntry.predictions.length >= (game.matches?.length || 0);
-        return isComplete ? 'SUBMITTED' : 'PLAY';
+    // Finished games
+    if (game.status === 'Finished' || game.status === 'Cancelled') {
+      return 'RESULTS';
     }
+
+    // Browse tab: Ongoing games not joined
+    if (!isInMyGamesTab && game.status === 'Ongoing' && !hasJoined) {
+      return 'IN_PROGRESS';
+    }
+
+    // Not joined - show JOIN button
+    if (!hasJoined) {
+      return 'JOIN';
+    }
+
+    // USER HAS JOINED - determine action state
+
+    // Fantasy games - always show team management
+    if (game.game_type === 'fantasy') {
+      const userTeam = userFantasyTeams.find(t => t.gameId === game.id);
+      return userTeam ? 'COMPLETE_TEAM' : 'SELECT_TEAM';
+    }
+
+    // Betting games
+    if (game.game_type === 'betting') {
+      const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
+      if (!userEntry) return 'PLACE_BETS';
+
+      const isComplete = userEntry.dailyEntries.every((daily: any) => {
+        const totalBet = daily.bets.reduce((sum: number, b: any) => sum + b.amount, 0);
+        return totalBet >= (game.challengeBalance || 1000);
+      });
+
+      return isComplete ? 'AWAITING' : 'PLACE_BETS';
+    }
+
+    // Prediction games
+    if (game.game_type === 'prediction') {
+      const userEntry = userSwipeEntries.find(e => e.matchDayId === game.id);
+      if (!userEntry) return 'MAKE_PREDICTIONS';
+
+      const isComplete = userEntry.predictions.length >= (game.matches?.length || 0);
+      return isComplete ? 'AWAITING' : 'MAKE_PREDICTIONS';
+    }
+
+    return 'JOIN';
   };
 
-  const renderGameCard = (game: SportimeGame & { isEligible: boolean }) => {
-    const ctaState = getCtaState(game);
-    
+  const renderGameCard = (game: SportimeGame & { isEligible: boolean }, isInMyGamesTab: boolean) => {
+    const ctaState = getCtaState(game, isInMyGamesTab);
+
     let onPlayAction = () => {};
     if (game.game_type === 'betting') onPlayAction = () => onViewChallenge(game.id);
     if (game.game_type === 'prediction') onPlayAction = () => onPlaySwipeGame(game.id);
@@ -172,24 +209,91 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
 
   return (
     <div className="space-y-4">
-      <GamesFilterPanel filters={filters} onFilterChange={setFilters} />
-      
-      <GameSection title="Playable Today" count={playableToday.length} icon={<Zap />} colorClass="text-lime-glow">
-        {playableToday.map(renderGameCard)}
-      </GameSection>
+      {/* Tab Switcher */}
+      <div className="flex bg-navy-accent rounded-xl p-1">
+        <button
+          onClick={() => setActiveTab('my-games')}
+          className={`flex-1 p-3 rounded-lg font-semibold transition-all text-sm ${
+            activeTab === 'my-games'
+              ? 'bg-electric-blue text-white shadow'
+              : 'text-text-secondary hover:text-text-primary'
+          }`}
+        >
+          My Games
+        </button>
+        <button
+          onClick={() => setActiveTab('browse')}
+          className={`flex-1 p-3 rounded-lg font-semibold transition-all text-sm ${
+            activeTab === 'browse'
+              ? 'bg-electric-blue text-white shadow'
+              : 'text-text-secondary hover:text-text-primary'
+          }`}
+        >
+          Browse Games
+        </button>
+      </div>
 
-      <GameSection title="Coming Soon" count={comingSoon.length} icon={<Hourglass />} colorClass="text-warm-yellow" defaultOpen={false}>
-        {comingSoon.map(renderGameCard)}
-      </GameSection>
+      {/* My Games Tab */}
+      {activeTab === 'my-games' && (
+        <>
+          <GameSection
+            title="Active"
+            count={activeGames.length}
+            icon={<Zap />}
+            colorClass="text-lime-glow"
+            defaultOpen={true}
+          >
+            {activeGames.map(game => renderGameCard(game, true))}
+          </GameSection>
 
-      <GameSection title="In Progress" count={inProgress.length} icon={<Flame />} colorClass="text-orange-500" defaultOpen={false}>
-        {inProgress.map(renderGameCard)}
-      </GameSection>
+          <GameSection
+            title="Awaiting Results"
+            count={awaitingGames.length}
+            icon={<Clock />}
+            colorClass="text-warm-yellow"
+            defaultOpen={true}
+          >
+            {awaitingGames.map(game => renderGameCard(game, true))}
+          </GameSection>
 
-      <GameSection title="Finished" count={finished.length} icon={<Flag />} colorClass="text-text-disabled" defaultOpen={false}>
-        {finished.map(renderGameCard)}
-      </GameSection>
+          <GameSection
+            title="Finished"
+            count={finishedGames.length}
+            icon={<Flag />}
+            colorClass="text-text-disabled"
+            defaultOpen={false}
+          >
+            {finishedGames.map(game => renderGameCard(game, true))}
+          </GameSection>
 
+          {activeGames.length === 0 && awaitingGames.length === 0 && finishedGames.length === 0 && (
+            <div className="card-base p-8 text-center">
+              <p className="text-text-secondary text-sm">You haven't joined any games yet.</p>
+              <p className="text-text-secondary text-xs mt-2">Switch to Browse Games to discover available games!</p>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Browse Games Tab */}
+      {activeTab === 'browse' && (
+        <>
+          <GamesFilterPanel filters={filters} onFilterChange={setFilters} />
+
+          <div className="space-y-4">
+            {browseGames.length > 0 ? (
+              browseGames.map(game => renderGameCard(game, false))
+            ) : (
+              <div className="card-base p-8 text-center">
+                <p className="text-text-secondary text-sm">No games match your filters.</p>
+                <p className="text-text-secondary text-xs mt-2">Try adjusting your filter settings.</p>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Modals */}
       {viewingRewardsFor && (
         <RewardsPreviewModal
           isOpen={!!viewingRewardsFor}
@@ -197,8 +301,8 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
           game={viewingRewardsFor}
         />
       )}
-      
-      <RulesModal 
+
+      <RulesModal
         isOpen={isRulesModalOpen}
         onClose={() => setIsRulesModalOpen(false)}
       />
