@@ -526,9 +526,14 @@ export type GameFormat = 'leaderboard' | 'championship' | 'knockout' | 'battle-r
 export type RewardTier = 'tier1' | 'tier2' | 'tier3';
 export type ConditionsLogic = 'and' | 'or';
 
+// Reward-related types
+export type RewardType = 'ticket' | 'spin' | 'xp' | 'giftcard' | 'masterpass' | 'custom' | 'premium_3d' | 'premium_7d' | 'coins';
+export type RewardStatus = 'fulfilled' | 'pending' | 'processing' | 'failed' | 'cancelled';
+export type FulfillmentMethod = 'email' | 'in_app' | 'external_api';
+
 export interface RewardItem {
   id: string;
-  type: 'ticket' | 'spin' | 'xp' | 'giftcard' | 'masterpass' | 'custom' | 'premium_3d' | 'premium_7d' | 'coins';
+  type: RewardType;
   value?: number | string | Record<string, any>;
   tier?: TournamentType | SpinTier;
   name?: string;

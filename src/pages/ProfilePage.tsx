@@ -15,6 +15,7 @@ import { PremiumUnlockCard } from '../components/premium/PremiumUnlockCard';
 import { PremiumStatusCard } from '../components/premium/PremiumStatusCard';
 import { XPProgressBar } from '../components/progression/XPProgressBar';
 import { BadgeDisplay } from '../components/progression/BadgeDisplay';
+import RewardHistoryPage from './RewardHistoryPage';
 
 interface ProfilePageProps {
   profile: Profile;
@@ -33,7 +34,7 @@ interface ProfilePageProps {
 const ProfilePage: React.FC<ProfilePageProps> = (props) => {
   const { profile, levels, allBadges, userBadges, userStreaks, onOpenSpinWheel, onOpenPremiumModal } = props;
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'stats' | 'squad'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'stats' | 'squad' | 'rewards'>('overview');
   
   const userSpinState = useSpinStore(state => state.userSpinStates[profile.id]);
   const { addNotification } = useMockStore();
@@ -140,6 +141,7 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
           <TabButton label="Overview" icon={<List size={16} />} isActive={activeTab === 'overview'} onClick={() => setActiveTab('overview')} />
           <TabButton label="Stats" icon={<BarChart2 size={16} />} isActive={activeTab === 'stats'} onClick={() => setActiveTab('stats')} />
           <TabButton label="Squad" icon={<SquadIcon size={16} />} isActive={activeTab === 'squad'} onClick={() => setActiveTab('squad')} />
+          <TabButton label="Rewards" icon={<Gift size={16} />} isActive={activeTab === 'rewards'} onClick={() => setActiveTab('rewards')} />
         </div>
 
         {activeTab === 'overview' && (
@@ -221,7 +223,7 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
         )}
 
         {activeTab === 'squad' && (
-          <FrequentPlayersList 
+          <FrequentPlayersList
             currentUserId={profile.id}
             onInvite={(username) => {
               addNotification({
@@ -231,6 +233,10 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
               });
             }}
           />
+        )}
+
+        {activeTab === 'rewards' && (
+          <RewardHistoryPage profile={profile} />
         )}
         
         <ProfileSettingsModal 
