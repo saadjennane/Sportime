@@ -122,9 +122,47 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
     };
   }, [groups, toLegacyMatch]);
 
-  // For now, we only show upcoming matches from useMatchesOfTheDay
-  // Played matches would need to come from the same hook to be properly filtered
-  const playedMatches: Match[] = [];
+  // Get played matches from useMatchesOfTheDay and filter for matches with user bets
+  const playedMatchesWithBets = useMemo(() => {
+    if (!groups || groups.length === 0) return [];
+
+    // Filter groups to only include played matches
+    const playedGroups = groups.filter(group =>
+      group.matches.some(m => m.status === 'played')
+    ).map(group => ({
+      ...group,
+      matches: group.matches.filter(m => m.status === 'played')
+    }));
+
+    // Convert played matches to legacy format
+    const allPlayedMatches = playedGroups.flatMap(group =>
+      group.matches.map(m => toLegacyMatch(m))
+    );
+
+    // Only return matches where user has placed a bet
+    const matchesWithBets = allPlayedMatches.filter(match =>
+      bets.some(bet => bet.matchId === match.id)
+    );
+
+    // Calculate bet results for each match
+    return matchesWithBets.map(match => {
+      const userBet = bets.find(bet => bet.matchId === match.id);
+      if (!userBet || !match.result) return match;
+
+      // Determine if bet won or lost
+      const won = userBet.prediction === match.result;
+      const updatedBet: Bet = {
+        ...userBet,
+        status: won ? 'won' : 'lost',
+        winAmount: won ? userBet.amount * userBet.odds : 0
+      };
+
+      // Update the bet in the bets array (side effect handled by parent)
+      return match;
+    });
+  }, [groups, bets, toLegacyMatch]);
+
+  const playedMatches: Match[] = playedMatchesWithBets;
 
   // Create mock matches array with all imported leagues for useLeagueOrder
   const allLeaguesAsMatches = useMemo(() => {
@@ -190,7 +228,8 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
     return allLeagues;
   }, [importedLeagues, orderedLeagues]);
 
-  const headerData = useMemo(() => {
+  // Header data for Upcoming tab
+  const upcomingHeaderData = useMemo(() => {
     const picksCount = bets.filter(bet => upcomingMatches.some(m => m.id === bet.matchId)).length;
     const potentialWinnings = bets.reduce((total, bet) => {
       const match = upcomingMatches.find(m => m.id === bet.matchId);
@@ -207,13 +246,40 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
     };
   }, [bets, upcomingMatches]);
 
+  // Header data for Played tab
+  const playedHeaderData = useMemo(() => {
+    // Calculate successful picks and total winnings
+    let successfulPicks = 0;
+    let totalWinnings = 0;
+
+    playedMatches.forEach(match => {
+      const userBet = bets.find(bet => bet.matchId === match.id);
+      if (userBet && match.result) {
+        const won = userBet.prediction === match.result;
+        if (won) {
+          successfulPicks++;
+          totalWinnings += userBet.amount * userBet.odds;
+        }
+      }
+    });
+
+    return {
+      successfulPicks,
+      totalPlayed: playedMatches.length,
+      winnings: totalWinnings
+    };
+  }, [bets, playedMatches]);
+
+  const headerData = activeTab === 'upcoming' ? upcomingHeaderData : playedHeaderData;
+
   return (
     <div className="space-y-4">
       <DailySummaryHeader
         date={format(new Date(), 'EEEE, MMM d, yyyy')}
-        picksCount={headerData.picksCount}
-        totalMatches={headerData.totalMatches}
-        potentialWinnings={headerData.potentialWinnings}
+        picksCount={activeTab === 'upcoming' ? upcomingHeaderData.picksCount : playedHeaderData.successfulPicks}
+        totalMatches={activeTab === 'upcoming' ? upcomingHeaderData.totalMatches : playedHeaderData.totalPlayed}
+        potentialWinnings={activeTab === 'upcoming' ? upcomingHeaderData.potentialWinnings : playedHeaderData.winnings}
+        isPlayedTab={activeTab === 'played'}
       />
       
       <div className="flex items-center gap-2">
