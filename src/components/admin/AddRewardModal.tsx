@@ -9,8 +9,8 @@ interface AddRewardModalProps {
   existingReward?: RewardItem | null;
 }
 
-const rewardTypes = ["ticket", "spin", "xp", "giftcard", "masterpass", "custom", "premium_3d", "premium_7d"];
-const tiers: (TournamentType | SpinTier)[] = ["rookie", "pro", "elite"];
+const rewardTypes = ["ticket", "spin", "xp", "giftcard", "masterpass", "custom", "premium_3d", "premium_7d", "coins"];
+const tiers: (TournamentType | SpinTier)[] = ["free", "amateur", "master", "apex", "premium"];
 
 export const AddRewardModal: React.FC<AddRewardModalProps> = ({ isOpen, onClose, onSave, existingReward }) => {
   const [reward, setReward] = useState<Partial<RewardItem>>(existingReward || { type: 'xp' });
@@ -23,7 +23,7 @@ export const AddRewardModal: React.FC<AddRewardModalProps> = ({ isOpen, onClose,
   };
 
   const needsTier = reward.type === 'ticket' || reward.type === 'spin' || reward.type === 'masterpass';
-  const needsValue = reward.type === 'xp' || reward.type === 'giftcard';
+  const needsValue = reward.type === 'xp' || reward.type === 'giftcard' || reward.type === 'coins';
   const needsCustom = reward.type === 'custom';
 
   return (

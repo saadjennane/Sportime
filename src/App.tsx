@@ -19,7 +19,9 @@ import SwipeLeaderboardPage from './pages/SwipeLeaderboardPage';
 import { supabase } from './services/supabase';
 import { useToast } from './hooks/useToast';
 import { useUserStreak } from './hooks/useUserStreak';
+import { useRewardNotifications } from './hooks/useRewardNotifications';
 import { ToastContainer } from './components/Toast';
+import { RewardNotification } from './components/notifications/RewardNotification';
 import ProfilePage from './pages/ProfilePage';
 import { mockBadges, mockLevelsConfig, mockUserBadges } from './data/mockProgression';
 import { getLevelBetLimit } from './config/constants';
@@ -173,6 +175,9 @@ function App() {
   const storeProfile = useMemo(() => allUsers.find(u => u.id === currentUserId), [allUsers, currentUserId]);
   const profile = authProfile ?? storeProfile;
   const isGuest = profile ? (profile.is_guest ?? profile.user_type === 'guest') : true;
+
+  // Reward notifications hook
+  const { notifications: rewardNotifications, removeNotification } = useRewardNotifications(profile?.id);
 
   const {
     games: supabaseGames,
@@ -1370,6 +1375,15 @@ function App() {
       streakDay={dailyStreakData.streakDay}
     />
     {contextualPrompt && <ContextualPremiumPrompt {...contextualPrompt} />}
+
+    {/* Reward Notifications */}
+    {rewardNotifications.map((notification) => (
+      <RewardNotification
+        key={notification.id}
+        rewards={notification.rewards}
+        onClose={() => removeNotification(notification.id)}
+      />
+    ))}
     </div>
     );
 }

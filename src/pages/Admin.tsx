@@ -14,6 +14,7 @@ import { BadgeManager } from '../components/admin/BadgeManager';
 import { Zap } from 'lucide-react';
 import { USE_SUPABASE } from '../config/env';
 import * as challengeService from '../services/challengeService';
+import * as seasonalRewardsService from '../services/seasonalRewardsService';
 
 type AdminSection = 'challenges' | 'swipe' | 'progression' | 'datasync' | 'feed' | 'developer';
 
@@ -135,9 +136,32 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
     }
   };
 
-  const handleConfirmCelebration = (gameId: string, period: { start: string; end: string }, topN: number, reward: RewardItem, message: string) => {
-    celebrateSeasonalWinners(gameId, period, topN, reward, message);
-    addToast('Seasonal winners celebrated successfully!', 'success');
+  const handleConfirmCelebration = async (gameId: string, period: { start: string; end: string }, topN: number, reward: RewardItem, message: string) => {
+    if (USE_SUPABASE) {
+      // Use the new seasonal rewards service that integrates with reward notifications
+      const result = await seasonalRewardsService.completeSeasonalDistribution(
+        gameId,
+        period.start,
+        period.end,
+        topN,
+        reward,
+        message
+      );
+
+      if (result.success && result.winners.length > 0) {
+        addToast(`Successfully distributed prizes to ${result.winners.length} winners!`, 'success');
+      } else if (result.errors.length > 0) {
+        addToast(`Completed with errors: ${result.errors[0]}`, 'error');
+        console.error('[Admin] Seasonal distribution errors:', result.errors);
+      } else {
+        addToast('No winners found for the specified period', 'info');
+      }
+    } else {
+      // Fallback to mock store for local development
+      celebrateSeasonalWinners(gameId, period, topN, reward, message);
+      addToast('Seasonal winners celebrated successfully!', 'success');
+    }
+
     setCelebratingGame(null);
   };
 
