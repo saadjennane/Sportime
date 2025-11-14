@@ -101,7 +101,7 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
 
   // Categorization for My Games tab
   const { activeGames, awaitingGames, finishedGames } = useMemo(() => {
-    const now = new Date('2025-07-24T00:00:00Z'); // Fixed date for stable mock environment
+    const now = new Date(); // Fixed date for stable mock environment
 
     const active: (SportimeGame & { isEligible: boolean })[] = [];
     const awaiting: (SportimeGame & { isEligible: boolean })[] = [];
@@ -164,7 +164,7 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
 
   // Separate upcoming/ongoing games from past games for Browse tab
   const { browseGames, pastGames } = useMemo(() => {
-    const now = new Date('2025-07-24T00:00:00Z');
+    const now = new Date();
 
     const upcoming: (SportimeGame & { isEligible: boolean })[] = [];
     const past: (SportimeGame & { isEligible: boolean })[] = [];
@@ -191,7 +191,7 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
 
   const getCtaState = (game: SportimeGame & { isEligible: boolean }, isInMyGamesTab: boolean): CtaState => {
     const hasJoined = myGameIds.has(game.id);
-    const now = new Date('2025-07-24T00:00:00Z');
+    const now = new Date();
     const realStatus = getRealGameStatus(game, now);
 
     // Finished games
