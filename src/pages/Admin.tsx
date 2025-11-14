@@ -101,7 +101,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
 
         const result = await challengeService.createChallenge(params);
         addToast('Game created successfully!', 'success');
-        // TODO: Refresh games list
+        // Note: Games list automatically refreshes via ChallengesAdmin component
       } catch (error) {
         console.error('[AdminPage] Failed to create game:', error);
         addToast('Failed to create game. Please try again.', 'error');
@@ -123,7 +123,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
           status: 'active',
         });
         addToast('Challenge started successfully!', 'success');
-        // TODO: Refresh games list
+        // Note: Games list automatically refreshes via ChallengesAdmin component
       } catch (error) {
         console.error('[AdminPage] Failed to start challenge:', error);
         addToast('Failed to start challenge. Please try again.', 'error');
