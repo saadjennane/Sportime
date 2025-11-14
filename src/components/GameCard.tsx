@@ -35,8 +35,21 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
   const normalizedTier = normalizeTournamentTier(game.tier);
   const tierDetails = normalizedTier ? tournamentTierDetails[normalizedTier] : null;
 
+  // Calculate real game status based on dates, not stored status
+  const realGameStatus = useMemo(() => {
+    if (game.status === 'Cancelled') return 'Cancelled';
+
+    const now = new Date();
+    const startDate = parseISO(game.start_date);
+    const endDate = parseISO(game.end_date);
+
+    if (endDate < now) return 'Finished';
+    if (startDate <= now && endDate >= now) return 'Ongoing';
+    return 'Upcoming';
+  }, [game.start_date, game.end_date, game.status]);
+
   // Check if game is live (ongoing status)
-  const isLiveGame = game.status === 'Ongoing';
+  const isLiveGame = realGameStatus === 'Ongoing';
 
   const { hasTicket, hasEnoughCoins } = useMemo(() => {
     if (!profile) return { hasTicket: false, hasEnoughCoins: false };
@@ -66,7 +79,7 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
     return <>Choose Entry</>;
   };
 
-  const isCancelled = game.status === 'Cancelled';
+  const isCancelled = realGameStatus === 'Cancelled';
   const isJoinDisabled = ctaState === 'JOIN' && !hasTicket && !hasEnoughCoins;
   const isInProgress = ctaState === 'IN_PROGRESS';
 
@@ -96,9 +109,9 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
   ].filter(Boolean);
 
   const startsIn = useMemo(() => {
-    if (game.status !== 'Upcoming') return null;
+    if (realGameStatus !== 'Upcoming') return null;
     return formatDistanceToNowStrict(parseISO(game.start_date), { addSuffix: true, unit: 'day' });
-  }, [game.start_date, game.status]);
+  }, [game.start_date, realGameStatus]);
 
   return (
     <div className={`card-base p-4 space-y-3 transition-all hover:border-neon-cyan/50 ${isCancelled || isInProgress ? 'opacity-60' : ''}`}>
@@ -138,10 +151,10 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
           {/* Status Badge */}
           <span className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${
             isCancelled ? 'bg-hot-red/20 text-hot-red' :
-            game.status === 'Upcoming' ? 'bg-electric-blue/20 text-electric-blue' :
-            game.status === 'Ongoing' ? 'bg-lime-glow/20 text-lime-glow' : 'bg-disabled text-text-disabled'
+            realGameStatus === 'Upcoming' ? 'bg-electric-blue/20 text-electric-blue' :
+            realGameStatus === 'Ongoing' ? 'bg-lime-glow/20 text-lime-glow' : 'bg-disabled text-text-disabled'
           }`}>
-            {game.status}
+            {realGameStatus}
           </span>
         </div>
       </div>
