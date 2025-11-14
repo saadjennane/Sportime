@@ -3,6 +3,8 @@ import {
   UserFantasyTeam,
   PlayerLast10Stats,
   PlayerGameWeekStats,
+  FantasyGameWeek,
+  FantasyLeaderboardEntry,
 } from '../types';
 import {
   computePGS,
@@ -12,6 +14,296 @@ import {
   computeTeamTotal,
   FANTASY_CONFIG
 } from '../lib/fantasy/engine';
+import { supabase } from '../config/supabase';
+
+// ============================================================================
+// Database Row Types (from Supabase)
+// ============================================================================
+
+interface FantasyPlayerRow {
+  id: string;
+  api_player_id: number;
+  name: string;
+  photo: string | null;
+  position: 'Goalkeeper' | 'Defender' | 'Midfielder' | 'Attacker';
+  status: 'Star' | 'Key' | 'Wild';
+  fatigue: number;
+  team_name: string;
+  team_logo: string | null;
+  birthdate: string | null;
+  pgs: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface FantasyGameRow {
+  id: string;
+  name: string;
+  status: 'Upcoming' | 'Ongoing' | 'Finished' | 'Cancelled';
+  start_date: string;
+  end_date: string;
+  entry_cost: number;
+  total_players: number;
+  is_linkable: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface FantasyGameWeekRow {
+  id: string;
+  fantasy_game_id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+  leagues: string[];
+  status: 'upcoming' | 'live' | 'finished';
+  conditions: any; // JSONB
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface UserFantasyTeamRow {
+  id: string;
+  user_id: string;
+  game_id: string;
+  game_week_id: string;
+  starters: string[];
+  substitutes: string[];
+  captain_id: string | null;
+  booster_used: number | null;
+  fatigue_state: Record<string, number>;
+  total_points: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface FantasyBoosterRow {
+  id: number;
+  name: string;
+  description: string;
+  icon: string | null;
+  type: 'regular' | 'live';
+  created_at?: string;
+}
+
+// ============================================================================
+// Supabase API Functions
+// ============================================================================
+
+/**
+ * Fetch all available Fantasy players (fatigue > 0)
+ */
+export async function getAvailableFantasyPlayers(): Promise<FantasyPlayer[]> {
+  const { data, error } = await supabase
+    .rpc('get_available_fantasy_players');
+
+  if (error) {
+    console.error('Error fetching fantasy players:', error);
+    throw error;
+  }
+
+  return (data || []).map(mapPlayerRowToPlayer);
+}
+
+/**
+ * Fetch a specific Fantasy game by ID
+ */
+export async function getFantasyGame(gameId: string): Promise<FantasyGameRow | null> {
+  const { data, error } = await supabase
+    .from('fantasy_games')
+    .select('*')
+    .eq('id', gameId)
+    .single();
+
+  if (error) {
+    console.error('Error fetching fantasy game:', error);
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Fetch all game weeks for a Fantasy game
+ */
+export async function getGameWeeks(gameId: string): Promise<FantasyGameWeek[]> {
+  const { data, error } = await supabase
+    .from('fantasy_game_weeks')
+    .select('*')
+    .eq('fantasy_game_id', gameId)
+    .order('start_date', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching game weeks:', error);
+    throw error;
+  }
+
+  return (data || []).map(mapGameWeekRowToGameWeek);
+}
+
+/**
+ * Fetch current live game week
+ */
+export async function getCurrentGameWeek(gameId: string): Promise<FantasyGameWeek | null> {
+  const { data, error } = await supabase
+    .from('fantasy_game_weeks')
+    .select('*')
+    .eq('fantasy_game_id', gameId)
+    .eq('status', 'live')
+    .single();
+
+  if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+    console.error('Error fetching current game week:', error);
+    return null;
+  }
+
+  return data ? mapGameWeekRowToGameWeek(data) : null;
+}
+
+/**
+ * Fetch user's Fantasy team for a game week
+ */
+export async function getUserFantasyTeam(
+  userId: string,
+  gameWeekId: string
+): Promise<UserFantasyTeam | null> {
+  const { data, error } = await supabase
+    .from('user_fantasy_teams')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('game_week_id', gameWeekId)
+    .single();
+
+  if (error && error.code !== 'PGRST116') {
+    console.error('Error fetching user fantasy team:', error);
+    return null;
+  }
+
+  return data ? mapTeamRowToTeam(data) : null;
+}
+
+/**
+ * Save or update user's Fantasy team
+ */
+export async function saveUserFantasyTeam(team: UserFantasyTeam): Promise<boolean> {
+  const teamRow: Partial<UserFantasyTeamRow> = {
+    user_id: team.userId,
+    game_id: team.gameId,
+    game_week_id: team.gameWeekId,
+    starters: team.starters,
+    substitutes: team.substitutes,
+    captain_id: team.captain_id,
+    booster_used: team.booster_used,
+    fatigue_state: team.fatigue_state,
+  };
+
+  const { error } = await supabase
+    .from('user_fantasy_teams')
+    .upsert(teamRow, {
+      onConflict: 'user_id,game_id,game_week_id'
+    });
+
+  if (error) {
+    console.error('Error saving fantasy team:', error);
+    throw error;
+  }
+
+  return true;
+}
+
+/**
+ * Fetch Fantasy leaderboard for a game week
+ */
+export async function getFantasyLeaderboard(
+  gameId: string,
+  gameWeekId: string
+): Promise<FantasyLeaderboardEntry[]> {
+  const { data, error } = await supabase
+    .rpc('calculate_fantasy_leaderboard', {
+      p_game_id: gameId,
+      p_game_week_id: gameWeekId
+    });
+
+  if (error) {
+    console.error('Error fetching fantasy leaderboard:', error);
+    throw error;
+  }
+
+  return (data || []).map((row: any) => ({
+    rank: row.rank,
+    username: row.username,
+    avatar: row.avatar || '',
+    totalPoints: parseFloat(row.total_points),
+    boosterUsed: row.booster_used,
+    userId: row.user_id
+  }));
+}
+
+/**
+ * Fetch all Fantasy boosters
+ */
+export async function getFantasyBoosters(): Promise<FantasyBoosterRow[]> {
+  const { data, error } = await supabase
+    .from('fantasy_boosters')
+    .select('*')
+    .eq('type', 'regular')
+    .order('id', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching fantasy boosters:', error);
+    throw error;
+  }
+
+  return data || [];
+}
+
+// ============================================================================
+// Mapper Functions (Database -> Frontend Types)
+// ============================================================================
+
+function mapPlayerRowToPlayer(row: FantasyPlayerRow): FantasyPlayer {
+  return {
+    id: row.id,
+    name: row.name,
+    photo: row.photo || '',
+    position: row.position as any,
+    status: row.status as any,
+    fatigue: row.fatigue,
+    teamName: row.team_name,
+    teamLogo: row.team_logo || '',
+    birthdate: row.birthdate || '',
+    pgs: row.pgs,
+  };
+}
+
+function mapGameWeekRowToGameWeek(row: FantasyGameWeekRow): FantasyGameWeek {
+  return {
+    id: row.id,
+    name: row.name,
+    startDate: row.start_date,
+    endDate: row.end_date,
+    leagues: row.leagues,
+    status: row.status,
+    conditions: Array.isArray(row.conditions) ? row.conditions : [],
+  };
+}
+
+function mapTeamRowToTeam(row: UserFantasyTeamRow): UserFantasyTeam {
+  return {
+    userId: row.user_id,
+    gameId: row.game_id,
+    gameWeekId: row.game_week_id,
+    starters: row.starters,
+    substitutes: row.substitutes,
+    captain_id: row.captain_id || '',
+    booster_used: row.booster_used,
+    fatigue_state: row.fatigue_state || {},
+  };
+}
+
+// ============================================================================
+// Local Calculation Functions (kept from original)
+// ============================================================================
 
 /**
  * Pre-GameWeek function to update status for all players.

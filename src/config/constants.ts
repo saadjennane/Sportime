@@ -117,3 +117,13 @@ export function normalizeDurationType(value?: string | null): keyof typeof BASE_
   }
   return undefined;
 }
+
+// ============================================================================
+// Fantasy Game Constants
+// ============================================================================
+
+/**
+ * Default Fantasy Game ID for Sportime Fantasy Season 1
+ * This ID matches the seed data in supabase/migrations/20251114000004_fantasy_seed.sql
+ */
+export const FANTASY_GAME_ID = 'fantasy-test-1';
