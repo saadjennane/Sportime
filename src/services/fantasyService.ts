@@ -14,7 +14,7 @@ import {
   computeTeamTotal,
   FANTASY_CONFIG
 } from '../lib/fantasy/engine';
-import { supabase } from '../config/supabase';
+import { supabase } from './supabase';
 
 // ============================================================================
 // Database Row Types (from Supabase)
