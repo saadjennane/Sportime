@@ -18,8 +18,7 @@ function App() {
         <div className="grid md:grid-cols-2 gap-8">
           {/* Mobile App Card */}
           <a
-            href="http://localhost:5173"
-            target="_blank"
+            href="/mobile"
             rel="noopener noreferrer"
             className="group relative overflow-hidden bg-gradient-to-br from-surface to-background-dark border border-border-subtle rounded-2xl p-8 transition-all duration-300 hover:border-electric-blue hover:shadow-2xl hover:shadow-electric-blue/20 hover:-translate-y-2"
             onMouseEnter={() => setHoveredCard('mobile')}
@@ -63,8 +62,7 @@ function App() {
 
           {/* Admin Dashboard Card */}
           <a
-            href="http://localhost:5174"
-            target="_blank"
+            href="/admin"
             rel="noopener noreferrer"
             className="group relative overflow-hidden bg-gradient-to-br from-surface to-background-dark border border-border-subtle rounded-2xl p-8 transition-all duration-300 hover:border-purple-spark hover:shadow-2xl hover:shadow-purple-spark/20 hover:-translate-y-2"
             onMouseEnter={() => setHoveredCard('admin')}
