@@ -1,0 +1,13 @@
+{
+  "buildCommand": "npm run build:mobile",
+  "outputDirectory": "apps/mobile/dist",
+  "devCommand": "npm run dev:mobile",
+  "installCommand": "npm install",
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
