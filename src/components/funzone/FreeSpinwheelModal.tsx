@@ -57,8 +57,8 @@ export const FreeSpinwheelModal: React.FC<FreeSpinwheelModalProps> = ({ isOpen, 
 
       // Find the winning slice index
       const winningIndex = FREE_SPIN_REWARDS.findIndex(r =>
-        r.label === spinResult.reward.label ||
-        r.type === spinResult.reward.category
+        r.label === spinResult.rewardLabel ||
+        r.type === spinResult.rewardType
       ) || 0;
 
       const baseRotation = 360 * 5;
@@ -70,8 +70,8 @@ export const FreeSpinwheelModal: React.FC<FreeSpinwheelModalProps> = ({ isOpen, 
 
       setTimeout(() => {
         setIsSpinning(false);
-        setFinalReward(spinResult.reward.label);
-        addToast(`You won: ${spinResult.reward.label}`, 'success');
+        setFinalReward(spinResult.rewardLabel);
+        addToast(`You won: ${spinResult.rewardLabel}`, 'success');
       }, 4000);
     } catch (error) {
       console.error('[FreeSpinwheelModal] Error:', error);

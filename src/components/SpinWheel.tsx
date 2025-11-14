@@ -64,13 +64,13 @@ export const SpinWheel: React.FC<SpinWheelProps> = ({ isOpen, onClose, tier, use
     }
   }, [isOpen]);
 
-  const handleSpin = () => {
+  const handleSpin = async () => {
     if (isSpinning || memoizedUserState.availableSpins[tier] <= 0) return;
 
     setIsSpinning(true);
     setFinalReward(null);
 
-    const spinResult = performSpin(userId, tier);
+    const spinResult = await performSpin(userId, tier);
     if (!spinResult) {
       setIsSpinning(false);
       return;
