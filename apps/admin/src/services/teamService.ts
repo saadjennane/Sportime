@@ -14,19 +14,26 @@ export const teamService = {
       .from('teams')
       .select(`
         *,
-        team_league_participation(count),
-        player_team_association(count)
+        team_league_participation(*),
+        player_team_association(*)
       `)
       .order('name');
 
     if (error) return { data: null, error };
 
-    // Transform to include counts
-    const teams = data?.map((team: any) => ({
-      ...team,
-      league_count: team.team_league_participation?.[0]?.count || 0,
-      player_count: team.player_team_association?.[0]?.count || 0,
-    }));
+    // Transform to include counts by counting the arrays
+    const teams = data?.map((team: any) => {
+      const { team_league_participation, player_team_association, ...teamData } = team;
+      return {
+        ...teamData,
+        league_count: Array.isArray(team_league_participation)
+          ? team_league_participation.length
+          : 0,
+        player_count: Array.isArray(player_team_association)
+          ? player_team_association.length
+          : 0,
+      };
+    });
 
     return { data: teams, error: null };
   },
