@@ -1,7 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
-  Gamepad2,
   Zap,
   Star,
   DatabaseZap,
@@ -20,7 +19,6 @@ export function Sidebar({ className = '' }: SidebarProps) {
 
   const navItems = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/challenges', icon: Gamepad2, label: 'Challenges' },
     { to: '/swipe', icon: Zap, label: 'Swipe Games' },
     { to: '/progression', icon: Star, label: 'Progression' },
     { to: '/data-sync', icon: DatabaseZap, label: 'Data Sync' },

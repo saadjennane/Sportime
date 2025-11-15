@@ -1,15 +1,8 @@
 import { Link } from 'react-router-dom';
-import { Gamepad2, Zap, Star, DatabaseZap, Trophy, Users } from 'lucide-react';
+import { Zap, Star, DatabaseZap, Trophy } from 'lucide-react';
 
 export function Dashboard() {
   const cards = [
-    {
-      title: 'Challenges Admin',
-      description: 'Create and manage fantasy challenges, configure rewards and settings',
-      icon: Gamepad2,
-      link: '/challenges',
-      color: 'electric-blue'
-    },
     {
       title: 'Swipe Games',
       description: 'Manage swipe prediction games and leaderboards',

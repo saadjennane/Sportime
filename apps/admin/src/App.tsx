@@ -1,7 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
-import { ChallengesPage } from './pages/ChallengesPage';
 import { SwipePage } from './pages/SwipePage';
 import { ProgressionPage } from './pages/ProgressionPage';
 import { DataSyncPage } from './pages/DataSyncPage';
@@ -12,7 +11,6 @@ function App() {
     <Layout>
       <Routes>
         <Route path="/" element={<Dashboard />} />
-        <Route path="/challenges" element={<ChallengesPage />} />
         <Route path="/swipe" element={<SwipePage />} />
         <Route path="/progression" element={<ProgressionPage />} />
         <Route path="/data-sync" element={<DataSyncPage />} />
