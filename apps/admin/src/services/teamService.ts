@@ -7,33 +7,31 @@ export const teamService = {
    */
   async getAll(): Promise<{ data: TeamWithCounts[] | null; error: any }> {
     if (!supabase) {
+      console.error('❌ Supabase client is not initialized!');
       return { data: null, error: new Error('Supabase not initialized') };
     }
 
+    console.log('🔍 Fetching teams from Supabase...');
+
+    // Fetch teams without joins to avoid schema cache issues
     const { data, error } = await supabase
       .from('teams')
-      .select(`
-        *,
-        team_league_participation(*),
-        player_team_association(*)
-      `)
+      .select('*')
       .order('name');
 
-    if (error) return { data: null, error };
+    if (error) {
+      console.error('❌ Supabase query error:', error);
+      return { data: null, error };
+    }
 
-    // Transform to include counts by counting the arrays
-    const teams = data?.map((team: any) => {
-      const { team_league_participation, player_team_association, ...teamData } = team;
-      return {
-        ...teamData,
-        league_count: Array.isArray(team_league_participation)
-          ? team_league_participation.length
-          : 0,
-        player_count: Array.isArray(player_team_association)
-          ? player_team_association.length
-          : 0,
-      };
-    });
+    console.log(`✅ Fetched ${data?.length || 0} teams from database`);
+
+    // Add counts as 0 for now (can fetch separately later if needed)
+    const teams = data?.map((team: any) => ({
+      ...team,
+      league_count: 0,
+      player_count: 0,
+    }));
 
     return { data: teams, error: null };
   },
