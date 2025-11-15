@@ -14,12 +14,10 @@ export const leagueService = {
 
     console.log('🔍 Fetching leagues from Supabase...');
 
+    // Fetch leagues without joins to avoid schema cache issues
     const { data, error } = await supabase
       .from('leagues')
-      .select(`
-        *,
-        team_league_participation(*)
-      `)
+      .select('*')
       .order('name');
 
     if (error) {
@@ -29,16 +27,11 @@ export const leagueService = {
 
     console.log(`✅ Fetched ${data?.length || 0} leagues from database`);
 
-    // Transform to include team_count by counting the array
-    const leagues = data?.map((league: any) => {
-      const { team_league_participation, ...leagueData } = league;
-      return {
-        ...leagueData,
-        team_count: Array.isArray(team_league_participation)
-          ? team_league_participation.length
-          : 0,
-      };
-    });
+    // Add team_count as 0 for now (we can fetch this separately later if needed)
+    const leagues = data?.map((league: any) => ({
+      ...league,
+      team_count: 0, // TODO: Fetch team count separately or via schema cache refresh
+    }));
 
     return { data: leagues, error: null };
   },
