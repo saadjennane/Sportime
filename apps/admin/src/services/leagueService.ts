@@ -7,8 +7,12 @@ export const leagueService = {
    */
   async getAll(): Promise<{ data: LeagueWithTeamCount[] | null; error: any }> {
     if (!supabase) {
+      console.error('❌ Supabase client is not initialized!');
+      console.error('Check your .env file and ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set');
       return { data: null, error: new Error('Supabase not initialized') };
     }
+
+    console.log('🔍 Fetching leagues from Supabase...');
 
     const { data, error } = await supabase
       .from('leagues')
@@ -18,7 +22,12 @@ export const leagueService = {
       `)
       .order('name');
 
-    if (error) return { data: null, error };
+    if (error) {
+      console.error('❌ Supabase query error:', error);
+      return { data: null, error };
+    }
+
+    console.log(`✅ Fetched ${data?.length || 0} leagues from database`);
 
     // Transform to include team_count by counting the array
     const leagues = data?.map((league: any) => {
