@@ -5,6 +5,15 @@
 -- URL: https://supabase.com/dashboard/project/crypuzduplbzbmvefvzr/sql
 -- ============================================================================
 
+-- Step 0: Check table structure first
+SELECT
+  column_name,
+  data_type
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'leagues'
+ORDER BY ordinal_position;
+
 -- Step 1: Check for duplicates
 SELECT
   api_id,
@@ -45,7 +54,6 @@ WHERE api_id IS NOT NULL;
 SELECT
   id,
   name,
-  api_id,
-  country_or_region
+  api_id
 FROM public.leagues
 ORDER BY name;

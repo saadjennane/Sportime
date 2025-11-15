@@ -54,7 +54,6 @@ SELECT
   id,
   name,
   api_id,
-  country_or_region,
   created_at
 FROM public.leagues
 ORDER BY name;
