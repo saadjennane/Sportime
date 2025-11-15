@@ -23,7 +23,7 @@ BEGIN
   RAISE NOTICE 'Found % duplicate league(s) to remove', duplicate_count;
 END $$;
 
--- Step 2: Delete duplicate leagues, keeping only the most recent one per api_id
+-- Step 2A: Delete duplicate leagues by api_id, keeping only the most recent one per api_id
 DELETE FROM public.leagues
 WHERE id IN (
   SELECT id
@@ -40,6 +40,16 @@ WHERE id IN (
   ) ranked
   WHERE row_num > 1
 );
+
+-- Step 2B: Remove manual leagues that duplicate API-synced leagues
+-- (Prefer API-synced leagues over manual ones)
+DELETE FROM public.leagues
+WHERE api_id IS NULL
+  AND name IN (
+    SELECT DISTINCT name
+    FROM public.leagues
+    WHERE api_id IS NOT NULL
+  );
 
 -- Step 3: Verify cleanup - show remaining leagues
 SELECT

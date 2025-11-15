@@ -25,7 +25,7 @@ GROUP BY api_id
 HAVING COUNT(*) > 1
 ORDER BY count DESC;
 
--- Step 2: Remove duplicates (keeps most recent version)
+-- Step 2A: Remove duplicates by api_id (keeps most recent version)
 DELETE FROM public.leagues
 WHERE id IN (
   SELECT id
@@ -42,6 +42,16 @@ WHERE id IN (
   ) ranked
   WHERE row_num > 1
 );
+
+-- Step 2B: Remove manual leagues that have same name as API leagues
+-- (Prefer API-synced leagues over manual ones)
+DELETE FROM public.leagues
+WHERE api_id IS NULL
+  AND name IN (
+    SELECT DISTINCT name
+    FROM public.leagues
+    WHERE api_id IS NOT NULL
+  );
 
 -- Step 3: Verify cleanup
 SELECT
