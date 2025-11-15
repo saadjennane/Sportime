@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, Edit2, Trash2, RefreshCw } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, RefreshCw, Download, Users } from 'lucide-react';
 import { leagueService } from '../services/leagueService';
 import type { LeagueWithTeamCount } from '../types/football';
 import { LeagueFormModal } from '../components/admin/LeagueFormModal';
+import { syncLeague, syncLeagueTeams, type SyncProgress } from '../services/footballSyncService';
 
 const mockAddToast = (message: string, type: 'success' | 'error' | 'info') => {
   console.log(`[${type.toUpperCase()}]`, message);
@@ -21,6 +22,9 @@ export function LeaguesPage() {
     production_count: 0,
     last_synced: null as string | null,
   });
+  const [syncingLeague, setSyncingLeague] = useState<number | null>(null);
+  const [syncingTeams, setSyncingTeams] = useState<string | null>(null);
+  const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
 
   useEffect(() => {
     loadLeagues();
@@ -101,6 +105,49 @@ export function LeaguesPage() {
     }
   };
 
+  const handleSyncLeague = async (leagueApiId: number, leagueName: string) => {
+    setSyncingLeague(leagueApiId);
+    setSyncProgress(null);
+
+    const result = await syncLeague(leagueApiId, 2024, (progress) => {
+      setSyncProgress(progress);
+    });
+
+    if (result.success) {
+      mockAddToast(`${leagueName} imported successfully!`, 'success');
+      await loadLeagues();
+    } else {
+      mockAddToast(`Failed to import ${leagueName}: ${result.error}`, 'error');
+    }
+
+    setSyncingLeague(null);
+    setSyncProgress(null);
+  };
+
+  const handleSyncTeams = async (league: LeagueWithTeamCount) => {
+    if (!league.api_id) {
+      mockAddToast('League must have an API ID to sync teams', 'error');
+      return;
+    }
+
+    setSyncingTeams(league.id);
+    setSyncProgress(null);
+
+    const result = await syncLeagueTeams(league.id, league.api_id, 2024, (progress) => {
+      setSyncProgress(progress);
+    });
+
+    if (result.success) {
+      mockAddToast(`Imported ${result.teamsCount} teams for ${league.name}`, 'success');
+      await loadLeagues();
+    } else {
+      mockAddToast(`Failed to sync teams: ${result.error}`, 'error');
+    }
+
+    setSyncingTeams(null);
+    setSyncProgress(null);
+  };
+
   // Get unique countries for filter
   const countries = Array.from(new Set(leagues.map((l) => l.country_or_region))).sort();
 
@@ -146,6 +193,94 @@ export function LeaguesPage() {
             <RefreshCw className="w-4 h-4" />
             <span>Refresh</span>
           </button>
+        </div>
+      </div>
+
+      {/* Import Major Leagues */}
+      <div className="mb-6 p-6 bg-surface border border-border-subtle rounded-lg">
+        <h2 className="text-xl font-bold mb-4">Import Major Leagues</h2>
+        <p className="text-text-secondary mb-6">
+          Import leagues individually from API-Football. After importing a league, you can sync its teams.
+        </p>
+
+        {syncProgress && (
+          <div className="mb-4 p-4 bg-background-dark rounded-lg">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium">{syncProgress.message}</span>
+              <span className="text-sm text-text-secondary">
+                {syncProgress.current}/{syncProgress.total}
+              </span>
+            </div>
+            <div className="w-full bg-surface-hover rounded-full h-2">
+              <div
+                className="bg-electric-blue h-2 rounded-full transition-all duration-300"
+                style={{
+                  width: `${(syncProgress.current / syncProgress.total) * 100}%`,
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {[
+            { id: 39, name: 'Premier League', country: 'England' },
+            { id: 140, name: 'La Liga', country: 'Spain' },
+            { id: 78, name: 'Bundesliga', country: 'Germany' },
+            { id: 135, name: 'Serie A', country: 'Italy' },
+          ].map((majorLeague) => {
+            const existingLeague = leagues.find(
+              (l) => l.api_id === majorLeague.id
+            );
+            const isImporting = syncingLeague === majorLeague.id;
+            const isSyncingTeams = syncingTeams === existingLeague?.id;
+
+            return (
+              <div
+                key={majorLeague.id}
+                className="p-4 bg-background-dark border border-border-subtle rounded-lg"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-lg">{majorLeague.name}</h3>
+                    <p className="text-sm text-text-secondary">{majorLeague.country}</p>
+                    {existingLeague && (
+                      <p className="text-xs text-lime-glow mt-1">
+                        {existingLeague.team_count || 0} teams imported
+                      </p>
+                    )}
+                  </div>
+                  {existingLeague && (
+                    <div className="px-2 py-1 bg-lime-glow/10 text-lime-glow rounded text-xs">
+                      Imported
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  {!existingLeague ? (
+                    <button
+                      onClick={() => handleSyncLeague(majorLeague.id, majorLeague.name)}
+                      disabled={isImporting || syncingLeague !== null}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-electric-blue hover:bg-electric-blue/80 disabled:bg-surface-hover disabled:text-text-disabled text-white rounded-lg transition-colors"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>{isImporting ? 'Importing...' : 'Import League'}</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleSyncTeams(existingLeague)}
+                      disabled={isSyncingTeams || syncingTeams !== null}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-lime-glow hover:bg-lime-glow/80 disabled:bg-surface-hover disabled:text-text-disabled text-background-dark rounded-lg transition-colors"
+                    >
+                      <Users className="w-4 h-4" />
+                      <span>{isSyncingTeams ? 'Syncing...' : 'Sync Teams'}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -259,6 +394,16 @@ export function LeaguesPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
+                        {league.api_id && (
+                          <button
+                            onClick={() => handleSyncTeams(league)}
+                            disabled={syncingTeams === league.id}
+                            className="p-2 hover:bg-background-dark rounded transition-colors disabled:opacity-50"
+                            title="Sync Teams"
+                          >
+                            <Users className="w-4 h-4 text-lime-glow" />
+                          </button>
+                        )}
                         <button
                           onClick={() => handleEdit(league)}
                           className="p-2 hover:bg-background-dark rounded transition-colors"

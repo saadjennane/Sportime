@@ -11,21 +11,37 @@ Les doublons sont causés par:
 
 ## 📋 Procédure de Nettoyage
 
-### Étape 1: Investiguer les Doublons
+### Option A: Nettoyage Complet en Une Seule Fois (RECOMMANDÉ)
+
+**Fichier**: `MASTER_CLEANUP_ALL_DUPLICATES.sql`
+
+Ce script nettoie automatiquement les 3 tables (Leagues → Teams → Players) dans le bon ordre avec reporting détaillé.
+
+**Avantages**:
+- ✅ Exécution en une seule fois
+- ✅ Ordre correct garanti (Leagues → Teams → Players)
+- ✅ Reporting détaillé à chaque étape
+- ✅ Vérifications automatiques avant/après
+
+**URL**: https://supabase.com/dashboard/project/crypuzduplbzbmvefvzr/sql
+
+### Option B: Nettoyage Manuel Table par Table
+
+#### Étape 1: Investiguer les Doublons
 
 Exécutez ces scripts dans **Supabase SQL Editor** pour identifier les doublons:
 
-#### Leagues
+##### Leagues
 ```bash
 Fichier: CHECK_LEAGUES_DUPLICATES.sql (contenu dans REMOVE_DUPLICATES.sql - Step 1)
 ```
 
-#### Teams
+##### Teams
 ```bash
 Fichier: CHECK_TEAMS_DUPLICATES.sql
 ```
 
-#### Players
+##### Players
 ```bash
 Fichier: CHECK_PLAYERS_DUPLICATES.sql
 ```
