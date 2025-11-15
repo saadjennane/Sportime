@@ -1,6 +1,9 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
+import { LeaguesPage } from './pages/LeaguesPage';
+import { TeamsPage } from './pages/TeamsPage';
+import { PlayersPage } from './pages/PlayersPage';
 import { SwipePage } from './pages/SwipePage';
 import { ProgressionPage } from './pages/ProgressionPage';
 import { DataSyncPage } from './pages/DataSyncPage';
@@ -11,6 +14,9 @@ function App() {
     <Layout>
       <Routes>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/leagues" element={<LeaguesPage />} />
+        <Route path="/teams" element={<TeamsPage />} />
+        <Route path="/players" element={<PlayersPage />} />
         <Route path="/swipe" element={<SwipePage />} />
         <Route path="/progression" element={<ProgressionPage />} />
         <Route path="/data-sync" element={<DataSyncPage />} />

@@ -1,35 +1,56 @@
 import { Link } from 'react-router-dom';
-import { Zap, Star, DatabaseZap, Trophy } from 'lucide-react';
+import { Zap, Star, DatabaseZap, Trophy, Globe, Shield, Users } from 'lucide-react';
 
 export function Dashboard() {
   const cards = [
+    {
+      title: 'Leagues',
+      description: 'Manage football leagues and competitions',
+      icon: Globe,
+      link: '/leagues',
+      color: 'electric-blue'
+    },
+    {
+      title: 'Teams',
+      description: 'Manage football teams and squad information',
+      icon: Shield,
+      link: '/teams',
+      color: 'lime-glow'
+    },
+    {
+      title: 'Players',
+      description: 'Manage player profiles and statistics',
+      icon: Users,
+      link: '/players',
+      color: 'purple-spark'
+    },
     {
       title: 'Swipe Games',
       description: 'Manage swipe prediction games and leaderboards',
       icon: Zap,
       link: '/swipe',
-      color: 'lime-glow'
+      color: 'hot-red'
     },
     {
       title: 'Progression System',
       description: 'Configure levels, badges, and user progression',
       icon: Star,
       link: '/progression',
-      color: 'purple-spark'
+      color: 'electric-blue'
     },
     {
       title: 'Data Sync',
       description: 'Synchronize leagues, teams, and matches from API-Football',
       icon: DatabaseZap,
       link: '/data-sync',
-      color: 'electric-blue'
+      color: 'lime-glow'
     },
     {
       title: 'Celebrations',
       description: 'View and manage winner celebrations and rewards',
       icon: Trophy,
       link: '/celebrations',
-      color: 'hot-red'
+      color: 'purple-spark'
     },
   ];
 
