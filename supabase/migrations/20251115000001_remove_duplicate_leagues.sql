@@ -33,7 +33,7 @@ WHERE id IN (
       api_id,
       ROW_NUMBER() OVER (
         PARTITION BY api_id
-        ORDER BY updated_at DESC, created_at DESC
+        ORDER BY created_at DESC
       ) AS row_num
     FROM public.leagues
     WHERE api_id IS NOT NULL
@@ -55,8 +55,7 @@ SELECT
   name,
   api_id,
   country_or_region,
-  created_at,
-  updated_at
+  created_at
 FROM public.leagues
 ORDER BY name;
 
