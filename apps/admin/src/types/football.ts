@@ -1,7 +1,7 @@
 export interface League {
   id: string; // UUID
   name: string;
-  country_or_region: string;
+  country_id: string; // Foreign key to countries.id (country name)
   logo_url?: string;
   logo?: string;
   type?: string;
@@ -69,7 +69,7 @@ export interface PlayerTeamAssociation {
 // Input types for creating/updating
 export interface LeagueInput {
   name: string;
-  country_or_region: string;
+  country_id: string; // Foreign key to countries.id
   logo_url?: string;
   logo?: string;
   type?: string;

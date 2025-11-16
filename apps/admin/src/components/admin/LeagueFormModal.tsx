@@ -12,7 +12,7 @@ interface LeagueFormModalProps {
 export function LeagueFormModal({ league, onClose, addToast }: LeagueFormModalProps) {
   const [formData, setFormData] = useState<LeagueInput>({
     name: '',
-    country_or_region: '',
+    country_id: '',
     logo_url: '',
     logo: '',
     type: '',
@@ -24,7 +24,7 @@ export function LeagueFormModal({ league, onClose, addToast }: LeagueFormModalPr
     if (league) {
       setFormData({
         name: league.name,
-        country_or_region: league.country_or_region,
+        country_id: league.country_id,
         logo_url: league.logo_url || '',
         logo: league.logo || '',
         type: league.type || '',
@@ -92,13 +92,13 @@ export function LeagueFormModal({ league, onClose, addToast }: LeagueFormModalPr
 
           <div>
             <label className="block text-sm font-medium mb-2">
-              Country/Region <span className="text-hot-red">*</span>
+              Country <span className="text-hot-red">*</span>
             </label>
             <input
               type="text"
               required
-              value={formData.country_or_region}
-              onChange={(e) => setFormData({ ...formData, country_or_region: e.target.value })}
+              value={formData.country_id}
+              onChange={(e) => setFormData({ ...formData, country_id: e.target.value })}
               className="w-full px-4 py-2 bg-background-dark border border-border-subtle rounded-lg focus:outline-none focus:border-electric-blue"
               placeholder="England"
             />

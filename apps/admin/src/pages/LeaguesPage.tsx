@@ -68,7 +68,7 @@ export function LeaguesPage() {
 
     // Country filter
     if (countryFilter !== 'all') {
-      filtered = filtered.filter((league) => league.country_or_region === countryFilter);
+      filtered = filtered.filter((league) => league.country_id === countryFilter);
     }
 
     setFilteredLeagues(filtered);
@@ -206,7 +206,7 @@ export function LeaguesPage() {
   };
 
   // Get unique countries for filter
-  const countries = Array.from(new Set(leagues.map((l) => l.country_or_region))).sort();
+  const countries = Array.from(new Set(leagues.map((l) => l.country_id).filter(Boolean))).sort();
 
   return (
     <div>
@@ -397,7 +397,7 @@ export function LeaguesPage() {
                     </td>
                     <td className="px-4 py-3 font-medium">{league.name}</td>
                     <td className="px-4 py-3 text-text-secondary">
-                      {league.country_or_region}
+                      {league.country_id || '-'}
                     </td>
                     <td className="px-4 py-3 text-text-secondary">
                       {league.type || '-'}
