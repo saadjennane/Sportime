@@ -310,6 +310,15 @@ export async function syncTeamPlayers(
         message: `Importing ${playerData.name}...`,
       })
 
+      // Debug: Log player data from API
+      console.log('📥 Player data from API:', {
+        id: playerData.id,
+        name: playerData.name,
+        nationality: playerData.nationality,
+        photo: playerData.photo,
+        birth: playerData.birth,
+      })
+
       // Insert player
       const { data: player, error: playerError } = await supabase
         .from('players')
@@ -333,9 +342,11 @@ export async function syncTeamPlayers(
         .single()
 
       if (playerError) {
-        console.error(`Error inserting player ${playerData.name}:`, playerError)
+        console.error(`❌ Error inserting player ${playerData.name}:`, playerError)
         continue
       }
+
+      console.log(`✅ Player inserted with ID: ${player.id}`)
 
       // Create player-team association
       const { error: assocError } = await supabase
@@ -350,8 +361,10 @@ export async function syncTeamPlayers(
         )
 
       if (assocError) {
-        console.error(`Error creating player-team association:`, assocError)
+        console.error(`❌ Error creating player-team association for ${playerData.name}:`, assocError)
+        console.error('Association data:', { player_id: player.id, team_id: teamId, season: season.toString() })
       } else {
+        console.log(`✅ Association created for ${playerData.name}`)
         inserted++
       }
     }
