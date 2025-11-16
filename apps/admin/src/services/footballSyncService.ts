@@ -98,6 +98,7 @@ export async function syncLeague(
   onProgress?: SyncProgressCallback
 ): Promise<{ success: boolean; error?: string; leagueId?: string }> {
   try {
+    console.log(`[syncLeague] Starting sync for league ${leagueApiId}, season ${season}`)
     onProgress?.({ step: 'league', current: 0, total: 1, message: `Fetching league ${leagueApiId}...` })
 
     // Fetch league data from API-Football
@@ -106,38 +107,44 @@ export async function syncLeague(
       season,
     })
 
+    console.log(`[syncLeague] API Response:`, response)
+
     if (!response.response || response.response.length === 0) {
+      console.error('[syncLeague] No league found in API response')
       return { success: false, error: 'League not found in API-Football' }
     }
 
     const leagueData = response.response[0]
+    console.log(`[syncLeague] League data:`, leagueData)
 
     onProgress?.({ step: 'league', current: 1, total: 1, message: 'Inserting league into database...' })
+
+    const leaguePayload = {
+      api_id: leagueData.league.id,
+      name: leagueData.league.name,
+      type: leagueData.league.type,
+      logo: leagueData.league.logo,
+      country_id: leagueData.country.code, // Using country code as country_id
+    }
+
+    console.log(`[syncLeague] Inserting with payload:`, leaguePayload)
 
     // Insert league into Supabase
     const { data: league, error: leagueError } = await supabase
       .from('leagues')
-      .upsert(
-        {
-          api_id: leagueData.league.id,
-          name: leagueData.league.name,
-          type: leagueData.league.type,
-          logo: leagueData.league.logo,
-          country_id: leagueData.country.code, // Using country code as country_id
-        },
-        { onConflict: 'api_id' }
-      )
+      .upsert(leaguePayload, { onConflict: 'api_id' })
       .select('id')
       .single()
 
     if (leagueError) {
-      console.error('League insert error:', leagueError)
+      console.error('[syncLeague] Insert error:', leagueError)
       return { success: false, error: leagueError.message }
     }
 
+    console.log(`[syncLeague] Success! League ID:`, league?.id)
     return { success: true, leagueId: league.id }
   } catch (error: any) {
-    console.error('syncLeague error:', error)
+    console.error('[syncLeague] Caught error:', error)
     return { success: false, error: error.message }
   }
 }
