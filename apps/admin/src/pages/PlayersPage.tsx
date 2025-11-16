@@ -231,9 +231,6 @@ export function PlayersPage() {
                     Name
                   </th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-text-secondary">
-                    Nationality
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-text-secondary">
                     Position
                   </th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-text-secondary">
@@ -276,9 +273,6 @@ export function PlayersPage() {
                     </td>
                     <td className="px-4 py-3 font-medium">
                       {player.name || `${player.first_name} ${player.last_name}`}
-                    </td>
-                    <td className="px-4 py-3 text-text-secondary">
-                      {player.nationality}
                     </td>
                     <td className="px-4 py-3 text-text-secondary">
                       {player.position || '-'}
