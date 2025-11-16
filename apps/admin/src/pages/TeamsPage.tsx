@@ -128,13 +128,19 @@ export function TeamsPage() {
       newSelection.add(teamId);
     }
     setSelectedTeams(newSelection);
+
+    // Update teamIds input field with selected team IDs
+    setTeamIds(Array.from(newSelection).join(','));
   };
 
   const toggleSelectAll = () => {
     if (selectedTeams.size === filteredTeams.length) {
       setSelectedTeams(new Set());
+      setTeamIds('');
     } else {
-      setSelectedTeams(new Set(filteredTeams.map(t => t.id)));
+      const allIds = filteredTeams.map(t => t.id);
+      setSelectedTeams(new Set(allIds));
+      setTeamIds(allIds.join(','));
     }
   };
 
