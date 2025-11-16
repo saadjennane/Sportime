@@ -13,6 +13,7 @@ export function PlayersPage() {
   const [filteredPlayers, setFilteredPlayers] = useState<PlayerWithTeam[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [teamFilter, setTeamFilter] = useState('');
   const [syncStatus, setSyncStatus] = useState({
     staging_count: 0,
     production_count: 0,
@@ -29,7 +30,7 @@ export function PlayersPage() {
 
   useEffect(() => {
     filterPlayers();
-  }, [searchQuery, players]);
+  }, [searchQuery, teamFilter, players]);
 
   const loadPlayers = async () => {
     setLoading(true);
@@ -62,8 +63,17 @@ export function PlayersPage() {
       );
     }
 
+    if (teamFilter) {
+      filtered = filtered.filter((player) =>
+        player.team_name?.toLowerCase().includes(teamFilter.toLowerCase())
+      );
+    }
+
     setFilteredPlayers(filtered);
   };
+
+  // Get unique team names for autocomplete
+  const uniqueTeams = Array.from(new Set(players.map(p => p.team_name).filter(Boolean))).sort();
 
   const togglePlayerSelection = (playerId: string) => {
     const newSelection = new Set(selectedPlayers);
@@ -190,6 +200,32 @@ export function PlayersPage() {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-surface border border-border-subtle rounded-lg focus:outline-none focus:border-electric-blue"
           />
+        </div>
+
+        {/* Team Filter */}
+        <div className="relative w-64">
+          <input
+            type="text"
+            list="teams-list"
+            placeholder="Filter by team..."
+            value={teamFilter}
+            onChange={(e) => setTeamFilter(e.target.value)}
+            className="w-full px-4 py-2 bg-surface border border-border-subtle rounded-lg focus:outline-none focus:border-electric-blue"
+          />
+          <datalist id="teams-list">
+            {uniqueTeams.map((team) => (
+              <option key={team} value={team} />
+            ))}
+          </datalist>
+          {teamFilter && (
+            <button
+              onClick={() => setTeamFilter('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-text-disabled hover:text-text-primary"
+              title="Clear filter"
+            >
+              ×
+            </button>
+          )}
         </div>
 
         {/* Bulk Actions */}
