@@ -14,11 +14,10 @@ export const playerService = {
       .from('players')
       .select(`
         *,
-        player_team_association!inner(
+        player_team_association!left(
           teams(name, logo)
         )
       `)
-      .is('player_team_association.end_date', null)
       .order('last_name');
 
     if (error) return { data: null, error };
