@@ -119,12 +119,19 @@ export async function syncLeague(
 
     onProgress?.({ step: 'league', current: 1, total: 1, message: 'Inserting league into database...' })
 
+    // Generate a unique invite code based on league name
+    const inviteCode = leagueData.league.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '-')
+      .substring(0, 20) + '-' + leagueData.league.id;
+
     const leaguePayload = {
       api_id: leagueData.league.id,
       name: leagueData.league.name,
       type: leagueData.league.type,
       logo: leagueData.league.logo,
       country_id: leagueData.country.code, // Using country code as country_id
+      invite_code: inviteCode,
     }
 
     console.log(`[syncLeague] Inserting with payload:`, leaguePayload)
