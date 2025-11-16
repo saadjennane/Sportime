@@ -317,14 +317,15 @@ export async function syncTeamPlayers(
           {
             api_id: playerData.id,
             name: playerData.name,
-            first_name: playerData.firstname,
-            last_name: playerData.lastname,
-            age: playerData.age,
-            nationality: playerData.nationality,
-            height: playerData.height,
-            weight: playerData.weight,
-            photo: playerData.photo,
-            position: playerData.position,
+            first_name: playerData.firstname || 'Unknown',
+            last_name: playerData.lastname || 'Unknown',
+            birthdate: playerData.birth?.date || '2000-01-01',
+            nationality: playerData.nationality || 'Unknown',
+            height_cm: playerData.height ? parseInt(playerData.height) : null,
+            weight_kg: playerData.weight ? parseInt(playerData.weight) : null,
+            photo_url: playerData.photo || '',
+            photo: playerData.photo || null,
+            position: playerData.position || 'Unknown',
           },
           { onConflict: 'api_id' }
         )
