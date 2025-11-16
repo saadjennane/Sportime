@@ -101,6 +101,14 @@ export async function syncLeague(
     console.log(`[syncLeague] Starting sync for league ${leagueApiId}, season ${season}`)
     onProgress?.({ step: 'league', current: 0, total: 1, message: `Fetching league ${leagueApiId}...` })
 
+    // Get current user ID for created_by field
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      console.error('[syncLeague] No authenticated user found')
+      return { success: false, error: 'You must be logged in to import leagues' }
+    }
+    console.log(`[syncLeague] Using user ID: ${user.id}`)
+
     // Fetch league data from API-Football
     const response = await apiFootball<{ response: APIFootballLeague[] }>('/leagues', {
       id: leagueApiId,
@@ -128,10 +136,12 @@ export async function syncLeague(
     const leaguePayload = {
       api_id: leagueData.league.id,
       name: leagueData.league.name,
-      type: leagueData.league.type,
+      type: 'football_competition',
       logo: leagueData.league.logo,
       country_id: leagueData.country.code, // Using country code as country_id
       invite_code: inviteCode,
+      created_by: user.id, // Required field
+      api_league_id: leagueData.league.id, // API-Football league ID
     }
 
     console.log(`[syncLeague] Inserting with payload:`, leaguePayload)
