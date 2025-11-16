@@ -101,13 +101,31 @@ export async function syncLeague(
     console.log(`[syncLeague] Starting sync for league ${leagueApiId}, season ${season}`)
     onProgress?.({ step: 'league', current: 0, total: 1, message: `Fetching league ${leagueApiId}...` })
 
-    // Get current user ID for created_by field
+    // Get admin user ID for created_by field
+    // Try to get current user first, otherwise use admin user
+    let userId: string | null = null
+
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      console.error('[syncLeague] No authenticated user found')
-      return { success: false, error: 'You must be logged in to import leagues' }
+    if (user) {
+      userId = user.id
+      console.log(`[syncLeague] Using authenticated user ID: ${userId}`)
+    } else {
+      // Fallback to admin user (saadjennane@gmail.com)
+      console.log('[syncLeague] No authenticated user, looking for admin user...')
+      const { data: adminUser, error: adminError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', 'saadjennane@gmail.com')
+        .single()
+
+      if (adminError || !adminUser) {
+        console.error('[syncLeague] Admin user not found:', adminError)
+        return { success: false, error: 'Admin user not found. Please contact support.' }
+      }
+
+      userId = adminUser.id
+      console.log(`[syncLeague] Using admin user ID: ${userId}`)
     }
-    console.log(`[syncLeague] Using user ID: ${user.id}`)
 
     // Fetch league data from API-Football
     const response = await apiFootball<{ response: APIFootballLeague[] }>('/leagues', {
@@ -140,7 +158,7 @@ export async function syncLeague(
       logo: leagueData.league.logo,
       country_id: leagueData.country.code, // Using country code as country_id
       invite_code: inviteCode,
-      created_by: user.id, // Required field
+      created_by: userId, // Required field
       api_league_id: leagueData.league.id, // API-Football league ID
     }
 
