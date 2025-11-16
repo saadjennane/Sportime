@@ -131,18 +131,37 @@ export async function syncLeague(
 
     onProgress?.({ step: 'league', current: 1, total: 1, message: 'Inserting league into database...' })
 
-    // Generate a unique invite code based on league name
+    // Step 1: Ensure country exists in countries table
+    console.log(`[syncLeague] Ensuring country exists: ${leagueData.country.name}`)
+    const { error: countryError } = await supabase
+      .from('countries')
+      .upsert(
+        {
+          id: leagueData.country.name, // id is the country name (e.g., "England", "Spain")
+          code: leagueData.country.code,
+          flag: leagueData.country.flag,
+        },
+        { onConflict: 'id' }
+      )
+
+    if (countryError) {
+      console.error('[syncLeague] Country insert error:', countryError)
+      return { success: false, error: `Failed to create country: ${countryError.message}` }
+    }
+
+    // Step 2: Generate a unique invite code based on league name
     const inviteCode = leagueData.league.name
       .toLowerCase()
       .replace(/[^a-z0-9]/g, '-')
       .substring(0, 20) + '-' + leagueData.league.id;
 
+    // Step 3: Insert league with country_id
     const leaguePayload = {
       api_id: leagueData.league.id,
       name: leagueData.league.name,
       type: 'football_competition',
       logo: leagueData.league.logo,
-      country_or_region: leagueData.country.name, // Store country name in existing column
+      country_id: leagueData.country.name, // Foreign key to countries.id
       invite_code: inviteCode,
       created_by: userId, // Optional field (nullable)
       api_league_id: leagueData.league.id, // API-Football league ID
