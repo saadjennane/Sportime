@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, Edit2, Trash2, RefreshCw } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, RefreshCw, Download, Users } from 'lucide-react';
 import { teamService } from '../services/teamService';
+import { leagueService } from '../services/leagueService';
 import type { TeamWithCounts } from '../types/football';
+import type { LeagueWithTeamCount } from '../types/football';
 import { TeamFormModal } from '../components/admin/TeamFormModal';
+import { syncTeamPlayers, type SyncProgress } from '../services/footballSyncService';
 
 const mockAddToast = (message: string, type: 'success' | 'error' | 'info') => {
   console.log(`[${type.toUpperCase()}]`, message);
@@ -21,10 +24,16 @@ export function TeamsPage() {
     production_count: 0,
     last_synced: null as string | null,
   });
+  const [leagues, setLeagues] = useState<LeagueWithTeamCount[]>([]);
+  const [teamIds, setTeamIds] = useState<string>('');
+  const [syncingPlayers, setSyncingPlayers] = useState<string | null>(null);
+  const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
+  const [isBulkImporting, setIsBulkImporting] = useState(false);
 
   useEffect(() => {
     loadTeams();
     loadSyncStatus();
+    loadLeagues();
   }, []);
 
   useEffect(() => {
@@ -50,6 +59,13 @@ export function TeamsPage() {
   const loadSyncStatus = async () => {
     const status = await teamService.getSyncStatus();
     setSyncStatus(status);
+  };
+
+  const loadLeagues = async () => {
+    const { data, error } = await leagueService.getAll();
+    if (!error && data) {
+      setLeagues(data);
+    }
   };
 
   const filterTeams = () => {
@@ -103,6 +119,91 @@ export function TeamsPage() {
     }
   };
 
+  const handleSyncPlayers = async (team: TeamWithCounts) => {
+    if (!team.api_id) {
+      mockAddToast('Team must have an API ID to sync players', 'error');
+      return;
+    }
+
+    setSyncingPlayers(team.id);
+    setSyncProgress(null);
+
+    const result = await syncTeamPlayers(team.id, team.api_id, 2024, (progress) => {
+      setSyncProgress(progress);
+    });
+
+    if (result.success) {
+      mockAddToast(`Imported ${result.playersCount} players for ${team.name}`, 'success');
+      await loadTeams();
+    } else {
+      mockAddToast(`Failed to sync players: ${result.error}`, 'error');
+    }
+
+    setSyncingPlayers(null);
+    setSyncProgress(null);
+  };
+
+  const handleBulkImportPlayers = async () => {
+    if (!teamIds.trim()) {
+      mockAddToast('Please enter at least one team ID', 'error');
+      return;
+    }
+
+    const ids = teamIds.split(',').map(id => id.trim()).filter(id => id);
+
+    if (ids.length === 0) {
+      mockAddToast('Please enter valid team IDs (UUIDs)', 'error');
+      return;
+    }
+
+    setIsBulkImporting(true);
+    setSyncProgress(null);
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < ids.length; i++) {
+      const teamId = ids[i];
+      const team = teams.find(t => t.id === teamId);
+
+      if (!team || !team.api_id) {
+        failCount++;
+        continue;
+      }
+
+      setSyncProgress({
+        step: 'players',
+        current: i + 1,
+        total: ids.length,
+        message: `Importing players for ${team.name}...`
+      });
+
+      const result = await syncTeamPlayers(team.id, team.api_id, 2024, (progress) => {
+        setSyncProgress({
+          ...progress,
+          message: `[${i + 1}/${ids.length}] ${progress.message}`
+        });
+      });
+
+      if (result.success) {
+        successCount++;
+      } else {
+        failCount++;
+        console.error(`Failed to import players for ${team.name}:`, result.error);
+      }
+    }
+
+    await loadTeams();
+    setIsBulkImporting(false);
+    setSyncProgress(null);
+    setTeamIds('');
+
+    mockAddToast(
+      `Import complete: ${successCount} succeeded, ${failCount} failed`,
+      failCount > 0 ? 'error' : 'success'
+    );
+  };
+
   // Get unique countries for filter
   const countries = Array.from(new Set(teams.map((t) => t.country))).sort();
 
@@ -147,6 +248,55 @@ export function TeamsPage() {
           >
             <RefreshCw className="w-4 h-4" />
             <span>Refresh</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Import Players by Team ID */}
+      <div className="mb-6 p-6 bg-surface border border-border-subtle rounded-lg">
+        <h2 className="text-xl font-bold mb-4">Import Players from API-Football</h2>
+        <p className="text-text-secondary mb-4">
+          Enter team ID(s) separated by commas to import their players
+        </p>
+        <p className="text-sm text-text-secondary mb-4">
+          Note: Use the UUID from the table below, not the API ID
+        </p>
+
+        {syncProgress && (
+          <div className="mb-4 p-4 bg-background-dark rounded-lg">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium">{syncProgress.message}</span>
+              <span className="text-sm text-text-secondary">
+                {syncProgress.current}/{syncProgress.total}
+              </span>
+            </div>
+            <div className="w-full bg-surface-hover rounded-full h-2">
+              <div
+                className="bg-electric-blue h-2 rounded-full transition-all duration-300"
+                style={{
+                  width: `${(syncProgress.current / syncProgress.total) * 100}%`,
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="flex gap-4">
+          <input
+            type="text"
+            value={teamIds}
+            onChange={(e) => setTeamIds(e.target.value)}
+            placeholder="e.g., uuid1,uuid2,uuid3"
+            disabled={isBulkImporting}
+            className="flex-1 px-4 py-2 bg-background-dark border border-border-subtle rounded-lg focus:outline-none focus:border-electric-blue disabled:opacity-50"
+          />
+          <button
+            onClick={handleBulkImportPlayers}
+            disabled={isBulkImporting || !teamIds.trim()}
+            className="flex items-center gap-2 px-6 py-2 bg-electric-blue hover:bg-electric-blue/80 disabled:bg-surface-hover disabled:text-text-disabled text-white rounded-lg transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            <span>{isBulkImporting ? 'Importing...' : 'Import Players'}</span>
           </button>
         </div>
       </div>
@@ -263,6 +413,16 @@ export function TeamsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
+                        {team.api_id && (
+                          <button
+                            onClick={() => handleSyncPlayers(team)}
+                            disabled={syncingPlayers === team.id}
+                            className="p-2 hover:bg-background-dark rounded transition-colors disabled:opacity-50"
+                            title="Sync Players"
+                          >
+                            <Users className="w-4 h-4 text-lime-glow" />
+                          </button>
+                        )}
                         <button
                           onClick={() => handleEdit(team)}
                           className="p-2 hover:bg-background-dark rounded transition-colors"

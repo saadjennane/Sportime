@@ -25,6 +25,8 @@ export function LeaguesPage() {
   const [syncingLeague, setSyncingLeague] = useState<number | null>(null);
   const [syncingTeams, setSyncingTeams] = useState<string | null>(null);
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
+  const [leagueIds, setLeagueIds] = useState<string>('');
+  const [isBulkImporting, setIsBulkImporting] = useState(false);
 
   useEffect(() => {
     loadLeagues();
@@ -148,6 +150,61 @@ export function LeaguesPage() {
     setSyncProgress(null);
   };
 
+  const handleBulkImport = async () => {
+    if (!leagueIds.trim()) {
+      mockAddToast('Please enter at least one league ID', 'error');
+      return;
+    }
+
+    const ids = leagueIds.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+
+    if (ids.length === 0) {
+      mockAddToast('Please enter valid league IDs', 'error');
+      return;
+    }
+
+    setIsBulkImporting(true);
+    setSyncProgress(null);
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < ids.length; i++) {
+      const leagueId = ids[i];
+
+      setSyncProgress({
+        step: 'leagues',
+        current: i + 1,
+        total: ids.length,
+        message: `Importing league ${leagueId}...`
+      });
+
+      const result = await syncLeague(leagueId, 2024, (progress) => {
+        setSyncProgress({
+          ...progress,
+          message: `[${i + 1}/${ids.length}] ${progress.message}`
+        });
+      });
+
+      if (result.success) {
+        successCount++;
+      } else {
+        failCount++;
+        console.error(`Failed to import league ${leagueId}:`, result.error);
+      }
+    }
+
+    await loadLeagues();
+    setIsBulkImporting(false);
+    setSyncProgress(null);
+    setLeagueIds('');
+
+    mockAddToast(
+      `Import complete: ${successCount} succeeded, ${failCount} failed`,
+      failCount > 0 ? 'error' : 'success'
+    );
+  };
+
   // Get unique countries for filter
   const countries = Array.from(new Set(leagues.map((l) => l.country_or_region))).sort();
 
@@ -196,11 +253,14 @@ export function LeaguesPage() {
         </div>
       </div>
 
-      {/* Import Major Leagues */}
+      {/* Import Leagues by ID */}
       <div className="mb-6 p-6 bg-surface border border-border-subtle rounded-lg">
-        <h2 className="text-xl font-bold mb-4">Import Major Leagues</h2>
-        <p className="text-text-secondary mb-6">
-          Import leagues individually from API-Football. After importing a league, you can sync its teams.
+        <h2 className="text-xl font-bold mb-4">Import Leagues from API-Football</h2>
+        <p className="text-text-secondary mb-4">
+          Enter league ID(s) separated by commas. Example: 39,140,78,135
+        </p>
+        <p className="text-sm text-text-secondary mb-4">
+          Common IDs: Premier League (39), La Liga (140), Bundesliga (78), Serie A (135)
         </p>
 
         {syncProgress && (
@@ -222,65 +282,23 @@ export function LeaguesPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {[
-            { id: 39, name: 'Premier League', country: 'England' },
-            { id: 140, name: 'La Liga', country: 'Spain' },
-            { id: 78, name: 'Bundesliga', country: 'Germany' },
-            { id: 135, name: 'Serie A', country: 'Italy' },
-          ].map((majorLeague) => {
-            const existingLeague = leagues.find(
-              (l) => l.api_id === majorLeague.id
-            );
-            const isImporting = syncingLeague === majorLeague.id;
-            const isSyncingTeams = syncingTeams === existingLeague?.id;
-
-            return (
-              <div
-                key={majorLeague.id}
-                className="p-4 bg-background-dark border border-border-subtle rounded-lg"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-lg">{majorLeague.name}</h3>
-                    <p className="text-sm text-text-secondary">{majorLeague.country}</p>
-                    {existingLeague && (
-                      <p className="text-xs text-lime-glow mt-1">
-                        {existingLeague.team_count || 0} teams imported
-                      </p>
-                    )}
-                  </div>
-                  {existingLeague && (
-                    <div className="px-2 py-1 bg-lime-glow/10 text-lime-glow rounded text-xs">
-                      Imported
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex gap-2">
-                  {!existingLeague ? (
-                    <button
-                      onClick={() => handleSyncLeague(majorLeague.id, majorLeague.name)}
-                      disabled={isImporting || syncingLeague !== null}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-electric-blue hover:bg-electric-blue/80 disabled:bg-surface-hover disabled:text-text-disabled text-white rounded-lg transition-colors"
-                    >
-                      <Download className="w-4 h-4" />
-                      <span>{isImporting ? 'Importing...' : 'Import League'}</span>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handleSyncTeams(existingLeague)}
-                      disabled={isSyncingTeams || syncingTeams !== null}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-lime-glow hover:bg-lime-glow/80 disabled:bg-surface-hover disabled:text-text-disabled text-background-dark rounded-lg transition-colors"
-                    >
-                      <Users className="w-4 h-4" />
-                      <span>{isSyncingTeams ? 'Syncing...' : 'Sync Teams'}</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+        <div className="flex gap-4">
+          <input
+            type="text"
+            value={leagueIds}
+            onChange={(e) => setLeagueIds(e.target.value)}
+            placeholder="e.g., 39,140,78,135"
+            disabled={isBulkImporting}
+            className="flex-1 px-4 py-2 bg-background-dark border border-border-subtle rounded-lg focus:outline-none focus:border-electric-blue disabled:opacity-50"
+          />
+          <button
+            onClick={handleBulkImport}
+            disabled={isBulkImporting || !leagueIds.trim()}
+            className="flex items-center gap-2 px-6 py-2 bg-electric-blue hover:bg-electric-blue/80 disabled:bg-surface-hover disabled:text-text-disabled text-white rounded-lg transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            <span>{isBulkImporting ? 'Importing...' : 'Import'}</span>
+          </button>
         </div>
       </div>
 
