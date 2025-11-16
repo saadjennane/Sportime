@@ -142,9 +142,9 @@ export async function syncLeague(
       name: leagueData.league.name,
       type: 'football_competition',
       logo: leagueData.league.logo,
-      country_id: leagueData.country.code, // Using country code as country_id
+      country_or_region: leagueData.country.name, // Store country name in existing column
       invite_code: inviteCode,
-      created_by: userId, // Required field
+      created_by: userId, // Optional field (nullable)
       api_league_id: leagueData.league.id, // API-Football league ID
     }
 
