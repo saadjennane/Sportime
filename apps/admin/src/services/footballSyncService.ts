@@ -355,6 +355,7 @@ export async function syncTeamPlayers(
           {
             player_id: player.id,
             team_id: teamId,
+            start_date: new Date().toISOString().split('T')[0], // Current date in YYYY-MM-DD format
           },
           { onConflict: 'player_id,team_id' }
         )
