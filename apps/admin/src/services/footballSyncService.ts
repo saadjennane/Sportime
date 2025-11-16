@@ -355,14 +355,13 @@ export async function syncTeamPlayers(
           {
             player_id: player.id,
             team_id: teamId,
-            season: season.toString(),
           },
-          { onConflict: 'player_id,team_id,season' }
+          { onConflict: 'player_id,team_id' }
         )
 
       if (assocError) {
         console.error(`❌ Error creating player-team association for ${playerData.name}:`, assocError)
-        console.error('Association data:', { player_id: player.id, team_id: teamId, season: season.toString() })
+        console.error('Association data:', { player_id: player.id, team_id: teamId })
       } else {
         console.log(`✅ Association created for ${playerData.name}`)
         inserted++
