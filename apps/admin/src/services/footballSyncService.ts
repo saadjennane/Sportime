@@ -101,8 +101,8 @@ export async function syncLeague(
     console.log(`[syncLeague] Starting sync for league ${leagueApiId}, season ${season}`)
     onProgress?.({ step: 'league', current: 0, total: 1, message: `Fetching league ${leagueApiId}...` })
 
-    // Get user ID for created_by field
-    // Try to get current user first, otherwise use existing league's creator
+    // Get user ID for created_by field (optional)
+    // Try to get current user, otherwise leave as null (field is now nullable)
     let userId: string | null = null
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -110,38 +110,7 @@ export async function syncLeague(
       userId = user.id
       console.log(`[syncLeague] Using authenticated user ID: ${userId}`)
     } else {
-      // Fallback: get created_by from Premier League (seeded by migration)
-      console.log('[syncLeague] No authenticated user, looking for Premier League creator...')
-      const { data: premierLeague, error: plError } = await supabase
-        .from('leagues')
-        .select('created_by')
-        .eq('id', '11111111-1111-1111-1111-111111111111')
-        .single()
-
-      if (!plError && premierLeague?.created_by) {
-        userId = premierLeague.created_by
-        console.log(`[syncLeague] Using Premier League creator ID: ${userId}`)
-      } else {
-        // Final fallback: try to get any existing league's creator
-        console.log('[syncLeague] Premier League not found, looking for any existing league...')
-        const { data: existingLeague, error: leagueError } = await supabase
-          .from('leagues')
-          .select('created_by')
-          .not('created_by', 'is', null)
-          .limit(1)
-          .maybeSingle()
-
-        if (existingLeague?.created_by) {
-          userId = existingLeague.created_by
-          console.log(`[syncLeague] Using existing league creator ID: ${userId}`)
-        } else {
-          console.error('[syncLeague] No leagues found with creator')
-          return {
-            success: false,
-            error: 'Unable to determine creator. Please run the seed migration first or log in as an admin.'
-          }
-        }
-      }
+      console.log('[syncLeague] No authenticated user, created_by will be null')
     }
 
     // Fetch league data from API-Football
