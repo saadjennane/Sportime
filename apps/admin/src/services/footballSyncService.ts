@@ -233,8 +233,6 @@ export async function syncLeagueTeams(
             name: teamData.team.name,
             code: teamData.team.code,
             country: teamData.team.country,
-            founded: teamData.team.founded,
-            national: teamData.team.national,
             logo: teamData.team.logo,
           },
           { onConflict: 'api_id' }
