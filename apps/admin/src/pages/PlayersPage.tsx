@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Search, RefreshCw } from 'lucide-react';
+import { Search, RefreshCw, Trash2, Edit2, Plus } from 'lucide-react';
 import { playerService } from '../services/playerService';
 import type { PlayerWithTeam } from '../types/football';
+import { ConfirmationModal } from '../components/admin/ConfirmationModal';
 
 const mockAddToast = (message: string, type: 'success' | 'error' | 'info') => {
   console.log(`[${type.toUpperCase()}]`, message);
@@ -17,6 +18,9 @@ export function PlayersPage() {
     production_count: 0,
     last_synced: null as string | null,
   });
+  const [selectedPlayers, setSelectedPlayers] = useState<Set<string>>(new Set());
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
 
   useEffect(() => {
     loadPlayers();
@@ -59,6 +63,78 @@ export function PlayersPage() {
     }
 
     setFilteredPlayers(filtered);
+  };
+
+  const togglePlayerSelection = (playerId: string) => {
+    const newSelection = new Set(selectedPlayers);
+    if (newSelection.has(playerId)) {
+      newSelection.delete(playerId);
+    } else {
+      newSelection.add(playerId);
+    }
+    setSelectedPlayers(newSelection);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedPlayers.size === filteredPlayers.length) {
+      setSelectedPlayers(new Set());
+    } else {
+      const allIds = filteredPlayers.map(p => p.id);
+      setSelectedPlayers(new Set(allIds));
+    }
+  };
+
+  const handleDelete = (id: string, name: string) => {
+    setDeleteConfirm({ id, name });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+
+    const { error } = await playerService.delete(deleteConfirm.id);
+
+    if (error) {
+      mockAddToast('Failed to delete player', 'error');
+      console.error(error);
+    } else {
+      mockAddToast('Player deleted successfully', 'success');
+      loadPlayers();
+    }
+
+    setDeleteConfirm(null);
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedPlayers.size === 0) {
+      mockAddToast('No players selected', 'error');
+      return;
+    }
+    setBulkDeleteConfirm(true);
+  };
+
+  const confirmBulkDelete = async () => {
+    const idsToDelete = Array.from(selectedPlayers);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const id of idsToDelete) {
+      const { error } = await playerService.delete(id);
+      if (error) {
+        failCount++;
+        console.error(`Failed to delete player ${id}:`, error);
+      } else {
+        successCount++;
+      }
+    }
+
+    mockAddToast(
+      `Deleted ${successCount} player(s). ${failCount > 0 ? `Failed: ${failCount}` : ''}`,
+      failCount > 0 ? 'error' : 'success'
+    );
+
+    setSelectedPlayers(new Set());
+    setBulkDeleteConfirm(false);
+    loadPlayers();
   };
 
   return (
@@ -104,8 +180,8 @@ export function PlayersPage() {
         </div>
       </div>
 
-      <div className="mb-6">
-        <div className="relative">
+      <div className="mb-6 flex items-center gap-4">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-disabled" />
           <input
             type="text"
@@ -115,6 +191,17 @@ export function PlayersPage() {
             className="w-full pl-10 pr-4 py-2 bg-surface border border-border-subtle rounded-lg focus:outline-none focus:border-electric-blue"
           />
         </div>
+
+        {/* Bulk Actions */}
+        {selectedPlayers.size > 0 && (
+          <button
+            onClick={handleBulkDelete}
+            className="flex items-center gap-2 px-4 py-2 bg-hot-red hover:bg-hot-red/80 text-white rounded-lg transition-colors"
+          >
+            <Trash2 className="w-5 h-5" />
+            <span>Delete Selected ({selectedPlayers.size})</span>
+          </button>
+        )}
       </div>
 
       <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
@@ -129,6 +216,14 @@ export function PlayersPage() {
             <table className="w-full">
               <thead className="bg-background-dark border-b border-border-subtle">
                 <tr>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-text-secondary w-12">
+                    <input
+                      type="checkbox"
+                      checked={filteredPlayers.length > 0 && selectedPlayers.size === filteredPlayers.length}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 rounded border-border-subtle bg-background-dark checked:bg-electric-blue"
+                    />
+                  </th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-text-secondary">
                     Photo
                   </th>
@@ -147,6 +242,9 @@ export function PlayersPage() {
                   <th className="px-4 py-3 text-left text-sm font-semibold text-text-secondary">
                     Current Team
                   </th>
+                  <th className="px-4 py-3 text-right text-sm font-semibold text-text-secondary">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle">
@@ -155,6 +253,14 @@ export function PlayersPage() {
                     key={player.id}
                     className="hover:bg-surface-hover transition-colors"
                   >
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedPlayers.has(player.id)}
+                        onChange={() => togglePlayerSelection(player.id)}
+                        className="w-4 h-4 rounded border-border-subtle bg-background-dark checked:bg-electric-blue"
+                      />
+                    </td>
                     <td className="px-4 py-3">
                       {player.photo || player.photo_url ? (
                         <img
@@ -183,6 +289,17 @@ export function PlayersPage() {
                     <td className="px-4 py-3 text-text-secondary">
                       {player.team_name || '-'}
                     </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleDelete(player.id, player.name || `${player.first_name} ${player.last_name}`)}
+                          className="p-2 hover:bg-hot-red/10 rounded-lg transition-colors group"
+                          title="Delete player"
+                        >
+                          <Trash2 className="w-4 h-4 text-text-secondary group-hover:text-hot-red" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -190,6 +307,32 @@ export function PlayersPage() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <ConfirmationModal
+          title="Delete Player"
+          message={`Are you sure you want to delete "${deleteConfirm.name}"? This action cannot be undone and will remove all associated data.`}
+          confirmText="Delete"
+          cancelText="Cancel"
+          isDangerous={true}
+          onConfirm={confirmDelete}
+          onCancel={() => setDeleteConfirm(null)}
+        />
+      )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {bulkDeleteConfirm && (
+        <ConfirmationModal
+          title="Delete Multiple Players"
+          message={`Are you sure you want to delete ${selectedPlayers.size} player(s)? This action cannot be undone and will remove all associated data.`}
+          confirmText="Delete All"
+          cancelText="Cancel"
+          isDangerous={true}
+          onConfirm={confirmBulkDelete}
+          onCancel={() => setBulkDeleteConfirm(false)}
+        />
+      )}
     </div>
   );
 }
