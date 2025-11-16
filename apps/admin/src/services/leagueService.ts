@@ -14,26 +14,39 @@ export const leagueService = {
 
     console.log('🔍 Fetching leagues from Supabase...');
 
-    // Fetch leagues without joins to avoid schema cache issues
-    const { data, error } = await supabase
+    // Fetch leagues
+    const { data: leagues, error: leaguesError } = await supabase
       .from('leagues')
       .select('*')
       .order('name');
 
-    if (error) {
-      console.error('❌ Supabase query error:', error);
-      return { data: null, error };
+    if (leaguesError) {
+      console.error('❌ Supabase query error:', leaguesError);
+      return { data: null, error: leaguesError };
     }
 
-    console.log(`✅ Fetched ${data?.length || 0} leagues from database`);
+    console.log(`✅ Fetched ${leagues?.length || 0} leagues from database`);
 
-    // Add team_count as 0 for now (we can fetch this separately later if needed)
-    const leagues = data?.map((league: any) => ({
-      ...league,
-      team_count: 0, // TODO: Fetch team count separately or via schema cache refresh
-    }));
+    // Fetch team counts for each league via team_league_participation
+    const leaguesWithCounts = await Promise.all(
+      (leagues || []).map(async (league: any) => {
+        const { count, error: countError } = await supabase
+          .from('team_league_participation')
+          .select('*', { count: 'exact', head: true })
+          .eq('league_id', league.id);
 
-    return { data: leagues, error: null };
+        if (countError) {
+          console.warn(`⚠️ Error counting teams for league ${league.name}:`, countError);
+        }
+
+        return {
+          ...league,
+          team_count: count || 0,
+        };
+      })
+    );
+
+    return { data: leaguesWithCounts, error: null };
   },
 
   /**
