@@ -5,6 +5,7 @@ import { leagueService } from '../services/leagueService';
 import type { TeamWithCounts } from '../types/football';
 import type { LeagueWithTeamCount } from '../types/football';
 import { TeamFormModal } from '../components/admin/TeamFormModal';
+import { ConfirmationModal } from '../components/admin/ConfirmationModal';
 import { syncTeamPlayers, type SyncProgress } from '../services/footballSyncService';
 
 const mockAddToast = (message: string, type: 'success' | 'error' | 'info') => {
@@ -29,6 +30,9 @@ export function TeamsPage() {
   const [syncingPlayers, setSyncingPlayers] = useState<string | null>(null);
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
   const [isBulkImporting, setIsBulkImporting] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set());
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
 
   useEffect(() => {
     loadTeams();
@@ -96,10 +100,14 @@ export function TeamsPage() {
     setShowModal(true);
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
+  const handleDelete = (id: string, name: string) => {
+    setDeleteConfirm({ id, name });
+  };
 
-    const { error } = await teamService.delete(id);
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+
+    const { error } = await teamService.delete(deleteConfirm.id);
 
     if (error) {
       mockAddToast('Failed to delete team', 'error');
@@ -108,6 +116,59 @@ export function TeamsPage() {
       mockAddToast('Team deleted successfully', 'success');
       loadTeams();
     }
+
+    setDeleteConfirm(null);
+  };
+
+  const toggleTeamSelection = (teamId: string) => {
+    const newSelection = new Set(selectedTeams);
+    if (newSelection.has(teamId)) {
+      newSelection.delete(teamId);
+    } else {
+      newSelection.add(teamId);
+    }
+    setSelectedTeams(newSelection);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedTeams.size === filteredTeams.length) {
+      setSelectedTeams(new Set());
+    } else {
+      setSelectedTeams(new Set(filteredTeams.map(t => t.id)));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedTeams.size === 0) {
+      mockAddToast('No teams selected', 'error');
+      return;
+    }
+    setBulkDeleteConfirm(true);
+  };
+
+  const confirmBulkDelete = async () => {
+    const idsToDelete = Array.from(selectedTeams);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const id of idsToDelete) {
+      const { error } = await teamService.delete(id);
+      if (error) {
+        failCount++;
+        console.error(`Failed to delete team ${id}:`, error);
+      } else {
+        successCount++;
+      }
+    }
+
+    mockAddToast(
+      `Deleted ${successCount} team(s). ${failCount > 0 ? `Failed: ${failCount}` : ''}`,
+      failCount > 0 ? 'error' : 'success'
+    );
+
+    setSelectedTeams(new Set());
+    setBulkDeleteConfirm(false);
+    loadTeams();
   };
 
   const handleModalClose = (success: boolean) => {
@@ -329,6 +390,17 @@ export function TeamsPage() {
           ))}
         </select>
 
+        {/* Bulk Actions */}
+        {selectedTeams.size > 0 && (
+          <button
+            onClick={handleBulkDelete}
+            className="flex items-center gap-2 px-4 py-2 bg-hot-red hover:bg-hot-red/80 text-white rounded-lg transition-colors"
+          >
+            <Trash2 className="w-5 h-5" />
+            <span>Delete Selected ({selectedTeams.size})</span>
+          </button>
+        )}
+
         {/* Create Button */}
         <button
           onClick={handleCreate}
@@ -352,6 +424,14 @@ export function TeamsPage() {
             <table className="w-full">
               <thead className="bg-background-dark border-b border-border-subtle">
                 <tr>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-text-secondary w-12">
+                    <input
+                      type="checkbox"
+                      checked={filteredTeams.length > 0 && selectedTeams.size === filteredTeams.length}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 rounded border-border-subtle bg-background-dark checked:bg-electric-blue"
+                    />
+                  </th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-text-secondary">
                     Logo
                   </th>
@@ -381,6 +461,14 @@ export function TeamsPage() {
                     key={team.id}
                     className="hover:bg-surface-hover transition-colors"
                   >
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedTeams.has(team.id)}
+                        onChange={() => toggleTeamSelection(team.id)}
+                        className="w-4 h-4 rounded border-border-subtle bg-background-dark checked:bg-electric-blue"
+                      />
+                    </td>
                     <td className="px-4 py-3">
                       {team.logo || team.logo_url ? (
                         <img
@@ -447,12 +535,38 @@ export function TeamsPage() {
         )}
       </div>
 
-      {/* Modal */}
+      {/* Team Form Modal */}
       {showModal && (
         <TeamFormModal
           team={editingTeam}
           onClose={handleModalClose}
           addToast={mockAddToast}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <ConfirmationModal
+          title="Delete Team"
+          message={`Are you sure you want to delete "${deleteConfirm.name}"? This action cannot be undone and will remove all associated data.`}
+          confirmText="Delete"
+          cancelText="Cancel"
+          isDangerous={true}
+          onConfirm={confirmDelete}
+          onCancel={() => setDeleteConfirm(null)}
+        />
+      )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {bulkDeleteConfirm && (
+        <ConfirmationModal
+          title="Delete Multiple Teams"
+          message={`Are you sure you want to delete ${selectedTeams.size} team(s)? This action cannot be undone and will remove all associated data.`}
+          confirmText="Delete All"
+          cancelText="Cancel"
+          isDangerous={true}
+          onConfirm={confirmBulkDelete}
+          onCancel={() => setBulkDeleteConfirm(false)}
         />
       )}
     </div>
