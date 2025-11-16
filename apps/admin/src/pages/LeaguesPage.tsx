@@ -3,6 +3,7 @@ import { Search, Plus, Edit2, Trash2, RefreshCw, Download, Users } from 'lucide-
 import { leagueService } from '../services/leagueService';
 import type { LeagueWithTeamCount } from '../types/football';
 import { LeagueFormModal } from '../components/admin/LeagueFormModal';
+import { ConfirmationModal } from '../components/admin/ConfirmationModal';
 import { syncLeague, syncLeagueTeams, type SyncProgress } from '../services/footballSyncService';
 
 const mockAddToast = (message: string, type: 'success' | 'error' | 'info') => {
@@ -27,6 +28,7 @@ export function LeaguesPage() {
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
   const [leagueIds, setLeagueIds] = useState<string>('');
   const [isBulkImporting, setIsBulkImporting] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     loadLeagues();
@@ -84,10 +86,14 @@ export function LeaguesPage() {
     setShowModal(true);
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
+  const handleDelete = (id: string, name: string) => {
+    setDeleteConfirm({ id, name });
+  };
 
-    const { error } = await leagueService.delete(id);
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+
+    const { error } = await leagueService.delete(deleteConfirm.id);
 
     if (error) {
       mockAddToast('Failed to delete league', 'error');
@@ -96,6 +102,8 @@ export function LeaguesPage() {
       mockAddToast('League deleted successfully', 'success');
       loadLeagues();
     }
+
+    setDeleteConfirm(null);
   };
 
   const handleModalClose = (success: boolean) => {
@@ -289,7 +297,7 @@ export function LeaguesPage() {
             onChange={(e) => setLeagueIds(e.target.value)}
             placeholder="e.g., 39,140,78,135"
             disabled={isBulkImporting}
-            className="flex-1 px-4 py-2 bg-navy-accent border border-gray-700 rounded-lg focus:outline-none focus:border-electric-blue disabled:opacity-50 text-white placeholder:text-text-disabled"
+            className="flex-1 px-4 py-2 bg-background-dark border border-border-subtle rounded-lg focus:outline-none focus:border-electric-blue disabled:opacity-50 text-text-primary placeholder:text-text-disabled"
           />
           <button
             onClick={handleBulkImport}
@@ -446,12 +454,25 @@ export function LeaguesPage() {
         )}
       </div>
 
-      {/* Modal */}
+      {/* League Form Modal */}
       {showModal && (
         <LeagueFormModal
           league={editingLeague}
           onClose={handleModalClose}
           addToast={mockAddToast}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <ConfirmationModal
+          title="Delete League"
+          message={`Are you sure you want to delete "${deleteConfirm.name}"? This action cannot be undone and will remove all associated data.`}
+          confirmText="Delete"
+          cancelText="Cancel"
+          isDangerous={true}
+          onConfirm={confirmDelete}
+          onCancel={() => setDeleteConfirm(null)}
         />
       )}
     </div>

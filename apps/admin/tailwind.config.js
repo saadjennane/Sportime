@@ -12,6 +12,11 @@ const STADIUM_ENERGY_THEME = {
   'text-secondary': '#B0C7E8',
   'text-disabled': '#7D8B99',
   'disabled': '#3A3F47',
+  // Surface and background colors for UI elements
+  'surface': '#0F1117',
+  'surface-hover': '#16202B',
+  'background-dark': '#0A0C10',
+  'border-subtle': '#2D3748',
 };
 
 /** @type {import('tailwindcss').Config} */
