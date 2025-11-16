@@ -345,7 +345,6 @@ export async function syncTeamPlayers(
             player_id: player.id,
             team_id: teamId,
             season: season.toString(),
-            jersey_number: playerData.number,
           },
           { onConflict: 'player_id,team_id,season' }
         )

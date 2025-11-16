@@ -230,11 +230,18 @@ export function TeamsPage() {
     let failCount = 0;
 
     for (let i = 0; i < ids.length; i++) {
-      const teamId = ids[i];
-      const team = teams.find(t => t.id === teamId);
+      const identifier = ids[i];
+
+      // Try to find team by UUID first, then by API ID
+      let team = teams.find(t => t.id === identifier);
+      if (!team) {
+        // Try to find by api_id (if user provided API ID instead of UUID)
+        team = teams.find(t => t.api_id?.toString() === identifier);
+      }
 
       if (!team || !team.api_id) {
         failCount++;
+        console.warn(`Team not found for identifier: ${identifier}`);
         continue;
       }
 
