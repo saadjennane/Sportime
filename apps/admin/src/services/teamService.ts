@@ -13,27 +13,51 @@ export const teamService = {
 
     console.log('🔍 Fetching teams from Supabase...');
 
-    // Fetch teams without joins to avoid schema cache issues
-    const { data, error } = await supabase
+    // Fetch teams
+    const { data: teams, error: teamsError } = await supabase
       .from('teams')
       .select('*')
       .order('name');
 
-    if (error) {
-      console.error('❌ Supabase query error:', error);
-      return { data: null, error };
+    if (teamsError) {
+      console.error('❌ Supabase query error:', teamsError);
+      return { data: null, error: teamsError };
     }
 
-    console.log(`✅ Fetched ${data?.length || 0} teams from database`);
+    console.log(`✅ Fetched ${teams?.length || 0} teams from database`);
 
-    // Add counts as 0 for now (can fetch separately later if needed)
-    const teams = data?.map((team: any) => ({
-      ...team,
-      league_count: 0,
-      player_count: 0,
-    }));
+    // Fetch league and player counts for each team
+    const teamsWithCounts = await Promise.all(
+      (teams || []).map(async (team: any) => {
+        // Count leagues via team_league_participation
+        const { count: leagueCount, error: leagueError } = await supabase
+          .from('team_league_participation')
+          .select('*', { count: 'exact', head: true })
+          .eq('team_id', team.id);
 
-    return { data: teams, error: null };
+        if (leagueError) {
+          console.warn(`⚠️ Error counting leagues for team ${team.name}:`, leagueError);
+        }
+
+        // Count players via player_team_association
+        const { count: playerCount, error: playerError } = await supabase
+          .from('player_team_association')
+          .select('*', { count: 'exact', head: true })
+          .eq('team_id', team.id);
+
+        if (playerError) {
+          console.warn(`⚠️ Error counting players for team ${team.name}:`, playerError);
+        }
+
+        return {
+          ...team,
+          league_count: leagueCount || 0,
+          player_count: playerCount || 0,
+        };
+      })
+    );
+
+    return { data: teamsWithCounts, error: null };
   },
 
   /**
