@@ -164,13 +164,13 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
 
   return (
     <div className="space-y-6">
-      <div className={`grid ${isSuperAdmin ? 'grid-cols-4 sm:grid-cols-7' : 'grid-cols-3 sm:grid-cols-6'} bg-navy-accent rounded-xl p-1 gap-1`}>
+      <div className="grid grid-cols-4 sm:grid-cols-7 bg-navy-accent rounded-xl p-1 gap-1">
         <AdminSectionButton section="challenges" icon={<Gamepad2 size={16} />} label="Games" />
         <AdminSectionButton section="swipe" icon={<Zap size={16} />} label="Swipe" />
         <AdminSectionButton section="feed" icon={<Newspaper size={16} />} label="Feed" />
         <AdminSectionButton section="progression" icon={<Star size={16} />} label="Progression" />
         <AdminSectionButton section="datasync" icon={<DatabaseZap size={16} />} label="Data Sync" />
-        {isSuperAdmin && <AdminSectionButton section="config" icon={<Settings size={16} />} label="Config" />}
+        <AdminSectionButton section="config" icon={<Settings size={16} />} label="Config" />
         <AdminSectionButton section="developer" icon={<Terminal size={16} />} label="Dev" />
       </div>
 
@@ -224,7 +224,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
         </div>
       )}
 
-      {activeSection === 'config' && isSuperAdmin && (
+      {activeSection === 'config' && (
         <div className="animate-scale-in">
           <GameConfigAdmin />
         </div>
