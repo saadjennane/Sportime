@@ -8,6 +8,7 @@ import {
   Globe,
   Shield,
   Users,
+  Settings,
   Menu,
   X
 } from 'lucide-react';
@@ -28,6 +29,7 @@ export function Sidebar({ className = '' }: SidebarProps) {
     { to: '/swipe', icon: Zap, label: 'Swipe Games' },
     { to: '/progression', icon: Star, label: 'Progression' },
     { to: '/data-sync', icon: DatabaseZap, label: 'Data Sync' },
+    { to: '/config', icon: Settings, label: 'Game Config' },
     { to: '/celebrations', icon: Trophy, label: 'Celebrations' },
   ];
 

@@ -1,27 +1,19 @@
-console.log('[Admin.tsx] Module loaded - file is being executed');
-
 import React, { useState } from 'react';
 import { Profile, SportimeGame, RewardItem } from '../types';
-import { Gamepad2, Star, DatabaseZap, Terminal, Newspaper } from 'lucide-react';
+import { Gamepad2, Star, DatabaseZap, Terminal, Newspaper, Coins, Trash2, Play, Zap } from 'lucide-react';
 import { useMockStore } from '../store/useMockStore';
 import { ChallengesAdmin } from '../components/admin/ChallengesAdmin';
 import { ProgressionAdmin } from '../components/ProgressionAdmin';
 import { DataSyncAdmin } from '../components/DataSyncAdmin';
 import { TestModeToggle } from '../components/TestModeToggle';
-import { Coins, Trash2, Play, Settings } from 'lucide-react';
 import { CelebrateSeasonalWinnersModal } from '../components/admin/CelebrateSeasonalWinnersModal';
 import { CelebrationFeed } from '../components/admin/CelebrationFeed';
 import { SwipeGameAdmin } from '../components/admin/SwipeGameAdmin';
 import { BadgeManager } from '../components/admin/BadgeManager';
-import { GameConfigAdmin } from '../components/admin/GameConfigAdmin';
-import { Zap } from 'lucide-react';
 import { USE_SUPABASE } from '../config/env';
 import * as challengeService from '../services/challengeService';
-import { useIsSuperAdmin } from '../hooks/useUserRole';
 
-console.log('[Admin.tsx] All imports completed');
-
-type AdminSection = 'challenges' | 'swipe' | 'progression' | 'datasync' | 'feed' | 'developer' | 'config';
+type AdminSection = 'challenges' | 'swipe' | 'progression' | 'datasync' | 'feed' | 'developer';
 
 interface AdminPageProps {
   profile: Profile | null;
@@ -29,11 +21,6 @@ interface AdminPageProps {
 }
 
 const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
-  console.log('[AdminPage] Component rendering, profile:', profile?.id);
-  // TEMPORARY: Force super_admin access for testing until auth is fixed
-  // TODO: Revert this and use proper role-based access control
-  const isSuperAdmin = true; // useIsSuperAdmin();
-  console.log('[AdminPage] isSuperAdmin value (FORCED):', isSuperAdmin);
 
   const {
     games,
@@ -163,23 +150,13 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
   );
 
   return (
-    <div className="space-y-6" style={{ background: '#ff0000', padding: '20px' }}>
-      {/* MEGA DEBUG: ENTIRE SCREEN IS RED - IMPOSSIBLE TO MISS */}
-      <div style={{ background: 'yellow', color: 'black', padding: '30px', fontWeight: 'bold', textAlign: 'center', fontSize: '24px', border: '10px solid green' }}>
-        🚨🚨🚨 NEW CODE DEPLOYED 85d5e5d 🚨🚨🚨
-        <br />
-        IF YOU SEE THIS THE NEW CODE IS LIVE!!!
-        <br />
-        COMMIT: 85d5e5d | TIME: {new Date().toISOString()}
-      </div>
-
-      <div className="grid grid-cols-4 sm:grid-cols-7 bg-navy-accent rounded-xl p-1 gap-1">
+    <div className="space-y-6">
+      <div className="grid grid-cols-3 sm:grid-cols-6 bg-navy-accent rounded-xl p-1 gap-1">
         <AdminSectionButton section="challenges" icon={<Gamepad2 size={16} />} label="Games" />
         <AdminSectionButton section="swipe" icon={<Zap size={16} />} label="Swipe" />
         <AdminSectionButton section="feed" icon={<Newspaper size={16} />} label="Feed" />
         <AdminSectionButton section="progression" icon={<Star size={16} />} label="Progression" />
         <AdminSectionButton section="datasync" icon={<DatabaseZap size={16} />} label="Data Sync" />
-        <AdminSectionButton section="config" icon={<Settings size={16} />} label="Config" />
         <AdminSectionButton section="developer" icon={<Terminal size={16} />} label="Dev" />
       </div>
 
@@ -230,12 +207,6 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
       {activeSection === 'datasync' && (
         <div className="animate-scale-in">
           <DataSyncAdmin addToast={addToast} />
-        </div>
-      )}
-
-      {activeSection === 'config' && (
-        <div className="animate-scale-in">
-          <GameConfigAdmin />
         </div>
       )}
 
