@@ -164,6 +164,11 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
 
   return (
     <div className="space-y-6">
+      {/* DEBUG: Visible indicator that new code is deployed */}
+      <div style={{ background: 'red', color: 'white', padding: '10px', fontWeight: 'bold', textAlign: 'center' }}>
+        🔴 DEBUG BUILD d8cc569 - If you see this, new code is deployed!
+      </div>
+
       <div className="grid grid-cols-4 sm:grid-cols-7 bg-navy-accent rounded-xl p-1 gap-1">
         <AdminSectionButton section="challenges" icon={<Gamepad2 size={16} />} label="Games" />
         <AdminSectionButton section="swipe" icon={<Zap size={16} />} label="Swipe" />
