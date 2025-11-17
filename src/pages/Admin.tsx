@@ -1,3 +1,5 @@
+console.log('[Admin.tsx] Module loaded - file is being executed');
+
 import React, { useState } from 'react';
 import { Profile, SportimeGame, RewardItem } from '../types';
 import { Gamepad2, Star, DatabaseZap, Terminal, Newspaper } from 'lucide-react';
@@ -16,6 +18,8 @@ import { Zap } from 'lucide-react';
 import { USE_SUPABASE } from '../config/env';
 import * as challengeService from '../services/challengeService';
 import { useIsSuperAdmin } from '../hooks/useUserRole';
+
+console.log('[Admin.tsx] All imports completed');
 
 type AdminSection = 'challenges' | 'swipe' | 'progression' | 'datasync' | 'feed' | 'developer' | 'config';
 

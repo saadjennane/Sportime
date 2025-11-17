@@ -5,8 +5,12 @@
  * Roles: 'user' (default), 'admin' (read-only admin panel), 'super_admin' (full access)
  */
 
+console.log('[useUserRole.ts] Module loaded');
+
 import { useEffect, useState } from 'react'
 import { supabase } from '../services/supabase'
+
+console.log('[useUserRole.ts] Imports completed');
 
 export type UserRole = 'user' | 'admin' | 'super_admin'
 
