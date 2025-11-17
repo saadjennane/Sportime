@@ -25,7 +25,9 @@ interface AdminPageProps {
 }
 
 const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
+  console.log('[AdminPage] Component rendering, profile:', profile?.id);
   const isSuperAdmin = useIsSuperAdmin();
+  console.log('[AdminPage] isSuperAdmin value:', isSuperAdmin);
 
   const {
     games,

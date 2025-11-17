@@ -19,6 +19,7 @@ let cachedUserId: string | null = null
  * @returns User role ('user', 'admin', or 'super_admin')
  */
 export function useUserRole(): UserRole {
+  console.log('[useUserRole] Hook called, cachedRole:', cachedRole);
   const [role, setRole] = useState<UserRole>(() => cachedRole || 'user')
 
   useEffect(() => {
@@ -108,8 +109,10 @@ export function useIsAdmin(): boolean {
  * @returns True if user is super_admin
  */
 export function useIsSuperAdmin(): boolean {
-  const role = useUserRole()
-  return role === 'super_admin'
+  console.log('[useIsSuperAdmin] Hook called');
+  const role = useUserRole();
+  console.log('[useIsSuperAdmin] Role from useUserRole:', role);
+  return role === 'super_admin';
 }
 
 /**
