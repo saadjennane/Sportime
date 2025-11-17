@@ -6,16 +6,18 @@ import { ChallengesAdmin } from '../components/admin/ChallengesAdmin';
 import { ProgressionAdmin } from '../components/ProgressionAdmin';
 import { DataSyncAdmin } from '../components/DataSyncAdmin';
 import { TestModeToggle } from '../components/TestModeToggle';
-import { Coins, Trash2, Play } from 'lucide-react';
+import { Coins, Trash2, Play, Settings } from 'lucide-react';
 import { CelebrateSeasonalWinnersModal } from '../components/admin/CelebrateSeasonalWinnersModal';
 import { CelebrationFeed } from '../components/admin/CelebrationFeed';
 import { SwipeGameAdmin } from '../components/admin/SwipeGameAdmin';
 import { BadgeManager } from '../components/admin/BadgeManager';
+import { GameConfigAdmin } from '../components/admin/GameConfigAdmin';
 import { Zap } from 'lucide-react';
 import { USE_SUPABASE } from '../config/env';
 import * as challengeService from '../services/challengeService';
+import { useIsSuperAdmin } from '../hooks/useUserRole';
 
-type AdminSection = 'challenges' | 'swipe' | 'progression' | 'datasync' | 'feed' | 'developer';
+type AdminSection = 'challenges' | 'swipe' | 'progression' | 'datasync' | 'feed' | 'developer' | 'config';
 
 interface AdminPageProps {
   profile: Profile | null;
@@ -23,6 +25,8 @@ interface AdminPageProps {
 }
 
 const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
+  const isSuperAdmin = useIsSuperAdmin();
+
   const {
     games,
     createGame,
@@ -152,12 +156,13 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-3 sm:grid-cols-6 bg-navy-accent rounded-xl p-1 gap-1">
+      <div className={`grid ${isSuperAdmin ? 'grid-cols-4 sm:grid-cols-7' : 'grid-cols-3 sm:grid-cols-6'} bg-navy-accent rounded-xl p-1 gap-1`}>
         <AdminSectionButton section="challenges" icon={<Gamepad2 size={16} />} label="Games" />
         <AdminSectionButton section="swipe" icon={<Zap size={16} />} label="Swipe" />
         <AdminSectionButton section="feed" icon={<Newspaper size={16} />} label="Feed" />
         <AdminSectionButton section="progression" icon={<Star size={16} />} label="Progression" />
         <AdminSectionButton section="datasync" icon={<DatabaseZap size={16} />} label="Data Sync" />
+        {isSuperAdmin && <AdminSectionButton section="config" icon={<Settings size={16} />} label="Config" />}
         <AdminSectionButton section="developer" icon={<Terminal size={16} />} label="Dev" />
       </div>
 
@@ -208,6 +213,12 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
       {activeSection === 'datasync' && (
         <div className="animate-scale-in">
           <DataSyncAdmin addToast={addToast} />
+        </div>
+      )}
+
+      {activeSection === 'config' && isSuperAdmin && (
+        <div className="animate-scale-in">
+          <GameConfigAdmin />
         </div>
       )}
 

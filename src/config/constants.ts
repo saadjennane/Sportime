@@ -1,5 +1,19 @@
 import { TournamentType, TicketTier } from '../types';
 
+// ============================================================================
+// IMPORTANT: CONFIGURATION MIGRATION NOTICE
+// ============================================================================
+// Most of these constants are now stored in the database (game_config table)
+// and can be modified through the Admin panel → Game Config section.
+//
+// These constants serve as FALLBACK VALUES when the database is unavailable.
+// For new code, use configService.getConfig() instead of importing these directly.
+//
+// Migration date: 2025-11-17
+// See: src/services/configService.ts
+// ============================================================================
+
+// ⚠️ DEPRECATED: Use configService.getConfig('daily_streak_rewards') instead
 export const DAILY_STREAK_REWARDS: Record<number, { coins?: number; ticket?: TournamentType }> = {
   1: { coins: 100 },
   2: { coins: 200 },
@@ -14,6 +28,7 @@ export const STREAK_RESET_THRESHOLD_HOURS = 24;
 
 const DEFAULT_LEVEL_BET_LIMIT = 500;
 
+// ⚠️ DEPRECATED: Use configService.getConfig('level_bet_limits') instead
 export const LEVEL_BET_LIMITS: Record<string, number | null> = {
   Rookie: 500,
   'Rising Star': 1000,
@@ -56,6 +71,7 @@ export function getLevelBetLimit(level?: string | null): number | null {
   }
 }
 
+// ⚠️ DEPRECATED: Use configService.getConfig('ticket_expiry_days') and getConfig('ticket_max_quantity') instead
 export const TICKET_RULES: Record<TicketTier, { expiry_days: number; max_quantity: number }> = {
   amateur: { expiry_days: 30, max_quantity: 5 },
   master: { expiry_days: 45, max_quantity: 3 },
@@ -73,6 +89,7 @@ const createCostEntry = (base: number) => ({
   multipliers: { ...BASE_MULTIPLIERS },
 });
 
+// ⚠️ DEPRECATED: Use configService.getConfig('tournament_base_costs') and getConfig('tournament_multipliers') instead
 export const TOURNAMENT_COSTS: Record<TournamentType, { base: number; multipliers: Record<keyof typeof BASE_MULTIPLIERS, number> }> = {
   amateur: createCostEntry(2000),
   master: createCostEntry(10000),

@@ -1,15 +1,18 @@
 /* src/features/matches/useMatchesOfTheDay.ts
- * Fetch fixtures of the current local day (Africa/Casablanca by default),
+ * Fetch fixtures of the current local day (user's timezone auto-detected),
  * join leagues/teams/odds, map to UI-friendly shapes, and group by league.
  *
  * Notes:
  * - No direct API-Football calls here (DB only); odds fallback handled elsewhere.
  * - If your FK constraint names differ, adjust the select() relation names.
+ * - Timezone is auto-detected from browser or user profile
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../services/supabase'
 import { apiFootball } from '../../lib/apiFootballService'
+import { useUserTimezone } from '../../hooks/useUserTimezone'
+import { getLocalDayBounds as getLocalDayBoundsUtil, formatMatchTime as formatMatchTimeUtil } from '../../utils/timezoneUtils'
 
 /** ---- UI Types (kept local to the hook) ---- */
 export type UiMatch = {
@@ -41,34 +44,8 @@ export type UiLeagueGroup = {
 
 /** ---- Helpers ---- */
 
-const CASABLANCA_TZ = 'Africa/Casablanca'
-
-// Local start/end of day → ISO strings suitable for Postgres timestamptz comparisons
-function getLocalDayBoundsISO(tz: string = CASABLANCA_TZ) {
-  const now = new Date()
-  // Compute local midnight/23:59:59.999 using user's local timezone (browser)
-  const start = new Date(now)
-  start.setHours(0, 0, 0, 0)
-  const end = new Date(now)
-  end.setHours(23, 59, 59, 999)
-  // These are local Date instances; PostgREST expects ISO UTC — toISOString() converts.
-  return { startISO: start.toISOString(), endISO: end.toISOString() }
-}
-
-function formatLocalTime(iso: string, tz: string = CASABLANCA_TZ) {
-  // Just HH:mm local display (relying on user agent tz)
-  const d = new Date(iso)
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-      timeZone: undefined, // browser local
-    }).format(d)
-  } catch {
-    return d.toLocaleTimeString().slice(0, 5)
-  }
-}
+// Note: Timezone utilities moved to utils/timezoneUtils.ts
+// Using useUserTimezone() hook to get user's timezone preference
 
 function normalizeStatus(raw?: string): 'upcoming' | 'played' {
   // Map common API-Football statuses; keep simple for UI grouping
@@ -106,7 +83,11 @@ const POLL_INTERVAL_MS = 30_000
 const LINEUP_REFRESH_INTERVAL_MS = 120_000
 
 export function useMatchesOfTheDay(): HookState {
-  const [{ startISO, endISO }] = useState(() => getLocalDayBoundsISO(CASABLANCA_TZ))
+  // Get user's timezone (auto-detected or from profile)
+  const userTimezone = useUserTimezone()
+
+  // Calculate day bounds based on user's timezone
+  const [{ startISO, endISO }] = useState(() => getLocalDayBoundsUtil(userTimezone))
   const [baseGroups, setBaseGroups] = useState<UiLeagueGroup[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -205,7 +186,7 @@ export function useMatchesOfTheDay(): HookState {
           id: String(r.id),
           code: String(r.id),
           kickoffISO: r.date,
-          kickoffLabel: formatLocalTime(r.date),
+          kickoffLabel: formatMatchTimeUtil(r.date, userTimezone),
           status: norm,
           rawStatus: statusUpper,
           normalized: norm,
@@ -348,7 +329,7 @@ export function useMatchesOfTheDay(): HookState {
               status: normalized,
               isLive,
               kickoffISO: kickoffISO ?? undefined,
-              kickoffLabel: kickoffISO ? formatLocalTime(kickoffISO) : undefined,
+              kickoffLabel: kickoffISO ? formatMatchTimeUtil(kickoffISO, userTimezone) : undefined,
               home: {
                 goals: homeGoals ?? null,
               },
