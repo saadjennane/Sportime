@@ -160,7 +160,7 @@ export async function getSwipeChallenge(challengeId: string) {
     .select(`
       *,
       challenge_leagues!inner(
-        league:leagues(*)
+        league:fb_leagues(*)
       )
     `)
     .eq('id', challengeId)
@@ -272,16 +272,16 @@ export async function getMatchdayWithFixtures(matchdayId: string) {
     .select(`
       *,
       matchday_fixtures!inner(
-        fixture:fixtures!inner(
+        fixture:fb_fixtures!inner(
           id,
           api_id,
           date,
           status,
           goals_home,
           goals_away,
-          league:leagues(id, name, logo),
-          home:teams!fixtures_home_team_id_fkey(id, name, logo),
-          away:teams!fixtures_away_team_id_fkey(id, name, logo),
+          league:fb_leagues(id, name, logo),
+          home:fb_teams!fb_fixtures_home_team_id_fkey(id, name, logo),
+          away:fb_teams!fb_fixtures_away_team_id_fkey(id, name, logo),
           odds:odds!odds_fixture_id_fkey(home_win, draw, away_win, bookmaker_name)
         )
       )
@@ -455,7 +455,7 @@ export async function hasCompletedMatchday(
 export async function calculatePointsForFixture(fixtureId: string) {
   // Get fixture result
   const { data: fixture, error: fixtureError } = await supabase
-    .from('fixtures')
+    .from('fb_fixtures')
     .select('id, status, goals_home, goals_away')
     .eq('id', fixtureId)
     .single();

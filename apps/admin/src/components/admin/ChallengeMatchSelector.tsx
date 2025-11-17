@@ -39,20 +39,20 @@ export function ChallengeMatchSelector({ challengeId, totalDays, onMatchesAdded 
     setLoading(true)
     try {
       let query = supabase
-        .from('fixtures')
+        .from('fb_fixtures')
         .select(`
           id,
           date,
           status,
-          home_team:teams!fixtures_home_team_id_fkey (
+          home_team:fb_teams!fb_fixtures_home_team_id_fkey (
             name,
             logo_url
           ),
-          away_team:teams!fixtures_away_team_id_fkey (
+          away_team:fb_teams!fb_fixtures_away_team_id_fkey (
             name,
             logo_url
           ),
-          league:leagues (
+          league:fb_leagues (
             name
           )
         `)

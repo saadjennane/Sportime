@@ -254,7 +254,7 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
   ) => {
     // Get all fixtures in the date range for this league
     const { data: fixtures, error } = await supabase
-      .from('fixtures')
+      .from('fb_fixtures')
       .select('id, date, league_id')
       .eq('league_id', leagueId)
       .gte('date', startDate)
