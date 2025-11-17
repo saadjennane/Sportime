@@ -66,6 +66,8 @@ export function useUserRole(): UserRole {
 
         const userRole = (profile?.role || 'user') as UserRole
 
+        console.log('[useUserRole] ✅ Successfully loaded role:', userRole, 'for user:', user.id)
+
         if (mounted) {
           setRole(userRole)
           cachedRole = userRole
