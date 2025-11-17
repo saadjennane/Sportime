@@ -11,11 +11,11 @@ export const playerService = {
     }
 
     const { data, error } = await supabase
-      .from('players')
+      .from('fb_players')
       .select(`
         *,
-        player_team_association!left(
-          teams(name, logo)
+        fb_player_team_association!left(
+          fb_teams(name, logo)
         )
       `)
       .order('last_name');
@@ -25,8 +25,8 @@ export const playerService = {
     // Transform to include team info
     const players = data?.map((player: any) => ({
       ...player,
-      team_name: player.player_team_association?.[0]?.teams?.name,
-      team_logo: player.player_team_association?.[0]?.teams?.logo,
+      team_name: player.fb_player_team_association?.[0]?.fb_teams?.name,
+      team_logo: player.fb_player_team_association?.[0]?.fb_teams?.logo,
     }));
 
     return { data: players, error: null };
@@ -41,7 +41,7 @@ export const playerService = {
     }
 
     const { data, error } = await supabase
-      .from('players')
+      .from('fb_players')
       .select('*')
       .eq('id', id)
       .single();
@@ -58,10 +58,10 @@ export const playerService = {
     }
 
     let query = supabase
-      .from('player_team_association')
+      .from('fb_player_team_association')
       .select(`
         *,
-        players(*)
+        fb_players(*)
       `)
       .eq('team_id', teamId);
 
@@ -83,7 +83,7 @@ export const playerService = {
     }
 
     const { data, error } = await supabase
-      .from('players')
+      .from('fb_players')
       .select('*')
       .eq('position', position)
       .order('last_name');
@@ -100,7 +100,7 @@ export const playerService = {
     }
 
     const { data, error } = await supabase
-      .from('players')
+      .from('fb_players')
       .select('*')
       .eq('category', category)
       .order('pgs', { ascending: false });
@@ -117,7 +117,7 @@ export const playerService = {
     }
 
     const { data, error } = await supabase
-      .from('players')
+      .from('fb_players')
       .insert(input)
       .select()
       .single();
@@ -134,7 +134,7 @@ export const playerService = {
     }
 
     const { data, error } = await supabase
-      .from('players')
+      .from('fb_players')
       .update(input)
       .eq('id', id)
       .select()
@@ -152,7 +152,7 @@ export const playerService = {
     }
 
     const { error } = await supabase
-      .from('players')
+      .from('fb_players')
       .delete()
       .eq('id', id);
 
@@ -173,14 +173,14 @@ export const playerService = {
 
     // End previous team association if exists
     await supabase
-      .from('player_team_association')
+      .from('fb_player_team_association')
       .update({ end_date: startDate })
       .eq('player_id', playerId)
       .is('end_date', null);
 
     // Create new team association
     const { data, error } = await supabase
-      .from('player_team_association')
+      .from('fb_player_team_association')
       .insert({
         player_id: playerId,
         team_id: teamId,
@@ -202,10 +202,10 @@ export const playerService = {
     }
 
     const { data, error } = await supabase
-      .from('player_team_association')
+      .from('fb_player_team_association')
       .select(`
         *,
-        teams(name, logo, country)
+        fb_teams(name, logo, country)
       `)
       .eq('player_id', playerId)
       .order('start_date', { ascending: false });
@@ -231,29 +231,24 @@ export const playerService = {
       };
     }
 
-    // Get staging count
-    const { count: stagingCount, error: stagingError } = await supabase
+    // Get count from fb_players (now the only table)
+    const { count: playersCount, error: countError } = await supabase
       .from('fb_players')
-      .select('*', { count: 'exact', head: true });
-
-    // Get production count
-    const { count: productionCount, error: productionError } = await supabase
-      .from('players')
       .select('*', { count: 'exact', head: true });
 
     // Get last synced timestamp
     const { data: lastSync } = await supabase
-      .from('players')
+      .from('fb_players')
       .select('updated_at')
       .order('updated_at', { ascending: false })
       .limit(1)
       .single();
 
     return {
-      staging_count: stagingCount || 0,
-      production_count: productionCount || 0,
+      staging_count: 0, // No longer using dual table architecture
+      production_count: playersCount || 0,
       last_synced: lastSync?.updated_at || null,
-      error: stagingError || productionError,
+      error: countError,
     };
   },
 
@@ -266,7 +261,7 @@ export const playerService = {
     }
 
     const { data, error } = await supabase
-      .from('players')
+      .from('fb_players')
       .select('*')
       .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,name.ilike.%${query}%`)
       .order('last_name')

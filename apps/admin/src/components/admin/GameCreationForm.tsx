@@ -69,7 +69,7 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
   const loadLeagues = async () => {
     try {
       const { data, error } = await supabase
-        .from('leagues')
+        .from('fb_leagues')
         .select('id, name')
         .order('name');
 

@@ -171,7 +171,7 @@ export async function syncLeague(
 
     // Insert league into Supabase
     const { data: league, error: leagueError } = await supabase
-      .from('leagues')
+      .from('fb_leagues')
       .upsert(leaguePayload, { onConflict: 'api_id' })
       .select('id')
       .single()
@@ -226,7 +226,7 @@ export async function syncLeagueTeams(
 
       // Insert team
       const { data: team, error: teamError } = await supabase
-        .from('teams')
+        .from('fb_teams')
         .upsert(
           {
             api_id: teamData.team.id,
@@ -247,7 +247,7 @@ export async function syncLeagueTeams(
 
       // Create team-league association
       const { error: assocError } = await supabase
-        .from('team_league_participation')
+        .from('fb_team_league_participation')
         .upsert(
           {
             team_id: team.id,
@@ -321,7 +321,7 @@ export async function syncTeamPlayers(
 
       // Insert player
       const { data: player, error: playerError } = await supabase
-        .from('players')
+        .from('fb_players')
         .upsert(
           {
             api_id: playerData.id,
@@ -350,7 +350,7 @@ export async function syncTeamPlayers(
 
       // Create player-team association
       const { error: assocError } = await supabase
-        .from('player_team_association')
+        .from('fb_player_team_association')
         .upsert(
           {
             player_id: player.id,

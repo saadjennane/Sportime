@@ -76,9 +76,9 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
 
   const loadLeagues = async () => {
     try {
-      // Load from 'leagues' table (UUID-based) instead of 'fb_leagues' (INTEGER-based)
+      // Load from 'fb_leagues' table (renamed from leagues)
       const { data, error } = await supabase
-        .from('leagues')
+        .from('fb_leagues')
         .select('id, name, logo')
         .order('name')
 
@@ -130,7 +130,7 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
       let leaguesData: any[] = [];
       if (leagueIds.length > 0) {
         const { data, error: leaguesError } = await supabase
-          .from('leagues')
+          .from('fb_leagues')
           .select('id, name, logo')
           .in('id', leagueIds);
 

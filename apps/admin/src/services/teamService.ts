@@ -15,7 +15,7 @@ export const teamService = {
 
     // Fetch teams
     const { data: teams, error: teamsError } = await supabase
-      .from('teams')
+      .from('fb_teams')
       .select('*')
       .order('name');
 
@@ -29,9 +29,9 @@ export const teamService = {
     // Fetch league and player counts for each team
     const teamsWithCounts = await Promise.all(
       (teams || []).map(async (team: any) => {
-        // Count leagues via team_league_participation
+        // Count leagues via fb_team_league_participation
         const { count: leagueCount, error: leagueError } = await supabase
-          .from('team_league_participation')
+          .from('fb_team_league_participation')
           .select('*', { count: 'exact', head: true })
           .eq('team_id', team.id);
 
@@ -39,9 +39,9 @@ export const teamService = {
           console.warn(`⚠️ Error counting leagues for team ${team.name}:`, leagueError);
         }
 
-        // Count players via player_team_association
+        // Count players via fb_player_team_association
         const { count: playerCount, error: playerError } = await supabase
-          .from('player_team_association')
+          .from('fb_player_team_association')
           .select('*', { count: 'exact', head: true })
           .eq('team_id', team.id);
 
@@ -69,7 +69,7 @@ export const teamService = {
     }
 
     const { data, error } = await supabase
-      .from('teams')
+      .from('fb_teams')
       .select('*')
       .eq('id', id)
       .single();
@@ -86,10 +86,10 @@ export const teamService = {
     }
 
     let query = supabase
-      .from('team_league_participation')
+      .from('fb_team_league_participation')
       .select(`
         *,
-        teams(*)
+        fb_teams(*)
       `)
       .eq('league_id', leagueId);
 
@@ -111,7 +111,7 @@ export const teamService = {
     }
 
     const { data, error } = await supabase
-      .from('teams')
+      .from('fb_teams')
       .insert(input)
       .select()
       .single();
@@ -128,7 +128,7 @@ export const teamService = {
     }
 
     const { data, error } = await supabase
-      .from('teams')
+      .from('fb_teams')
       .update(input)
       .eq('id', id)
       .select()
@@ -146,7 +146,7 @@ export const teamService = {
     }
 
     const { error } = await supabase
-      .from('teams')
+      .from('fb_teams')
       .delete()
       .eq('id', id);
 
@@ -162,10 +162,10 @@ export const teamService = {
     }
 
     let query = supabase
-      .from('player_team_association')
+      .from('fb_player_team_association')
       .select(`
         *,
-        players(*)
+        fb_players(*)
       `)
       .eq('team_id', teamId);
 
@@ -192,7 +192,7 @@ export const teamService = {
     }
 
     const { data, error } = await supabase
-      .from('team_league_participation')
+      .from('fb_team_league_participation')
       .insert({
         team_id: teamId,
         league_id: leagueId,
@@ -214,7 +214,7 @@ export const teamService = {
     }
 
     const { error } = await supabase
-      .from('team_league_participation')
+      .from('fb_team_league_participation')
       .delete()
       .eq('team_id', teamId)
       .eq('league_id', leagueId)
@@ -241,29 +241,24 @@ export const teamService = {
       };
     }
 
-    // Get staging count
-    const { count: stagingCount, error: stagingError } = await supabase
+    // Get count from fb_teams (now the only table)
+    const { count: teamsCount, error: countError } = await supabase
       .from('fb_teams')
-      .select('*', { count: 'exact', head: true });
-
-    // Get production count
-    const { count: productionCount, error: productionError } = await supabase
-      .from('teams')
       .select('*', { count: 'exact', head: true });
 
     // Get last synced timestamp
     const { data: lastSync } = await supabase
-      .from('teams')
+      .from('fb_teams')
       .select('updated_at')
       .order('updated_at', { ascending: false })
       .limit(1)
       .single();
 
     return {
-      staging_count: stagingCount || 0,
-      production_count: productionCount || 0,
+      staging_count: 0, // No longer using dual table architecture
+      production_count: teamsCount || 0,
       last_synced: lastSync?.updated_at || null,
-      error: stagingError || productionError,
+      error: countError,
     };
   },
 
@@ -276,7 +271,7 @@ export const teamService = {
     }
 
     const { data, error } = await supabase
-      .from('teams')
+      .from('fb_teams')
       .select('*')
       .ilike('name', `%${query}%`)
       .order('name')

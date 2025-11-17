@@ -16,7 +16,7 @@ export const leagueService = {
 
     // Fetch leagues
     const { data: leagues, error: leaguesError } = await supabase
-      .from('leagues')
+      .from('fb_leagues')
       .select('*')
       .order('name');
 
@@ -27,11 +27,11 @@ export const leagueService = {
 
     console.log(`✅ Fetched ${leagues?.length || 0} leagues from database`);
 
-    // Fetch team counts for each league via team_league_participation
+    // Fetch team counts for each league via fb_team_league_participation
     const leaguesWithCounts = await Promise.all(
       (leagues || []).map(async (league: any) => {
         const { count, error: countError } = await supabase
-          .from('team_league_participation')
+          .from('fb_team_league_participation')
           .select('*', { count: 'exact', head: true })
           .eq('league_id', league.id);
 
@@ -58,7 +58,7 @@ export const leagueService = {
     }
 
     const { data, error } = await supabase
-      .from('leagues')
+      .from('fb_leagues')
       .select('*')
       .eq('id', id)
       .single();
@@ -75,7 +75,7 @@ export const leagueService = {
     }
 
     const { data, error } = await supabase
-      .from('leagues')
+      .from('fb_leagues')
       .insert(input)
       .select()
       .single();
@@ -92,7 +92,7 @@ export const leagueService = {
     }
 
     const { data, error } = await supabase
-      .from('leagues')
+      .from('fb_leagues')
       .update(input)
       .eq('id', id)
       .select()
@@ -110,7 +110,7 @@ export const leagueService = {
     }
 
     const { error } = await supabase
-      .from('leagues')
+      .from('fb_leagues')
       .delete()
       .eq('id', id);
 
@@ -126,10 +126,10 @@ export const leagueService = {
     }
 
     const { data, error } = await supabase
-      .from('team_league_participation')
+      .from('fb_team_league_participation')
       .select(`
         *,
-        teams(*)
+        fb_teams(*)
       `)
       .eq('league_id', leagueId)
       .eq('season', season);
@@ -155,29 +155,24 @@ export const leagueService = {
       };
     }
 
-    // Get staging count
-    const { count: stagingCount, error: stagingError } = await supabase
+    // Get count from fb_leagues (now the only table)
+    const { count: leaguesCount, error: countError } = await supabase
       .from('fb_leagues')
-      .select('*', { count: 'exact', head: true });
-
-    // Get production count
-    const { count: productionCount, error: productionError } = await supabase
-      .from('leagues')
       .select('*', { count: 'exact', head: true });
 
     // Get last synced timestamp
     const { data: lastSync } = await supabase
-      .from('leagues')
+      .from('fb_leagues')
       .select('updated_at')
       .order('updated_at', { ascending: false })
       .limit(1)
       .single();
 
     return {
-      staging_count: stagingCount || 0,
-      production_count: productionCount || 0,
+      staging_count: 0, // No longer using dual table architecture
+      production_count: leaguesCount || 0,
       last_synced: lastSync?.updated_at || null,
-      error: stagingError || productionError,
+      error: countError,
     };
   },
 
@@ -190,7 +185,7 @@ export const leagueService = {
     }
 
     const { data, error } = await supabase
-      .from('leagues')
+      .from('fb_leagues')
       .select('*')
       .ilike('name', `%${query}%`)
       .order('name')

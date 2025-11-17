@@ -58,7 +58,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
     try {
       // Count total players
       const { count: totalPlayers, error: totalError } = await supabase
-        .from('players')
+        .from('fb_players')
         .select('*', { count: 'exact', head: true })
         .not('api_id', 'is', null)
 
