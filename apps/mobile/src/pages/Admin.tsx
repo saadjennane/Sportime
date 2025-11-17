@@ -163,10 +163,14 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
   );
 
   return (
-    <div className="space-y-6">
-      {/* DEBUG: Visible indicator that new code is deployed */}
-      <div style={{ background: 'red', color: 'white', padding: '10px', fontWeight: 'bold', textAlign: 'center' }}>
-        🔴 DEBUG BUILD d8cc569 - If you see this, new code is deployed!
+    <div className="space-y-6" style={{ background: '#ff0000', padding: '20px' }}>
+      {/* MEGA DEBUG: ENTIRE SCREEN IS RED - IMPOSSIBLE TO MISS */}
+      <div style={{ background: 'yellow', color: 'black', padding: '30px', fontWeight: 'bold', textAlign: 'center', fontSize: '24px', border: '10px solid green' }}>
+        🚨🚨🚨 NEW CODE DEPLOYED 85d5e5d 🚨🚨🚨
+        <br />
+        IF YOU SEE THIS THE NEW CODE IS LIVE!!!
+        <br />
+        COMMIT: 85d5e5d | TIME: {new Date().toISOString()}
       </div>
 
       <div className="grid grid-cols-4 sm:grid-cols-7 bg-navy-accent rounded-xl p-1 gap-1">
