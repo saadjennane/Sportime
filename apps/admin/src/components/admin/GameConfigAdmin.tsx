@@ -23,13 +23,13 @@ export function GameConfigAdmin() {
   const [editedConfigs, setEditedConfigs] = useState<Map<string, any>>(new Map())
   const [lastPublished, setLastPublished] = useState<{ by: string; at: string } | null>(null)
 
-  // TEMPORARY: Force super_admin access for testing
-  const isSuperAdmin = true; // useIsSuperAdmin()
+  const isSuperAdmin = useIsSuperAdmin()
 
   useEffect(() => {
-    // TEMPORARY: Always load configs for testing
-    loadConfigs()
-  }, [])
+    if (isSuperAdmin) {
+      loadConfigs()
+    }
+  }, [isSuperAdmin])
 
   async function loadConfigs() {
     setLoading(true)

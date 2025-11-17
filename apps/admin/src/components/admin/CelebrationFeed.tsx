@@ -4,10 +4,10 @@ import { format, parseISO } from 'date-fns';
 import { Trophy, Gift } from 'lucide-react';
 
 interface CelebrationFeedProps {
-  celebrations: CelebrationEvent[];
+  celebrations?: CelebrationEvent[];
 }
 
-export const CelebrationFeed: React.FC<CelebrationFeedProps> = ({ celebrations }) => {
+export const CelebrationFeed: React.FC<CelebrationFeedProps> = ({ celebrations = [] }) => {
   if (celebrations.length === 0) {
     return (
       <div className="card-base p-8 text-center">
