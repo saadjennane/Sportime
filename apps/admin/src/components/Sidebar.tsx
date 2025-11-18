@@ -10,7 +10,8 @@ import {
   Users,
   Settings,
   Menu,
-  X
+  X,
+  Calendar
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -26,6 +27,7 @@ export function Sidebar({ className = '' }: SidebarProps) {
     { to: '/leagues', icon: Globe, label: 'Leagues' },
     { to: '/teams', icon: Shield, label: 'Teams' },
     { to: '/players', icon: Users, label: 'Players' },
+    { to: '/fixtures', icon: Calendar, label: 'Fixtures' },
     { to: '/swipe', icon: Zap, label: 'Swipe Games' },
     { to: '/progression', icon: Star, label: 'Progression' },
     { to: '/data-sync', icon: DatabaseZap, label: 'Data Sync' },

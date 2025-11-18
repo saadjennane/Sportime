@@ -413,3 +413,91 @@ export async function syncAllMajorLeagues(
 
   return { success: true, results }
 }
+
+/**
+ * Sync fixtures for a specific league
+ */
+export async function syncLeagueFixtures(
+  leagueId: string,
+  leagueApiId: number,
+  season: number = 2025,
+  onProgress?: SyncProgressCallback
+): Promise<{ success: boolean; error?: string; fixturesCount?: number }> {
+  try {
+    onProgress?.({ step: 'fixtures', current: 0, total: 100, message: 'Fetching fixtures from API-Football...' })
+
+    // Fetch fixtures for this league from API-Football
+    const response = await apiFootball<{ response: any[] }>('/fixtures', {
+      league: leagueApiId,
+      season,
+    })
+
+    if (!response.response || response.response.length === 0) {
+      return { success: false, error: 'No fixtures found for this league' }
+    }
+
+    const fixtures = response.response
+    let inserted = 0
+
+    for (let i = 0; i < fixtures.length; i++) {
+      const fixtureData = fixtures[i]
+
+      onProgress?.({
+        step: 'fixtures',
+        current: i + 1,
+        total: fixtures.length,
+        message: `Importing fixture ${i + 1} of ${fixtures.length}...`,
+      })
+
+      // Get team IDs from database using API IDs
+      const { data: homeTeam } = await supabase
+        .from('fb_teams')
+        .select('id')
+        .eq('api_id', fixtureData.teams.home.id)
+        .single()
+
+      const { data: awayTeam } = await supabase
+        .from('fb_teams')
+        .select('id')
+        .eq('api_id', fixtureData.teams.away.id)
+        .single()
+
+      if (!homeTeam || !awayTeam) {
+        console.warn(`Teams not found for fixture ${fixtureData.fixture.id}`)
+        continue
+      }
+
+      // Insert fixture
+      const { error: fixtureError } = await supabase
+        .from('fb_fixtures')
+        .upsert(
+          {
+            api_id: fixtureData.fixture.id,
+            league_id: leagueId,
+            home_team_id: homeTeam.id,
+            away_team_id: awayTeam.id,
+            date: fixtureData.fixture.date,
+            status: fixtureData.fixture.status.short,
+            home_score: fixtureData.goals.home,
+            away_score: fixtureData.goals.away,
+            venue: fixtureData.fixture.venue?.name || null,
+            referee: fixtureData.fixture.referee || null,
+            round: fixtureData.league.round || null,
+          },
+          { onConflict: 'api_id' }
+        )
+
+      if (fixtureError) {
+        console.error(`Error inserting fixture ${fixtureData.fixture.id}:`, fixtureError)
+        continue
+      }
+
+      inserted++
+    }
+
+    return { success: true, fixturesCount: inserted }
+  } catch (error: any) {
+    console.error('syncLeagueFixtures error:', error)
+    return { success: false, error: error.message }
+  }
+}

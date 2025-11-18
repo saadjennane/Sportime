@@ -4,6 +4,7 @@ import { Dashboard } from './pages/Dashboard';
 import { LeaguesPage } from './pages/LeaguesPage';
 import { TeamsPage } from './pages/TeamsPage';
 import { PlayersPage } from './pages/PlayersPage';
+import { FixturesPage } from './pages/FixturesPage';
 import { SwipePage } from './pages/SwipePage';
 import { ProgressionPage } from './pages/ProgressionPage';
 import { DataSyncPage } from './pages/DataSyncPage';
@@ -18,6 +19,7 @@ function App() {
         <Route path="/leagues" element={<LeaguesPage />} />
         <Route path="/teams" element={<TeamsPage />} />
         <Route path="/players" element={<PlayersPage />} />
+        <Route path="/fixtures" element={<FixturesPage />} />
         <Route path="/swipe" element={<SwipePage />} />
         <Route path="/progression" element={<ProgressionPage />} />
         <Route path="/data-sync" element={<DataSyncPage />} />
