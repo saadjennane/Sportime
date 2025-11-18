@@ -1,6 +1,17 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { differenceInYears, parseISO } from 'https://cdn.skypack.dev/date-fns@2.29.3'
+
+// Helper function to calculate age from birthdate
+function calculateAge(birthdate: string): number {
+  const birth = new Date(birthdate)
+  const today = new Date()
+  let age = today.getFullYear() - birth.getFullYear()
+  const monthDiff = today.getMonth() - birth.getMonth()
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--
+  }
+  return age
+}
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -319,7 +330,7 @@ serve(async (req) => {
         teamTotalPoints *= FANTASY_CONFIG.bonuses.crazy
       }
 
-      const avgAge = starterPlayers.reduce((sum, p) => sum + differenceInYears(new Date(), parseISO(p.birthdate)), 0) / starterPlayers.length
+      const avgAge = starterPlayers.reduce((sum, p) => sum + calculateAge(p.birthdate), 0) / starterPlayers.length
       if (avgAge >= 30) {
         teamTotalPoints *= FANTASY_CONFIG.bonuses.vintage
       }
