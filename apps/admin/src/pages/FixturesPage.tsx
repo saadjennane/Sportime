@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Search, Calendar, RefreshCw, Download, Filter } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
-import { syncLeagueFixtures, type SyncProgress } from '../services/footballSyncService';
+import { syncLeagueFixtures, syncLeagueTeams, type SyncProgress } from '../services/footballSyncService';
 import { leagueService } from '../services/leagueService';
 import type { LeagueWithTeamCount } from '../types/football';
 
@@ -211,6 +211,29 @@ export function FixturesPage() {
         continue;
       }
 
+      // First, ensure teams are imported for this league
+      setSyncProgress({
+        step: 'teams',
+        current: i + 1,
+        total: apiIds.length,
+        message: `Checking teams for ${league.name}...`
+      });
+
+      const teamsResult = await syncLeagueTeams(league.id, apiId, Number(season), (progress) => {
+        setSyncProgress({
+          ...progress,
+          message: `[${i + 1}/${apiIds.length}] ${progress.message}`
+        });
+      });
+
+      if (!teamsResult.success) {
+        console.error(`Failed to sync teams for ${league.name}:`, teamsResult.error);
+        mockAddToast(`Failed to sync teams for ${league.name}. Skipping fixtures.`, 'error');
+        failCount++;
+        continue;
+      }
+
+      // Now import fixtures
       setSyncProgress({
         step: 'fixtures',
         current: i + 1,
@@ -298,7 +321,7 @@ export function FixturesPage() {
       <div className="mb-6 p-6 bg-surface border border-border-subtle rounded-lg">
         <h2 className="text-xl font-bold mb-4">Import Fixtures from API-Football</h2>
         <p className="text-text-secondary mb-4">
-          Enter league API ID(s) separated by commas to import their fixtures
+          Enter league API ID(s) separated by commas to import their fixtures. Teams will be imported automatically if needed.
         </p>
         <p className="text-sm text-text-secondary mb-4">
           Common IDs: 39 (Premier League), 2 (Champions League), 140 (La Liga), 135 (Serie A), 61 (Ligue 1), 78 (Bundesliga)
