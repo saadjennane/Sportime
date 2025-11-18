@@ -468,12 +468,12 @@ export async function syncLeagueFixtures(
       }
 
       // Insert fixture with UUIDs for team references
+      // Don't set 'id' - it's auto-generated UUID. Use api_id for upsert conflict.
       const { error: fixtureError } = await supabase
         .from('fb_fixtures')
         .upsert(
           {
-            id: fixtureData.fixture.id, // Primary key is the API fixture ID
-            api_id: fixtureData.fixture.id, // Alias column
+            api_id: fixtureData.fixture.id, // API-Football fixture ID
             league_id: leagueId,
             home_team_id: homeTeam.id, // UUID from fb_teams
             away_team_id: awayTeam.id, // UUID from fb_teams
@@ -482,14 +482,14 @@ export async function syncLeagueFixtures(
             goals_home: fixtureData.goals.home,
             goals_away: fixtureData.goals.away,
           },
-          { onConflict: 'id' }
+          { onConflict: 'api_id' }
         )
 
       if (fixtureError) {
         console.error(`Error inserting fixture ${fixtureData.fixture.id}:`)
         console.error('Error details:', JSON.stringify(fixtureError, null, 2))
         console.error('Fixture data we tried to insert:', {
-          id: fixtureData.fixture.id,
+          api_id: fixtureData.fixture.id,
           league_id: leagueId,
           home_team_id: homeTeam.id,
           away_team_id: awayTeam.id,
