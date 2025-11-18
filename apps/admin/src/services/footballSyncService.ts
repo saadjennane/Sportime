@@ -481,6 +481,7 @@ export async function syncLeagueFixtures(
             status: fixtureData.fixture.status.short,
             goals_home: fixtureData.goals.home,
             goals_away: fixtureData.goals.away,
+            round: fixtureData.league?.round || null, // Matchday/Round info
           },
           { onConflict: 'api_id' }
         )
@@ -497,6 +498,7 @@ export async function syncLeagueFixtures(
           status: fixtureData.fixture.status.short,
           goals_home: fixtureData.goals.home,
           goals_away: fixtureData.goals.away,
+          round: fixtureData.league?.round || null,
         })
         continue
       }
