@@ -449,46 +449,37 @@ export async function syncLeagueFixtures(
         message: `Importing fixture ${i + 1} of ${fixtures.length}...`,
       })
 
-      // Get team IDs from database using API IDs
-      const { data: homeTeam } = await supabase
-        .from('fb_teams')
-        .select('id')
-        .eq('api_id', fixtureData.teams.home.id)
-        .single()
-
-      const { data: awayTeam } = await supabase
-        .from('fb_teams')
-        .select('id')
-        .eq('api_id', fixtureData.teams.away.id)
-        .single()
-
-      if (!homeTeam || !awayTeam) {
-        console.warn(`Teams not found for fixture ${fixtureData.fixture.id}`)
-        continue
-      }
-
-      // Insert fixture
+      // Insert fixture with API IDs (not UUIDs)
+      // The fb_fixtures table uses BIGINT for team IDs (API IDs directly)
       const { error: fixtureError } = await supabase
         .from('fb_fixtures')
         .upsert(
           {
-            api_id: fixtureData.fixture.id,
+            id: fixtureData.fixture.id, // Primary key is the API fixture ID
+            api_id: fixtureData.fixture.id, // Alias column
             league_id: leagueId,
-            home_team_id: homeTeam.id,
-            away_team_id: awayTeam.id,
+            home_team_id: fixtureData.teams.home.id, // API team ID (BIGINT)
+            away_team_id: fixtureData.teams.away.id, // API team ID (BIGINT)
             date: fixtureData.fixture.date,
             status: fixtureData.fixture.status.short,
-            home_score: fixtureData.goals.home,
-            away_score: fixtureData.goals.away,
-            venue: fixtureData.fixture.venue?.name || null,
-            referee: fixtureData.fixture.referee || null,
-            round: fixtureData.league.round || null,
+            goals_home: fixtureData.goals.home, // Column is goals_home, not home_score
+            goals_away: fixtureData.goals.away, // Column is goals_away, not away_score
           },
-          { onConflict: 'api_id' }
+          { onConflict: 'id' }
         )
 
       if (fixtureError) {
         console.error(`Error inserting fixture ${fixtureData.fixture.id}:`, fixtureError)
+        console.error('Fixture data:', {
+          id: fixtureData.fixture.id,
+          league_id: leagueId,
+          home_team_id: fixtureData.teams.home.id,
+          away_team_id: fixtureData.teams.away.id,
+          date: fixtureData.fixture.date,
+          status: fixtureData.fixture.status.short,
+          goals_home: fixtureData.goals.home,
+          goals_away: fixtureData.goals.away,
+        })
         continue
       }
 
