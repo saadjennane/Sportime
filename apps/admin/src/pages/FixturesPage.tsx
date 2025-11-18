@@ -17,8 +17,8 @@ interface Fixture {
   away_team_id: string;
   date: string;
   status: string;
-  home_score: number | null;
-  away_score: number | null;
+  goals_home: number | null;
+  goals_away: number | null;
   venue: string | null;
   referee: string | null;
   round: string | null;
@@ -75,8 +75,8 @@ export function FixturesPage() {
         home_team:fb_teams!home_team_id(name),
         away_team:fb_teams!away_team_id(name)
       `)
-      .order('date', { ascending: false })
-      .limit(200);
+      .order('date', { ascending: true })
+      .limit(1000);
 
     if (error) {
       mockAddToast('Failed to load fixtures', 'error');
@@ -426,8 +426,8 @@ export function FixturesPage() {
             No fixtures found. Import some fixtures using the form above.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto max-w-full">
+            <table className="w-full min-w-max">
               <thead className="bg-background-dark border-b border-border-subtle">
                 <tr>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-text-secondary">
@@ -484,9 +484,9 @@ export function FixturesPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      {fixture.home_score !== null && fixture.away_score !== null ? (
+                      {fixture.goals_home !== null && fixture.goals_away !== null ? (
                         <span className="font-bold">
-                          {fixture.home_score} - {fixture.away_score}
+                          {fixture.goals_home} - {fixture.goals_away}
                         </span>
                       ) : (
                         <span className="text-text-disabled">-</span>
