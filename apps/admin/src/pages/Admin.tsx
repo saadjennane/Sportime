@@ -60,9 +60,12 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
 
   // ==================== CHALLENGE ADMIN HANDLERS ====================
 
-  const handleCreateGame = async (config: Omit<SportimeGame, 'id' | 'status' | 'totalPlayers' | 'participants'>) => {
+  const handleCreateGame = async (config: Omit<SportimeGame, 'id' | 'status' | 'totalPlayers' | 'participants'>, saveAsDraft: boolean = false) => {
     if (USE_SUPABASE) {
       try {
+        // Extract publish_date if present
+        const publishDate = (config as any).publish_date;
+
         // Map SportimeGame to CreateChallengeParams
         const params: challengeService.CreateChallengeParams = {
           name: config.name,
@@ -84,7 +87,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
             maximum_players: config.maximum_players,
             challengeBalance: config.challengeBalance,
           },
-          status: 'upcoming',
+          status: saveAsDraft ? 'draft' : 'upcoming',
           entry_conditions: {
             requires_subscription: config.requires_subscription,
             minimum_level: config.minimum_level,
@@ -97,10 +100,18 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
           ],
           league_ids: config.league_id ? [config.league_id] : [],
           match_ids: [], // Matches can be added later
+          publish_date: publishDate || null,
         };
 
         const result = await challengeService.createChallenge(params);
-        addToast('Game created successfully!', 'success');
+
+        const message = publishDate
+          ? `Game scheduled for publication on ${new Date(publishDate).toLocaleString()}`
+          : saveAsDraft
+            ? 'Game saved as draft!'
+            : 'Game created successfully!';
+
+        addToast(message, 'success');
         // Note: Games list automatically refreshes via ChallengesAdmin component
       } catch (error) {
         console.error('[AdminPage] Failed to create game:', error);
@@ -171,6 +182,11 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
             updateBasePack={updateBasePack}
             updateGameRewards={updateGameRewards}
             onCelebrate={setCelebratingGame}
+            onRefresh={() => {
+              // Force component refresh by triggering state update
+              // The games will automatically refresh from the store
+              setActiveSection(activeSection);
+            }}
           />
         </div>
       )}

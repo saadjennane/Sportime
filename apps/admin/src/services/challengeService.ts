@@ -80,6 +80,7 @@ export type ChallengeCatalogResult = {
 }
 
 const STATUS_MAP: Record<string, SportimeGame['status']> = {
+  draft: 'Draft',
   upcoming: 'Upcoming',
   active: 'Ongoing',
   ongoing: 'Ongoing',
@@ -778,6 +779,7 @@ export type CreateChallengeParams = {
   configs?: Array<{ config_type: string; config_data: Record<string, any> }>
   league_ids?: string[]
   match_ids?: string[]
+  publish_date?: string | null
 }
 
 export type UpdateChallengeParams = {
@@ -834,8 +836,37 @@ export async function createChallenge(params: CreateChallengeParams) {
 
 /**
  * Update a challenge (admin only)
+ * Only draft challenges can be edited (including scheduled ones)
  */
 export async function updateChallenge(params: UpdateChallengeParams) {
+  // First verify the challenge is in draft status (unless we're explicitly changing status)
+  if (!params.status || params.status === 'draft') {
+    const { data: challenge, error: fetchError } = await supabase
+      .from('challenges')
+      .select('status, publish_date')
+      .eq('id', params.challenge_id)
+      .single()
+
+    if (fetchError) {
+      console.error('[challengeService] Failed to fetch challenge:', fetchError)
+      throw fetchError
+    }
+
+    if (challenge?.status !== 'draft') {
+      throw new Error(`Cannot edit challenge with status: ${challenge?.status}. Only draft challenges can be edited.`)
+    }
+
+    // Check if publish date has passed (for scheduled games)
+    if (challenge?.publish_date) {
+      const publishDateTime = new Date(challenge.publish_date)
+      const now = new Date()
+
+      if (publishDateTime <= now) {
+        throw new Error('Cannot edit challenge: scheduled publish date has passed. The game should be published.')
+      }
+    }
+  }
+
   const { data, error } = await supabase
     .rpc('update_challenge', {
       p_challenge_id: params.challenge_id,
@@ -927,6 +958,74 @@ export async function finalizeChallenge(challengeId: string) {
     success: data.out_success,
     message: data.out_message,
     totalParticipants: data.out_total_participants,
+  }
+}
+
+/**
+ * Publish a draft challenge (admin only)
+ * Changes status from 'draft' to 'upcoming'
+ * Can publish immediately or schedule for a future date
+ */
+export async function publishChallenge(challengeId: string, publishDate?: string | null) {
+  // First verify the challenge is in draft status
+  const { data: challenge, error: fetchError } = await supabase
+    .from('challenges')
+    .select('status, publish_date')
+    .eq('id', challengeId)
+    .single()
+
+  if (fetchError) {
+    console.error('[challengeService] Failed to fetch challenge:', fetchError)
+    throw fetchError
+  }
+
+  if (challenge?.status !== 'draft') {
+    throw new Error(`Cannot publish challenge with status: ${challenge?.status}. Only draft challenges can be published.`)
+  }
+
+  // If publish date is provided, schedule for later (stay in draft)
+  if (publishDate) {
+    const publishDateTime = new Date(publishDate)
+    const now = new Date()
+
+    if (publishDateTime <= now) {
+      throw new Error('Publish date must be in the future')
+    }
+
+    // Update publish_date but keep status as draft
+    const { error: updateError } = await supabase
+      .from('challenges')
+      .update({ publish_date: publishDate })
+      .eq('id', challengeId)
+
+    if (updateError) {
+      console.error('[challengeService] Failed to schedule challenge:', updateError)
+      throw updateError
+    }
+
+    return {
+      success: true,
+      message: `Challenge scheduled for publication on ${publishDateTime.toLocaleString()}`,
+    }
+  }
+
+  // Publish immediately
+  const { error: updateError } = await supabase
+    .from('challenges')
+    .update({
+      status: 'upcoming',
+      publish_date: null // Clear any scheduled date
+    })
+    .eq('id', challengeId)
+
+  if (updateError) {
+    console.error('[challengeService] Failed to publish challenge:', updateError)
+    throw updateError
+  }
+
+  return {
+    success: true,
+    message: 'Challenge published successfully',
   }
 }
 

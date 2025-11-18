@@ -569,7 +569,7 @@ export interface SportimeGame {
   conditions_logic?: ConditionsLogic;
   minimum_players: number;
   maximum_players: number;
-  status: 'Upcoming' | 'Ongoing' | 'Finished' | 'Cancelled';
+  status: 'Draft' | 'Upcoming' | 'Ongoing' | 'Finished' | 'Cancelled';
   totalPlayers: number;
   participants: string[];
   rewards: GameRewardTier[];

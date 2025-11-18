@@ -9,9 +9,11 @@ import { useMockStore } from '../../store/useMockStore';
 import { BASE_REWARD_PACKS } from '../../config/rewardPacks';
 
 interface GameCreationFormProps {
-  onCreate: (config: Omit<SportimeGame, 'id' | 'status' | 'totalPlayers' | 'participants'>) => void;
+  onCreate: (config: Omit<SportimeGame, 'id' | 'status' | 'totalPlayers' | 'participants'>, saveAsDraft?: boolean) => void;
   onCancel: () => void;
   addToast: (message: string, type: 'success' | 'error' | 'info') => void;
+  initialData?: SportimeGame;
+  isEditing?: boolean;
 }
 
 interface League {
@@ -51,9 +53,32 @@ const initialFormState: Omit<SportimeGame, 'id' | 'status' | 'totalPlayers' | 'p
   rewards: [],
 };
 
-export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, onCancel, addToast }) => {
-  const [formState, setFormState] = useState(initialFormState);
+export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, onCancel, addToast, initialData, isEditing = false }) => {
+  const [formState, setFormState] = useState(initialData ? {
+    name: initialData.name,
+    description: initialData.description || '',
+    league_id: initialData.league_id || '',
+    start_date: initialData.start_date,
+    end_date: initialData.end_date,
+    game_type: initialData.game_type,
+    tier: initialData.tier,
+    duration_type: initialData.duration_type,
+    entry_cost: initialData.entry_cost,
+    custom_entry_cost_enabled: initialData.custom_entry_cost_enabled || false,
+    is_linkable: initialData.is_linkable !== undefined ? initialData.is_linkable : true,
+    reward_tier: initialData.reward_tier,
+    format: initialData.format,
+    requires_subscription: initialData.requires_subscription || false,
+    minimum_level: initialData.minimum_level,
+    required_badges: initialData.required_badges || [],
+    conditions_logic: initialData.conditions_logic || 'and',
+    minimum_players: initialData.minimum_players,
+    maximum_players: initialData.maximum_players,
+    rewards: initialData.rewards || [],
+  } : initialFormState);
   const [isRewardsOpen, setIsRewardsOpen] = useState(false);
+  const [publishMode, setPublishMode] = useState<'now' | 'later'>('now');
+  const [publishDate, setPublishDate] = useState('');
   const [leagues, setLeagues] = useState<League[]>([]);
   const [levels, setLevels] = useState<Level[]>([]);
   const [badges, setBadges] = useState<Badge[]>([]);
@@ -186,7 +211,7 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
     setFormState({ ...formState, rewards: newRewards });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent, saveAsDraft: boolean = false) => {
     e.preventDefault();
 
     // Validate league is selected
@@ -195,7 +220,20 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
       return;
     }
 
-    onCreate(formState);
+    // Validate publish date if scheduling
+    if (!saveAsDraft && publishMode === 'later' && !publishDate) {
+      addToast('Please select a publish date', 'error');
+      return;
+    }
+
+    // If scheduling for later, treat as draft with publish_date
+    const isDraft = saveAsDraft || publishMode === 'later';
+    const configWithPublishDate = {
+      ...formState,
+      publish_date: publishMode === 'later' ? publishDate : null,
+    };
+
+    onCreate(configWithPublishDate as any, isDraft);
   };
 
   const formFieldClasses = "input-base text-sm";
@@ -289,6 +327,55 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
         />
       </div>
 
+      {/* Publishing Options */}
+      {!isEditing && (
+        <div className="border-t border-disabled/50 pt-4 space-y-3">
+          <h4 className="text-sm font-semibold text-text-secondary">Publishing Options</h4>
+
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="publishMode"
+                value="now"
+                checked={publishMode === 'now'}
+                onChange={() => setPublishMode('now')}
+                className="accent-electric-blue"
+              />
+              <span className="text-sm text-text-primary">Publish Now</span>
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="publishMode"
+                value="later"
+                checked={publishMode === 'later'}
+                onChange={() => setPublishMode('later')}
+                className="accent-electric-blue"
+              />
+              <span className="text-sm text-text-primary">Schedule for Later</span>
+            </label>
+          </div>
+
+          {publishMode === 'later' && (
+            <div>
+              <label className="text-xs text-text-disabled block mb-1">Publish Date & Time</label>
+              <input
+                type="datetime-local"
+                value={publishDate}
+                onChange={(e) => setPublishDate(e.target.value)}
+                className={formFieldClasses}
+                min={new Date().toISOString().slice(0, 16)}
+              />
+              <p className="text-xs text-text-disabled mt-1">
+                Game will remain in draft until this date. You can edit it anytime before publication.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Rewards Section */}
       <div className="border-t border-disabled/50 pt-4">
         <button type="button" onClick={() => setIsRewardsOpen(!isRewardsOpen)} className="w-full flex justify-between items-center">
@@ -312,7 +399,18 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
       {/* Actions */}
       <div className="flex gap-3 pt-3">
         <button type="button" onClick={onCancel} className="flex-1 py-2 bg-disabled text-text-secondary rounded-lg font-semibold">Cancel</button>
-        <button type="submit" className="flex-1 primary-button py-2">Create Game</button>
+        {!isEditing && (
+          <button
+            type="button"
+            onClick={(e) => handleSubmit(e, true)}
+            className="flex-1 py-2 bg-warm-yellow/20 text-warm-yellow rounded-lg font-semibold hover:bg-warm-yellow/30"
+          >
+            Save as Draft
+          </button>
+        )}
+        <button type="submit" className="flex-1 primary-button py-2">
+          {isEditing ? 'Update Game' : 'Create & Publish'}
+        </button>
       </div>
     </form>
   );
