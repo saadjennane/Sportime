@@ -446,7 +446,7 @@ export function FixturesPage() {
                     Status
                   </th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-text-secondary">
-                    Round
+                    Matchday
                   </th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-text-secondary">
                     API ID
@@ -506,7 +506,15 @@ export function FixturesPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm text-text-secondary">
-                      {fixture.round || '-'}
+                      {(() => {
+                        if (!fixture.round) return '-';
+                        // Extract matchday number from strings like "Regular Season - 15"
+                        const match = fixture.round.match(/(\d+)/);
+                        if (match) {
+                          return `MD ${match[1]}`;
+                        }
+                        return fixture.round;
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-sm text-text-disabled">
                       {fixture.api_id || '-'}
