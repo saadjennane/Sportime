@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Calendar, RefreshCw, Download, Filter } from 'lucide-react';
+import { Search, Calendar, RefreshCw, Download, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { syncLeagueFixtures, syncLeagueTeams, type SyncProgress } from '../services/footballSyncService';
 import { leagueService } from '../services/leagueService';
@@ -41,11 +41,12 @@ export function FixturesPage() {
     future_fixtures: 0,
     past_fixtures: 0,
   });
-  const [leagueIds, setLeagueIds] = useState<string>('39, 2, 140, 135'); // Premier League, UCL, La Liga, Serie A
-  const [season, setSeason] = useState('2025');
+  const [selectedLeagueIds, setSelectedLeagueIds] = useState<string[]>([]);
+  const [season, setSeason] = useState('');
   const [syncingFixtures, setSyncingFixtures] = useState<string | null>(null);
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
   const [isBulkImporting, setIsBulkImporting] = useState(false);
+  const [isImportSectionCollapsed, setIsImportSectionCollapsed] = useState(false);
 
   useEffect(() => {
     loadFixtures();
@@ -97,28 +98,30 @@ export function FixturesPage() {
   const loadSyncStatus = async () => {
     if (!supabase) return;
 
-    const { data, error } = await supabase
-      .rpc('get_fixtures_stats')
-      .single();
+    const now = new Date().toISOString();
 
-    if (!error && data) {
-      setSyncStatus({
-        total_fixtures: data.total || 0,
-        future_fixtures: data.future || 0,
-        past_fixtures: data.past || 0,
-      });
-    } else {
-      // Fallback to simple count
-      const { count } = await supabase
-        .from('fb_fixtures')
-        .select('*', { count: 'exact', head: true });
+    // Get total count
+    const { count: total } = await supabase
+      .from('fb_fixtures')
+      .select('*', { count: 'exact', head: true });
 
-      setSyncStatus({
-        total_fixtures: count || 0,
-        future_fixtures: 0,
-        past_fixtures: 0,
-      });
-    }
+    // Get future fixtures count
+    const { count: future } = await supabase
+      .from('fb_fixtures')
+      .select('*', { count: 'exact', head: true })
+      .gte('date', now);
+
+    // Get past fixtures count
+    const { count: past } = await supabase
+      .from('fb_fixtures')
+      .select('*', { count: 'exact', head: true })
+      .lt('date', now);
+
+    setSyncStatus({
+      total_fixtures: total || 0,
+      future_fixtures: future || 0,
+      past_fixtures: past || 0,
+    });
   };
 
   const loadLeagues = async () => {
@@ -180,15 +183,13 @@ export function FixturesPage() {
   };
 
   const handleBulkImportFixtures = async () => {
-    if (!leagueIds.trim()) {
-      mockAddToast('Please enter at least one league API ID', 'error');
+    if (selectedLeagueIds.length === 0) {
+      mockAddToast('Please select at least one league', 'error');
       return;
     }
 
-    const apiIds = leagueIds.split(',').map(id => id.trim()).filter(id => id && !isNaN(Number(id)));
-
-    if (apiIds.length === 0) {
-      mockAddToast('Please enter valid league API IDs (numbers)', 'error');
+    if (!season.trim()) {
+      mockAddToast('Please enter a season (e.g., 2025)', 'error');
       return;
     }
 
@@ -199,15 +200,15 @@ export function FixturesPage() {
     let failCount = 0;
     let totalFixtures = 0;
 
-    for (let i = 0; i < apiIds.length; i++) {
-      const apiId = Number(apiIds[i]);
+    for (let i = 0; i < selectedLeagueIds.length; i++) {
+      const leagueId = selectedLeagueIds[i];
 
-      // Find league by API ID
-      const league = leagues.find(l => l.api_id === apiId);
+      // Find league by ID
+      const league = leagues.find(l => l.id === leagueId);
 
-      if (!league) {
+      if (!league || !league.api_id) {
         failCount++;
-        console.warn(`League not found for API ID: ${apiId}`);
+        console.warn(`League not found or missing API ID: ${leagueId}`);
         continue;
       }
 
@@ -215,14 +216,14 @@ export function FixturesPage() {
       setSyncProgress({
         step: 'teams',
         current: i + 1,
-        total: apiIds.length,
+        total: selectedLeagueIds.length,
         message: `Checking teams for ${league.name}...`
       });
 
-      const teamsResult = await syncLeagueTeams(league.id, apiId, Number(season), (progress) => {
+      const teamsResult = await syncLeagueTeams(league.id, league.api_id, Number(season), (progress) => {
         setSyncProgress({
           ...progress,
-          message: `[${i + 1}/${apiIds.length}] ${progress.message}`
+          message: `[${i + 1}/${selectedLeagueIds.length}] ${progress.message}`
         });
       });
 
@@ -237,14 +238,14 @@ export function FixturesPage() {
       setSyncProgress({
         step: 'fixtures',
         current: i + 1,
-        total: apiIds.length,
+        total: selectedLeagueIds.length,
         message: `Importing fixtures for ${league.name}...`
       });
 
-      const result = await syncLeagueFixtures(league.id, apiId, Number(season), (progress) => {
+      const result = await syncLeagueFixtures(league.id, league.api_id, Number(season), (progress) => {
         setSyncProgress({
           ...progress,
-          message: `[${i + 1}/${apiIds.length}] ${progress.message}`
+          message: `[${i + 1}/${selectedLeagueIds.length}] ${progress.message}`
         });
       });
 
@@ -268,6 +269,14 @@ export function FixturesPage() {
     );
   };
 
+  const handleLeagueToggle = (leagueId: string) => {
+    setSelectedLeagueIds(prev =>
+      prev.includes(leagueId)
+        ? prev.filter(id => id !== leagueId)
+        : [...prev, leagueId]
+    );
+  };
+
   // Get unique statuses for filter
   const statuses = Array.from(new Set(fixtures.map((f) => f.status))).sort();
 
@@ -278,6 +287,9 @@ export function FixturesPage() {
         <h1 className="text-3xl font-bold mb-2">Fixtures Management</h1>
         <p className="text-text-secondary">
           Manage football fixtures and match schedules
+        </p>
+        <p className="text-sm text-text-disabled mt-1">
+          All times displayed in UTC timezone
         </p>
       </div>
 
@@ -317,61 +329,105 @@ export function FixturesPage() {
         </div>
       </div>
 
-      {/* Import Fixtures by League API ID */}
-      <div className="mb-6 p-6 bg-surface border border-border-subtle rounded-lg">
-        <h2 className="text-xl font-bold mb-4">Import Fixtures from API-Football</h2>
-        <p className="text-text-secondary mb-4">
-          Enter league API ID(s) separated by commas to import their fixtures. Teams will be imported automatically if needed.
-        </p>
-        <p className="text-sm text-text-secondary mb-4">
-          Common IDs: 39 (Premier League), 2 (Champions League), 140 (La Liga), 135 (Serie A), 61 (Ligue 1), 78 (Bundesliga)
-        </p>
+      {/* Import Fixtures by League Selector */}
+      <div className="mb-6 bg-surface border border-border-subtle rounded-lg">
+        <button
+          onClick={() => setIsImportSectionCollapsed(!isImportSectionCollapsed)}
+          className="w-full px-6 py-4 flex items-center justify-between hover:bg-surface-hover transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <Download className="w-5 h-5 text-electric-blue" />
+            <h2 className="text-xl font-bold">Import Fixtures from API-Football</h2>
+          </div>
+          {isImportSectionCollapsed ? (
+            <ChevronDown className="w-5 h-5 text-text-secondary" />
+          ) : (
+            <ChevronUp className="w-5 h-5 text-text-secondary" />
+          )}
+        </button>
 
-        {syncProgress && (
-          <div className="mb-4 p-4 bg-background-dark rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium">{syncProgress.message}</span>
-              <span className="text-sm text-text-secondary">
-                {syncProgress.current}/{syncProgress.total}
-              </span>
-            </div>
-            <div className="w-full bg-surface-hover rounded-full h-2">
-              <div
-                className="bg-electric-blue h-2 rounded-full transition-all duration-300"
-                style={{
-                  width: `${(syncProgress.current / syncProgress.total) * 100}%`,
-                }}
-              />
+        {!isImportSectionCollapsed && (
+          <div className="px-6 pb-6">
+            <p className="text-text-secondary mb-4">
+              Select leagues to import their fixtures. Teams will be imported automatically if needed.
+            </p>
+
+            {syncProgress && (
+              <div className="mb-4 p-4 bg-background-dark rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">{syncProgress.message}</span>
+                  <span className="text-sm text-text-secondary">
+                    {syncProgress.current}/{syncProgress.total}
+                  </span>
+                </div>
+                <div className="w-full bg-surface-hover rounded-full h-2">
+                  <div
+                    className="bg-electric-blue h-2 rounded-full transition-all duration-300"
+                    style={{
+                      width: `${(syncProgress.current / syncProgress.total) * 100}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              {/* Season Input */}
+              <div>
+                <label className="block text-sm font-medium mb-2">Season</label>
+                <input
+                  type="text"
+                  value={season}
+                  onChange={(e) => setSeason(e.target.value)}
+                  placeholder="e.g., 2025"
+                  disabled={isBulkImporting}
+                  className="w-full px-4 py-2 bg-navy-accent border border-gray-700 rounded-lg focus:outline-none focus:border-electric-blue disabled:opacity-50 text-white placeholder:text-text-disabled"
+                />
+              </div>
+
+              {/* League Selector */}
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Select Leagues ({selectedLeagueIds.length} selected)
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto p-4 bg-background-dark rounded-lg border border-border-subtle">
+                  {leagues.filter(l => l.api_id).map((league) => (
+                    <label
+                      key={league.id}
+                      className={`flex items-center gap-2 p-3 rounded-lg cursor-pointer transition-colors ${
+                        selectedLeagueIds.includes(league.id)
+                          ? 'bg-electric-blue/10 border border-electric-blue/30'
+                          : 'bg-surface hover:bg-surface-hover border border-border-subtle'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedLeagueIds.includes(league.id)}
+                        onChange={() => handleLeagueToggle(league.id)}
+                        disabled={isBulkImporting}
+                        className="w-4 h-4 text-electric-blue bg-navy-accent border-gray-700 rounded focus:ring-electric-blue focus:ring-2"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{league.name}</p>
+                        <p className="text-xs text-text-disabled">API ID: {league.api_id}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Import Button */}
+              <button
+                onClick={handleBulkImportFixtures}
+                disabled={isBulkImporting || selectedLeagueIds.length === 0 || !season.trim()}
+                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-electric-blue hover:bg-electric-blue/80 disabled:bg-surface-hover disabled:text-text-disabled text-white rounded-lg transition-colors font-medium"
+              >
+                <Download className="w-4 h-4" />
+                <span>{isBulkImporting ? 'Importing...' : 'Import Fixtures'}</span>
+              </button>
             </div>
           </div>
         )}
-
-        <div className="flex gap-4 mb-4">
-          <input
-            type="text"
-            value={season}
-            onChange={(e) => setSeason(e.target.value)}
-            placeholder="Season (e.g., 2025)"
-            disabled={isBulkImporting}
-            className="w-32 px-4 py-2 bg-navy-accent border border-gray-700 rounded-lg focus:outline-none focus:border-electric-blue disabled:opacity-50 text-white placeholder:text-text-disabled"
-          />
-          <input
-            type="text"
-            value={leagueIds}
-            onChange={(e) => setLeagueIds(e.target.value)}
-            placeholder="e.g., 39, 2, 140, 135"
-            disabled={isBulkImporting}
-            className="flex-1 px-4 py-2 bg-navy-accent border border-gray-700 rounded-lg focus:outline-none focus:border-electric-blue disabled:opacity-50 text-white placeholder:text-text-disabled"
-          />
-          <button
-            onClick={handleBulkImportFixtures}
-            disabled={isBulkImporting || !leagueIds.trim()}
-            className="flex items-center gap-2 px-6 py-2 bg-electric-blue hover:bg-electric-blue/80 disabled:bg-surface-hover disabled:text-text-disabled text-white rounded-lg transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            <span>{isBulkImporting ? 'Importing...' : 'Import Fixtures'}</span>
-          </button>
-        </div>
       </div>
 
       {/* Filters */}
