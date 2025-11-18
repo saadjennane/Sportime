@@ -202,6 +202,7 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
     maximum_players: number;
     required_badges: string[];
     requires_subscription: boolean;
+    period_type: 'matchdays' | 'calendar';
   }) => {
     setIsLoading(true);
     try {
@@ -228,12 +229,13 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
         maximum_players: formData.maximum_players,
         required_badges: formData.required_badges,
         requires_subscription: formData.requires_subscription,
+        period_type: formData.period_type,
       });
 
       addToast('Challenge created successfully!', 'success');
 
       // 2. Auto-generate matchdays and link fixtures
-      await generateMatchdays(challenge.id, formData.league_id, formData.start_date, formData.end_date);
+      await generateMatchdays(challenge.id, formData.league_id, formData.start_date, formData.end_date, formData.period_type);
 
       addToast('Matchdays generated successfully!', 'success');
       setShowCreateForm(false);
@@ -250,7 +252,8 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
     challengeId: string,
     leagueId: string,
     startDate: string,
-    endDate: string
+    endDate: string,
+    periodType: 'matchdays' | 'calendar' = 'matchdays'
   ) => {
     // Get all fixtures in the date range for this league
     const { data: fixtures, error } = await supabase
@@ -267,23 +270,60 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
       throw new Error('No fixtures found in this date range for the selected league');
     }
 
-    // Group fixtures by date
-    const fixturesByDate = new Map<string, string[]>();
-    for (const fixture of fixtures) {
-      const date = getMatchdayDate(fixture.date);
-      const existing = fixturesByDate.get(date) || [];
-      fixturesByDate.set(date, [...existing, fixture.id]);
-    }
+    if (periodType === 'calendar') {
+      // CALENDAR MODE: One matchday per calendar day
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      let currentDate = new Date(start);
+      let dayNumber = 1;
 
-    // Create matchdays and link fixtures
-    for (const [date, fixtureIds] of fixturesByDate.entries()) {
-      const matchday = await swipeService.getOrCreateMatchday(challengeId, date);
-      await swipeService.linkFixturesToMatchday(matchday.id, fixtureIds);
+      while (currentDate <= end) {
+        const dateStr = currentDate.toISOString().split('T')[0];
 
-      // Set deadline to first kickoff time
-      const firstFixture = fixtures.find(f => getMatchdayDate(f.date) === date);
-      if (firstFixture) {
-        await swipeService.updateMatchdayDeadline(matchday.id, firstFixture.date);
+        // Find fixtures for this day
+        const fixturesForDay = fixtures.filter(f =>
+          getMatchdayDate(f.date) === dateStr
+        );
+
+        // Create matchday even if no fixtures (user can still participate)
+        const matchday = await swipeService.getOrCreateMatchday(challengeId, dateStr);
+
+        // Link fixtures if any
+        if (fixturesForDay.length > 0) {
+          await swipeService.linkFixturesToMatchday(matchday.id, fixturesForDay.map(f => f.id));
+
+          // Set deadline to first kickoff time
+          const firstFixture = fixturesForDay[0];
+          if (firstFixture) {
+            await swipeService.updateMatchdayDeadline(matchday.id, firstFixture.date);
+          }
+        } else {
+          // No fixtures, set deadline to end of day
+          await swipeService.updateMatchdayDeadline(matchday.id, `${dateStr}T23:59:59Z`);
+        }
+
+        currentDate.setDate(currentDate.getDate() + 1);
+        dayNumber++;
+      }
+    } else {
+      // MATCHDAYS MODE: Group by actual match dates
+      const fixturesByDate = new Map<string, string[]>();
+      for (const fixture of fixtures) {
+        const date = getMatchdayDate(fixture.date);
+        const existing = fixturesByDate.get(date) || [];
+        fixturesByDate.set(date, [...existing, fixture.id]);
+      }
+
+      // Create matchdays and link fixtures
+      for (const [date, fixtureIds] of fixturesByDate.entries()) {
+        const matchday = await swipeService.getOrCreateMatchday(challengeId, date);
+        await swipeService.linkFixturesToMatchday(matchday.id, fixtureIds);
+
+        // Set deadline to first kickoff time
+        const firstFixture = fixtures.find(f => getMatchdayDate(f.date) === date);
+        if (firstFixture) {
+          await swipeService.updateMatchdayDeadline(matchday.id, firstFixture.date);
+        }
       }
     }
   };
@@ -397,6 +437,7 @@ interface CreateSwipeGameFormProps {
     maximum_players: number;
     required_badges: string[];
     requires_subscription: boolean;
+    period_type: 'matchdays' | 'calendar';
   }) => void;
   onCancel: () => void;
   isLoading: boolean;
@@ -432,6 +473,8 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
   const [minimumLevel, setMinimumLevel] = useState<string>(DEFAULT_MIN_LEVEL)
   const [requiredBadges, setRequiredBadges] = useState<string[]>([])
   const [requiresSubscription, setRequiresSubscription] = useState(false)
+  const [periodType, setPeriodType] = useState<'matchdays' | 'calendar'>('matchdays')
+  const [periodInfo, setPeriodInfo] = useState<{ type: string; count: number } | null>(null)
 
   useEffect(() => {
     if (!customEntryEnabled) {
@@ -451,6 +494,49 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
     }
   }, [levels, minimumLevel])
 
+  // Calculate period count when dates, league, or period type changes
+  useEffect(() => {
+    const calculatePeriodCount = async () => {
+      if (!startDate || !endDate || !leagueId) {
+        setPeriodInfo(null)
+        return
+      }
+
+      try {
+        if (periodType === 'calendar') {
+          // Calculate calendar days
+          const start = new Date(startDate)
+          const end = new Date(endDate)
+          const diffTime = Math.abs(end.getTime() - start.getTime())
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
+          setPeriodInfo({ type: 'calendar', count: diffDays })
+        } else {
+          // Calculate matchdays based on fixtures
+          const { data: fixtures, error } = await supabase
+            .from('fb_fixtures')
+            .select('fixture_date')
+            .eq('league_id', leagueId)
+            .gte('fixture_date', startDate)
+            .lte('fixture_date', endDate)
+
+          if (error) throw error
+
+          if (fixtures && fixtures.length > 0) {
+            const uniqueDates = [...new Set(fixtures.map((f: any) => f.fixture_date.split('T')[0]))]
+            setPeriodInfo({ type: 'matchdays', count: uniqueDates.length })
+          } else {
+            setPeriodInfo({ type: 'matchdays', count: 0 })
+          }
+        }
+      } catch (error) {
+        console.error('Error calculating period count:', error)
+        setPeriodInfo(null)
+      }
+    }
+
+    calculatePeriodCount()
+  }, [startDate, endDate, leagueId, periodType])
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit({
@@ -469,6 +555,7 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
       maximum_players: maximumPlayers,
       required_badges: requiredBadges,
       requires_subscription: requiresSubscription,
+      period_type: periodType,
     });
   };
 
@@ -554,6 +641,53 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
           />
         </div>
       </div>
+
+      <div>
+        <label className="block text-xs font-semibold text-text-secondary mb-1">
+          Period Type
+        </label>
+        <select
+          value={periodType}
+          onChange={(e) => setPeriodType(e.target.value as 'matchdays' | 'calendar')}
+          className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+        >
+          <option value="matchdays">Matchdays (grouped by match dates)</option>
+          <option value="calendar">Calendar Days (one period per day)</option>
+        </select>
+        <p className="text-xs text-text-disabled mt-1">
+          {periodType === 'matchdays'
+            ? 'Periods grouped by actual match dates (e.g., GW1, GW2...)'
+            : 'One period for each calendar day from start to end'}
+        </p>
+      </div>
+
+      {periodInfo && (
+        <div className="bg-electric-blue/10 border border-electric-blue/20 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <div className="text-3xl">
+              {periodInfo.type === 'calendar' ? '📅' : '⚽'}
+            </div>
+            <div className="flex-1">
+              <p className="font-bold text-lg text-electric-blue">
+                {periodInfo.count} {periodInfo.type === 'calendar' ? 'jours calendaires' : 'matchdays'}
+              </p>
+              <p className="text-xs text-text-secondary">
+                Du {new Date(startDate).toLocaleDateString('fr-FR')} au {new Date(endDate).toLocaleDateString('fr-FR')}
+              </p>
+              {periodInfo.type === 'matchdays' && periodInfo.count === 0 && (
+                <p className="text-xs text-hot-red mt-1">
+                  ⚠️ Aucun match trouvé pour cette ligue dans cette période
+                </p>
+              )}
+              {periodInfo.type === 'matchdays' && periodInfo.count > 0 && (
+                <p className="text-xs text-text-disabled mt-1">
+                  Basé sur les fixtures disponibles pour cette ligue
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-3">
         <div>

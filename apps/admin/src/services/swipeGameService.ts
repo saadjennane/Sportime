@@ -88,6 +88,7 @@ export async function createSwipeChallenge(params: {
   maximum_players?: number
   required_badges?: string[]
   requires_subscription?: boolean
+  period_type?: 'matchdays' | 'calendar'
 }) {
   const { data: challenge, error } = await supabase
     .from('challenges')
@@ -111,6 +112,7 @@ export async function createSwipeChallenge(params: {
         duration_type: params.duration_type ?? 'daily',
         minimum_players: params.minimum_players ?? 0,
         maximum_players: params.maximum_players ?? 0,
+        period_type: params.period_type ?? 'matchdays',
       },
       status: 'upcoming',
     })
