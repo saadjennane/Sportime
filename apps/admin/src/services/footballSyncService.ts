@@ -195,7 +195,7 @@ export async function syncLeague(
 export async function syncLeagueTeams(
   leagueId: string,
   leagueApiId: number,
-  season: number = 2024,
+  season: number = 2025,
   onProgress?: SyncProgressCallback
 ): Promise<{ success: boolean; error?: string; teamsCount?: number }> {
   try {
@@ -380,6 +380,7 @@ export async function syncTeamPlayers(
  * Sync all 4 major leagues (Premier League, La Liga, Bundesliga, Serie A)
  */
 export async function syncAllMajorLeagues(
+  season: number = 2025,
   onProgress?: SyncProgressCallback
 ): Promise<{ success: boolean; error?: string; results?: any }> {
   const majorLeagues = [
@@ -401,12 +402,12 @@ export async function syncAllMajorLeagues(
       message: `Syncing ${league.name}...`,
     })
 
-    const result = await syncLeague(league.id, 2024, onProgress)
+    const result = await syncLeague(league.id, season, onProgress)
     results.push({ league: league.name, ...result })
 
     if (result.success && result.leagueId) {
       // Sync teams for this league
-      const teamsResult = await syncLeagueTeams(result.leagueId, league.id, 2024, onProgress)
+      const teamsResult = await syncLeagueTeams(result.leagueId, league.id, season, onProgress)
       results[i].teamsResult = teamsResult
     }
   }
