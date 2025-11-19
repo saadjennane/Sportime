@@ -14,6 +14,10 @@ import { CelebrationFeed } from '../components/admin/CelebrationFeed';
 import { SwipeGameAdmin } from '../components/admin/SwipeGameAdmin';
 import { BadgeManager } from '../components/admin/BadgeManager';
 import { GameConfigAdmin } from '../components/admin/GameConfigAdmin';
+import FantasyGameAdmin from '../components/admin/FantasyGameAdmin';
+import FantasyGameWeekAdmin from '../components/admin/FantasyGameWeekAdmin';
+import FantasyPlayerAdmin from '../components/admin/FantasyPlayerAdmin';
+import FantasyManualSync from '../components/admin/FantasyManualSync';
 import { Zap } from 'lucide-react';
 import { USE_SUPABASE } from '../config/env';
 import * as challengeService from '../services/challengeService';
@@ -21,7 +25,7 @@ import { useIsSuperAdmin } from '../hooks/useUserRole';
 
 console.log('[Admin.tsx] All imports completed');
 
-type AdminSection = 'challenges' | 'swipe' | 'progression' | 'datasync' | 'feed' | 'developer' | 'config';
+type AdminSection = 'challenges' | 'swipe' | 'fantasy' | 'progression' | 'datasync' | 'feed' | 'developer' | 'config';
 
 interface AdminPageProps {
   profile: Profile | null;
@@ -169,9 +173,10 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
         🔴 DEBUG BUILD d8cc569 - If you see this, new code is deployed!
       </div>
 
-      <div className="grid grid-cols-4 sm:grid-cols-7 bg-navy-accent rounded-xl p-1 gap-1">
+      <div className="grid grid-cols-4 sm:grid-cols-8 bg-navy-accent rounded-xl p-1 gap-1">
         <AdminSectionButton section="challenges" icon={<Gamepad2 size={16} />} label="Games" />
         <AdminSectionButton section="swipe" icon={<Zap size={16} />} label="Swipe" />
+        <AdminSectionButton section="fantasy" icon={<Star size={16} />} label="Fantasy" />
         <AdminSectionButton section="feed" icon={<Newspaper size={16} />} label="Feed" />
         <AdminSectionButton section="progression" icon={<Star size={16} />} label="Progression" />
         <AdminSectionButton section="datasync" icon={<DatabaseZap size={16} />} label="Data Sync" />
@@ -196,6 +201,24 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
       {activeSection === 'swipe' && (
         <div className="animate-scale-in">
           <SwipeGameAdmin addToast={addToast} />
+        </div>
+      )}
+
+      {activeSection === 'fantasy' && (
+        <div className="animate-scale-in space-y-6">
+          <h2 className="text-2xl font-bold text-white">Fantasy Game Management</h2>
+
+          {/* Manual Sync & Processing */}
+          <FantasyManualSync />
+
+          {/* Fantasy Games */}
+          <FantasyGameAdmin />
+
+          {/* Game Weeks */}
+          <FantasyGameWeekAdmin />
+
+          {/* Player Pool */}
+          <FantasyPlayerAdmin />
         </div>
       )}
 
