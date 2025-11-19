@@ -9,11 +9,20 @@ interface FantasyGame {
   end_date: string;
   entry_cost: number;
   is_linkable: boolean;
+  league_id: string | null;
   created_at: string;
+}
+
+interface League {
+  id: string;
+  name: string;
+  country: string;
+  logo?: string;
 }
 
 export default function FantasyGameAdmin() {
   const [games, setGames] = useState<FantasyGame[]>([]);
+  const [leagues, setLeagues] = useState<League[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -27,11 +36,27 @@ export default function FantasyGameAdmin() {
     end_date: '',
     entry_cost: 1500,
     is_linkable: true,
+    league_id: '',
   });
 
   useEffect(() => {
     fetchGames();
+    fetchLeagues();
   }, []);
+
+  const fetchLeagues = async () => {
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('leagues')
+        .select('id, name, country, logo')
+        .order('name');
+
+      if (fetchError) throw fetchError;
+      setLeagues(data || []);
+    } catch (err: any) {
+      console.error('Error fetching leagues:', err);
+    }
+  };
 
   const fetchGames = async () => {
     setLoading(true);
@@ -40,7 +65,13 @@ export default function FantasyGameAdmin() {
     try {
       const { data, error: fetchError } = await supabase
         .from('fantasy_games')
-        .select('*')
+        .select(`
+          *,
+          leagues:league_id (
+            name,
+            country
+          )
+        `)
         .order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
@@ -74,6 +105,7 @@ export default function FantasyGameAdmin() {
         end_date: '',
         entry_cost: 1500,
         is_linkable: true,
+        league_id: '',
       });
       fetchGames();
     } catch (err: any) {
@@ -180,6 +212,23 @@ export default function FantasyGameAdmin() {
             </div>
 
             <div>
+              <label className="block text-sm font-medium mb-2">Ligue <span className="text-red-500">*</span></label>
+              <select
+                value={formData.league_id}
+                onChange={(e) => setFormData({ ...formData, league_id: e.target.value })}
+                required
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
+              >
+                <option value="">-- Sélectionner une ligue --</option>
+                {leagues.map((league) => (
+                  <option key={league.id} value={league.id}>
+                    {league.name} ({league.country})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
               <label className="block text-sm font-medium mb-2">Statut</label>
               <select
                 value={formData.status}
@@ -282,7 +331,11 @@ export default function FantasyGameAdmin() {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-300">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm text-gray-300">
+                    <div>
+                      <span className="text-gray-500">Ligue:</span>
+                      <p className="font-medium">{(game as any).leagues?.name || 'Non définie'}</p>
+                    </div>
                     <div>
                       <span className="text-gray-500">Début:</span>
                       <p className="font-medium">{new Date(game.start_date).toLocaleDateString('fr-FR')}</p>

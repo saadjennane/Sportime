@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabaseClient';
 
 interface SyncLog {
   timestamp: string;
@@ -8,11 +9,42 @@ interface SyncLog {
   duration?: number;
 }
 
+interface League {
+  id: string;
+  name: string;
+  country: string;
+}
+
 export default function FantasyManualSync() {
   const [logs, setLogs] = useState<SyncLog[]>([]);
   const [loading, setLoading] = useState<{ [key: string]: boolean }>({});
+  const [leagues, setLeagues] = useState<League[]>([]);
+  const [selectedLeagueId, setSelectedLeagueId] = useState<string>('');
 
   const SUPABASE_URL = 'https://crypuzduplbzbmvefvzr.supabase.co';
+
+  useEffect(() => {
+    fetchLeagues();
+  }, []);
+
+  const fetchLeagues = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('leagues')
+        .select('id, name, country')
+        .order('name');
+
+      if (error) throw error;
+      setLeagues(data || []);
+
+      // Auto-select first league
+      if (data && data.length > 0 && !selectedLeagueId) {
+        setSelectedLeagueId(data[0].id);
+      }
+    } catch (err: any) {
+      console.error('Error fetching leagues:', err);
+    }
+  };
 
   // Note: In production, this should come from environment variables or secure storage
   const getServiceKey = () => {
@@ -69,22 +101,17 @@ export default function FantasyManualSync() {
     }
   };
 
-  const handleSeedFantasyData = () => {
-    const league = prompt('Enter league API ID (140 for La Liga):', '140');
-    const season = prompt('Enter season (2024):', '2024');
+  const handleSyncLeaguePlayers = () => {
+    if (!selectedLeagueId) {
+      addLog('sync-league-fantasy-players', 'error', 'Veuillez sélectionner une ligue');
+      return;
+    }
 
-    if (!league || !season) return;
+    const minAppearances = prompt('Nombre minimum d\'apparitions (défaut: 5):', '5');
 
-    callEdgeFunction('seed-fantasy-data', {
-      leagues: [
-        {
-          api_id: parseInt(league),
-          name: 'La Liga',
-          country: 'Spain',
-          priority: true,
-        },
-      ],
-      season: parseInt(season),
+    callEdgeFunction('sync-league-fantasy-players', {
+      league_id: selectedLeagueId,
+      min_appearances: minAppearances ? parseInt(minAppearances) : 5,
     });
   };
 
@@ -110,11 +137,6 @@ export default function FantasyManualSync() {
 
   const handleUpdateStatus = () => {
     callEdgeFunction('update-gameweek-status');
-  };
-
-  const handleSyncFantasyPlayers = () => {
-    const season = prompt('Enter season (2024):', '2024');
-    callEdgeFunction('sync-fantasy-players', { season: season ? parseInt(season) : 2024 });
   };
 
   const getStatusColor = (status: SyncLog['status']) => {
@@ -144,28 +166,45 @@ export default function FantasyManualSync() {
         </p>
       </div>
 
+      {/* League Selector */}
+      <div className="mb-6 p-4 bg-gray-800 rounded-lg">
+        <label className="block text-sm font-medium mb-2">Sélectionner une Ligue</label>
+        <select
+          value={selectedLeagueId}
+          onChange={(e) => setSelectedLeagueId(e.target.value)}
+          className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
+        >
+          <option value="">-- Choisir une ligue --</option>
+          {leagues.map((league) => (
+            <option key={league.id} value={league.id}>
+              {league.name} ({league.country})
+            </option>
+          ))}
+        </select>
+      </div>
+
       {/* Action Buttons */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        {/* Seed Fantasy Data */}
+        {/* Sync League Players */}
         <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
           <div className="flex items-start justify-between mb-3">
             <div>
-              <h3 className="font-semibold text-lg">Seed Fantasy Data</h3>
+              <h3 className="font-semibold text-lg">Sync League Players</h3>
               <p className="text-xs text-gray-400 mt-1">
-                Importe équipes, joueurs et stats depuis API-Sports
+                Synchronise les joueurs de la ligue sélectionnée vers fantasy_league_players
               </p>
             </div>
-            <span className="text-2xl">📦</span>
+            <span className="text-2xl">👥</span>
           </div>
           <button
-            onClick={handleSeedFantasyData}
-            disabled={loading['seed-fantasy-data']}
+            onClick={handleSyncLeaguePlayers}
+            disabled={!selectedLeagueId || loading['sync-league-fantasy-players']}
             className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading['seed-fantasy-data'] ? 'En cours...' : 'Lancer Seed'}
+            {loading['sync-league-fantasy-players'] ? 'En cours...' : 'Sync Players'}
           </button>
           <div className="mt-2 text-xs text-gray-500">
-            Durée: ~30-60 min • API Calls: ~640
+            Calcule PGS depuis player_season_stats
           </div>
         </div>
 
@@ -238,29 +277,6 @@ export default function FantasyManualSync() {
           </div>
         </div>
 
-        {/* Sync Fantasy Players */}
-        <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              <h3 className="font-semibold text-lg">Sync Fantasy Players</h3>
-              <p className="text-xs text-gray-400 mt-1">
-                Met à jour PGS et statuts des joueurs Fantasy
-              </p>
-            </div>
-            <span className="text-2xl">👥</span>
-          </div>
-          <button
-            onClick={handleSyncFantasyPlayers}
-            disabled={loading['sync-fantasy-players']}
-            className="w-full px-4 py-2 bg-teal-600 hover:bg-teal-700 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading['sync-fantasy-players'] ? 'En cours...' : 'Sync Players'}
-          </button>
-          <div className="mt-2 text-xs text-gray-500">
-            Durée: ~10-20 min selon nombre de joueurs
-          </div>
-        </div>
-
         {/* Clear Logs */}
         <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
           <div className="flex items-start justify-between mb-3">
@@ -285,11 +301,10 @@ export default function FantasyManualSync() {
       <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
         <h3 className="font-semibold text-blue-400 mb-2">ℹ️ Information</h3>
         <ul className="text-sm text-gray-300 space-y-1">
-          <li>• <strong>Seed Fantasy Data</strong>: Première étape - importe toutes les données de base (équipes, joueurs, stats)</li>
+          <li>• <strong>Sync League Players</strong>: Synchronise les joueurs d'une ligue depuis player_season_stats vers fantasy_league_players (calcule PGS et statut)</li>
           <li>• <strong>Sync Match Stats</strong>: À exécuter après chaque journée de matchs pour obtenir les stats réelles</li>
           <li>• <strong>Process Game Week</strong>: À exécuter quand une game week est terminée pour calculer les points</li>
           <li>• <strong>Update Status</strong>: Automatique via cron, mais peut être déclenché manuellement</li>
-          <li>• <strong>Sync Fantasy Players</strong>: Met à jour les PGS hebdomadairement/mensuellement</li>
         </ul>
       </div>
 

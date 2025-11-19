@@ -169,16 +169,23 @@ serve(async (req) => {
 
     console.log(`[process-fantasy-gameweek] Processing game week: ${game_week_id}`)
 
-    // 1. Get game week details
+    // 1. Get game week details with game and league info
     const { data: gameWeek, error: gwError } = await supabase
       .from('fantasy_game_weeks')
-      .select('*, fantasy_games(*)')
+      .select('*, fantasy_games(*, league_id)')
       .eq('id', game_week_id)
       .single()
 
     if (gwError || !gameWeek) {
       throw new Error(`Game week not found: ${gwError?.message}`)
     }
+
+    const leagueId = gameWeek.fantasy_games?.league_id
+    if (!leagueId) {
+      throw new Error('Game must have a league_id')
+    }
+
+    console.log(`[process-fantasy-gameweek] Processing game week for league: ${leagueId}`)
 
     // 2. Get all user teams for this game week
     const { data: userTeams, error: teamsError } = await supabase
@@ -205,10 +212,10 @@ serve(async (req) => {
 
     console.log(`[process-fantasy-gameweek] Found ${matchStats?.length || 0} player match stats`)
 
-    // Create a map of player stats by api_player_id
-    const statsMap = new Map<number, PlayerMatchStats>()
+    // Create a map of player stats by player_id (UUID)
+    const statsMap = new Map<string, PlayerMatchStats>()
     matchStats?.forEach((stat: any) => {
-      statsMap.set(stat.api_player_id, {
+      statsMap.set(stat.player_id, {
         minutes_played: stat.minutes_played || 0,
         goals: stat.goals || 0,
         assists: stat.assists || 0,
@@ -232,19 +239,35 @@ serve(async (req) => {
       })
     })
 
+    // 3b. Get all fantasy league players for this league (for status/category lookup)
+    const { data: fantasyLeaguePlayers, error: flpError } = await supabase
+      .from('fantasy_league_players')
+      .select('player_id, status')
+      .eq('league_id', leagueId)
+
+    if (flpError) {
+      throw new Error(`Failed to fetch fantasy league players: ${flpError.message}`)
+    }
+
+    // Create a map of player_id -> status
+    const playerStatusMap = new Map<string, PlayerCategory>()
+    fantasyLeaguePlayers?.forEach((flp: any) => {
+      playerStatusMap.set(flp.player_id, flp.status as PlayerCategory)
+    })
+
     // 4. Process each user team
     const leaderboardEntries = []
     const teamUpdates = []
-    const playerFatigueUpdates = new Map<string, number>()
+    const teamFatigueUpdates = new Map<string, Record<string, number>>() // team_id -> { player_id: fatigue }
 
     for (const team of userTeams || []) {
       // Get all player IDs (starters + substitutes)
       const allPlayerIds = [...team.starters, ...team.substitutes]
 
-      // Fetch player details
+      // Fetch player details from players table
       const { data: players, error: playersError } = await supabase
-        .from('fantasy_players')
-        .select('*')
+        .from('players')
+        .select('id, first_name, last_name, position, birthdate')
         .in('id', allPlayerIds)
 
       if (playersError) {
@@ -259,18 +282,19 @@ serve(async (req) => {
       const isGoldenGameActive = team.booster_used === 2
       const isRecoveryBoostActive = team.booster_used === 3
 
+      // Initialize fatigue state for this team
+      const currentFatigueState = team.fatigue_state || {}
+      const newFatigueState: Record<string, number> = {}
+
       // Check if we need to refund Recovery Boost (if targeted player DNP)
       let shouldRefundBooster = false
       if (isRecoveryBoostActive) {
         const recoveryTarget = team.booster_target_id
         if (recoveryTarget) {
-          const targetPlayer = players?.find(p => p.id === recoveryTarget)
-          if (targetPlayer) {
-            const targetStats = statsMap.get(targetPlayer.api_player_id)
-            if (!targetStats || targetStats.minutes_played === 0) {
-              shouldRefundBooster = true
-              console.log(`[process-fantasy-gameweek] Refunding Recovery Boost for team ${team.id} - player DNP`)
-            }
+          const targetStats = statsMap.get(recoveryTarget)
+          if (!targetStats || targetStats.minutes_played === 0) {
+            shouldRefundBooster = true
+            console.log(`[process-fantasy-gameweek] Refunding Recovery Boost for team ${team.id} - player DNP`)
           }
         } else {
           // No target selected, refund booster
@@ -280,11 +304,12 @@ serve(async (req) => {
       }
 
       for (const player of starterPlayers) {
-        const stats = statsMap.get(player.api_player_id)
+        const stats = statsMap.get(player.id)
         const isCaptain = player.id === team.captain_id
+        const playerStatus = playerStatusMap.get(player.id) || 'Wild'
 
-        // Get fatigue from fatigue_state or use current player fatigue
-        let fatigue = team.fatigue_state?.[player.id] || player.fatigue || 100
+        // Get fatigue from fatigue_state or default to 100
+        let fatigue = currentFatigueState[player.id] || 100
 
         // Apply Recovery Boost if active and this is the targeted player
         if (isRecoveryBoostActive && !shouldRefundBooster && player.id === team.booster_target_id) {
@@ -304,28 +329,22 @@ serve(async (req) => {
 
           // Calculate new fatigue
           const played = stats.minutes_played > 0
-          const newFatigue = calculateFatigue(fatigue, player.status as PlayerCategory, played)
-
-          // Store fatigue update (we'll batch these later)
-          if (!playerFatigueUpdates.has(player.id)) {
-            playerFatigueUpdates.set(player.id, newFatigue)
-          }
+          const newFatigue = calculateFatigue(fatigue, playerStatus, played)
+          newFatigueState[player.id] = newFatigue
         } else {
           // Player didn't play - increase fatigue (rested)
-          const newFatigue = calculateFatigue(fatigue, player.status as PlayerCategory, false)
-          if (!playerFatigueUpdates.has(player.id)) {
-            playerFatigueUpdates.set(player.id, newFatigue)
-          }
+          const newFatigue = calculateFatigue(fatigue, playerStatus, false)
+          newFatigueState[player.id] = newFatigue
         }
       }
 
       // Apply team bonuses
-      const isNoStar = starterPlayers.every(p => p.status !== 'Star')
+      const isNoStar = starterPlayers.every(p => playerStatusMap.get(p.id) !== 'Star')
       if (isNoStar) {
         teamTotalPoints *= FANTASY_CONFIG.bonuses.no_star
       }
 
-      const isCrazy = starterPlayers.every(p => p.status === 'Wild')
+      const isCrazy = starterPlayers.every(p => playerStatusMap.get(p.id) === 'Wild')
       if (isCrazy) {
         teamTotalPoints *= FANTASY_CONFIG.bonuses.crazy
       }
@@ -347,10 +366,11 @@ serve(async (req) => {
         .eq('id', team.user_id)
         .single()
 
-      // Update team total points
+      // Update team total points and fatigue state
       teamUpdates.push({
         id: team.id,
         total_points: Math.round(teamTotalPoints * 10) / 10,
+        fatigue_state: newFatigueState,
         booster_used: shouldRefundBooster ? null : team.booster_used, // Refund if needed
         booster_target_id: shouldRefundBooster ? null : team.booster_target_id, // Clear target if refunded
       })
@@ -367,33 +387,26 @@ serve(async (req) => {
       })
     }
 
-    // 5. Update user_fantasy_teams with total_points
+    // 5. Update user_fantasy_teams with total_points and fatigue_state
     for (const update of teamUpdates) {
       await supabase
         .from('user_fantasy_teams')
         .update({
           total_points: update.total_points,
+          fatigue_state: update.fatigue_state,
           booster_used: update.booster_used,
           booster_target_id: update.booster_target_id
         })
         .eq('id', update.id)
     }
 
-    // 6. Update player fatigue
-    for (const [playerId, fatigue] of playerFatigueUpdates.entries()) {
-      await supabase
-        .from('fantasy_players')
-        .update({ fatigue: Math.round(fatigue) })
-        .eq('id', playerId)
-    }
-
-    // 7. Clear existing leaderboard for this game week
+    // 6. Clear existing leaderboard for this game week
     await supabase
       .from('fantasy_leaderboard')
       .delete()
       .eq('game_week_id', game_week_id)
 
-    // 8. Insert new leaderboard entries (sorted by points)
+    // 7. Insert new leaderboard entries (sorted by points)
     if (leaderboardEntries.length > 0) {
       leaderboardEntries.sort((a, b) => b.total_points - a.total_points)
 
@@ -412,7 +425,7 @@ serve(async (req) => {
     }
 
     console.log(`[process-fantasy-gameweek] Successfully processed ${userTeams?.length || 0} teams`)
-    console.log(`[process-fantasy-gameweek] Updated ${playerFatigueUpdates.size} player fatigue values`)
+    console.log(`[process-fantasy-gameweek] Updated fatigue state for ${teamUpdates.length} teams`)
     console.log(`[process-fantasy-gameweek] Created ${leaderboardEntries.length} leaderboard entries`)
 
     return new Response(
@@ -420,7 +433,7 @@ serve(async (req) => {
         success: true,
         teams_processed: userTeams?.length || 0,
         leaderboard_entries: leaderboardEntries.length,
-        fatigue_updates: playerFatigueUpdates.size,
+        teams_with_fatigue_updates: teamUpdates.length,
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     )
