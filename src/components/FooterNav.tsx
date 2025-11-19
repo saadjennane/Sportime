@@ -61,12 +61,6 @@ export const FooterNav: React.FC<FooterNavProps> = ({ activePage, onPageChange }
           isActive={activePage === 'funzone'}
           onClick={() => onPageChange('funzone')}
         />
-        <NavItem
-          icon={<SlidersHorizontal />}
-          label="Admin"
-          isActive={activePage === 'admin'}
-          onClick={() => onPageChange('admin')}
-        />
       </nav>
     </div>
   );

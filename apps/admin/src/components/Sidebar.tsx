@@ -11,7 +11,8 @@ import {
   Settings,
   Menu,
   X,
-  Calendar
+  Calendar,
+  Gamepad2
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -29,6 +30,7 @@ export function Sidebar({ className = '' }: SidebarProps) {
     { to: '/players', icon: Users, label: 'Players' },
     { to: '/fixtures', icon: Calendar, label: 'Fixtures' },
     { to: '/swipe', icon: Zap, label: 'Swipe Games' },
+    { to: '/fantasy', icon: Gamepad2, label: 'Fantasy' },
     { to: '/progression', icon: Star, label: 'Progression' },
     { to: '/data-sync', icon: DatabaseZap, label: 'Data Sync' },
     { to: '/config', icon: Settings, label: 'Game Config' },
