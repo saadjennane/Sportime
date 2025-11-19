@@ -1,0 +1,28 @@
+name: Sync Match Statistics
+
+on:
+  schedule:
+    - cron: "0 */2 * * *"
+  workflow_dispatch:
+    inputs:
+      game_week_id:
+        description: "Game Week ID (optional)"
+        required: false
+
+jobs:
+  sync-stats:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync match statistics
+        run: |
+          if [ -n "${{ github.event.inputs.game_week_id }}" ]; then
+            curl -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/sync-match-stats" \
+              -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+              -H "Content-Type: application/json" \
+              -d '{"game_week_id": "${{ github.event.inputs.game_week_id }}"}'
+          else
+            curl -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/sync-all-active-gameweeks" \
+              -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+              -H "Content-Type: application/json" \
+              -d "{}"
+          fi
