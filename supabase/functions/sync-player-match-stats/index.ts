@@ -110,7 +110,89 @@ serve(async (req) => {
 
     let totalProcessed = 0
     let totalPlayersInserted = 0
+    let totalPlayersCreated = 0
+    let totalTeamsCreated = 0
     let errors = 0
+
+    // First pass: collect all unique player/team IDs from API to pre-create them in batch
+    console.log(`[sync-player-match-stats] Phase 1: Pre-creating players and teams...`)
+    const allPlayerIds = new Set<number>()
+    const allTeamIds = new Set<number>()
+    const playerInfoMap = new Map<number, any>()
+    const teamInfoMap = new Map<number, any>()
+
+    // Sample first 5 fixtures to collect player/team info (to avoid API rate limits)
+    const sampleFixtures = fixtures.slice(0, Math.min(5, fixtures.length))
+
+    for (const fixture of sampleFixtures) {
+      try {
+        const response = await fetch(
+          `https://v3.football.api-sports.io/fixtures/players?fixture=${fixture.api_id}`,
+          { headers: { 'x-apisports-key': apiKey } }
+        )
+
+        if (response.ok) {
+          const data = await response.json()
+          if (data.response) {
+            for (const teamData of data.response) {
+              allTeamIds.add(teamData.team.id)
+              teamInfoMap.set(teamData.team.id, teamData.team)
+
+              for (const playerData of teamData.players) {
+                allPlayerIds.add(playerData.player.id)
+                playerInfoMap.set(playerData.player.id, playerData.player)
+              }
+            }
+          }
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 500))
+      } catch (error) {
+        console.warn(`[sync-player-match-stats] Error sampling fixture ${fixture.api_id}`)
+      }
+    }
+
+    console.log(`[sync-player-match-stats] Found ${allPlayerIds.size} unique players, ${allTeamIds.size} unique teams`)
+
+    // Batch create teams
+    for (const teamId of allTeamIds) {
+      try {
+        const teamInfo = teamInfoMap.get(teamId)
+        const { error } = await supabaseClient
+          .from('teams')
+          .upsert({
+            api_id: teamId,
+            name: teamInfo.name,
+            logo: teamInfo.logo,
+          }, { onConflict: 'api_id', ignoreDuplicates: true })
+
+        if (!error) totalTeamsCreated++
+      } catch (error) {
+        console.warn(`[sync-player-match-stats] Error creating team ${teamId}`)
+      }
+    }
+
+    // Batch create players
+    for (const playerId of allPlayerIds) {
+      try {
+        const playerInfo = playerInfoMap.get(playerId)
+        const { error } = await supabaseClient
+          .from('players')
+          .upsert({
+            api_id: playerId,
+            first_name: playerInfo.name?.split(' ')[0] || 'Unknown',
+            last_name: playerInfo.name?.split(' ').slice(1).join(' ') || '',
+            photo_url: playerInfo.photo,
+          }, { onConflict: 'api_id', ignoreDuplicates: true })
+
+        if (!error) totalPlayersCreated++
+      } catch (error) {
+        console.warn(`[sync-player-match-stats] Error creating player ${playerId}`)
+      }
+    }
+
+    console.log(`[sync-player-match-stats] Pre-created ${totalTeamsCreated} teams, ${totalPlayersCreated} players`)
+    console.log(`[sync-player-match-stats] Phase 2: Processing match stats...`)
 
     // Process fixtures in batches
     for (let i = 0; i < fixtures.length; i += batch_size) {
@@ -148,65 +230,32 @@ serve(async (req) => {
           for (const teamData of data.response) {
             const teamId = teamData.team.id
 
-            // Resolve team UUID from api_id, create if not exists
-            let { data: teamRecord } = await supabaseClient
+            // Resolve team UUID from api_id (should exist from pre-creation phase)
+            const { data: teamRecord } = await supabaseClient
               .from('teams')
               .select('id')
               .eq('api_id', teamId)
               .single()
 
             if (!teamRecord) {
-              // Create team automatically
-              const { data: newTeam, error: createError } = await supabaseClient
-                .from('teams')
-                .insert({
-                  api_id: teamId,
-                  name: teamData.team.name,
-                  logo: teamData.team.logo,
-                })
-                .select('id')
-                .single()
-
-              if (createError || !newTeam) {
-                console.warn(`[sync-player-match-stats] Could not create team api_id ${teamId}: ${createError?.message}`)
-                continue
-              }
-
-              teamRecord = newTeam
-              console.log(`[sync-player-match-stats] Created new team: ${teamData.team.name} (api_id: ${teamId})`)
+              console.warn(`[sync-player-match-stats] Team not found for api_id ${teamId}, skipping`)
+              continue
             }
 
             for (const playerData of teamData.players) {
               const playerApiId = playerData.player.id
               const stats = playerData.statistics[0] // First statistics object
 
-              // Resolve player UUID from api_id, create if not exists
-              let { data: playerRecord } = await supabaseClient
+              // Resolve player UUID from api_id (should exist from pre-creation phase)
+              const { data: playerRecord } = await supabaseClient
                 .from('players')
                 .select('id')
                 .eq('api_id', playerApiId)
                 .single()
 
               if (!playerRecord) {
-                // Create player automatically
-                const { data: newPlayer, error: createError } = await supabaseClient
-                  .from('players')
-                  .insert({
-                    api_id: playerApiId,
-                    first_name: playerData.player.name?.split(' ')[0] || 'Unknown',
-                    last_name: playerData.player.name?.split(' ').slice(1).join(' ') || '',
-                    photo_url: playerData.player.photo,
-                  })
-                  .select('id')
-                  .single()
-
-                if (createError || !newPlayer) {
-                  console.warn(`[sync-player-match-stats] Could not create player api_id ${playerApiId}: ${createError?.message}`)
-                  continue
-                }
-
-                playerRecord = newPlayer
-                console.log(`[sync-player-match-stats] Created new player: ${playerData.player.name} (api_id: ${playerApiId})`)
+                console.warn(`[sync-player-match-stats] Player not found for api_id ${playerApiId}, skipping`)
+                continue
               }
 
               // Parse player stats
