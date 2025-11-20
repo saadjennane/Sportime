@@ -62,7 +62,7 @@ export default function FantasyPlayerAdmin() {
     try {
       const { data, error: fetchError} = await supabase
         .from('leagues')
-        .select('id, name, country')
+        .select('id, name, country_or_region')
         .order('name');
 
       if (fetchError) throw fetchError;

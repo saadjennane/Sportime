@@ -140,10 +140,16 @@ export default function FantasyGameAdmin() {
         .select('id, name, xp_required')
         .order('xp_required');
 
-      if (fetchError) throw fetchError;
+      if (fetchError) {
+        // Table doesn't exist yet - this is optional for Fantasy
+        console.warn('user_levels table not found - progression features disabled');
+        setLevels([]);
+        return;
+      }
       setLevels(data || []);
     } catch (err: any) {
-      console.error('Error fetching levels:', err);
+      console.warn('Error fetching levels (optional feature):', err);
+      setLevels([]);
     }
   };
 
@@ -159,10 +165,16 @@ export default function FantasyGameAdmin() {
         .select('id, name, description')
         .order('name');
 
-      if (fetchError) throw fetchError;
+      if (fetchError) {
+        // Table doesn't exist yet - this is optional for Fantasy
+        console.warn('badges table not found - badge requirements disabled');
+        setBadges([]);
+        return;
+      }
       setBadges(data || []);
     } catch (err: any) {
-      console.error('Error fetching badges:', err);
+      console.warn('Error fetching badges (optional feature):', err);
+      setBadges([]);
     }
   };
 
