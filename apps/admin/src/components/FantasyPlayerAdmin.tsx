@@ -103,7 +103,7 @@ export default function FantasyPlayerAdmin() {
           ),
           leagues:league_id (
             name,
-            country
+            country_or_region
           )
         `)
         .eq('league_id', selectedLeagueId)
