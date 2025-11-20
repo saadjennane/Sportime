@@ -53,8 +53,14 @@ export default function FantasyPlayerAdmin() {
   }, [selectedLeagueId]);
 
   const fetchLeagues = async () => {
+    if (!supabase) {
+      console.error('Supabase client is not initialized. Check environment variables in apps/admin/.env');
+      setError('Supabase client not initialized. Verify VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env');
+      return;
+    }
+
     try {
-      const { data, error: fetchError } = await supabase
+      const { data, error: fetchError} = await supabase
         .from('leagues')
         .select('id, name, country')
         .order('name');
@@ -73,6 +79,12 @@ export default function FantasyPlayerAdmin() {
 
   const fetchPlayers = async () => {
     if (!selectedLeagueId) return;
+
+    if (!supabase) {
+      console.error('Supabase client is not initialized. Check environment variables in apps/admin/.env');
+      setError('Supabase client not initialized. Verify VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env');
+      return;
+    }
 
     setLoading(true);
     setError(null);

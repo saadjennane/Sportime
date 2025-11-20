@@ -109,6 +109,12 @@ export default function FantasyGameAdmin() {
   }, []);
 
   const fetchLeagues = async () => {
+    if (!supabase) {
+      console.error('Supabase client is not initialized. Check environment variables in apps/admin/.env');
+      setError('Supabase client not initialized. Verify VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env');
+      return;
+    }
+
     try {
       const { data, error: fetchError } = await supabase
         .from('leagues')
@@ -123,6 +129,11 @@ export default function FantasyGameAdmin() {
   };
 
   const fetchLevels = async () => {
+    if (!supabase) {
+      console.error('Supabase client is not initialized. Check environment variables in apps/admin/.env');
+      return;
+    }
+
     try {
       const { data, error: fetchError } = await supabase
         .from('user_levels')
@@ -137,6 +148,11 @@ export default function FantasyGameAdmin() {
   };
 
   const fetchBadges = async () => {
+    if (!supabase) {
+      console.error('Supabase client is not initialized. Check environment variables in apps/admin/.env');
+      return;
+    }
+
     try {
       const { data, error: fetchError } = await supabase
         .from('badges')

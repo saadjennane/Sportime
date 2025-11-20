@@ -28,6 +28,12 @@ export default function FantasyManualSync() {
   }, []);
 
   const fetchLeagues = async () => {
+    if (!supabase) {
+      console.error('Supabase client is not initialized. Check environment variables in apps/admin/.env');
+      addLog('fetchLeagues', 'error', 'Supabase client not initialized. Verify VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env');
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from('leagues')
@@ -46,9 +52,16 @@ export default function FantasyManualSync() {
     }
   };
 
-  // Note: In production, this should come from environment variables or secure storage
+  // Get service key from environment variables or prompt if not configured
   const getServiceKey = () => {
-    return prompt('Enter Supabase Service Role Key (ou configurez dans .env):');
+    const envKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+
+    if (envKey && envKey !== 'your_service_role_key_here') {
+      return envKey;
+    }
+
+    // Fallback to prompt if not configured in .env
+    return prompt('Enter Supabase Service Role Key (ou configurez VITE_SUPABASE_SERVICE_ROLE_KEY dans .env):');
   };
 
   const addLog = (functionName: string, status: SyncLog['status'], message: string, duration?: number) => {
