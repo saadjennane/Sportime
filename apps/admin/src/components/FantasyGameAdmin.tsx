@@ -159,7 +159,7 @@ export default function FantasyGameAdmin() {
         .from('fantasy_games')
         .select(`
           *,
-          league_id (
+          leagues:league_id (
             name,
             country_or_region
           )
@@ -621,7 +621,7 @@ export default function FantasyGameAdmin() {
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm text-gray-300">
                     <div>
                       <span className="text-gray-500">Ligue:</span>
-                      <p className="font-medium">{(game as any).league_id?.name || 'Non définie'}</p>
+                      <p className="font-medium">{(game as any).leagues?.name || 'Non définie'}</p>
                     </div>
                     <div>
                       <span className="text-gray-500">Début:</span>
