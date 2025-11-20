@@ -12,7 +12,7 @@ interface SyncLog {
 interface League {
   id: string;
   name: string;
-  country: string;
+  country_or_region: string;
 }
 
 export default function FantasyManualSync() {
@@ -31,7 +31,7 @@ export default function FantasyManualSync() {
     try {
       const { data, error } = await supabase
         .from('leagues')
-        .select('id, name, country')
+        .select('id, name, country_or_region')
         .order('name');
 
       if (error) throw error;
@@ -177,7 +177,7 @@ export default function FantasyManualSync() {
           <option value="">-- Choisir une ligue --</option>
           {leagues.map((league) => (
             <option key={league.id} value={league.id}>
-              {league.name} ({league.country})
+              {league.name} ({league.country_or_region})
             </option>
           ))}
         </select>
