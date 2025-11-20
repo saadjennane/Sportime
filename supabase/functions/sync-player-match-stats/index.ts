@@ -148,32 +148,65 @@ serve(async (req) => {
           for (const teamData of data.response) {
             const teamId = teamData.team.id
 
-            // Resolve team UUID from api_id
-            const { data: teamRecord } = await supabaseClient
+            // Resolve team UUID from api_id, create if not exists
+            let { data: teamRecord } = await supabaseClient
               .from('teams')
               .select('id')
               .eq('api_id', teamId)
               .single()
 
             if (!teamRecord) {
-              console.warn(`[sync-player-match-stats] Team not found for api_id ${teamId}`)
-              continue
+              // Create team automatically
+              const { data: newTeam, error: createError } = await supabaseClient
+                .from('teams')
+                .insert({
+                  api_id: teamId,
+                  name: teamData.team.name,
+                  logo: teamData.team.logo,
+                })
+                .select('id')
+                .single()
+
+              if (createError || !newTeam) {
+                console.warn(`[sync-player-match-stats] Could not create team api_id ${teamId}: ${createError?.message}`)
+                continue
+              }
+
+              teamRecord = newTeam
+              console.log(`[sync-player-match-stats] Created new team: ${teamData.team.name} (api_id: ${teamId})`)
             }
 
             for (const playerData of teamData.players) {
               const playerApiId = playerData.player.id
               const stats = playerData.statistics[0] // First statistics object
 
-              // Resolve player UUID from api_id
-              const { data: playerRecord } = await supabaseClient
+              // Resolve player UUID from api_id, create if not exists
+              let { data: playerRecord } = await supabaseClient
                 .from('players')
                 .select('id')
                 .eq('api_id', playerApiId)
                 .single()
 
               if (!playerRecord) {
-                console.warn(`[sync-player-match-stats] Player not found for api_id ${playerApiId}`)
-                continue
+                // Create player automatically
+                const { data: newPlayer, error: createError } = await supabaseClient
+                  .from('players')
+                  .insert({
+                    api_id: playerApiId,
+                    first_name: playerData.player.name?.split(' ')[0] || 'Unknown',
+                    last_name: playerData.player.name?.split(' ').slice(1).join(' ') || '',
+                    photo_url: playerData.player.photo,
+                  })
+                  .select('id')
+                  .single()
+
+                if (createError || !newPlayer) {
+                  console.warn(`[sync-player-match-stats] Could not create player api_id ${playerApiId}: ${createError?.message}`)
+                  continue
+                }
+
+                playerRecord = newPlayer
+                console.log(`[sync-player-match-stats] Created new player: ${playerData.player.name} (api_id: ${playerApiId})`)
               }
 
               // Parse player stats
