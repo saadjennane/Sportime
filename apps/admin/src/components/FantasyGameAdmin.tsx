@@ -23,7 +23,7 @@ const TOURNAMENT_COSTS: Record<TournamentType, { base: number; multipliers: Reco
 interface FantasyGame {
   id: string;
   name: string;
-  status: 'Draft' | 'Ongoing' | 'Completed';
+  status: 'Upcoming' | 'Ongoing' | 'Finished' | 'Cancelled';
   start_date: string;
   end_date: string;
   entry_cost: number;
@@ -72,7 +72,7 @@ export default function FantasyGameAdmin() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
-    status: 'Draft' as 'Draft' | 'Ongoing' | 'Completed',
+    status: 'Upcoming' as 'Upcoming' | 'Ongoing' | 'Finished' | 'Cancelled',
     start_date: '',
     end_date: '',
     entry_cost: 2000,
@@ -193,7 +193,7 @@ export default function FantasyGameAdmin() {
       setShowCreateForm(false);
       setFormData({
         name: '',
-        status: 'Draft',
+        status: 'Upcoming',
         start_date: '',
         end_date: '',
         entry_cost: 2000,
@@ -216,7 +216,7 @@ export default function FantasyGameAdmin() {
     }
   };
 
-  const handleUpdateStatus = async (gameId: string, newStatus: 'Draft' | 'Ongoing' | 'Completed') => {
+  const handleUpdateStatus = async (gameId: string, newStatus: 'Upcoming' | 'Ongoing' | 'Finished' | 'Cancelled') => {
     setLoading(true);
     setError(null);
 
@@ -273,9 +273,10 @@ export default function FantasyGameAdmin() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Draft': return 'bg-gray-500';
+      case 'Upcoming': return 'bg-gray-500';
       case 'Ongoing': return 'bg-green-500';
-      case 'Completed': return 'bg-blue-500';
+      case 'Finished': return 'bg-blue-500';
+      case 'Cancelled': return 'bg-red-500';
       default: return 'bg-gray-500';
     }
   };
@@ -373,9 +374,10 @@ export default function FantasyGameAdmin() {
                 onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
               >
-                <option value="Draft">Draft</option>
+                <option value="Upcoming">Upcoming</option>
                 <option value="Ongoing">Ongoing</option>
-                <option value="Completed">Completed</option>
+                <option value="Finished">Finished</option>
+                <option value="Cancelled">Cancelled</option>
               </select>
             </div>
 
@@ -659,9 +661,10 @@ export default function FantasyGameAdmin() {
                     onChange={(e) => handleUpdateStatus(game.id, e.target.value as any)}
                     className="px-3 py-1 text-sm bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
                   >
-                    <option value="Draft">Draft</option>
+                    <option value="Upcoming">Upcoming</option>
                     <option value="Ongoing">Ongoing</option>
-                    <option value="Completed">Completed</option>
+                    <option value="Finished">Finished</option>
+                    <option value="Cancelled">Cancelled</option>
                   </select>
 
                   <button
