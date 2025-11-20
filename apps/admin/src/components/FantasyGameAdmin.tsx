@@ -43,7 +43,7 @@ interface FantasyGame {
 interface League {
   id: string;
   name: string;
-  country: string;
+  country_or_region: string;
   logo?: string;
 }
 
@@ -112,7 +112,7 @@ export default function FantasyGameAdmin() {
     try {
       const { data, error: fetchError } = await supabase
         .from('leagues')
-        .select('id, name, country, logo')
+        .select('id, name, country_or_region, logo')
         .order('name');
 
       if (fetchError) throw fetchError;
@@ -159,9 +159,9 @@ export default function FantasyGameAdmin() {
         .from('fantasy_games')
         .select(`
           *,
-          leagues:league_id (
+          league_id (
             name,
-            country
+            country_or_region
           )
         `)
         .order('created_at', { ascending: false });
@@ -359,7 +359,7 @@ export default function FantasyGameAdmin() {
                 <option value="">-- Sélectionner une ligue --</option>
                 {leagues.map((league) => (
                   <option key={league.id} value={league.id}>
-                    {league.name} ({league.country})
+                    {league.name} ({league.country_or_region})
                   </option>
                 ))}
               </select>
@@ -621,7 +621,7 @@ export default function FantasyGameAdmin() {
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm text-gray-300">
                     <div>
                       <span className="text-gray-500">Ligue:</span>
-                      <p className="font-medium">{(game as any).leagues?.name || 'Non définie'}</p>
+                      <p className="font-medium">{(game as any).league_id?.name || 'Non définie'}</p>
                     </div>
                     <div>
                       <span className="text-gray-500">Début:</span>
