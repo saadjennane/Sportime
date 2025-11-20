@@ -128,6 +128,22 @@ export default function FantasyManualSync() {
     });
   };
 
+  const handleImportMatchStats = () => {
+    if (!selectedLeagueId) {
+      addLog('sync-player-match-stats', 'error', 'Veuillez sélectionner une ligue');
+      return;
+    }
+
+    const season = prompt('Saison (défaut: 2025):', '2025');
+    const batchSize = prompt('Taille du batch (défaut: 50):', '50');
+
+    callEdgeFunction('sync-player-match-stats', {
+      league_id: selectedLeagueId,
+      season: season ? parseInt(season) : 2025,
+      batch_size: batchSize ? parseInt(batchSize) : 50,
+    });
+  };
+
   const handleSyncMatchStats = () => {
     const gameWeekId = prompt('Enter Game Week ID (ou laissez vide pour toutes les game weeks actives):');
 
@@ -198,6 +214,29 @@ export default function FantasyManualSync() {
 
       {/* Action Buttons */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        {/* Import All Match Stats */}
+        <div className="p-4 bg-gray-800 rounded-lg border border-yellow-600">
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <h3 className="font-semibold text-lg">Import All Match Stats</h3>
+              <p className="text-xs text-gray-400 mt-1">
+                Importe les stats de TOUS les matchs terminés depuis API-Football
+              </p>
+            </div>
+            <span className="text-2xl">⚡</span>
+          </div>
+          <button
+            onClick={handleImportMatchStats}
+            disabled={!selectedLeagueId || loading['sync-player-match-stats']}
+            className="w-full px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading['sync-player-match-stats'] ? 'En cours...' : 'Import Match Stats'}
+          </button>
+          <div className="mt-2 text-xs text-gray-500">
+            Durée: ~2-3h pour 400 matchs. Agrège automatiquement vers player_season_stats avec PGS.
+          </div>
+        </div>
+
         {/* Sync League Players */}
         <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
           <div className="flex items-start justify-between mb-3">
@@ -314,6 +353,7 @@ export default function FantasyManualSync() {
       <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
         <h3 className="font-semibold text-blue-400 mb-2">ℹ️ Information</h3>
         <ul className="text-sm text-gray-300 space-y-1">
+          <li>• <strong>Import All Match Stats</strong>: (NOUVEAU) Importe toutes les stats des matchs terminés depuis API-Football vers player_match_stats, puis agrège automatiquement vers player_season_stats avec calcul automatique du PGS et statut (Star/Key/Wild). À exécuter UNE FOIS pour initialiser les données.</li>
           <li>• <strong>Sync League Players</strong>: Synchronise les joueurs d'une ligue depuis player_season_stats vers fantasy_league_players (calcule PGS et statut)</li>
           <li>• <strong>Sync Match Stats</strong>: À exécuter après chaque journée de matchs pour obtenir les stats réelles</li>
           <li>• <strong>Process Game Week</strong>: À exécuter quand une game week est terminée pour calculer les points</li>
