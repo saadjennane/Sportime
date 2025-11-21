@@ -154,40 +154,50 @@ serve(async (req) => {
 
     console.log(`[sync-player-match-stats] Found ${allPlayerIds.size} unique players, ${allTeamIds.size} unique teams`)
 
-    // Batch create teams
-    for (const teamId of allTeamIds) {
-      try {
-        const teamInfo = teamInfoMap.get(teamId)
-        const { error } = await supabaseClient
-          .from('teams')
-          .upsert({
-            api_id: teamId,
-            name: teamInfo.name,
-            logo: teamInfo.logo,
-          }, { onConflict: 'api_id', ignoreDuplicates: true })
+    // Batch create teams in ONE operation
+    const teamsToCreate = Array.from(allTeamIds).map(teamId => {
+      const teamInfo = teamInfoMap.get(teamId)
+      return {
+        api_id: teamId,
+        name: teamInfo.name,
+        logo: teamInfo.logo,
+      }
+    })
 
-        if (!error) totalTeamsCreated++
-      } catch (error) {
-        console.warn(`[sync-player-match-stats] Error creating team ${teamId}`)
+    if (teamsToCreate.length > 0) {
+      const { error: teamsError, count } = await supabaseClient
+        .from('teams')
+        .upsert(teamsToCreate, { onConflict: 'api_id', ignoreDuplicates: true })
+        .select('id', { count: 'exact', head: true })
+
+      if (!teamsError) {
+        totalTeamsCreated = count || teamsToCreate.length
+      } else {
+        console.error('[sync-player-match-stats] Error creating teams:', teamsError)
       }
     }
 
-    // Batch create players
-    for (const playerId of allPlayerIds) {
-      try {
-        const playerInfo = playerInfoMap.get(playerId)
-        const { error } = await supabaseClient
-          .from('players')
-          .upsert({
-            api_id: playerId,
-            first_name: playerInfo.name?.split(' ')[0] || 'Unknown',
-            last_name: playerInfo.name?.split(' ').slice(1).join(' ') || '',
-            photo_url: playerInfo.photo,
-          }, { onConflict: 'api_id', ignoreDuplicates: true })
+    // Batch create players in ONE operation
+    const playersToCreate = Array.from(allPlayerIds).map(playerId => {
+      const playerInfo = playerInfoMap.get(playerId)
+      return {
+        api_id: playerId,
+        first_name: playerInfo.name?.split(' ')[0] || 'Unknown',
+        last_name: playerInfo.name?.split(' ').slice(1).join(' ') || '',
+        photo_url: playerInfo.photo,
+      }
+    })
 
-        if (!error) totalPlayersCreated++
-      } catch (error) {
-        console.warn(`[sync-player-match-stats] Error creating player ${playerId}`)
+    if (playersToCreate.length > 0) {
+      const { error: playersError, count } = await supabaseClient
+        .from('players')
+        .upsert(playersToCreate, { onConflict: 'api_id', ignoreDuplicates: true })
+        .select('id', { count: 'exact', head: true })
+
+      if (!playersError) {
+        totalPlayersCreated = count || playersToCreate.length
+      } else {
+        console.error('[sync-player-match-stats] Error creating players:', playersError)
       }
     }
 
