@@ -136,6 +136,12 @@ export function useMatchesOfTheDay(): HookState {
             logo,
             api_league_id,
             season
+          ),
+          odds:fb_odds!fb_odds_fixture_id_fkey (
+            home_win,
+            draw,
+            away_win,
+            bookmaker_name
           )
         `)
         .gte('date', startISO)
@@ -199,13 +205,15 @@ export function useMatchesOfTheDay(): HookState {
           home: {
             id: r.home_team_id != null ? String(r.home_team_id) : '',
             name: homeTeam?.name ?? 'Home',
-            logo: homeTeam?.logo ?? null,
+            logo: homeTeam?.logo ??
+              (r.home_team_id ? `https://media.api-sports.io/football/teams/${r.home_team_id}.png` : null),
             goals: r.goals_home ?? null,
           },
           away: {
             id: r.away_team_id != null ? String(r.away_team_id) : '',
             name: awayTeam?.name ?? 'Away',
-            logo: awayTeam?.logo ?? null,
+            logo: awayTeam?.logo ??
+              (r.away_team_id ? `https://media.api-sports.io/football/teams/${r.away_team_id}.png` : null),
             goals: r.goals_away ?? null,
           },
           league: {
@@ -214,7 +222,12 @@ export function useMatchesOfTheDay(): HookState {
             logo: leagueLogo,
             apiId: r.league?.api_league_id ?? undefined,
           },
-          odds: undefined, // Odds removed for simplicity - can be added back later if needed
+          odds: r.odds?.[0] ? {
+            home: r.odds[0].home_win ?? undefined,
+            draw: r.odds[0].draw ?? undefined,
+            away: r.odds[0].away_win ?? undefined,
+            bookmaker: r.odds[0].bookmaker_name ?? undefined,
+          } : undefined,
         }
         return match
       })
