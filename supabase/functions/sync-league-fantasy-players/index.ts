@@ -34,9 +34,9 @@ serve(async (req) => {
     // Get current season
     const currentYear = new Date().getFullYear()
 
-    // Fetch player season stats for the league
+    // Fetch player season stats for the league (using combined view to handle transfers)
     const { data: playerStats, error: fetchError } = await supabaseClient
-      .from('player_season_stats')
+      .from('player_season_stats_combined')
       .select(`
         player_id,
         pgs,
@@ -73,10 +73,10 @@ serve(async (req) => {
 
     console.log(`[sync-league-fantasy-players] Found ${playerStats.length} players to sync`)
 
-    // Calculate status from PGS
+    // Calculate status from PGS (aligned with fix_pgs_calculation thresholds)
     const calculateStatus = (pgs: number): 'Star' | 'Key' | 'Wild' => {
-      if (pgs >= 7.5) return 'Star'
-      if (pgs >= 6.0) return 'Key'
+      if (pgs >= 6.0) return 'Star'
+      if (pgs >= 4.5) return 'Key'
       return 'Wild'
     }
 
