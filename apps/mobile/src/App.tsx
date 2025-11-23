@@ -117,7 +117,7 @@ function App() {
   const [dailyStreakData, setDailyStreakData] = useState<{ isOpen: boolean; streakDay: number }>({ isOpen: false, streakDay: 0 });
   const [contextualPrompt, setContextualPrompt] = useState<{ type: ContextualPromptType; isOpen: boolean } | null>(null);
 
-  const [page, setPage] = useState<Page>('challenges');
+  const [page, setPage] = useState<Page>('matches');
   const [matches, setMatches] = useState<Match[]>(mockMatches);
   const [bets, setBets] = useState<Bet[]>([]);
   const [modalState, setModalState] = useState<{ isOpen: boolean; match: Match | null; prediction: 'teamA' | 'draw' | 'teamB' | null; odds: number; }>({ isOpen: false, match: null, prediction: null, odds: 0 });
