@@ -163,7 +163,7 @@ export function useMatchesOfTheDay(): HookState {
       if (teamIds.size > 0) {
         const { data: teamsData } = await supabase
           .from('fb_teams')
-          .select('id, name, logo, api_id')
+          .select('id, name, logo_url, api_id')
           .in('id', Array.from(teamIds))
 
         ;(teamsData ?? []).forEach((team: any) => {
@@ -205,15 +205,13 @@ export function useMatchesOfTheDay(): HookState {
           home: {
             id: r.home_team_id != null ? String(r.home_team_id) : '',
             name: homeTeam?.name ?? 'Home',
-            logo: homeTeam?.logo ??
-              (homeTeam?.api_id ? `https://media.api-sports.io/football/teams/${homeTeam.api_id}.png` : null),
+            logo: homeTeam?.logo_url ?? null,
             goals: r.goals_home ?? null,
           },
           away: {
             id: r.away_team_id != null ? String(r.away_team_id) : '',
             name: awayTeam?.name ?? 'Away',
-            logo: awayTeam?.logo ??
-              (awayTeam?.api_id ? `https://media.api-sports.io/football/teams/${awayTeam.api_id}.png` : null),
+            logo: awayTeam?.logo_url ?? null,
             goals: r.goals_away ?? null,
           },
           league: {
