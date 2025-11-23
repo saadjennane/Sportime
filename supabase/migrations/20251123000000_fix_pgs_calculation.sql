@@ -38,12 +38,12 @@ BEGIN
 
   -- Déterminer le type de position
   v_position_type := CASE
-    WHEN p_position ILIKE '%goalkeeper%' OR p_position ILIKE '%keeper%' THEN 'GK'
-    WHEN p_position ILIKE '%defender%' OR p_position ILIKE '%back%' THEN 'DEF'
+    WHEN p_position ILIKE '%goalkeeper%' OR p_position ILIKE '%keeper%' OR p_position = 'G' THEN 'GK'
+    WHEN p_position ILIKE '%defender%' OR p_position ILIKE '%back%' OR p_position = 'D' THEN 'DEF'
     -- Milieu défensif: plus de tackles que de key passes
     WHEN (p_tackles_total + p_tackles_interceptions) > (p_passes_key * 2) THEN 'DM'
-    WHEN p_position ILIKE '%midfielder%' OR p_position ILIKE '%midfield%' THEN 'MID'
-    ELSE 'ATT'  -- Attacker/Forward/Winger
+    WHEN p_position ILIKE '%midfielder%' OR p_position ILIKE '%midfield%' OR p_position = 'M' THEN 'MID'
+    ELSE 'ATT'  -- Attacker/Forward/Winger (includes 'F' and 'A')
   END;
 
   -- Définir les multiplicateurs selon la position

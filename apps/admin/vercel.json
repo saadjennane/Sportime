@@ -1,0 +1,7 @@
+{
+  "env": {
+    "VITE_SUPABASE_URL": "https://crypuzduplbzbmvefvzr.supabase.co",
+    "VITE_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNyeXB1emR1cGxiemJtdmVmdnpyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk4MjA1NjgsImV4cCI6MjA3NTM5NjU2OH0.xqtN8oqhGYkZ5z-9TXLg0gzvnpf6KdQcYjhEFkVLNJg",
+    "VITE_SUPABASE_SERVICE_ROLE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNyeXB1emR1cGxiemJtdmVmdnpyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTgyMDU2OCwiZXhwIjoyMDc1Mzk2NTY4fQ.KAqS9RRFHu0co0qiqVN5fz9YFscbopmPDvam5ySLem8"
+  }
+}
