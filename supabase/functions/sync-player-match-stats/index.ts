@@ -202,6 +202,38 @@ serve(async (req) => {
     }
 
     console.log(`[sync-player-match-stats] Pre-created ${totalTeamsCreated} teams, ${totalPlayersCreated} players`)
+
+    // Load ALL players and teams into memory for fast UUID lookups
+    console.log(`[sync-player-match-stats] Loading players and teams into memory...`)
+    const { data: allPlayers } = await supabaseClient
+      .from('players')
+      .select('id, api_id')
+
+    const { data: allTeams } = await supabaseClient
+      .from('teams')
+      .select('id, api_id')
+
+    // Create Maps for O(1) lookup by api_id
+    const playersMap = new Map<number, string>()
+    const teamsMap = new Map<number, string>()
+
+    if (allPlayers) {
+      for (const player of allPlayers) {
+        if (player.api_id) {
+          playersMap.set(player.api_id, player.id)
+        }
+      }
+    }
+
+    if (allTeams) {
+      for (const team of allTeams) {
+        if (team.api_id) {
+          teamsMap.set(team.api_id, team.id)
+        }
+      }
+    }
+
+    console.log(`[sync-player-match-stats] Loaded ${playersMap.size} players, ${teamsMap.size} teams into memory`)
     console.log(`[sync-player-match-stats] Phase 2: Processing match stats...`)
 
     // Process fixtures in batches
@@ -240,14 +272,10 @@ serve(async (req) => {
           for (const teamData of data.response) {
             const teamId = teamData.team.id
 
-            // Resolve team UUID from api_id (should exist from pre-creation phase)
-            const { data: teamRecord } = await supabaseClient
-              .from('teams')
-              .select('id')
-              .eq('api_id', teamId)
-              .single()
+            // Resolve team UUID from in-memory Map (instant lookup)
+            const teamUuid = teamsMap.get(teamId)
 
-            if (!teamRecord) {
+            if (!teamUuid) {
               console.warn(`[sync-player-match-stats] Team not found for api_id ${teamId}, skipping`)
               continue
             }
@@ -256,14 +284,10 @@ serve(async (req) => {
               const playerApiId = playerData.player.id
               const stats = playerData.statistics[0] // First statistics object
 
-              // Resolve player UUID from api_id (should exist from pre-creation phase)
-              const { data: playerRecord } = await supabaseClient
-                .from('players')
-                .select('id')
-                .eq('api_id', playerApiId)
-                .single()
+              // Resolve player UUID from in-memory Map (instant lookup)
+              const playerUuid = playersMap.get(playerApiId)
 
-              if (!playerRecord) {
+              if (!playerUuid) {
                 console.warn(`[sync-player-match-stats] Player not found for api_id ${playerApiId}, skipping`)
                 continue
               }
@@ -276,9 +300,9 @@ serve(async (req) => {
               const cleanSheet = stats.goals?.conceded === 0 && minutesPlayed >= 60
 
               playerStats.push({
-                player_id: playerRecord.id,
+                player_id: playerUuid,
                 fixture_id: fixture.id,
-                team_id: teamRecord.id,
+                team_id: teamUuid,
                 minutes_played: minutesPlayed,
                 started: stats.games?.position?.toLowerCase() !== 'substitute',
                 substitute_in: stats.games?.substitute === true,
