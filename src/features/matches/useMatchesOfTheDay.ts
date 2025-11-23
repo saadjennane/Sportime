@@ -136,6 +136,12 @@ export function useMatchesOfTheDay(): HookState {
             logo,
             api_league_id,
             season
+          ),
+          odds:fb_odds!odds_fixture_id_fkey (
+            home_win,
+            draw,
+            away_win,
+            bookmaker_name
           )
         `)
         .gte('date', startISO)
@@ -214,7 +220,12 @@ export function useMatchesOfTheDay(): HookState {
             logo: leagueLogo,
             apiId: r.league?.api_league_id ?? undefined,
           },
-          odds: undefined,
+          odds: r.odds?.[0] ? {
+            home: r.odds[0].home_win ?? undefined,
+            draw: r.odds[0].draw ?? undefined,
+            away: r.odds[0].away_win ?? undefined,
+            bookmaker: r.odds[0].bookmaker_name ?? undefined,
+          } : undefined,
         }
         return match
       })
