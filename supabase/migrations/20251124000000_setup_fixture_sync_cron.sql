@@ -107,9 +107,18 @@ BEGIN
 
     RAISE NOTICE 'pg_cron extension enabled';
 
-    -- Désactiver les jobs existants s'ils existent
-    PERFORM cron.unschedule('daily-fixture-schedule-sync');
-    PERFORM cron.unschedule('today-fixture-refresh');
+    -- Désactiver les jobs existants s'ils existent (ignorer si n'existent pas)
+    BEGIN
+      PERFORM cron.unschedule('daily-fixture-schedule-sync');
+    EXCEPTION WHEN OTHERS THEN
+      NULL; -- Ignorer si le job n'existe pas
+    END;
+
+    BEGIN
+      PERFORM cron.unschedule('today-fixture-refresh');
+    EXCEPTION WHEN OTHERS THEN
+      NULL; -- Ignorer si le job n'existe pas
+    END;
 
     -- Job 1: Sync quotidien à 3h UTC (pour les 14 prochains jours)
     -- Capture les reprogrammations, annulations, changements d'horaire
