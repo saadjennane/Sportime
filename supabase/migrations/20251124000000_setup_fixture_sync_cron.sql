@@ -46,11 +46,22 @@ COMMENT ON COLUMN public.fixture_sync_log.schedule_changes IS 'JSON des changeme
 -- Note: pg_cron et pg_net doivent être activés par un super-utilisateur
 -- Ceci peut nécessiter l'intervention du support Supabase pour certains plans
 
+-- Activer pg_net si disponible
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pg_net') THEN
+    CREATE EXTENSION IF NOT EXISTS pg_net;
+    RAISE NOTICE 'pg_net extension enabled';
+  ELSE
+    RAISE NOTICE 'pg_net extension not available';
+  END IF;
+END $$;
+
 -- Créer la fonction d'appel si pg_net est disponible
 DO $$
 BEGIN
-  -- Vérifier si l'extension pg_net existe
-  IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pg_net') THEN
+  -- Vérifier si l'extension pg_net est INSTALLÉE (pas juste disponible)
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_net') THEN
     -- Créer la fonction d'appel
     CREATE OR REPLACE FUNCTION public.trigger_fixture_sync(
       p_days_ahead INTEGER DEFAULT 14,
@@ -86,7 +97,11 @@ BEGIN
 
     COMMENT ON FUNCTION public.trigger_fixture_sync IS 'Déclenche la synchronisation des fixtures via Edge Function';
   ELSE
-    RAISE NOTICE 'pg_net extension not available - skipping function creation';
+    RAISE NOTICE '====================================================================';
+    RAISE NOTICE 'pg_net extension is NOT installed';
+    RAISE NOTICE 'The trigger_fixture_sync function will NOT be created';
+    RAISE NOTICE 'You can still use the admin panel or GitHub Actions for syncing';
+    RAISE NOTICE '====================================================================';
   END IF;
 END $$;
 
