@@ -23,6 +23,9 @@ CREATE INDEX IF NOT EXISTS idx_fixture_sync_log_created_at
 -- Activer RLS
 ALTER TABLE public.fixture_sync_log ENABLE ROW LEVEL SECURITY;
 
+-- Supprimer l'ancienne politique si elle existe
+DROP POLICY IF EXISTS "Allow public read access to sync log" ON public.fixture_sync_log;
+
 -- Politique: lecture publique
 CREATE POLICY "Allow public read access to sync log"
   ON public.fixture_sync_log FOR SELECT
