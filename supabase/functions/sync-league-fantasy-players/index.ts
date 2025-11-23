@@ -91,10 +91,18 @@ serve(async (req) => {
         is_available: true,
       }))
 
+    // Deduplicate by player_id to prevent ON CONFLICT errors
+    // This handles cases where the view might return duplicates
+    const uniquePlayers = Array.from(
+      new Map(fantasyPlayers.map(p => [p.player_id, p])).values()
+    )
+
+    console.log(`[sync-league-fantasy-players] Deduplication: ${fantasyPlayers.length} -> ${uniquePlayers.length} unique players`)
+
     // Upsert fantasy league players
     const { error: upsertError } = await supabaseClient
       .from('fantasy_league_players')
-      .upsert(fantasyPlayers, {
+      .upsert(uniquePlayers, {
         onConflict: 'league_id,player_id',
         ignoreDuplicates: false
       })
@@ -104,17 +112,17 @@ serve(async (req) => {
       throw upsertError
     }
 
-    console.log(`[sync-league-fantasy-players] Successfully synced ${fantasyPlayers.length} players`)
+    console.log(`[sync-league-fantasy-players] Successfully synced ${uniquePlayers.length} players`)
 
     return new Response(
       JSON.stringify({
         success: true,
-        synced: fantasyPlayers.length,
-        message: `Successfully synced ${fantasyPlayers.length} players for league`,
+        synced: uniquePlayers.length,
+        message: `Successfully synced ${uniquePlayers.length} players for league`,
         breakdown: {
-          star: fantasyPlayers.filter(p => p.status === 'Star').length,
-          key: fantasyPlayers.filter(p => p.status === 'Key').length,
-          wild: fantasyPlayers.filter(p => p.status === 'Wild').length,
+          star: uniquePlayers.filter(p => p.status === 'Star').length,
+          key: uniquePlayers.filter(p => p.status === 'Key').length,
+          wild: uniquePlayers.filter(p => p.status === 'Wild').length,
         }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
