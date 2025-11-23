@@ -116,7 +116,7 @@ BEGIN
     PERFORM cron.schedule(
       'daily-fixture-schedule-sync',
       '0 3 * * *',  -- Tous les jours à 3h UTC
-      $$SELECT public.trigger_fixture_sync(14, 'scheduled')$$
+      $cron$SELECT public.trigger_fixture_sync(14, 'scheduled')$cron$
     );
 
     -- Job 2: Refresh fréquent pour les matchs du jour (toutes les 2h de 6h à 23h UTC)
@@ -124,7 +124,7 @@ BEGIN
     PERFORM cron.schedule(
       'today-fixture-refresh',
       '0 6-23/2 * * *',  -- Toutes les 2h de 6h à 23h
-      $$SELECT public.trigger_fixture_sync(1, 'today')$$
+      $cron$SELECT public.trigger_fixture_sync(1, 'today')$cron$
     );
 
     RAISE NOTICE 'pg_cron jobs scheduled successfully';
