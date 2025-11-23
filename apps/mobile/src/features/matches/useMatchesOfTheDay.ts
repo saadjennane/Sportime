@@ -86,8 +86,18 @@ export function useMatchesOfTheDay(): HookState {
   // Get user's timezone (auto-detected or from profile)
   const userTimezone = useUserTimezone()
 
-  // Calculate day bounds based on user's timezone
-  const [{ startISO, endISO }] = useState(() => getLocalDayBoundsUtil(userTimezone))
+  // Calculate day bounds using UTC to match API-Football data storage
+  // This ensures matches display correctly regardless of user timezone
+  const [{ startISO, endISO }] = useState(() => {
+    const now = new Date()
+    const startUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0))
+    const endUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999))
+
+    return {
+      startISO: startUTC.toISOString(),
+      endISO: endUTC.toISOString()
+    }
+  })
   const [baseGroups, setBaseGroups] = useState<UiLeagueGroup[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

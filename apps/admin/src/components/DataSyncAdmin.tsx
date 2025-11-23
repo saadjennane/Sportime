@@ -466,6 +466,62 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
     }
   }
 
+  const handleSyncFixtureSchedules = async (daysAhead: number = 14) => {
+    setLoading('fixture-schedules')
+    setProgress([])
+    addProgress(`Syncing fixture schedules for next ${daysAhead} days...`)
+
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Supabase configuration missing')
+      }
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/sync-fixture-schedules`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({
+          days_ahead: daysAhead,
+          update_mode: 'manual',
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Fixture schedule sync failed')
+      }
+
+      const result = await response.json()
+
+      addProgress(`✅ Sync complete!`)
+      addProgress(`   Checked: ${result.checked} fixtures`)
+      addProgress(`   Inserted: ${result.inserted || 0} new fixtures`)
+      addProgress(`   Updated: ${result.updated} fixtures`)
+
+      if (result.schedule_changes && result.schedule_changes.length > 0) {
+        addProgress(`\n⚠️  ${result.schedule_changes.length} schedule change(s) detected:`)
+        result.schedule_changes.forEach((change: any) => {
+          addProgress(`   ${change.league}: ${change.home_team} vs ${change.away_team}`)
+          addProgress(`   ${change.old_date} → ${change.new_date}`)
+        })
+      } else {
+        addProgress('   No schedule changes detected.')
+      }
+
+      toast('Fixture schedules synced successfully!', 'success')
+    } catch (e: any) {
+      toast(`Fixture schedule sync failed: ${e?.message ?? 'unknown error'}`, 'error')
+      addProgress(`❌ Error: ${e?.message ?? 'unknown error'}`)
+    } finally {
+      setLoading(null)
+    }
+  }
+
   const handleFantasyDataSeed = async () => {
     // Parse fantasy league IDs from input
     const selectedLeagueIds = fantasyLeagueIds
@@ -642,6 +698,73 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
           Note: Automatic syncing requires a backend scheduler (e.g., Supabase Edge Functions on a
           cron schedule) to trigger these functions based on the saved frequency.
         </p>
+      </div>
+
+      {/* Fixture Schedule Sync Section */}
+      <div className="bg-navy-accent rounded-2xl shadow-lg p-5 space-y-4 border border-neon-cyan/20">
+        <div className="flex items-center gap-3">
+          <div className="bg-neon-cyan/20 p-2 rounded-full">
+            <RefreshCw className="w-6 h-6 text-neon-cyan" />
+          </div>
+          <h3 className="font-bold text-lg text-text-primary">Fixture Schedule Updates</h3>
+        </div>
+
+        <div className="bg-deep-navy p-4 rounded-lg border border-electric-blue/10">
+          <h4 className="font-semibold text-text-primary mb-2">⚠️ Why this is important</h4>
+          <ul className="text-sm text-text-secondary space-y-1">
+            <li>• Football schedules change frequently (TV rights, weather, conflicts)</li>
+            <li>• La Liga commonly adjusts times 2-4 weeks before matchday</li>
+            <li>• Without updates, users see incorrect kickoff times</li>
+            <li>• Automated sync keeps your app data accurate</li>
+          </ul>
+        </div>
+
+        <div className="bg-deep-navy p-4 rounded-lg border border-electric-blue/10">
+          <h4 className="font-semibold text-text-primary mb-2">What this sync does</h4>
+          <ul className="text-sm text-text-secondary space-y-1">
+            <li>• Fetches upcoming fixtures from API-Football</li>
+            <li>• Compares with database to detect changes</li>
+            <li>• Updates fixture dates/times when schedules change</li>
+            <li>• Logs all detected changes for review</li>
+          </ul>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={() => handleSyncFixtureSchedules(1)}
+            disabled={!!loading}
+            className="flex-1 flex items-center justify-center gap-2 py-3 bg-neon-cyan/20 border-2 border-neon-cyan text-neon-cyan rounded-xl font-semibold hover:bg-neon-cyan/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          >
+            {loading === 'fixture-schedules' ? <RefreshCw className="animate-spin" size={20} /> : <RefreshCw size={20} />}
+            Today Only
+          </button>
+          <button
+            onClick={() => handleSyncFixtureSchedules(7)}
+            disabled={!!loading}
+            className="flex-1 flex items-center justify-center gap-2 py-3 bg-neon-cyan/20 border-2 border-neon-cyan text-neon-cyan rounded-xl font-semibold hover:bg-neon-cyan/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          >
+            {loading === 'fixture-schedules' ? <RefreshCw className="animate-spin" size={20} /> : <RefreshCw size={20} />}
+            Next 7 Days
+          </button>
+          <button
+            onClick={() => handleSyncFixtureSchedules(14)}
+            disabled={!!loading}
+            className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-neon-cyan to-electric-blue text-white rounded-xl font-semibold shadow-lg hover:shadow-neon-cyan/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          >
+            {loading === 'fixture-schedules' ? <RefreshCw className="animate-spin" size={20} /> : <RefreshCw size={20} />}
+            Next 14 Days
+          </button>
+        </div>
+
+        <div className="bg-lime-glow/10 p-3 rounded-lg border border-lime-glow/20">
+          <p className="text-xs text-lime-glow font-semibold">
+            ✅ Automated Sync Available
+          </p>
+          <p className="text-xs text-text-secondary mt-1">
+            This sync can run automatically via GitHub Actions or pg_cron.
+            See .github/workflows/sync-fixtures.yml or the migration file for setup.
+          </p>
+        </div>
       </div>
 
       {/* Fantasy Data Seeding Section */}
