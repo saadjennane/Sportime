@@ -184,7 +184,12 @@ serve(async (req) => {
         api_id: playerId,
         first_name: playerInfo.name?.split(' ')[0] || 'Unknown',
         last_name: playerInfo.name?.split(' ').slice(1).join(' ') || '',
-        photo_url: playerInfo.photo,
+        photo_url: playerInfo.photo || '',
+        nationality: playerInfo.nationality || 'Unknown',
+        birthdate: playerInfo.birth?.date || '1990-01-01',
+        position: playerInfo.position || 'Unknown',
+        height_cm: playerInfo.height ? parseInt(playerInfo.height.replace(' cm', '')) : null,
+        weight_kg: playerInfo.weight ? parseInt(playerInfo.weight.replace(' kg', '')) : null,
       }
     })
 
