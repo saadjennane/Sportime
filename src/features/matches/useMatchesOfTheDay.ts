@@ -152,18 +152,18 @@ export function useMatchesOfTheDay(): HookState {
       if (dbError) throw dbError
 
       // Get unique team IDs to fetch team data
-      const teamIds = new Set<number>()
+      const teamIds = new Set<string>()
       ;(rows ?? []).forEach((r: any) => {
         if (r.home_team_id) teamIds.add(r.home_team_id)
         if (r.away_team_id) teamIds.add(r.away_team_id)
       })
 
-      // Fetch team data if we have any team IDs
-      const teamsMap = new Map<number, any>()
+      // Fetch team data if we have any team IDs (include api_id for fallback logos)
+      const teamsMap = new Map<string, any>()
       if (teamIds.size > 0) {
         const { data: teamsData } = await supabase
           .from('fb_teams')
-          .select('id, name, logo')
+          .select('id, name, logo, api_id')
           .in('id', Array.from(teamIds))
 
         ;(teamsData ?? []).forEach((team: any) => {
@@ -206,14 +206,14 @@ export function useMatchesOfTheDay(): HookState {
             id: r.home_team_id != null ? String(r.home_team_id) : '',
             name: homeTeam?.name ?? 'Home',
             logo: homeTeam?.logo ??
-              (r.home_team_id ? `https://media.api-sports.io/football/teams/${r.home_team_id}.png` : null),
+              (homeTeam?.api_id ? `https://media.api-sports.io/football/teams/${homeTeam.api_id}.png` : null),
             goals: r.goals_home ?? null,
           },
           away: {
             id: r.away_team_id != null ? String(r.away_team_id) : '',
             name: awayTeam?.name ?? 'Away',
             logo: awayTeam?.logo ??
-              (r.away_team_id ? `https://media.api-sports.io/football/teams/${r.away_team_id}.png` : null),
+              (awayTeam?.api_id ? `https://media.api-sports.io/football/teams/${awayTeam.api_id}.png` : null),
             goals: r.goals_away ?? null,
           },
           league: {
