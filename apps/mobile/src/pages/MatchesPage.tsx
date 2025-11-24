@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Match, Bet } from '../types';
 import UpcomingPage from './Upcoming';
-import PlayedPage from './Played';
+import FinishedMatchesPage from './FinishedMatches';
 import { DailySummaryHeader } from '../components/matches/DailySummaryHeader';
 import { format } from 'date-fns';
 import { Settings } from 'lucide-react';
@@ -12,7 +12,7 @@ import { MatchStatsDrawer } from '../components/matches/stats/MatchStatsDrawer';
 import { useMatchesOfTheDay } from '../features/matches/useMatchesOfTheDay';
 import type { UiMatch } from '../features/matches/useMatchesOfTheDay';
 
-type Tab = 'upcoming' | 'played';
+type Tab = 'upcoming' | 'finished';
 
 interface MatchesPageProps {
   matches: Match[];
@@ -122,48 +122,6 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
     };
   }, [groups, toLegacyMatch]);
 
-  // Get played matches from useMatchesOfTheDay and filter for matches with user bets
-  const playedMatchesWithBets = useMemo(() => {
-    if (!groups || groups.length === 0) return [];
-
-    // Filter groups to only include played matches
-    const playedGroups = groups.filter(group =>
-      group.matches.some(m => m.status === 'played')
-    ).map(group => ({
-      ...group,
-      matches: group.matches.filter(m => m.status === 'played')
-    }));
-
-    // Convert played matches to legacy format
-    const allPlayedMatches = playedGroups.flatMap(group =>
-      group.matches.map(m => toLegacyMatch(m))
-    );
-
-    // Only return matches where user has placed a bet
-    const matchesWithBets = allPlayedMatches.filter(match =>
-      bets.some(bet => bet.matchId === match.id)
-    );
-
-    // Calculate bet results for each match
-    return matchesWithBets.map(match => {
-      const userBet = bets.find(bet => bet.matchId === match.id);
-      if (!userBet || !match.result) return match;
-
-      // Determine if bet won or lost
-      const won = userBet.prediction === match.result;
-      const updatedBet: Bet = {
-        ...userBet,
-        status: won ? 'won' : 'lost',
-        winAmount: won ? userBet.amount * userBet.odds : 0
-      };
-
-      // Update the bet in the bets array (side effect handled by parent)
-      return match;
-    });
-  }, [groups, bets, toLegacyMatch]);
-
-  const playedMatches: Match[] = playedMatchesWithBets;
-
   // Create mock matches array with all imported leagues for useLeagueOrder
   const allLeaguesAsMatches = useMemo(() => {
     return importedLeagues.map(league => ({
@@ -181,21 +139,12 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
 
   const { orderedLeagues, setOrderedLeagues } = useLeagueOrder(allLeaguesAsMatches);
 
-  const groupedPlayed = useMemo(() => {
-    return playedMatches.reduce((acc, match) => {
-      const league = match.leagueName || 'Other';
-      if (!acc[league]) acc[league] = [];
-      acc[league].push(match);
-      return acc;
-    }, {} as Record<string, Match[]>);
-  }, [playedMatches]);
-  
   const effectiveOrderedLeagues = useMemo(() => {
     if (orderedLeagues.length) return orderedLeagues;
     const upcomingLeagueNames = Object.keys(groupedUpcoming);
     if (upcomingLeagueNames.length) return upcomingLeagueNames;
-    return Object.keys(groupedPlayed);
-  }, [orderedLeagues, groupedUpcoming, groupedPlayed]);
+    return [];
+  }, [orderedLeagues, groupedUpcoming]);
 
   // Use ALL imported leagues for the modal, not just those with matches today
   const uniqueLeaguesWithLogos = useMemo(() => {
@@ -246,42 +195,18 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
     };
   }, [bets, upcomingMatches]);
 
-  // Header data for Played tab
-  const playedHeaderData = useMemo(() => {
-    // Calculate successful picks and total winnings
-    let successfulPicks = 0;
-    let totalWinnings = 0;
-
-    playedMatches.forEach(match => {
-      const userBet = bets.find(bet => bet.matchId === match.id);
-      if (userBet && match.result) {
-        const won = userBet.prediction === match.result;
-        if (won) {
-          successfulPicks++;
-          totalWinnings += userBet.amount * userBet.odds;
-        }
-      }
-    });
-
-    return {
-      successfulPicks,
-      totalPlayed: playedMatches.length,
-      winnings: totalWinnings
-    };
-  }, [bets, playedMatches]);
-
-  const headerData = activeTab === 'upcoming' ? upcomingHeaderData : playedHeaderData;
-
   return (
     <div className="space-y-4">
-      <DailySummaryHeader
-        date={format(new Date(), 'EEEE, MMM d, yyyy')}
-        picksCount={activeTab === 'upcoming' ? upcomingHeaderData.picksCount : playedHeaderData.successfulPicks}
-        totalMatches={activeTab === 'upcoming' ? upcomingHeaderData.totalMatches : playedHeaderData.totalPlayed}
-        potentialWinnings={activeTab === 'upcoming' ? upcomingHeaderData.potentialWinnings : playedHeaderData.winnings}
-        isPlayedTab={activeTab === 'played'}
-      />
-      
+      {activeTab === 'upcoming' && (
+        <DailySummaryHeader
+          date={format(new Date(), 'EEEE, MMM d, yyyy')}
+          picksCount={upcomingHeaderData.picksCount}
+          totalMatches={upcomingHeaderData.totalMatches}
+          potentialWinnings={upcomingHeaderData.potentialWinnings}
+          isPlayedTab={false}
+        />
+      )}
+
       <div className="flex items-center gap-2">
         <div className="flex-1 flex bg-navy-accent rounded-xl p-1">
           <button
@@ -291,10 +216,10 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
             Upcoming
           </button>
           <button
-            onClick={() => setActiveTab('played')}
-            className={`flex-1 p-2 rounded-lg font-semibold transition-all text-sm ${activeTab === 'played' ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'}`}
+            onClick={() => setActiveTab('finished')}
+            className={`flex-1 p-2 rounded-lg font-semibold transition-all text-sm ${activeTab === 'finished' ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'}`}
           >
-            Played
+            Finished
           </button>
         </div>
         <button onClick={() => setIsOrderModalOpen(true)} className="p-3 bg-navy-accent rounded-xl text-text-secondary hover:text-electric-blue">
@@ -320,11 +245,11 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
           />
         )
       ) : (
-        <PlayedPage 
-          groupedMatches={groupedPlayed}
-          orderedLeagues={effectiveOrderedLeagues}
+        <FinishedMatchesPage
+          userId={undefined}
           bets={bets}
           onViewStats={setSelectedMatchForStats}
+          orderedLeagues={effectiveOrderedLeagues}
         />
       )}
 
