@@ -21,8 +21,6 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [filters, setFilters] = useState<FinishedMatchesFilters>({
-    leagueIds: [],
-    statuses: [],
     myBetsOnly: false,
   });
 
@@ -45,16 +43,6 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
     return grouped;
   }, [matches]);
 
-  // Get available leagues for filter
-  const availableLeagues = useMemo(() => {
-    const uniqueLeagues = new Map<string, string>();
-    matches.forEach((match) => {
-      if (match.league) {
-        uniqueLeagues.set(match.league.id, match.league.name);
-      }
-    });
-    return Array.from(uniqueLeagues.entries()).map(([id, name]) => ({ id, name }));
-  }, [matches]);
 
   // Sort leagues according to user's order
   const sortedLeagueNames = useMemo(() => {
@@ -96,7 +84,6 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
       <FinishedMatchesFilterPanel
         filters={filters}
         onFilterChange={setFilters}
-        availableLeagues={availableLeagues}
       />
 
       {/* Info Banner */}

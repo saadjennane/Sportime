@@ -3,8 +3,6 @@ import { supabase } from '../../lib/supabaseClient';
 import { Match, Bet } from '../../types';
 
 interface FinishedMatchFilters {
-  leagueIds?: string[];
-  statuses?: string[];
   myBetsOnly?: boolean;
 }
 
@@ -51,7 +49,7 @@ export function useFinishedMatches(
       fromDate.setHours(0, 0, 0, 0);
 
       // Build query
-      let query = supabase
+      const query = supabase
         .from('fb_fixtures')
         .select(`
           id,
@@ -71,13 +69,8 @@ export function useFinishedMatches(
         `)
         .gte('date', fromDate.toISOString())
         .lte('date', today.toISOString())
-        .in('status', filters.statuses || FINISHED_STATUSES)
+        .in('status', FINISHED_STATUSES)
         .order('date', { ascending: false });
-
-      // Apply league filter if specified
-      if (filters.leagueIds && filters.leagueIds.length > 0) {
-        query = query.in('league_id', filters.leagueIds);
-      }
 
       const { data: fixturesData, error: fixturesError } = await query;
 
@@ -165,7 +158,7 @@ export function useFinishedMatches(
     } finally {
       setIsLoading(false);
     }
-  }, [filters.leagueIds, filters.statuses, filters.myBetsOnly, userBets, userId]);
+  }, [filters.myBetsOnly, userBets, userId]);
 
   // Initial load
   useEffect(() => {
