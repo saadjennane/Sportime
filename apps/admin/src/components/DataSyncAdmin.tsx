@@ -403,6 +403,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
                   draw: parseFloat(draw),
                   away_win: parseFloat(away),
                   bookmaker_name: data?.response?.[0]?.bookmakers?.[0]?.name || 'Unknown',
+                  updated_at: new Date().toISOString(),
                 }
 
                 addProgress(`Upserting odds for fixture ${fx.id}: home=${home}, draw=${draw}, away=${away}`)
