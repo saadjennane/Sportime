@@ -76,25 +76,65 @@ BEGIN
     AS $func$
     DECLARE
       v_url TEXT;
+      v_service_role_key TEXT;
       v_response JSONB;
+      v_request_id BIGINT;
     BEGIN
-      -- Construire l'URL (remplacer par votre URL Supabase réelle)
-      v_url := current_setting('app.settings.supabase_url', true) || '/functions/v1/sync-fixture-schedules';
+      -- IMPORTANT: Remplacez ces valeurs par votre URL et clé Supabase réelles
+      -- Option 1: Hard-coder les valeurs (plus simple pour démarrer)
+      v_url := 'https://crypuzduplbzbmvefvzr.supabase.co/functions/v1/sync-fixture-schedules';
 
-      -- Appeler l'Edge Function via pg_net
-      SELECT net.http_post(
-        url := v_url,
-        headers := jsonb_build_object(
-          'Content-Type', 'application/json',
-          'Authorization', 'Bearer ' || current_setting('app.settings.supabase_service_role_key', true)
-        ),
-        body := jsonb_build_object(
-          'days_ahead', p_days_ahead,
-          'update_mode', p_mode
-        )
-      ) INTO v_response;
+      -- Option 2: Utiliser Supabase Vault (recommandé pour la production)
+      -- Décommentez cette ligne et créez le secret dans le dashboard Supabase
+      -- SELECT decrypted_secret INTO v_service_role_key
+      -- FROM vault.decrypted_secrets
+      -- WHERE name = 'service_role_key';
 
-      RETURN v_response;
+      -- Pour l'instant, on utilise la clé anon (limitée mais suffisante pour tester)
+      -- IMPORTANT: Remplacez par votre service_role_key pour la production
+      v_service_role_key := current_setting('request.jwt.claims', true)::json->>'token';
+
+      -- Si on n'a pas de token JWT, utiliser une approche alternative
+      IF v_service_role_key IS NULL THEN
+        -- L'Edge Function doit gérer l'authentification elle-même
+        -- ou vous devez passer le service_role_key en paramètre
+        RAISE NOTICE 'No JWT token available, calling Edge Function without auth header';
+
+        -- Appeler sans Authorization header (l'Edge Function devra utiliser SUPABASE_SERVICE_ROLE_KEY)
+        SELECT net.http_post(
+          url := v_url,
+          headers := jsonb_build_object(
+            'Content-Type', 'application/json'
+          ),
+          body := jsonb_build_object(
+            'days_ahead', p_days_ahead,
+            'update_mode', p_mode
+          )
+        ) INTO v_request_id;
+      ELSE
+        -- Appeler avec Authorization header
+        SELECT net.http_post(
+          url := v_url,
+          headers := jsonb_build_object(
+            'Content-Type', 'application/json',
+            'Authorization', 'Bearer ' || v_service_role_key
+          ),
+          body := jsonb_build_object(
+            'days_ahead', p_days_ahead,
+            'update_mode', p_mode
+          )
+        ) INTO v_request_id;
+      END IF;
+
+      -- Note: pg_net.http_post retourne un request_id, pas la réponse directement
+      -- Pour obtenir la réponse, il faut interroger net.http_request_queue
+      -- Mais pour un cron job, on n'a pas besoin de la réponse immédiate
+
+      RETURN jsonb_build_object(
+        'success', true,
+        'request_id', v_request_id,
+        'message', 'Sync request submitted'
+      );
     END;
     $func$;
 
