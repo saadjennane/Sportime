@@ -7,9 +7,24 @@
 -- 0. S'ASSURER QUE LA CONTRAINTE UNIQUE EXISTE SUR ODDS
 -- ============================================
 
--- La contrainte unique_fixture_bookmaker doit déjà exister
--- (créée par la migration 20251124100000_sync_odds_staging_to_production.sql)
--- Cette section ne fait rien, gardée pour documentation
+-- Vérifier et créer la contrainte unique si elle n'existe pas
+DO $$
+BEGIN
+  -- Vérifier si la contrainte existe
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'unique_fixture_bookmaker'
+      AND conrelid = 'public.odds'::regclass
+  ) THEN
+    -- Créer la contrainte si elle n'existe pas
+    ALTER TABLE public.odds
+    ADD CONSTRAINT unique_fixture_bookmaker UNIQUE (fixture_id, bookmaker_name);
+
+    RAISE NOTICE 'Created unique constraint: unique_fixture_bookmaker';
+  ELSE
+    RAISE NOTICE 'Unique constraint already exists: unique_fixture_bookmaker';
+  END IF;
+END $$;
 
 -- ============================================
 -- 1. TABLE DE CONFIGURATION DES BOOKMAKERS
