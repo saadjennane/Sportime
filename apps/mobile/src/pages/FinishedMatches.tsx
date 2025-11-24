@@ -34,7 +34,7 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
   const groupedMatches = useMemo(() => {
     const grouped: Record<string, Match[]> = {};
     matches.forEach((match) => {
-      const leagueName = match.league?.name || 'Unknown League';
+      const leagueName = match.leagueName || 'Unknown League';
       if (!grouped[leagueName]) {
         grouped[leagueName] = [];
       }
@@ -127,7 +127,7 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
             <LeagueMatchGroup
               key={leagueName}
               leagueName={leagueName}
-              leagueLogo={matchesForLeague[0].league?.logo}
+              leagueLogo={matchesForLeague[0].leagueLogo}
               matchesCount={matchesForLeague.length}
               initialOpen={index < 5}
             >

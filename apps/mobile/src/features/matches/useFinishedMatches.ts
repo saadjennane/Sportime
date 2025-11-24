@@ -125,6 +125,8 @@ export function useFinishedMatches(
 
           const match: Match = {
             id: String(fixture.api_id || fixture.id),
+            leagueName: fixture.league?.name || 'Unknown League',
+            leagueLogo: fixture.league?.logo || null,
             teamA: {
               name: homeTeam.name || 'Unknown',
               emoji: '',
@@ -135,17 +137,12 @@ export function useFinishedMatches(
               emoji: '',
               logo: awayTeam.logo_url,
             },
-            date: fixture.date,
+            kickoffTime: fixture.date,
             status: 'played',
             odds: {
               teamA: fixture.fb_odds?.[0]?.home_win ?? 0,
               draw: fixture.fb_odds?.[0]?.draw ?? 0,
               teamB: fixture.fb_odds?.[0]?.away_win ?? 0,
-            },
-            league: {
-              id: fixture.league?.id || '',
-              name: fixture.league?.name || 'Unknown League',
-              logo: fixture.league?.logo,
             },
             score: {
               teamA: fixture.goals_home || 0,
