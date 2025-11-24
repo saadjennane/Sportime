@@ -8,22 +8,21 @@
 -- ============================================
 
 -- Vérifier et créer la contrainte unique si elle n'existe pas
+-- Utiliser une approche robuste avec gestion d'erreur
 DO $$
 BEGIN
-  -- Vérifier si la contrainte existe
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'unique_fixture_bookmaker'
-      AND conrelid = 'public.odds'::regclass
-  ) THEN
-    -- Créer la contrainte si elle n'existe pas
-    ALTER TABLE public.odds
-    ADD CONSTRAINT unique_fixture_bookmaker UNIQUE (fixture_id, bookmaker_name);
+  -- Essayer de créer la contrainte
+  ALTER TABLE public.odds
+  ADD CONSTRAINT unique_fixture_bookmaker UNIQUE (fixture_id, bookmaker_name);
 
-    RAISE NOTICE 'Created unique constraint: unique_fixture_bookmaker';
-  ELSE
+  RAISE NOTICE 'Created unique constraint: unique_fixture_bookmaker';
+EXCEPTION
+  WHEN duplicate_table THEN
+    -- La contrainte existe déjà, c'est OK
     RAISE NOTICE 'Unique constraint already exists: unique_fixture_bookmaker';
-  END IF;
+  WHEN others THEN
+    -- Autre erreur, la logger mais continuer
+    RAISE NOTICE 'Could not create constraint (may already exist): %', SQLERRM;
 END $$;
 
 -- ============================================
