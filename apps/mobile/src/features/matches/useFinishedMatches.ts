@@ -48,6 +48,12 @@ export function useFinishedMatches(
       fromDate.setDate(fromDate.getDate() - days);
       fromDate.setHours(0, 0, 0, 0);
 
+      console.log('[useFinishedMatches] Date range:', {
+        fromDate: fromDate.toISOString(),
+        toDate: today.toISOString(),
+        daysRequested: days,
+      });
+
       // Build query
       const query = supabase
         .from('fb_fixtures')
@@ -74,11 +80,18 @@ export function useFinishedMatches(
 
       const { data: fixturesData, error: fixturesError } = await query;
 
+      console.log('[useFinishedMatches] Query result:', {
+        count: fixturesData?.length || 0,
+        error: fixturesError,
+        sampleMatch: fixturesData?.[0],
+      });
+
       if (fixturesError) {
         throw fixturesError;
       }
 
       if (!fixturesData) {
+        console.log('[useFinishedMatches] No fixtures data returned');
         setMatches([]);
         setHasMore(false);
         return;
@@ -145,6 +158,13 @@ export function useFinishedMatches(
             userBets.some(bet => bet.matchId === match.id)
           )
         : transformedMatches;
+
+      console.log('[useFinishedMatches] Final result:', {
+        transformedCount: transformedMatches.length,
+        filteredCount: filteredMatches.length,
+        myBetsOnlyEnabled: filters.myBetsOnly,
+        userBetsCount: userBets.length,
+      });
 
       setMatches(filteredMatches);
 
