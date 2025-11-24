@@ -372,15 +372,15 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
 
         const { data: fixtures, error: fixErr } = await supabase
           .from('fb_fixtures')
-          .select('id, status')
+          .select('id, api_id, status')
           .in('status', ['NS', 'TBD', '1H', 'HT', '2H', 'ET', 'P'])
         if (fixErr) throw fixErr
 
         addProgress(`Found ${fixtures?.length || 0} upcoming fixtures`)
         if (fixtures && fixtures.length > 0) {
           for (const fx of fixtures) {
-            addProgress(`Fetching odds for fixture ${fx.id}...`)
-            const data = await apiFootball<ApiOddsInfo>('/odds', { fixture: String(fx.id) })
+            addProgress(`Fetching odds for fixture ${fx.api_id}...`)
+            const data = await apiFootball<ApiOddsInfo>('/odds', { fixture: String(fx.api_id) })
 
             const matchWinnerBet =
               data?.response?.[0]?.bookmakers?.[0]?.bets?.find((b: any) => b.name === 'Match Winner')
