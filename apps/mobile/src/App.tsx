@@ -337,7 +337,9 @@ function App() {
       const joinMatch = path.match(/\/join\/([a-zA-Z0-9]+)/);
       if (joinMatch && joinMatch[1]) {
           setJoinLeagueCode(joinMatch[1]);
-          window.history.replaceState({}, document.title, "/");
+          // Keep the base path (e.g., /mobile/) when replacing state
+          const basePath = path.startsWith('/mobile') ? '/mobile/' : '/';
+          window.history.replaceState({}, document.title, basePath);
       }
   }, []);
 
