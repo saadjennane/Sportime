@@ -397,19 +397,24 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
                 const draw = matchWinnerBet.values.find((v: any) => v.value === 'Draw')?.odd || '0'
                 const away = matchWinnerBet.values.find((v: any) => v.value === 'Away')?.odd || '0'
 
+                const oddsData = {
+                  fixture_id: fx.id,
+                  home_win: parseFloat(home),
+                  draw: parseFloat(draw),
+                  away_win: parseFloat(away),
+                  bookmaker_name: data?.response?.[0]?.bookmakers?.[0]?.name || 'Unknown',
+                }
+
+                addProgress(`Upserting odds for fixture ${fx.id}: home=${home}, draw=${draw}, away=${away}`)
+
                 const { error: oddsErr } = await supabase
                   .from('fb_odds')
-                  .upsert(
-                    {
-                      fixture_id: fx.id,
-                      home_win: parseFloat(home),
-                      draw: parseFloat(draw),
-                      away_win: parseFloat(away),
-                      bookmaker_name: data?.response?.[0]?.bookmakers?.[0]?.name || 'Unknown',
-                    },
-                    { onConflict: 'fixture_id,bookmaker_name' }
-                  )
-                if (oddsErr) throw oddsErr
+                  .upsert(oddsData, { onConflict: 'fixture_id,bookmaker_name' })
+
+                if (oddsErr) {
+                  addProgress(`✗ Supabase error: ${JSON.stringify(oddsErr)}`)
+                  throw oddsErr
+                }
 
                 successCount++
                 addProgress(`✓ Synced odds for fixture ${fx.api_id}`)
@@ -419,6 +424,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
             } catch (err: any) {
               errorCount++
               addProgress(`✗ Error for fixture ${fx.api_id}: ${err.message}`)
+              if (err.code) addProgress(`   Error code: ${err.code}, details: ${JSON.stringify(err.details || {})}`)
             }
           }
 
