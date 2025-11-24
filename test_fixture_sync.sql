@@ -21,9 +21,11 @@ FROM cron.job;
 SELECT public.trigger_fixture_sync(14, 'manual');
 
 -- 5. Vérifier que la requête a été créée dans pg_net
-SELECT id, url, status, created
+-- Note: La structure exacte dépend de la version de pg_net
+-- Essayez d'abord de voir toutes les colonnes disponibles
+SELECT *
 FROM net.http_request_queue
-ORDER BY created DESC
+ORDER BY id DESC
 LIMIT 5;
 
 -- 6. Après quelques secondes, vérifier les logs de sync
