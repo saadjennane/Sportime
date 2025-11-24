@@ -24,6 +24,7 @@ export type UiMatch = {
   rawStatus: string
   normalized: 'upcoming' | 'played'
   isLive: boolean
+  elapsedMinutes?: number
   homeTeamId?: number | null
   awayTeamId?: number | null
   season?: number | null
@@ -343,12 +344,14 @@ export function useMatchesOfTheDay(): HookState {
 
             const homeGoals = safeNum(item?.goals?.home)
             const awayGoals = safeNum(item?.goals?.away)
+            const elapsedMinutes = safeNum(item?.fixture?.status?.elapsed)
 
             updates.set(matchId, mergeOverride(updates.get(matchId), {
               rawStatus: statusUpper,
               normalized,
               status: normalized,
               isLive,
+              elapsedMinutes: elapsedMinutes ?? undefined,
               kickoffISO: kickoffISO ?? undefined,
               kickoffLabel: kickoffISO ? formatMatchTimeUtil(kickoffISO, userTimezone) : undefined,
               home: {

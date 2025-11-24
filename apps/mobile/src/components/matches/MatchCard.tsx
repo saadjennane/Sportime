@@ -152,7 +152,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
               </div>
               {isLive && (
                 <span className="text-[10px] font-semibold uppercase tracking-wide text-hot-red/80">
-                  Live
+                  {match.elapsedMinutes ? `${match.elapsedMinutes}'` : 'Live'}
                 </span>
               )}
             </div>

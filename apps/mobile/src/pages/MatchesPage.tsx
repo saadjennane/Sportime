@@ -12,7 +12,7 @@ import { MatchStatsDrawer } from '../components/matches/stats/MatchStatsDrawer';
 import { useMatchesOfTheDay } from '../features/matches/useMatchesOfTheDay';
 import type { UiMatch } from '../features/matches/useMatchesOfTheDay';
 
-type Tab = 'upcoming' | 'finished';
+type Tab = 'today' | 'finished';
 
 interface MatchesPageProps {
   matches: Match[];
@@ -22,7 +22,7 @@ interface MatchesPageProps {
 }
 
 const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayGame }) => {
-  const [activeTab, setActiveTab] = useState<Tab>('upcoming');
+  const [activeTab, setActiveTab] = useState<Tab>('today');
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [selectedMatchForStats, setSelectedMatchForStats] = useState<Match | null>(null);
 
@@ -87,6 +87,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
       odds,
       status: m.status,
       isLive: m.isLive,
+      elapsedMinutes: m.elapsedMinutes,
       result,
       score:
         m.status === 'played' || m.isLive
@@ -197,7 +198,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
 
   return (
     <div className="space-y-4">
-      {activeTab === 'upcoming' && (
+      {activeTab === 'today' && (
         <DailySummaryHeader
           date={format(new Date(), 'EEEE, MMM d, yyyy')}
           picksCount={upcomingHeaderData.picksCount}
@@ -210,10 +211,10 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
       <div className="flex items-center gap-2">
         <div className="flex-1 flex bg-navy-accent rounded-xl p-1">
           <button
-            onClick={() => setActiveTab('upcoming')}
-            className={`flex-1 p-2 rounded-lg font-semibold transition-all text-sm ${activeTab === 'upcoming' ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'}`}
+            onClick={() => setActiveTab('today')}
+            className={`flex-1 p-2 rounded-lg font-semibold transition-all text-sm ${activeTab === 'today' ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'}`}
           >
-            Upcoming
+            Today
           </button>
           <button
             onClick={() => setActiveTab('finished')}
@@ -227,7 +228,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
         </button>
       </div>
 
-      {activeTab === 'upcoming' ? (
+      {activeTab === 'today' ? (
         loading ? (
           <div className="card-base p-6 text-center text-text-secondary text-sm">Loading today’s matches…</div>
         ) : error ? (

@@ -10,6 +10,7 @@ export interface Match {
   odds: { teamA: number; draw: number; teamB: number };
   status: 'upcoming' | 'played';
   isLive?: boolean;
+  elapsedMinutes?: number;
   result?: 'teamA' | 'draw' | 'teamB';
   score?: { teamA: number; teamB: number };
   hasLineup?: boolean;
