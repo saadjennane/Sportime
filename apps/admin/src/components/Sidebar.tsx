@@ -12,7 +12,8 @@ import {
   Menu,
   X,
   Calendar,
-  Gamepad2
+  Gamepad2,
+  DollarSign
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -33,6 +34,7 @@ export function Sidebar({ className = '' }: SidebarProps) {
     { to: '/fantasy', icon: Gamepad2, label: 'Fantasy' },
     { to: '/progression', icon: Star, label: 'Progression' },
     { to: '/data-sync', icon: DatabaseZap, label: 'Data Sync' },
+    { to: '/bookmaker', icon: DollarSign, label: 'Bookmakers' },
     { to: '/config', icon: Settings, label: 'Game Config' },
     { to: '/celebrations', icon: Trophy, label: 'Celebrations' },
   ];

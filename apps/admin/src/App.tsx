@@ -11,6 +11,7 @@ import { ProgressionPage } from './pages/ProgressionPage';
 import { DataSyncPage } from './pages/DataSyncPage';
 import { CelebrationsPage } from './pages/CelebrationsPage';
 import { ConfigPage } from './pages/ConfigPage';
+import { BookmakerPage } from './pages/BookmakerPage';
 
 function App() {
   return (
@@ -25,6 +26,7 @@ function App() {
         <Route path="/fantasy" element={<FantasyPage />} />
         <Route path="/progression" element={<ProgressionPage />} />
         <Route path="/data-sync" element={<DataSyncPage />} />
+        <Route path="/bookmaker" element={<BookmakerPage />} />
         <Route path="/celebrations" element={<CelebrationsPage />} />
         <Route path="/config" element={<ConfigPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
