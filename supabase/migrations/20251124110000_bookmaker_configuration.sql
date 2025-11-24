@@ -288,5 +288,52 @@ GRANT EXECUTE ON FUNCTION public.sync_preferred_bookmaker_odds() TO service_role
 -- 8. SYNCHRONISER AVEC LE BOOKMAKER ACTUEL
 -- ============================================
 
--- Nettoyer et synchroniser uniquement le bookmaker préféré
-SELECT * FROM public.sync_preferred_bookmaker_odds();
+-- Synchroniser manuellement sans ON CONFLICT (pour première exécution)
+DO $$
+DECLARE
+  v_synced INTEGER := 0;
+  v_preferred_bookmaker TEXT := '10Bet';
+BEGIN
+  -- Supprimer les odds qui ne correspondent pas au bookmaker préféré
+  DELETE FROM public.odds
+  WHERE bookmaker_name != v_preferred_bookmaker;
+
+  -- Synchroniser uniquement les odds du bookmaker préféré
+  INSERT INTO public.odds (
+    id,
+    fixture_id,
+    bookmaker_name,
+    home_win,
+    draw,
+    away_win,
+    updated_at
+  )
+  SELECT
+    gen_random_uuid() as id,
+    f.id as fixture_id,
+    fbo.bookmaker_name,
+    fbo.home_win::REAL,
+    fbo.draw::REAL,
+    fbo.away_win::REAL,
+    fbo.updated_at
+  FROM public.fb_odds fbo
+  JOIN public.fb_fixtures ff ON fbo.fixture_id = ff.id
+  JOIN public.fixtures f ON ff.api_id = f.api_id
+  WHERE fbo.bookmaker_name = v_preferred_bookmaker
+    AND fbo.home_win IS NOT NULL
+    AND fbo.draw IS NOT NULL
+    AND fbo.away_win IS NOT NULL
+    AND NOT EXISTS (
+      -- Éviter les doublons
+      SELECT 1 FROM public.odds o
+      WHERE o.fixture_id = f.id
+        AND o.bookmaker_name = fbo.bookmaker_name
+    );
+
+  GET DIAGNOSTICS v_synced = ROW_COUNT;
+
+  RAISE NOTICE '============================================';
+  RAISE NOTICE 'Bookmaker configuration completed!';
+  RAISE NOTICE 'Synced % odds for bookmaker: %', v_synced, v_preferred_bookmaker;
+  RAISE NOTICE '============================================';
+END $$;
