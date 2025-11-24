@@ -23,7 +23,7 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
   const toast = addToast ?? ((msg: string) => console.log('[toast]', msg))
   const [loading, setLoading] = useState<string | null>(null)
   const [progress, setProgress] = useState<string[]>([])
-  const [leagueIds, setLeagueIds] = useState('2, 39, 140, 135') // UCL, Premier League, La Liga, Serie A
+  const [leagueIds, setLeagueIds] = useState('') // Empty by default
   const [season, setSeason] = useState('2025')
   const [syncConfigs, setSyncConfigs] = useState<ApiSyncConfig[]>([])
 
@@ -361,56 +361,70 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
 
         addProgress(`Finished fixtures sync. Total fixtures processed: ${totalSynced}.`)
       } else if (endpoint === 'odds') {
-        // First, check all fixtures to understand what we have
-        const { data: allFixtures } = await supabase
-          .from('fb_fixtures')
-          .select('id, status, date')
-          .order('date', { ascending: false })
-          .limit(10)
+        // Get today's date boundaries
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const tomorrow = new Date(today)
+        tomorrow.setDate(tomorrow.getDate() + 1)
 
-        addProgress(`Latest fixtures in DB: ${allFixtures?.map(f => `${f.id} (${f.status}, ${f.date})`).join(', ') || 'none'}`)
+        addProgress(`Fetching fixtures for today (${today.toISOString().split('T')[0]})...`)
 
+        // Get ALL fixtures for today (no status filter)
         const { data: fixtures, error: fixErr } = await supabase
           .from('fb_fixtures')
-          .select('id, api_id, status')
-          .in('status', ['NS', 'TBD', '1H', 'HT', '2H', 'ET', 'P'])
+          .select('id, api_id, status, date')
+          .gte('date', today.toISOString())
+          .lt('date', tomorrow.toISOString())
+
         if (fixErr) throw fixErr
 
-        addProgress(`Found ${fixtures?.length || 0} upcoming fixtures`)
+        addProgress(`Found ${fixtures?.length || 0} fixtures for today`)
+
         if (fixtures && fixtures.length > 0) {
+          let successCount = 0
+          let errorCount = 0
+
           for (const fx of fixtures) {
-            addProgress(`Fetching odds for fixture ${fx.api_id}...`)
-            const data = await apiFootball<ApiOddsInfo>('/odds', { fixture: String(fx.api_id) })
+            try {
+              addProgress(`Fetching odds for fixture ${fx.api_id} (status: ${fx.status})...`)
+              const data = await apiFootball<ApiOddsInfo>('/odds', { fixture: String(fx.api_id) })
 
-            const matchWinnerBet =
-              data?.response?.[0]?.bookmakers?.[0]?.bets?.find((b: any) => b.name === 'Match Winner')
+              const matchWinnerBet =
+                data?.response?.[0]?.bookmakers?.[0]?.bets?.find((b: any) => b.name === 'Match Winner')
 
-            if (matchWinnerBet) {
-              const home = matchWinnerBet.values.find((v: any) => v.value === 'Home')?.odd || '0'
-              const draw = matchWinnerBet.values.find((v: any) => v.value === 'Draw')?.odd || '0'
-              const away = matchWinnerBet.values.find((v: any) => v.value === 'Away')?.odd || '0'
+              if (matchWinnerBet) {
+                const home = matchWinnerBet.values.find((v: any) => v.value === 'Home')?.odd || '0'
+                const draw = matchWinnerBet.values.find((v: any) => v.value === 'Draw')?.odd || '0'
+                const away = matchWinnerBet.values.find((v: any) => v.value === 'Away')?.odd || '0'
 
-              const { error: oddsErr } = await supabase
-                .from('fb_odds')
-                .upsert(
-                  {
-                    fixture_id: fx.id,
-                    home_win: parseFloat(home),
-                    draw: parseFloat(draw),
-                    away_win: parseFloat(away),
-                    bookmaker_name: data?.response?.[0]?.bookmakers?.[0]?.name || 'Unknown',
-                  },
-                  { onConflict: 'fixture_id,bookmaker_name' }
-                )
-              if (oddsErr) throw oddsErr
+                const { error: oddsErr } = await supabase
+                  .from('fb_odds')
+                  .upsert(
+                    {
+                      fixture_id: fx.id,
+                      home_win: parseFloat(home),
+                      draw: parseFloat(draw),
+                      away_win: parseFloat(away),
+                      bookmaker_name: data?.response?.[0]?.bookmakers?.[0]?.name || 'Unknown',
+                    },
+                    { onConflict: 'fixture_id,bookmaker_name' }
+                  )
+                if (oddsErr) throw oddsErr
 
-              addProgress(`Synced odds for fixture ${fx.id}.`)
-            } else {
-              addProgress(`No match-winner odds for fixture ${fx.id}.`)
+                successCount++
+                addProgress(`✓ Synced odds for fixture ${fx.api_id}`)
+              } else {
+                addProgress(`⚠ No match-winner odds available for fixture ${fx.api_id}`)
+              }
+            } catch (err: any) {
+              errorCount++
+              addProgress(`✗ Error for fixture ${fx.api_id}: ${err.message}`)
             }
           }
+
+          addProgress(`Sync complete: ${successCount} success, ${errorCount} errors`)
         } else {
-          addProgress('No upcoming fixtures available for odds. Run the fixtures sync first.')
+          addProgress('No fixtures found for today. Make sure fixtures are synced first.')
         }
       }
 
