@@ -106,11 +106,11 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
         </div>
         {isUpcoming ? (
           <span className={`text-white text-xs px-3 py-1 rounded-full font-semibold ${betPlaced ? 'bg-gradient-to-r from-electric-blue to-neon-cyan' : 'bg-gradient-to-r from-lime-glow/80 to-lime-glow/50'}`}>
-            {betPlaced ? 'Bet Placed' : 'Live'}
+            {betPlaced ? 'Bet Placed' : 'Upcoming'}
           </span>
         ) : (
           <span className="bg-disabled text-text-disabled text-xs px-3 py-1 rounded-full font-semibold">
-            Finished
+            {match.rawStatus?.toUpperCase() || 'FT'}
           </span>
         )}
       </div>

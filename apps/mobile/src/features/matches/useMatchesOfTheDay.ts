@@ -51,9 +51,17 @@ export type UiLeagueGroup = {
 function normalizeStatus(raw?: string): 'upcoming' | 'played' {
   // Map common API-Football statuses; keep simple for UI grouping
   const s = (raw || 'NS').toUpperCase()
-  const running = ['NS', 'TBD', 'PST'] // treat as upcoming
+
+  // Finished statuses - these matches are done
+  const finished = ['FT', 'AET', 'PEN', 'AWD', 'AWARDED', 'WO', 'W.O', 'ABD', 'CANC']
+  if (finished.includes(s)) return 'played'
+
+  // Running/upcoming statuses
+  const running = ['NS', 'TBD', 'PST', 'POST'] // treat as upcoming (not started or postponed)
   const live = ['1H', 'HT', '2H', 'ET', 'P', 'BT', 'SUSP', 'INT', 'LIVE'] // still "upcoming" in sense of not finished
   if (running.includes(s) || live.includes(s)) return 'upcoming'
+
+  // Default: if unknown status, check if it looks like a finished status
   return 'played'
 }
 
@@ -88,11 +96,12 @@ export function useMatchesOfTheDay(): HookState {
   const userTimezone = useUserTimezone()
 
   // Calculate day bounds using UTC to match API-Football data storage
-  // This ensures matches display correctly regardless of user timezone
+  // Include today AND tomorrow to give users more matches to bet on
   const [{ startISO, endISO }] = useState(() => {
     const now = new Date()
     const startUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0))
-    const endUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999))
+    // End of tomorrow (2 days from start of today)
+    const endUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 23, 59, 59, 999))
 
     return {
       startISO: startUTC.toISOString(),
@@ -189,8 +198,8 @@ export function useMatchesOfTheDay(): HookState {
         const norm = normalizeStatus(statusUpper)
         const kickoffTime = r.date ? new Date(r.date).getTime() : Number.POSITIVE_INFINITY
         const hasStarted = kickoffTime <= Date.now()
-        const isLive =
-          LIVE_STATUSES.includes(statusUpper) || (norm !== 'played' && hasStarted)
+        // isLive should NEVER be true for finished matches
+        const isLive = norm !== 'played' && (LIVE_STATUSES.includes(statusUpper) || hasStarted)
 
         const leagueLogo =
           r.league?.logo ?? leagueLogoFallback(r.league?.api_league_id ?? null)

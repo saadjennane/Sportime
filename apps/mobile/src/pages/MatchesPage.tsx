@@ -29,9 +29,6 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
   const { data: groups, isLoading: loading, error } = useMatchesOfTheDay();
   const { leagues: importedLeagues, isLoading: leaguesLoading, error: leaguesError } = useImportedLeagues();
 
-  console.log('[MatchesPage] Imported leagues:', importedLeagues);
-  console.log('[MatchesPage] Leagues loading:', leaguesLoading);
-  console.log('[MatchesPage] Leagues error:', leaguesError);
 
   const toLegacyMatch = useCallback((m: UiMatch): Match => {
     const fallbackEmoji = (name: string) => (name ? name.charAt(0).toUpperCase() : '⚽');
@@ -86,6 +83,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
       kickoffTime: m.kickoffLabel,
       odds,
       status: m.status,
+      rawStatus: m.rawStatus,
       isLive: m.isLive,
       elapsedMinutes: m.elapsedMinutes,
       result,
@@ -149,15 +147,11 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
 
   // Use ALL imported leagues for the modal, not just those with matches today
   const uniqueLeaguesWithLogos = useMemo(() => {
-    console.log('[MatchesPage] Building uniqueLeaguesWithLogos from:', importedLeagues);
-
     // Convert imported leagues to the format expected by the modal
     const allLeagues = importedLeagues.map(league => ({
       name: league.name,
       logo: league.logo || `https://media.api-sports.io/football/leagues/${league.api_league_id}.png`
     }));
-
-    console.log('[MatchesPage] All leagues for modal:', allLeagues);
 
     // Apply saved order if it exists
     if (orderedLeagues.length > 0) {
@@ -170,11 +164,9 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
         if (indexB === -1) return -1;
         return indexA - indexB;
       });
-      console.log('[MatchesPage] Sorted leagues for modal:', sorted);
       return sorted;
     }
 
-    console.log('[MatchesPage] Unsorted leagues for modal:', allLeagues);
     return allLeagues;
   }, [importedLeagues, orderedLeagues]);
 

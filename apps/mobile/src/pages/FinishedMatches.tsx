@@ -2,9 +2,11 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Match, Bet } from '../types';
 import { MatchCard } from '../components/MatchCard';
 import { LeagueMatchGroup } from '../components/matches/LeagueMatchGroup';
+import { DailySummaryHeader } from '../components/matches/DailySummaryHeader';
 import { FinishedMatchesFilterPanel, FinishedMatchesFilters } from '../components/filters/FinishedMatchesFilterPanel';
 import { useFinishedMatches } from '../features/matches/useFinishedMatches';
 import { Loader } from 'lucide-react';
+import { format } from 'date-fns';
 
 interface FinishedMatchesPageProps {
   userId?: string;
@@ -78,8 +80,42 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
     return `last ${days} days`;
   };
 
+  // Calculate header stats for finished matches
+  const headerStats = useMemo(() => {
+    // Get bets that have a corresponding finished match
+    const finishedBets = bets.filter(bet =>
+      matches.some(match => match.id === bet.matchId)
+    );
+
+    // Count successful picks (won bets)
+    const successfulPicks = finishedBets.filter(bet => bet.status === 'won').length;
+
+    // Calculate total winnings from won bets
+    const totalWinnings = finishedBets.reduce((total, bet) => {
+      if (bet.status === 'won' && bet.winAmount) {
+        return total + bet.winAmount;
+      }
+      return total;
+    }, 0);
+
+    return {
+      successfulPicks,
+      totalBets: finishedBets.length,
+      totalWinnings,
+    };
+  }, [bets, matches]);
+
   return (
     <div ref={scrollContainerRef} className="space-y-4 max-h-screen overflow-y-auto">
+      {/* Header with stats */}
+      <DailySummaryHeader
+        date={format(new Date(), 'EEEE, MMM d, yyyy')}
+        picksCount={headerStats.successfulPicks}
+        totalMatches={headerStats.totalBets}
+        potentialWinnings={headerStats.totalWinnings}
+        isPlayedTab={true}
+      />
+
       {/* Filter Panel */}
       <FinishedMatchesFilterPanel
         filters={filters}

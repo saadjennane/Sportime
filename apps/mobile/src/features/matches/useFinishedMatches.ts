@@ -133,6 +133,7 @@ export function useFinishedMatches(
             },
             kickoffTime: fixture.date,
             status: 'played',
+            rawStatus: fixture.status || 'FT',
             odds: {
               teamA: 0, // TODO: fetch odds separately when foreign key is configured
               draw: 0,

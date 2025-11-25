@@ -9,6 +9,7 @@ export interface Match {
   kickoffTime: string;
   odds: { teamA: number; draw: number; teamB: number };
   status: 'upcoming' | 'played';
+  rawStatus?: string; // Original API status (FT, AET, PEN, etc.)
   isLive?: boolean;
   elapsedMinutes?: number;
   result?: 'teamA' | 'draw' | 'teamB';

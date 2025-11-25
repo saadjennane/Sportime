@@ -111,6 +111,20 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
     );
   };
 
+  // Get display label for finished match status
+  const getFinishedStatusLabel = () => {
+    const raw = match.rawStatus?.toUpperCase();
+    if (raw === 'FT') return 'FT';
+    if (raw === 'AET') return 'AET'; // After Extra Time
+    if (raw === 'PEN') return 'PEN'; // Penalties
+    if (raw === 'AWD' || raw === 'AWARDED') return 'AWD';
+    if (raw === 'WO' || raw === 'W.O') return 'W/O'; // Walkover
+    if (raw === 'ABD') return 'ABD'; // Abandoned
+    if (raw === 'CANC') return 'CANC'; // Cancelled
+    if (raw === 'POST' || raw === 'PST') return 'POST'; // Postponed
+    return 'FT'; // Default to FT for finished matches
+  };
+
   const badgeContent = (() => {
     if (isLive) {
       return (
@@ -122,7 +136,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
     if (!isUpcoming) {
       return (
         <span className="bg-disabled text-text-disabled text-xs px-3 py-1 rounded-full font-semibold">
-          Finished
+          {getFinishedStatusLabel()}
         </span>
       );
     }
