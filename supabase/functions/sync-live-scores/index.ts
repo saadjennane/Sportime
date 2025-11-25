@@ -13,7 +13,7 @@
  * Variables d'environnement requises:
  *   - SUPABASE_URL
  *   - SUPABASE_SERVICE_ROLE_KEY
- *   - API_SPORTS_KEY
+ *   - API_FOOTBALL_KEY
  */
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
@@ -26,7 +26,7 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const API_SPORTS_KEY = Deno.env.get('API_SPORTS_KEY')!
+const API_FOOTBALL_KEY = Deno.env.get('API_FOOTBALL_KEY')!
 
 // Statuts considérés comme "match terminé" (FT uniquement)
 // Note: AET et PEN sont des matchs en cours (prolongations/tirs au but)
@@ -59,7 +59,8 @@ async function fetchLiveFixtures(): Promise<any[]> {
 
   const response = await fetch(url, {
     headers: {
-      'x-apisports-key': API_SPORTS_KEY,
+      'x-rapidapi-key': API_FOOTBALL_KEY,
+      'x-rapidapi-host': 'v3.football.api-sports.io',
     },
   })
 
@@ -84,7 +85,8 @@ async function fetchFinishedFixturesByDate(date: string): Promise<any[]> {
 
   const response = await fetch(url, {
     headers: {
-      'x-apisports-key': API_SPORTS_KEY,
+      'x-rapidapi-key': API_FOOTBALL_KEY,
+      'x-rapidapi-host': 'v3.football.api-sports.io',
     },
   })
 
