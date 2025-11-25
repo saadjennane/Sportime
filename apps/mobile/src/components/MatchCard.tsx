@@ -2,6 +2,61 @@ import React from 'react';
 import { Match, Bet } from '../types';
 import { Clock, TrendingUp, CheckCircle2, XCircle, BarChart2 } from 'lucide-react';
 
+interface BetButtonProps {
+  prediction: 'teamA' | 'draw' | 'teamB';
+  odds: number;
+  label: string;
+  isSelected: boolean;
+  won: boolean;
+  lost: boolean;
+  isUpcoming: boolean;
+  styling: string;
+  onBet?: (prediction: 'teamA' | 'draw' | 'teamB', odds: number) => void;
+  winAmount?: number;
+  lostAmount?: number;
+}
+
+const BetButton: React.FC<BetButtonProps> = ({
+  prediction,
+  odds,
+  label,
+  isSelected,
+  won,
+  lost,
+  isUpcoming,
+  styling,
+  onBet,
+  winAmount,
+  lostAmount,
+}) => {
+  return (
+    <button
+      onClick={() => isUpcoming && onBet && onBet(prediction, odds)}
+      disabled={!isUpcoming}
+      className={`flex-1 p-3 rounded-xl border-2 transition-all duration-300 ${styling} ${!isUpcoming ? 'cursor-not-allowed' : ''}`}
+    >
+      <div className="text-center">
+        <div className="text-xs text-text-secondary mb-1 font-medium">{label}</div>
+        <div className={`text-xl font-bold ${
+          won ? 'text-lime-glow' : lost ? 'text-hot-red' : 'text-text-primary'
+        }`}>
+          {odds.toFixed(2)}x
+        </div>
+        {won && winAmount !== undefined && (
+          <div className="text-xs text-lime-glow font-semibold mt-1 flex items-center justify-center gap-1">
+            <CheckCircle2 size={14} /> +{winAmount.toFixed(0)}
+          </div>
+        )}
+        {lost && lostAmount !== undefined && (
+          <div className="text-xs text-hot-red font-semibold mt-1 flex items-center justify-center gap-1">
+            <XCircle size={14} /> -{lostAmount}
+          </div>
+        )}
+      </div>
+    </button>
+  );
+};
+
 interface MatchCardProps {
   match: Match;
   onBet?: (prediction: 'teamA' | 'draw' | 'teamB', odds: number) => void;
@@ -15,58 +70,32 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
 
   const getResultStyling = (prediction: 'teamA' | 'draw' | 'teamB') => {
     if (isUpcoming) {
-      return betPlaced && userBet.prediction === prediction
+      return betPlaced && userBet?.prediction === prediction
         ? 'border-electric-blue bg-electric-blue/10'
         : 'border-disabled bg-deep-navy hover:border-electric-blue hover:shadow-lg hover:scale-105';
     } else {
       // Played match styling
       const isCorrectPrediction = match.result === prediction;
-      if (betPlaced && userBet.prediction === prediction) {
+      if (betPlaced && userBet?.prediction === prediction) {
         return isCorrectPrediction ? 'border-lime-glow bg-lime-glow/10' : 'border-hot-red bg-hot-red/10';
       }
       if (isCorrectPrediction) {
-        return 'border-lime-glow/50 bg-lime-glow/5'; // Highlight the winning outcome
+        return 'border-lime-glow/50 bg-lime-glow/5';
       }
       return 'border-disabled bg-navy-accent cursor-not-allowed';
     }
   };
 
-  const BetButton: React.FC<{ 
-    prediction: 'teamA' | 'draw' | 'teamB'; 
-    odds: number; 
-    label: string;
-  }> = ({ prediction, odds, label }) => {
-    const isSelected = userBet?.prediction === prediction;
-    const won = userBet?.status === 'won' && isSelected;
-    const lost = userBet?.status === 'lost' && isSelected;
-
-    return (
-      <button
-        onClick={() => isUpcoming && onBet && onBet(prediction, odds)}
-        disabled={!isUpcoming}
-        className={`flex-1 p-3 rounded-xl border-2 transition-all duration-300 ${getResultStyling(prediction)} ${!isUpcoming ? 'cursor-not-allowed' : ''}`}
-      >
-        <div className="text-center">
-          <div className="text-xs text-text-secondary mb-1 font-medium">{label}</div>
-          <div className={`text-xl font-bold ${
-            won ? 'text-lime-glow' : lost ? 'text-hot-red' : 'text-text-primary'
-          }`}>
-            {odds.toFixed(2)}x
-          </div>
-          {won && (
-            <div className="text-xs text-lime-glow font-semibold mt-1 flex items-center justify-center gap-1">
-              <CheckCircle2 size={14} /> +{userBet.winAmount?.toFixed(0)}
-            </div>
-          )}
-          {lost && (
-            <div className="text-xs text-hot-red font-semibold mt-1 flex items-center justify-center gap-1">
-              <XCircle size={14} /> -{userBet.amount}
-            </div>
-          )}
-        </div>
-      </button>
-    );
-  };
+  // Pre-calculate bet button props
+  const isSelectedTeamA = userBet?.prediction === 'teamA';
+  const isSelectedDraw = userBet?.prediction === 'draw';
+  const isSelectedTeamB = userBet?.prediction === 'teamB';
+  const wonTeamA = userBet?.status === 'won' && isSelectedTeamA;
+  const wonDraw = userBet?.status === 'won' && isSelectedDraw;
+  const wonTeamB = userBet?.status === 'won' && isSelectedTeamB;
+  const lostTeamA = userBet?.status === 'lost' && isSelectedTeamA;
+  const lostDraw = userBet?.status === 'lost' && isSelectedDraw;
+  const lostTeamB = userBet?.status === 'lost' && isSelectedTeamB;
 
   return (
     <div className={`card-base p-5 transition-all duration-300 ${isUpcoming ? 'hover:border-neon-cyan/50' : ''}`}>
@@ -91,7 +120,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
           <div className="text-4xl mb-2">{match.teamA.emoji}</div>
           <div className="text-sm font-semibold text-text-primary">{match.teamA.name}</div>
         </div>
-        
+
         <div className="px-4 text-center">
           {isUpcoming ? (
             <div className="text-2xl font-bold text-disabled">VS</div>
@@ -130,9 +159,45 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
           )}
         </div>
         <div className="flex gap-2">
-          <BetButton prediction="teamA" odds={match.odds.teamA} label={match.teamA.name.split(' ')[0]} />
-          <BetButton prediction="draw" odds={match.odds.draw} label="Draw" />
-          <BetButton prediction="teamB" odds={match.odds.teamB} label={match.teamB.name.split(' ')[0]} />
+          <BetButton
+            prediction="teamA"
+            odds={match.odds.teamA}
+            label={match.teamA.name.split(' ')[0]}
+            isSelected={isSelectedTeamA}
+            won={wonTeamA}
+            lost={lostTeamA}
+            isUpcoming={isUpcoming}
+            styling={getResultStyling('teamA')}
+            onBet={onBet}
+            winAmount={userBet?.winAmount}
+            lostAmount={userBet?.amount}
+          />
+          <BetButton
+            prediction="draw"
+            odds={match.odds.draw}
+            label="Draw"
+            isSelected={isSelectedDraw}
+            won={wonDraw}
+            lost={lostDraw}
+            isUpcoming={isUpcoming}
+            styling={getResultStyling('draw')}
+            onBet={onBet}
+            winAmount={userBet?.winAmount}
+            lostAmount={userBet?.amount}
+          />
+          <BetButton
+            prediction="teamB"
+            odds={match.odds.teamB}
+            label={match.teamB.name.split(' ')[0]}
+            isSelected={isSelectedTeamB}
+            won={wonTeamB}
+            lost={lostTeamB}
+            isUpcoming={isUpcoming}
+            styling={getResultStyling('teamB')}
+            onBet={onBet}
+            winAmount={userBet?.winAmount}
+            lostAmount={userBet?.amount}
+          />
         </div>
       </div>
     </div>

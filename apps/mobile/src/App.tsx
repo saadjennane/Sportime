@@ -531,16 +531,14 @@ function App() {
   };
 
   const handleConfirmBet = (amount: number, prediction: 'teamA' | 'draw' | 'teamB', odds: number) => {
-    console.log('[App] handleConfirmBet received:', { amount, prediction, odds, oddsType: typeof odds });
     const betLimit = getLevelBetLimit(profile?.level);
     if (betLimit !== null && amount > betLimit) {
       addToast(`Your level limit is ${betLimit.toLocaleString()} coins per match.`, 'error');
       return;
     }
     if (modalState.match) {
-      // Validate odds to prevent React error #300
+      // Validate odds to prevent issues
       const safeOdds = typeof odds === 'number' && Number.isFinite(odds) ? odds : 0;
-      console.log('[App] Creating bet with safeOdds:', safeOdds);
       const newBetData = { prediction, amount, odds: safeOdds };
       const existingBetIndex = bets.findIndex(b => b.matchId === modalState.match!.id);
       if (existingBetIndex !== -1) {

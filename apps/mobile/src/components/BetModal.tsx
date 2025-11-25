@@ -81,14 +81,6 @@ export const BetModal: React.FC<BetModalProps> = ({
 
   const handleConfirm = () => {
     if (!isConfirmDisabled) {
-      console.log('[BetModal] handleConfirm called with:', {
-        numAmount,
-        selectedPrediction,
-        safeSelectedOdds,
-        selectedOdds,
-        oddsType: typeof selectedOdds,
-        safeOddsType: typeof safeSelectedOdds
-      });
       onConfirm(numAmount, selectedPrediction, safeSelectedOdds);
       onClose();
     }

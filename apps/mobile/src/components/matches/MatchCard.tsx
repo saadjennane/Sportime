@@ -2,6 +2,63 @@ import React from 'react';
 import { Match, Bet } from '../../types';
 import { Clock, TrendingUp, CheckCircle2, XCircle, BarChart2, Gamepad2 } from 'lucide-react';
 
+interface BetButtonProps {
+  prediction: 'teamA' | 'draw' | 'teamB';
+  odds?: number;
+  label: string;
+  isSelected: boolean;
+  won: boolean;
+  lost: boolean;
+  isDisabled: boolean;
+  styling: string;
+  onBet?: (prediction: 'teamA' | 'draw' | 'teamB', odds?: number) => void;
+  winAmount?: number;
+  lostAmount?: number;
+}
+
+const BetButton: React.FC<BetButtonProps> = ({
+  prediction,
+  odds,
+  label,
+  isSelected,
+  won,
+  lost,
+  isDisabled,
+  styling,
+  onBet,
+  winAmount,
+  lostAmount,
+}) => {
+  const displayOdds = odds !== undefined ? `${odds.toFixed(2)}x` : '--';
+
+  return (
+    <button
+      onClick={() => !isDisabled && onBet && onBet(prediction, odds)}
+      disabled={isDisabled}
+      className={`flex-1 p-3 rounded-xl border-2 transition-all duration-300 ${styling} ${isDisabled ? 'cursor-not-allowed opacity-60' : ''}`}
+    >
+      <div className="text-center">
+        <div className="text-xs text-text-secondary mb-1 font-medium">{label}</div>
+        <div className={`text-xl font-bold ${
+          won ? 'text-lime-glow' : lost ? 'text-hot-red' : 'text-text-primary'
+        }`}>
+          {displayOdds}
+        </div>
+        {won && winAmount !== undefined && (
+          <div className="text-xs text-lime-glow font-semibold mt-1 flex items-center justify-center gap-1">
+            <CheckCircle2 size={14} /> +{winAmount.toFixed(0)}
+          </div>
+        )}
+        {lost && lostAmount !== undefined && (
+          <div className="text-xs text-hot-red font-semibold mt-1 flex items-center justify-center gap-1">
+            <XCircle size={14} /> -{lostAmount}
+          </div>
+        )}
+      </div>
+    </button>
+  );
+};
+
 interface MatchCardProps {
   match: Match;
   onBet?: (prediction: 'teamA' | 'draw' | 'teamB', odds: number) => void;
@@ -11,10 +68,6 @@ interface MatchCardProps {
 }
 
 export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats, onPlayGame, userBet }) => {
-  // Debug: log userBet to check for object issues
-  if (userBet) {
-    console.log('[MatchCard] userBet for match', match.id, ':', userBet, 'odds type:', typeof userBet.odds);
-  }
   const isLive = !!match.isLive;
   const isUpcoming = match.status === 'upcoming' && !isLive;
   const betPlaced = !!userBet;
@@ -34,48 +87,9 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
       return isCorrectPrediction ? 'border-lime-glow bg-lime-glow/10' : 'border-hot-red bg-hot-red/10';
     }
     if (isCorrectPrediction) {
-      return 'border-lime-glow/50 bg-lime-glow/5'; // Highlight the winning outcome
+      return 'border-lime-glow/50 bg-lime-glow/5';
     }
     return 'border-disabled bg-navy-accent cursor-not-allowed';
-  };
-
-  const BetButton: React.FC<{ 
-    prediction: 'teamA' | 'draw' | 'teamB';
-    odds?: number;
-    label: string;
-  }> = ({ prediction, odds, label }) => {
-    const isSelected = userBet?.prediction === prediction;
-    const won = userBet?.status === 'won' && isSelected;
-    const lost = userBet?.status === 'lost' && isSelected;
-    const displayOdds = odds !== undefined ? `${odds.toFixed(2)}x` : '--';
-    const isDisabled = !isUpcoming || odds === undefined || isLive;
-
-    return (
-      <button
-        onClick={() => !isDisabled && onBet && onBet(prediction, odds)}
-        disabled={isDisabled}
-        className={`flex-1 p-3 rounded-xl border-2 transition-all duration-300 ${getResultStyling(prediction)} ${isDisabled ? 'cursor-not-allowed opacity-60' : ''}`}
-      >
-        <div className="text-center">
-          <div className="text-xs text-text-secondary mb-1 font-medium">{label}</div>
-          <div className={`text-xl font-bold ${
-            won ? 'text-lime-glow' : lost ? 'text-hot-red' : 'text-text-primary'
-          }`}>
-            {displayOdds}
-          </div>
-          {won && (
-            <div className="text-xs text-lime-glow font-semibold mt-1 flex items-center justify-center gap-1">
-              <CheckCircle2 size={14} /> +{userBet.winAmount?.toFixed(0)}
-            </div>
-          )}
-          {lost && (
-            <div className="text-xs text-hot-red font-semibold mt-1 flex items-center justify-center gap-1">
-              <XCircle size={14} /> -{userBet.amount}
-            </div>
-          )}
-        </div>
-      </button>
-    );
   };
 
   const renderTeamAvatar = (team: Match['teamA']) => {
@@ -132,6 +146,18 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
   const showScore = isLive || match.status === 'played';
   const cardHoverClass = isUpcoming ? 'hover:border-neon-cyan/50' : isLive ? 'border-hot-red/40' : '';
 
+  // Pre-calculate bet button props
+  const isDisabled = !isUpcoming || isLive;
+  const isSelectedTeamA = userBet?.prediction === 'teamA';
+  const isSelectedDraw = userBet?.prediction === 'draw';
+  const isSelectedTeamB = userBet?.prediction === 'teamB';
+  const wonTeamA = userBet?.status === 'won' && isSelectedTeamA;
+  const wonDraw = userBet?.status === 'won' && isSelectedDraw;
+  const wonTeamB = userBet?.status === 'won' && isSelectedTeamB;
+  const lostTeamA = userBet?.status === 'lost' && isSelectedTeamA;
+  const lostDraw = userBet?.status === 'lost' && isSelectedDraw;
+  const lostTeamB = userBet?.status === 'lost' && isSelectedTeamB;
+
   return (
     <div className={`card-base p-5 transition-all duration-300 ${cardHoverClass}`}>
       <div className="flex items-center justify-between mb-4">
@@ -147,7 +173,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
           {renderTeamAvatar(match.teamA)}
           <div className="text-sm font-semibold text-text-primary">{match.teamA.name}</div>
         </div>
-        
+
         <div className="px-4 text-center">
           {showScore ? (
             <div className="flex flex-col items-center">
@@ -201,9 +227,45 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
           </div>
         </div>
         <div className="flex gap-2">
-          <BetButton prediction="teamA" odds={teamAOdds} label={match.teamA.name.split(' ')[0]} />
-          <BetButton prediction="draw" odds={drawOdds} label="Draw" />
-          <BetButton prediction="teamB" odds={teamBOdds} label={match.teamB.name.split(' ')[0]} />
+          <BetButton
+            prediction="teamA"
+            odds={teamAOdds}
+            label={match.teamA.name.split(' ')[0]}
+            isSelected={isSelectedTeamA}
+            won={wonTeamA}
+            lost={lostTeamA}
+            isDisabled={isDisabled || teamAOdds === undefined}
+            styling={getResultStyling('teamA')}
+            onBet={onBet}
+            winAmount={userBet?.winAmount}
+            lostAmount={userBet?.amount}
+          />
+          <BetButton
+            prediction="draw"
+            odds={drawOdds}
+            label="Draw"
+            isSelected={isSelectedDraw}
+            won={wonDraw}
+            lost={lostDraw}
+            isDisabled={isDisabled || drawOdds === undefined}
+            styling={getResultStyling('draw')}
+            onBet={onBet}
+            winAmount={userBet?.winAmount}
+            lostAmount={userBet?.amount}
+          />
+          <BetButton
+            prediction="teamB"
+            odds={teamBOdds}
+            label={match.teamB.name.split(' ')[0]}
+            isSelected={isSelectedTeamB}
+            won={wonTeamB}
+            lost={lostTeamB}
+            isDisabled={isDisabled || teamBOdds === undefined}
+            styling={getResultStyling('teamB')}
+            onBet={onBet}
+            winAmount={userBet?.winAmount}
+            lostAmount={userBet?.amount}
+          />
         </div>
       </div>
     </div>
