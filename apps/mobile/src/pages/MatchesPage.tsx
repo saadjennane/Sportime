@@ -180,12 +180,14 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
 
   // Header data for Upcoming tab
   const upcomingHeaderData = useMemo(() => {
+    console.log('[MatchesPage] Computing upcomingHeaderData, bets:', bets);
     const picksCount = bets.filter(bet => upcomingMatches.some(m => m.id === bet.matchId)).length;
     const potentialWinnings = bets.reduce((total, bet) => {
       const match = upcomingMatches.find(m => m.id === bet.matchId);
       if (match) {
         // Validate odds to prevent NaN calculations
         const safeOdds = typeof bet.odds === 'number' && Number.isFinite(bet.odds) ? bet.odds : 0;
+        console.log('[MatchesPage] bet.odds:', bet.odds, 'type:', typeof bet.odds, 'safeOdds:', safeOdds);
         return total + (bet.amount * safeOdds);
       }
       return total;

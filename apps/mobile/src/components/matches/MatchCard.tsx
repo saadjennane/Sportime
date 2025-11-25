@@ -11,6 +11,10 @@ interface MatchCardProps {
 }
 
 export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats, onPlayGame, userBet }) => {
+  // Debug: log userBet to check for object issues
+  if (userBet) {
+    console.log('[MatchCard] userBet for match', match.id, ':', userBet, 'odds type:', typeof userBet.odds);
+  }
   const isLive = !!match.isLive;
   const isUpcoming = match.status === 'upcoming' && !isLive;
   const betPlaced = !!userBet;
