@@ -536,7 +536,9 @@ function App() {
       return;
     }
     if (modalState.match) {
-      const newBetData = { prediction, amount, odds };
+      // Validate odds to prevent React error #300
+      const safeOdds = typeof odds === 'number' && Number.isFinite(odds) ? odds : 0;
+      const newBetData = { prediction, amount, odds: safeOdds };
       const existingBetIndex = bets.findIndex(b => b.matchId === modalState.match!.id);
       if (existingBetIndex !== -1) {
         const oldBet = bets[existingBetIndex];

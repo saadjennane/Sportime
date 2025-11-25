@@ -184,7 +184,9 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
     const potentialWinnings = bets.reduce((total, bet) => {
       const match = upcomingMatches.find(m => m.id === bet.matchId);
       if (match) {
-        return total + (bet.amount * bet.odds);
+        // Validate odds to prevent NaN calculations
+        const safeOdds = typeof bet.odds === 'number' && Number.isFinite(bet.odds) ? bet.odds : 0;
+        return total + (bet.amount * safeOdds);
       }
       return total;
     }, 0);
