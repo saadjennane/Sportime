@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AuthApiError } from '@supabase/supabase-js';
+import ErrorBoundary from './components/ErrorBoundary';
 import { Header } from './components/Header';
 import { BetModal } from './components/BetModal';
 import { FooterNav } from './components/FooterNav';
@@ -1189,7 +1190,11 @@ function App() {
 
     switch (page) {
       case 'matches':
-        return <MatchesPage matches={matches} bets={bets} onBet={handleBetClick} onPlayGame={handlePlayGameClick} />;
+        return (
+          <ErrorBoundary>
+            <MatchesPage matches={matches} bets={bets} onBet={handleBetClick} onPlayGame={handlePlayGameClick} />
+          </ErrorBoundary>
+        );
       case 'challenges':
         return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} />;
       case 'squads':
