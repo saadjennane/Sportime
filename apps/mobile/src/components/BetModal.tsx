@@ -35,11 +35,15 @@ export const BetModal: React.FC<BetModalProps> = ({
     if (isOpen) {
       if (userBet) {
         setSelectedPrediction(userBet.prediction);
-        setSelectedOdds(userBet.odds);
+        // Sécuriser les odds du userBet
+        const safeUserOdds = typeof userBet.odds === 'number' && Number.isFinite(userBet.odds) ? userBet.odds : 0;
+        setSelectedOdds(safeUserOdds);
         setAmount(userBet.amount.toString());
       } else {
         setSelectedPrediction(prediction);
-        setSelectedOdds(odds);
+        // Sécuriser les odds passés en props
+        const safePropOdds = typeof odds === 'number' && Number.isFinite(odds) ? odds : 0;
+        setSelectedOdds(safePropOdds);
         setAmount('');
       }
     }
@@ -77,7 +81,7 @@ export const BetModal: React.FC<BetModalProps> = ({
 
   const handleConfirm = () => {
     if (!isConfirmDisabled) {
-      onConfirm(numAmount, selectedPrediction, selectedOdds);
+      onConfirm(numAmount, selectedPrediction, safeSelectedOdds);
       onClose();
     }
   };
