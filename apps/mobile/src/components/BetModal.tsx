@@ -54,7 +54,9 @@ export const BetModal: React.FC<BetModalProps> = ({
     0,
     maxPerLevel !== null ? Math.min(maxPerLevel, availableFunds) : availableFunds
   );
-  const potentialWin = numAmount * selectedOdds;
+  // Safe odds calculation to prevent NaN
+  const safeSelectedOdds = typeof selectedOdds === 'number' && Number.isFinite(selectedOdds) ? selectedOdds : 0;
+  const potentialWin = numAmount * safeSelectedOdds;
   const overBalance = numAmount > availableFunds;
   const overLevelLimit = maxPerLevel !== null && numAmount > maxPerLevel;
   const isConfirmDisabled = numAmount <= 0 || overBalance || overLevelLimit;
@@ -128,6 +130,8 @@ export const BetModal: React.FC<BetModalProps> = ({
     predictionKey: 'teamA' | 'draw' | 'teamB';
   }> = ({ label, team, currentOdds, predictionKey }) => {
     const isActive = selectedPrediction === predictionKey;
+    // Ensure currentOdds is a valid number to prevent React error #300
+    const safeOdds = typeof currentOdds === 'number' && Number.isFinite(currentOdds) ? currentOdds : 0;
     const icon =
       team !== undefined ? (
         renderTeamIcon(team, { wrapperClass: 'mb-1', sizeClass: 'w-12 h-12' })
@@ -140,7 +144,7 @@ export const BetModal: React.FC<BetModalProps> = ({
       );
     return (
       <button
-        onClick={() => handlePredictionChange(predictionKey, currentOdds)}
+        onClick={() => handlePredictionChange(predictionKey, safeOdds)}
         className={`flex-1 flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all duration-200 ${
           isActive
             ? 'bg-electric-blue/10 border-electric-blue shadow-inner'
@@ -149,7 +153,7 @@ export const BetModal: React.FC<BetModalProps> = ({
       >
         {icon}
         <span className="text-xs font-bold text-text-primary">{label}</span>
-        <span className="text-sm font-semibold text-electric-blue">@{currentOdds.toFixed(2)}</span>
+        <span className="text-sm font-semibold text-electric-blue">@{safeOdds.toFixed(2)}</span>
       </button>
     );
   };
