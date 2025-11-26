@@ -79,12 +79,19 @@ function buildTeamStats(
   fixtures: FixturesResponse | null,
   teamId: number
 ): TeamStats {
-  const teamName =
-    rawStats?.response?.team?.name ??
-    fixtures?.response?.find((item) => {
-      return item.teams?.home?.id === teamId || item.teams?.away?.id === teamId
-    })?.teams?.home?.name ??
-    'Unknown team'
+  // Find team name from stats or from fixtures
+  let teamName = rawStats?.response?.team?.name
+  if (!teamName && fixtures?.response?.length) {
+    const match = fixtures.response.find((item) =>
+      item.teams?.home?.id === teamId || item.teams?.away?.id === teamId
+    )
+    if (match) {
+      teamName = match.teams?.home?.id === teamId
+        ? match.teams?.home?.name
+        : match.teams?.away?.name
+    }
+  }
+  teamName = teamName || 'Unknown team'
 
   const formRaw = rawStats?.response?.form ?? ''
   const formLetters = formRaw.replace(/\s+/g, '').split('').filter(Boolean)
@@ -157,30 +164,43 @@ async function fetchTeamStats(
   leagueApiId?: number,
   season?: string | number | null
 ): Promise<TeamStats | null> {
-  if (!teamId || !leagueApiId || season === undefined || season === null) {
+  if (!teamId) {
     return null
   }
 
-  const seasonValue = Number(season)
-  if (!Number.isFinite(seasonValue)) return null
+  const hasLeagueStats = leagueApiId && season !== undefined && season !== null
+  const seasonValue = hasLeagueStats ? Number(season) : null
 
   try {
+    // Always fetch last 5 fixtures for the team
+    const fixturesPromise = apiFootball<FixturesResponse>('/fixtures', {
+      team: teamId,
+      last: 5,
+    })
+
+    // Only fetch league stats if we have league and season info
+    const statsPromise = hasLeagueStats && Number.isFinite(seasonValue)
+      ? apiFootball<TeamStatisticsResponse>('/teams/statistics', {
+          league: leagueApiId,
+          season: seasonValue!,
+          team: teamId,
+        })
+      : Promise.resolve(null)
+
     const [statsRes, fixturesRes] = await Promise.allSettled([
-      apiFootball<TeamStatisticsResponse>('/teams/statistics', {
-        league: leagueApiId,
-        season: seasonValue,
-        team: teamId,
-      }),
-      apiFootball<FixturesResponse>('/fixtures', {
-        team: teamId,
-        last: 5,
-      }),
+      statsPromise,
+      fixturesPromise,
     ])
 
     const statsData =
       statsRes.status === 'fulfilled' ? statsRes.value : null
     const fixturesData =
       fixturesRes.status === 'fulfilled' ? fixturesRes.value : null
+
+    // Return stats even if we only have fixtures (no league stats)
+    if (!fixturesData?.response?.length && !statsData?.response) {
+      return null
+    }
 
     return buildTeamStats(statsData, fixturesData, teamId)
   } catch {

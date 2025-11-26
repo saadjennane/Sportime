@@ -108,9 +108,17 @@ export const MatchStatsDrawer: React.FC<MatchStatsDrawerProps> = ({ match, onClo
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-disabled flex-shrink-0">
               <div className="flex items-center gap-3">
-                <span className="text-2xl">{match.teamA.emoji}</span>
+                {match.teamA.logo ? (
+                  <img src={match.teamA.logo} alt={match.teamA.name} className="w-8 h-8 object-contain" />
+                ) : (
+                  <span className="text-2xl">{match.teamA.emoji || '⚽'}</span>
+                )}
                 <span className="text-sm font-bold text-text-primary">{match.teamA.name} vs {match.teamB.name}</span>
-                <span className="text-2xl">{match.teamB.emoji}</span>
+                {match.teamB.logo ? (
+                  <img src={match.teamB.logo} alt={match.teamB.name} className="w-8 h-8 object-contain" />
+                ) : (
+                  <span className="text-2xl">{match.teamB.emoji || '⚽'}</span>
+                )}
               </div>
               <button onClick={onClose} className="p-2 text-text-secondary hover:bg-white/10 rounded-full">
                 <X size={20} />
