@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Coins, TrendingUp } from 'lucide-react';
 import { Match, Bet } from '../types';
 
@@ -132,7 +132,9 @@ export const BetModal: React.FC<BetModalProps> = ({
   const overLevelLimit = maxPerLevel !== null && numAmount > maxPerLevel;
   const isConfirmDisabled = numAmount <= 0 || overBalance || overLevelLimit;
 
-  const quickAmounts = useMemo(() => {
+  // Calcul inline au lieu de useMemo pour éviter l'erreur React #300
+  // (useMemo était après le early return, causant un nombre de hooks inconsistant)
+  const quickAmounts = (() => {
     if (effectiveMax <= 0) return [] as number[];
     const presets = [100, 250, 500, 1000, 2500, 5000];
     const filtered = presets
@@ -144,7 +146,7 @@ export const BetModal: React.FC<BetModalProps> = ({
     const unique = Array.from(new Set(filtered.map((value) => Math.floor(value))));
     unique.sort((a, b) => a - b);
     return unique;
-  }, [effectiveMax]);
+  })();
 
   const handleConfirm = () => {
     if (!isConfirmDisabled) {
