@@ -127,7 +127,8 @@ export const BetModal: React.FC<BetModalProps> = ({
     maxPerLevel !== null ? Math.min(maxPerLevel, availableFunds) : availableFunds
   );
   const safeSelectedOdds = typeof selectedOdds === 'number' && Number.isFinite(selectedOdds) ? selectedOdds : 0;
-  const potentialWin = numAmount * safeSelectedOdds;
+  // Round up to the nearest whole coin
+  const potentialWin = Math.ceil(numAmount * safeSelectedOdds);
   const overBalance = numAmount > availableFunds;
   const overLevelLimit = maxPerLevel !== null && numAmount > maxPerLevel;
   const isConfirmDisabled = numAmount <= 0 || overBalance || overLevelLimit;

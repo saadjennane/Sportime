@@ -401,9 +401,18 @@ function App() {
     setLoading(false);
   }, [profile, isGuest, initializeUserSpinState, challengesLoading, shouldUseSupabaseChallenges]);
 
-  const coinBalance = profile?.coins_balance ?? 0;
+  // Base balance from profile
+  const baseBalance = profile?.coins_balance ?? 0;
+
+  // Calculate effective balance by subtracting all pending bets
+  // This ensures the UI reflects coins that are "locked" in bets
+  const totalBetAmount = bets.reduce((sum, bet) => sum + bet.amount, 0);
+  const coinBalance = baseBalance - totalBetAmount;
+
   const profileLevel = profile ? profile.level ?? profile.current_level ?? profile.level : undefined;
 
+  // Note: handleSetCoinBalance is kept for compatibility but the effective balance
+  // is now calculated from baseBalance - totalBetAmount
   const handleSetCoinBalance = (newBalance: number) => {
     if (profile) {
       useMockStore.getState().setCoinBalance(profile.id, newBalance);
@@ -542,25 +551,22 @@ function App() {
       const newBetData = { prediction, amount, odds: safeOdds };
       const existingBetIndex = bets.findIndex(b => b.matchId === modalState.match!.id);
       if (existingBetIndex !== -1) {
+        // Modifying existing bet - just update the bet, balance recalculates automatically
         const oldBet = bets[existingBetIndex];
         const updatedBets = [...bets];
         updatedBets[existingBetIndex] = { ...oldBet, ...newBetData };
         setBets(updatedBets);
-        handleSetCoinBalance(coinBalance + oldBet.amount - amount);
       } else {
+        // New bet - just add it, balance recalculates automatically
         const newBet: Bet = { matchId: modalState.match.id, ...newBetData, status: 'pending' };
         setBets([...bets, newBet]);
-        handleSetCoinBalance(coinBalance - amount);
       }
     }
   };
   
   const handleCancelBet = (matchId: string) => {
-    const betToCancel = bets.find(b => b.matchId === matchId);
-    if (betToCancel) {
-      handleSetCoinBalance(coinBalance + betToCancel.amount);
-      setBets(prevBets => prevBets.filter(b => b.matchId !== matchId));
-    }
+    // Just remove the bet - balance recalculates automatically
+    setBets(prevBets => prevBets.filter(b => b.matchId !== matchId));
   };
 
   const handleUpdateDailyBets = async (challengeId: string, day: number, newBets: ChallengeBet[]) => {
