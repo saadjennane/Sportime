@@ -55,12 +55,15 @@ export function useUserPicks(userBets: Bet[] = []): UseUserPicksReturn {
 
       console.log('[useUserPicks] Fetching matches for bet IDs:', matchIds);
 
-      // Fetch all fixtures that match our bet IDs
-      // We need to handle both api_id (numeric string) and id (UUID) formats
+      // Separate numeric IDs (api_id) from UUID IDs (fixture id)
       const numericIds = matchIds.filter(id => /^\d+$/.test(id)).map(Number);
+      const uuidIds = matchIds.filter(id => /^[0-9a-f-]{36}$/i.test(id));
+
+      console.log('[useUserPicks] Numeric IDs:', numericIds, 'UUID IDs:', uuidIds);
 
       let fixturesData: any[] = [];
 
+      // Fetch by api_id if we have numeric IDs
       if (numericIds.length > 0) {
         const { data, error: fetchError } = await supabase
           .from('fb_fixtures')
@@ -90,6 +93,42 @@ export function useUserPicks(userBets: Bet[] = []): UseUserPicksReturn {
         fixturesData = data || [];
       }
 
+      // Fetch by UUID id if we have UUID IDs
+      if (uuidIds.length > 0) {
+        const { data, error: fetchError } = await supabase
+          .from('fb_fixtures')
+          .select(`
+            id,
+            api_id,
+            date,
+            status,
+            goals_home,
+            goals_away,
+            league_id,
+            home_team_id,
+            away_team_id,
+            league:fb_leagues!fb_fixtures_league_id_fkey(
+              id,
+              name,
+              logo
+            )
+          `)
+          .in('id', uuidIds)
+          .order('date', { ascending: false });
+
+        if (fetchError) {
+          throw fetchError;
+        }
+
+        // Merge with existing fixtures, avoiding duplicates
+        const existingIds = new Set(fixturesData.map(f => f.id));
+        (data || []).forEach(fixture => {
+          if (!existingIds.has(fixture.id)) {
+            fixturesData.push(fixture);
+          }
+        });
+      }
+
       console.log('[useUserPicks] Fixtures fetched:', fixturesData.length);
 
       if (fixturesData.length === 0) {
@@ -109,15 +148,24 @@ export function useUserPicks(userBets: Bet[] = []): UseUserPicksReturn {
 
       const teamsMap = new Map(teamsData?.map(t => [t.id, t]) || []);
 
-      // Create a map of fixtures by api_id for quick lookup
-      const fixturesMap = new Map(
-        fixturesData.map(f => [String(f.api_id || f.id), f])
-      );
+      // Create a map of fixtures by BOTH api_id AND UUID id for quick lookup
+      const fixturesMap = new Map<string, any>();
+      fixturesData.forEach(f => {
+        // Index by UUID
+        fixturesMap.set(String(f.id), f);
+        // Also index by api_id if available
+        if (f.api_id) {
+          fixturesMap.set(String(f.api_id), f);
+        }
+      });
+
+      console.log('[useUserPicks] fixturesMap keys:', Array.from(fixturesMap.keys()));
 
       // Transform bets with their matches
       const picksWithMatches: PickWithMatch[] = userBets
         .map(bet => {
           const fixture = fixturesMap.get(bet.matchId);
+          console.log('[useUserPicks] Looking for matchId:', bet.matchId, 'Found:', !!fixture);
           if (!fixture) return null;
 
           const homeTeam = teamsMap.get(fixture.home_team_id);
