@@ -10,9 +10,9 @@ interface SpinwheelCardProps {
 
 const tierDetails = {
   free: { title: "Free Spin", description: "Spin once daily!", color: "from-lime-glow/20 to-lime-glow/5", borderColor: "border-lime-glow" },
-  rookie: { title: "Rookie Spin", description: "Requires Rookie Ticket", color: "from-lime-glow/40 to-lime-glow/10", borderColor: "border-lime-glow" },
-  pro: { title: "Pro Spin", description: "Requires Pro Ticket", color: "from-warm-yellow/40 to-warm-yellow/10", borderColor: "border-warm-yellow" },
-  elite: { title: "Elite Spin", description: "Requires Elite Ticket", color: "from-hot-red/40 to-hot-red/10", borderColor: "border-hot-red" },
+  amateur: { title: "Amateur Spin", description: "Requires Amateur Ticket", color: "from-lime-glow/40 to-lime-glow/10", borderColor: "border-lime-glow" },
+  master: { title: "Master Spin", description: "Requires Master Ticket", color: "from-warm-yellow/40 to-warm-yellow/10", borderColor: "border-warm-yellow" },
+  apex: { title: "Apex Spin", description: "Requires Apex Ticket", color: "from-hot-red/40 to-hot-red/10", borderColor: "border-hot-red" },
   premium: { title: "Premium Spin", description: "Subscriber Exclusive", color: "from-electric-blue/40 to-neon-cyan/20", borderColor: "border-neon-cyan" },
 };
 

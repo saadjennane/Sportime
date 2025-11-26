@@ -82,11 +82,11 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
     </div>
   );
 
-  const SpinTierButton: React.FC<{ tier: 'rookie' | 'pro' | 'elite', spins: number }> = ({ tier, spins }) => {
+  const SpinTierButton: React.FC<{ tier: 'amateur' | 'master' | 'apex', spins: number }> = ({ tier, spins }) => {
     const colors = {
-      rookie: 'border-lime-glow text-lime-glow',
-      pro: 'border-warm-yellow text-warm-yellow',
-      elite: 'border-hot-red text-hot-red',
+      amateur: 'border-lime-glow text-lime-glow',
+      master: 'border-warm-yellow text-warm-yellow',
+      apex: 'border-hot-red text-hot-red',
     };
     return (
       <button
@@ -165,9 +165,9 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
               <div className="card-base p-5 space-y-3">
                 <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2"><Gift size={20} className="text-warm-yellow" /> Spin the Wheel</h3>
                 <div className="flex gap-2">
-                  <SpinTierButton tier="rookie" spins={userSpinState.availableSpins.rookie} />
-                  <SpinTierButton tier="pro" spins={userSpinState.availableSpins.pro} />
-                  <SpinTierButton tier="elite" spins={userSpinState.availableSpins.elite} />
+                  <SpinTierButton tier="amateur" spins={userSpinState.availableSpins.amateur} />
+                  <SpinTierButton tier="master" spins={userSpinState.availableSpins.master} />
+                  <SpinTierButton tier="apex" spins={userSpinState.availableSpins.apex} />
                 </div>
               </div>
             )}

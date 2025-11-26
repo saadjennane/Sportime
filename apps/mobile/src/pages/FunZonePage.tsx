@@ -36,9 +36,17 @@ const FunZonePage: React.FC<FunZonePageProps> = ({ profile, onOpenSpinWheel, add
 
   const checkTicketAvailability = (tier: SpinTier): boolean => {
     if (tier === 'free') return isFreeSpinAvailable;
-    // In a real implementation, you'd check userTickets here.
-    // For this mock, we'll keep them locked to show the preview feature.
-    return false; 
+    if (tier === 'premium') return profile?.is_subscriber ?? false;
+
+    if (!profile) return false;
+
+    const now = new Date();
+    return userTickets.some(ticket =>
+      ticket.user_id === profile.id &&
+      ticket.type === tier &&
+      !ticket.is_used &&
+      new Date(ticket.expires_at) > now
+    );
   };
 
   return (
@@ -55,9 +63,9 @@ const FunZonePage: React.FC<FunZonePageProps> = ({ profile, onOpenSpinWheel, add
           <h2 className="text-xl font-bold text-text-primary">Spinwheels</h2>
           <div className="grid grid-cols-3 gap-2">
             <SpinwheelCard tier="free" onClick={() => handleSpinwheelClick('free')} isAvailable={checkTicketAvailability('free')} />
-            <SpinwheelCard tier="rookie" onClick={() => handleSpinwheelClick('rookie')} isAvailable={checkTicketAvailability('rookie')} />
-            <SpinwheelCard tier="pro" onClick={() => handleSpinwheelClick('pro')} isAvailable={checkTicketAvailability('pro')} />
-            <SpinwheelCard tier="elite" onClick={() => handleSpinwheelClick('elite')} isAvailable={checkTicketAvailability('elite')} />
+            <SpinwheelCard tier="amateur" onClick={() => handleSpinwheelClick('amateur')} isAvailable={checkTicketAvailability('amateur')} />
+            <SpinwheelCard tier="master" onClick={() => handleSpinwheelClick('master')} isAvailable={checkTicketAvailability('master')} />
+            <SpinwheelCard tier="apex" onClick={() => handleSpinwheelClick('apex')} isAvailable={checkTicketAvailability('apex')} />
             <SpinwheelCard tier="premium" onClick={() => handleSpinwheelClick('premium')} isAvailable={checkTicketAvailability('premium')} />
           </div>
         </div>

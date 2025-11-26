@@ -58,7 +58,7 @@ export const FreeSpinwheelModal: React.FC<FreeSpinwheelModalProps> = ({ isOpen, 
       // Find the winning slice index
       const winningIndex = FREE_SPIN_REWARDS.findIndex(r =>
         r.label === spinResult.rewardLabel ||
-        r.type === spinResult.rewardType
+        r.type === spinResult.rewardCategory
       ) || 0;
 
       const baseRotation = 360 * 5;

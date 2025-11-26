@@ -14,25 +14,25 @@ interface SpinWheelProps {
 }
 
 const tierColors = {
-  rookie: 'from-lime-glow/50 to-green-400/50',
-  pro: 'from-warm-yellow/50 to-orange-400/50',
-  elite: 'from-hot-red/50 to-red-500/50',
+  amateur: 'from-lime-glow/50 to-green-400/50',
+  master: 'from-warm-yellow/50 to-orange-400/50',
+  apex: 'from-hot-red/50 to-red-500/50',
 };
 
 const tierCenterColors = {
-  rookie: 'border-lime-glow',
-  pro: 'border-warm-yellow',
-  elite: 'border-hot-red',
+  amateur: 'border-lime-glow',
+  master: 'border-warm-yellow',
+  apex: 'border-hot-red',
 };
 
 const rewardIcons: Record<string, React.ReactNode> = {
-  ticket_rookie: <Gift />,
-  ticket_pro: <Gift />,
-  ticket_elite: <Gift />,
+  ticket_amateur: <Gift />,
+  ticket_master: <Gift />,
+  ticket_apex: <Gift />,
   extra_spin: <Gift />,
-  masterpass_rookie: <Gift />,
-  masterpass_pro: <Gift />,
-  masterpass_elite: <Gift />,
+  masterpass_amateur: <Gift />,
+  masterpass_master: <Gift />,
+  masterpass_apex: <Gift />,
   boost_50: <Gift />,
   boost_100: <Gift />,
   boost_200: <Gift />,

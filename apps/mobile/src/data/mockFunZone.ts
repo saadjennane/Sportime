@@ -5,9 +5,9 @@ export const PROGRESSION_MILESTONES: ProgressionMilestone[] = [
   { wins: 10, rewards: [{ type: 'coins', value: 150 }] },
   { wins: 20, rewards: [{ type: 'coins', value: 200 }] },
   { wins: 30, rewards: [{ type: 'coins', value: 300 }] },
-  { wins: 50, rewards: [{ type: 'coins', value: 500 }, { type: 'spin', value: 'rookie' }] },
-  { wins: 75, rewards: [{ type: 'coins', value: 700 }, { type: 'spin', value: 'pro' }] },
-  { wins: 100, rewards: [{ type: 'coins', value: 1000 }, { type: 'spin', value: 'elite' }] },
+  { wins: 50, rewards: [{ type: 'coins', value: 500 }, { type: 'spin', value: 'amateur' }] },
+  { wins: 75, rewards: [{ type: 'coins', value: 700 }, { type: 'spin', value: 'master' }] },
+  { wins: 100, rewards: [{ type: 'coins', value: 1000 }, { type: 'spin', value: 'apex' }] },
   { wins: 150, rewards: [{ type: 'coins', value: 1500 }, { type: 'badge', value: 'FunZone Master' }] },
 ];
 
