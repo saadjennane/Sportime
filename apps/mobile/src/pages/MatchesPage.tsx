@@ -4,7 +4,7 @@ import UpcomingPage from './Upcoming';
 import FinishedMatchesPage from './FinishedMatches';
 import { DailySummaryHeader } from '../components/matches/DailySummaryHeader';
 import { format } from 'date-fns';
-import { Settings } from 'lucide-react';
+import { Settings, Calendar } from 'lucide-react';
 import { useLeagueOrder } from '../hooks/useLeagueOrder';
 import { useImportedLeagues } from '../hooks/useImportedLeagues';
 import { LeagueOrderModal } from '../components/matches/LeagueOrderModal';
@@ -193,16 +193,15 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
 
   return (
     <div className="space-y-4">
-      {activeTab === 'today' && (
-        <DailySummaryHeader
-          date={format(new Date(), 'EEEE, MMM d, yyyy')}
-          picksCount={upcomingHeaderData.picksCount}
-          totalMatches={upcomingHeaderData.totalMatches}
-          potentialWinnings={upcomingHeaderData.potentialWinnings}
-          isPlayedTab={false}
-        />
-      )}
+      {/* 1. Date */}
+      <div className="flex items-center justify-center">
+        <div className="flex items-center gap-2 text-lg font-bold text-text-primary">
+          <Calendar size={18} className="text-electric-blue" />
+          <span>{format(new Date(), 'EEEE, MMM d, yyyy')}</span>
+        </div>
+      </div>
 
+      {/* 2. Onglets Today/Finished */}
       <div className="flex items-center gap-2">
         <div className="flex-1 flex bg-navy-accent rounded-xl p-1">
           <button
@@ -223,6 +222,17 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
         </button>
       </div>
 
+      {/* 3. Header Stats */}
+      {activeTab === 'today' && (
+        <DailySummaryHeader
+          picksCount={upcomingHeaderData.picksCount}
+          totalMatches={upcomingHeaderData.totalMatches}
+          potentialWinnings={upcomingHeaderData.potentialWinnings}
+          isPlayedTab={false}
+        />
+      )}
+
+      {/* 4. Liste des matchs */}
       {activeTab === 'today' ? (
         loading ? (
           <div className="card-base p-6 text-center text-text-secondary text-sm">Loading today’s matches…</div>

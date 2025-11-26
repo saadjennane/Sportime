@@ -6,7 +6,6 @@ import { DailySummaryHeader } from '../components/matches/DailySummaryHeader';
 import { FinishedMatchesFilterPanel, FinishedMatchesFilters } from '../components/filters/FinishedMatchesFilterPanel';
 import { useFinishedMatches } from '../features/matches/useFinishedMatches';
 import { Loader } from 'lucide-react';
-import { format } from 'date-fns';
 
 interface FinishedMatchesPageProps {
   userId?: string;
@@ -109,7 +108,6 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
     <div ref={scrollContainerRef} className="space-y-4 max-h-screen overflow-y-auto">
       {/* Header with stats */}
       <DailySummaryHeader
-        date={format(new Date(), 'EEEE, MMM d, yyyy')}
         picksCount={headerStats.successfulPicks}
         totalMatches={headerStats.totalBets}
         potentialWinnings={headerStats.totalWinnings}
