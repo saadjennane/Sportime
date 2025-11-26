@@ -178,7 +178,8 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
       if (match) {
         // Validate odds to prevent NaN calculations
         const safeOdds = typeof bet.odds === 'number' && Number.isFinite(bet.odds) ? bet.odds : 0;
-        return total + (bet.amount * safeOdds);
+        // Round up each bet's potential win to nearest whole coin
+        return total + Math.ceil(bet.amount * safeOdds);
       }
       return total;
     }, 0);
