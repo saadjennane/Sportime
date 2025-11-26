@@ -5,6 +5,7 @@ import { DisplayName } from './shared/DisplayName';
 
 interface HeaderProps {
   profile: Profile | null;
+  coinBalance: number;
   ticketCount: number;
   notificationCount: number;
   onViewProfile: () => void;
@@ -15,7 +16,7 @@ interface HeaderProps {
   onOpenPremiumModal: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ profile, ticketCount, notificationCount, onViewProfile, onSignIn, onViewTickets, onViewNotifications, onGoToShop, onOpenPremiumModal }) => {
+export const Header: React.FC<HeaderProps> = ({ profile, coinBalance, ticketCount, notificationCount, onViewProfile, onSignIn, onViewTickets, onViewNotifications, onGoToShop, onOpenPremiumModal }) => {
   const isGuest = !profile || profile.is_guest;
 
   return (
@@ -45,7 +46,7 @@ export const Header: React.FC<HeaderProps> = ({ profile, ticketCount, notificati
             {/* Balance */}
             <div className="flex items-center gap-1 bg-navy-accent/70 backdrop-blur-sm pl-3 pr-1 py-1 rounded-full shadow-sm border border-neon-cyan/20">
               <Coins className="w-5 h-5 text-warm-yellow" />
-              <span className="font-bold text-text-primary text-sm">{profile.coins_balance.toLocaleString()}</span>
+              <span className="font-bold text-text-primary text-sm">{coinBalance.toLocaleString()}</span>
               <button 
                 onClick={onGoToShop} 
                 className="w-6 h-6 bg-lime-glow/20 rounded-full flex items-center justify-center text-lime-glow hover:bg-lime-glow/30 transition-colors"

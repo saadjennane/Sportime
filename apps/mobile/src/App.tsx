@@ -1241,11 +1241,12 @@ function App() {
     <div className="main-background">
       <ToastContainer toasts={toasts} removeToast={removeToast} />
       <div className="max-w-md mx-auto px-4 pt-4 pb-28 space-y-4">
-        <Header 
-          profile={profile} 
-          ticketCount={ticketCount} 
-          onViewProfile={() => handlePageChange('profile')} 
-          onSignIn={handleTriggerSignUp} 
+        <Header
+          profile={profile}
+          coinBalance={coinBalance}
+          ticketCount={ticketCount}
+          onViewProfile={() => handlePageChange('profile')}
+          onSignIn={handleTriggerSignUp}
           onViewTickets={() => setIsTicketWalletOpen(true)}
           notificationCount={unreadNotificationsCount}
           onViewNotifications={() => setIsNotificationCenterOpen(true)}
