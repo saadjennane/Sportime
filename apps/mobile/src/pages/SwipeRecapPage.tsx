@@ -34,6 +34,130 @@ interface SwipeRecapPageProps {
   leagueGames: LeagueGame[];
 }
 
+// Extracted outside to prevent React Error #300
+interface PredictionButtonProps {
+  outcome: SwipePredictionOutcome;
+  label: string;
+  odds: number;
+  isEditable: boolean;
+  isSaving: boolean;
+  buttonClass: string;
+  onUpdate: (outcome: SwipePredictionOutcome) => void;
+}
+
+const PredictionButton: React.FC<PredictionButtonProps> = ({
+  outcome,
+  label,
+  odds,
+  isEditable,
+  isSaving,
+  buttonClass,
+  onUpdate,
+}) => (
+  <button
+    disabled={!isEditable || isSaving}
+    onClick={() => onUpdate(outcome)}
+    className={`p-2 rounded-lg text-sm font-semibold transition-colors flex flex-col items-center justify-center ${buttonClass}`}
+  >
+    <span>{label}</span>
+    {isEditable && <span className="text-xs opacity-70">@{odds.toFixed(2)}</span>}
+  </button>
+);
+
+// Extracted outside to prevent React Error #300
+interface MatchPredictionCardProps {
+  match: {
+    id: string;
+    teamA: { name: string };
+    teamB: { name: string };
+    odds: { teamA: number; draw: number; teamB: number };
+    result?: SwipePredictionOutcome;
+  };
+  prediction?: SwipePredictionOutcome;
+  isCorrect: boolean;
+  points: number;
+  isEditable: boolean;
+  isSaving: boolean;
+  onUpdatePrediction: (matchId: string, outcome: SwipePredictionOutcome) => void;
+}
+
+const MatchPredictionCard: React.FC<MatchPredictionCardProps> = ({
+  match,
+  prediction,
+  isCorrect,
+  points,
+  isEditable,
+  isSaving,
+  onUpdatePrediction,
+}) => {
+  const getButtonClass = (outcome: SwipePredictionOutcome) => {
+    const isSelected = prediction === outcome;
+    if (!isEditable) {
+      // Results view
+      if (isSelected) {
+        return isCorrect ? 'bg-lime-glow text-deep-navy' : 'bg-hot-red text-white';
+      }
+      if (match.result === outcome) {
+        return 'bg-lime-glow/20 text-lime-glow';
+      }
+      return 'bg-disabled text-text-disabled';
+    }
+    // Editable view
+    return isSelected
+      ? 'bg-gradient-to-r from-electric-blue to-neon-cyan text-white'
+      : 'bg-deep-navy text-text-secondary hover:bg-navy-accent';
+  };
+
+  return (
+    <div className="bg-deep-navy rounded-xl p-3 space-y-3">
+      <div className="flex justify-between items-center text-sm">
+        <p className="font-bold text-text-primary">
+          {match.teamA.name} vs {match.teamB.name}
+        </p>
+        {!isEditable && prediction && (
+          <div
+            className={`flex items-center gap-1 font-bold ${
+              isCorrect ? 'text-lime-glow' : 'text-hot-red'
+            }`}
+          >
+            {isCorrect ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
+            <span>{isCorrect ? `+${points.toFixed(0)} pts` : '0 pts'}</span>
+          </div>
+        )}
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <PredictionButton
+          outcome="teamA"
+          label={match.teamA.name.split(' ')[0]}
+          odds={match.odds.teamA}
+          isEditable={isEditable}
+          isSaving={isSaving}
+          buttonClass={getButtonClass('teamA')}
+          onUpdate={(outcome) => onUpdatePrediction(match.id, outcome)}
+        />
+        <PredictionButton
+          outcome="draw"
+          label="Draw"
+          odds={match.odds.draw}
+          isEditable={isEditable}
+          isSaving={isSaving}
+          buttonClass={getButtonClass('draw')}
+          onUpdate={(outcome) => onUpdatePrediction(match.id, outcome)}
+        />
+        <PredictionButton
+          outcome="teamB"
+          label={match.teamB.name.split(' ')[0]}
+          odds={match.odds.teamB}
+          isEditable={isEditable}
+          isSaving={isSaving}
+          buttonClass={getButtonClass('teamB')}
+          onUpdate={(outcome) => onUpdatePrediction(match.id, outcome)}
+        />
+      </div>
+    </div>
+  );
+};
+
 export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = (props) => {
   const {
     challengeId,
@@ -90,7 +214,7 @@ export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = (props) => {
 
   const isEditable = currentMatchday.status === 'upcoming';
 
-  const { totalPoints, potentialPoints } = useMemo(() => {
+  const { totalPoints, potentialPoints } = (() => {
     let calculatedPotentialPoints = 0;
     let calculatedFinalPoints = 0;
 
@@ -110,28 +234,20 @@ export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = (props) => {
       totalPoints: Math.round(calculatedFinalPoints),
       potentialPoints: Math.round(calculatedPotentialPoints),
     };
-  }, [predictionRecords, matches]);
+  })();
 
-  const deadline = useMemo(() => {
-    if (!currentMatchday.deadline) return null;
-    return format(new Date(currentMatchday.deadline), "MMM d, yyyy 'at' h:mm a");
-  }, [currentMatchday]);
+  const deadline = currentMatchday.deadline
+    ? format(new Date(currentMatchday.deadline), "MMM d, yyyy 'at' h:mm a")
+    : null;
 
-  const matchDaysForSwitcher = useMemo(() => {
-    return matchdays.map(md => ({
-      id: md.id,
-      name: format(new Date(md.date), 'MMM d, yyyy'),
-      startDate: md.date,
-      endDate: md.date,
-      leagues: [],
-      status: md.status === 'upcoming' ? 'Upcoming' : md.status === 'active' ? 'Ongoing' : 'Finished',
-    }));
-  }, [matchdays]);
-
-  const formatNumberShort = (num: number) => {
-    if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
-    return num.toString();
-  };
+  const matchDaysForSwitcher = matchdays.map(md => ({
+    id: md.id,
+    name: format(new Date(md.date), 'MMM d, yyyy'),
+    startDate: md.date,
+    endDate: md.date,
+    leagues: [],
+    status: md.status === 'upcoming' ? 'Upcoming' : md.status === 'active' ? 'Ongoing' : 'Finished',
+  }));
 
   const handleUpdatePrediction = async (
     matchId: string,
@@ -258,72 +374,17 @@ export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = (props) => {
               const isCorrect = predictionRecord?.is_correct === true;
               const points = predictionRecord?.points_earned || 0;
 
-              const getButtonClass = (outcome: SwipePredictionOutcome) => {
-                const isSelected = prediction === outcome;
-                if (!isEditable) {
-                  // Results view
-                  if (isSelected) {
-                    return isCorrect ? 'bg-lime-glow text-deep-navy' : 'bg-hot-red text-white';
-                  }
-                  if (match.result === outcome) {
-                    return 'bg-lime-glow/20 text-lime-glow';
-                  }
-                  return 'bg-disabled text-text-disabled';
-                }
-                // Editable view
-                return isSelected
-                  ? 'bg-gradient-to-r from-electric-blue to-neon-cyan text-white'
-                  : 'bg-deep-navy text-text-secondary hover:bg-navy-accent';
-              };
-
-              const PredictionButton: React.FC<{
-                outcome: SwipePredictionOutcome;
-                label: string;
-                odds: number;
-              }> = ({ outcome, label, odds }) => (
-                <button
-                  disabled={!isEditable || isSaving}
-                  onClick={() => handleUpdatePrediction(match.id, outcome)}
-                  className={`p-2 rounded-lg text-sm font-semibold transition-colors flex flex-col items-center justify-center ${getButtonClass(
-                    outcome
-                  )}`}
-                >
-                  <span>{label}</span>
-                  {isEditable && <span className="text-xs opacity-70">@{odds.toFixed(2)}</span>}
-                </button>
-              );
-
               return (
-                <div key={match.id} className="bg-deep-navy rounded-xl p-3 space-y-3">
-                  <div className="flex justify-between items-center text-sm">
-                    <p className="font-bold text-text-primary">
-                      {match.teamA.name} vs {match.teamB.name}
-                    </p>
-                    {!isEditable && predictionRecord && (
-                      <div
-                        className={`flex items-center gap-1 font-bold ${
-                          isCorrect ? 'text-lime-glow' : 'text-hot-red'
-                        }`}
-                      >
-                        {isCorrect ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
-                        <span>{isCorrect ? `+${points.toFixed(0)} pts` : '0 pts'}</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <PredictionButton
-                      outcome="teamA"
-                      label={match.teamA.name.split(' ')[0]}
-                      odds={match.odds.teamA}
-                    />
-                    <PredictionButton outcome="draw" label="Draw" odds={match.odds.draw} />
-                    <PredictionButton
-                      outcome="teamB"
-                      label={match.teamB.name.split(' ')[0]}
-                      odds={match.odds.teamB}
-                    />
-                  </div>
-                </div>
+                <MatchPredictionCard
+                  key={match.id}
+                  match={match}
+                  prediction={prediction}
+                  isCorrect={isCorrect}
+                  points={points}
+                  isEditable={isEditable}
+                  isSaving={isSaving}
+                  onUpdatePrediction={handleUpdatePrediction}
+                />
               );
             })}
           </div>

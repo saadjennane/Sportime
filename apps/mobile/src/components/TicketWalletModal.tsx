@@ -15,37 +15,44 @@ const tierDetails: Record<TicketTier, { label: string; color: string, iconColor:
   apex: { label: 'Apex', color: 'border-hot-red', iconColor: 'text-hot-red' },
 };
 
+// Extracted outside to prevent React Error #300
+interface TicketTierSectionProps {
+  tier: TicketTier;
+  tierTickets: UserTicket[];
+}
+
+const TicketTierSection: React.FC<TicketTierSectionProps> = ({ tier, tierTickets }) => {
+  const details = tierDetails[tier];
+  const oldestTicket = tierTickets.length > 0
+    ? tierTickets.sort((a, b) => new Date(a.expires_at).getTime() - new Date(b.expires_at).getTime())[0]
+    : null;
+
+  return (
+    <div className={`bg-deep-navy p-4 rounded-xl border-2 ${details.color}`}>
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <Ticket size={20} className={details.iconColor} />
+          <h3 className={`text-lg font-bold ${details.iconColor}`}>{details.label}</h3>
+        </div>
+        <span className="font-bold text-text-primary">{tierTickets.length} <span className="text-sm text-text-disabled">/ {tier === 'amateur' ? 5 : tier === 'master' ? 3 : 2}</span></span>
+      </div>
+      {oldestTicket && (
+        <p className="text-xs text-text-disabled mt-1">
+          Oldest expires in {formatDistanceToNowStrict(parseISO(oldestTicket.expires_at))}
+        </p>
+      )}
+    </div>
+  );
+};
+
 export const TicketWalletModal: React.FC<TicketWalletModalProps> = ({ isOpen, onClose, tickets }) => {
   if (!isOpen) return null;
 
   const now = new Date();
   const activeTickets = tickets.filter(t => !t.is_used && isBefore(now, parseISO(t.expires_at)));
   const expiredTickets = tickets.filter(t => !t.is_used && !isBefore(now, parseISO(t.expires_at)));
-  
+
   const ticketsByType = (tier: TicketTier) => activeTickets.filter(t => t.type === tier);
-
-  const TicketTierSection: React.FC<{ tier: TicketTier }> = ({ tier }) => {
-    const details = tierDetails[tier];
-    const tierTickets = ticketsByType(tier);
-    const oldestTicket = tierTickets.length > 0 ? tierTickets.sort((a, b) => new Date(a.expires_at).getTime() - new Date(b.expires_at).getTime())[0] : null;
-
-    return (
-      <div className={`bg-deep-navy p-4 rounded-xl border-2 ${details.color}`}>
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <Ticket size={20} className={details.iconColor} />
-            <h3 className={`text-lg font-bold ${details.iconColor}`}>{details.label}</h3>
-          </div>
-          <span className="font-bold text-text-primary">{tierTickets.length} <span className="text-sm text-text-disabled">/ {tier === 'amateur' ? 5 : tier === 'master' ? 3 : 2}</span></span>
-        </div>
-        {oldestTicket && (
-          <p className="text-xs text-text-disabled mt-1">
-            Oldest expires in {formatDistanceToNowStrict(parseISO(oldestTicket.expires_at))}
-          </p>
-        )}
-      </div>
-    );
-  };
 
   return (
     <div className="fixed inset-0 bg-deep-navy/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-scale-in">
@@ -63,9 +70,9 @@ export const TicketWalletModal: React.FC<TicketWalletModalProps> = ({ isOpen, on
           <h4 className="text-sm font-semibold text-text-secondary uppercase">Active Tickets</h4>
           {activeTickets.length > 0 ? (
             <>
-              <TicketTierSection tier="amateur" />
-              <TicketTierSection tier="master" />
-              <TicketTierSection tier="apex" />
+              <TicketTierSection tier="amateur" tierTickets={ticketsByType('amateur')} />
+              <TicketTierSection tier="master" tierTickets={ticketsByType('master')} />
+              <TicketTierSection tier="apex" tierTickets={ticketsByType('apex')} />
             </>
           ) : (
             <p className="text-center text-text-disabled py-4">You have no active tickets. Win them in tournaments!</p>

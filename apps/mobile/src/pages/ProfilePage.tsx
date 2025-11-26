@@ -31,17 +31,87 @@ interface ProfilePageProps {
   onOpenPremiumModal: () => void;
 }
 
+// Extracted outside to prevent React Error #300
+interface PreferenceItemProps {
+  icon: React.ReactNode;
+  label: string;
+  value?: string;
+  valueIcon?: string | React.ReactNode;
+  onClick: () => void;
+}
+
+const PreferenceItem: React.FC<PreferenceItemProps> = ({ icon, label, value, valueIcon, onClick }) => (
+  <div className="bg-deep-navy p-4 rounded-xl">
+      <p className="text-xs font-semibold text-text-disabled mb-2 flex items-center gap-1.5">{icon} {label}</p>
+      {value ? (
+          <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 font-semibold text-text-primary">
+                  {typeof valueIcon === 'string' ? <img src={valueIcon} alt={value} className="w-6 h-6" /> : valueIcon}
+                  <span>{value}</span>
+              </div>
+              <button onClick={onClick} className="text-xs font-bold text-electric-blue hover:underline">Change</button>
+          </div>
+      ) : (
+          <button onClick={onClick} className="w-full text-left text-sm font-semibold text-text-disabled hover:text-electric-blue">
+              Tap to choose
+          </button>
+      )}
+  </div>
+);
+
+// Extracted outside to prevent React Error #300
+interface SpinTierButtonProps {
+  tier: 'rookie' | 'pro' | 'elite';
+  spins: number;
+  onOpenSpinWheel: (tier: SpinTier) => void;
+}
+
+const SpinTierButton: React.FC<SpinTierButtonProps> = ({ tier, spins, onOpenSpinWheel }) => {
+  const colors = {
+    rookie: 'border-lime-glow text-lime-glow',
+    pro: 'border-warm-yellow text-warm-yellow',
+    elite: 'border-hot-red text-hot-red',
+  };
+  return (
+    <button
+      onClick={() => onOpenSpinWheel(tier)}
+      disabled={spins <= 0}
+      className={`flex-1 flex flex-col items-center justify-center p-3 rounded-xl border-2 ${colors[tier]} bg-deep-navy/50 disabled:opacity-50 disabled:border-disabled disabled:text-text-disabled`}
+    >
+      <span className="font-bold capitalize">{tier}</span>
+      <span className="text-xs">({spins} spins)</span>
+    </button>
+  );
+};
+
+// Extracted outside to prevent React Error #300
+interface TabButtonProps {
+  label: string;
+  icon: React.ReactNode;
+  isActive: boolean;
+  onClick: () => void;
+}
+
+const TabButton: React.FC<TabButtonProps> = ({ label, icon, isActive, onClick }) => (
+  <button
+    onClick={onClick}
+    className={`flex-1 flex items-center justify-center gap-2 p-2 rounded-lg font-semibold transition-all text-sm ${isActive ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'}`}
+  >
+    {icon} {label}
+  </button>
+);
+
 const ProfilePage: React.FC<ProfilePageProps> = (props) => {
   const { profile, levels, allBadges, userBadges, userStreaks, onOpenSpinWheel, onOpenPremiumModal } = props;
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'stats' | 'squad' | 'rewards'>('overview');
-  
+
   const userSpinState = useSpinStore(state => state.userSpinStates[profile.id]);
   const { addNotification } = useMockStore();
 
   const currentLevel = levels.find(l => l.level_name === (profile.level ?? 'Amateur')) || levels[0];
   const nextLevel = levels.find(l => l.min_xp > (currentLevel?.min_xp || 0));
-  
+
   const xpForNextLevel = nextLevel && currentLevel ? nextLevel.min_xp - currentLevel.min_xp : 0;
   const currentXpInLevel = currentLevel ? (profile.xp ?? 0) - currentLevel.min_xp : 0;
   const progressPercentage = xpForNextLevel > 0 ? (currentXpInLevel / xpForNextLevel) * 100 : 100;
@@ -51,63 +121,11 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
   const favoriteClub = profile.favorite_club ? mockTeams.find(t => t.id === profile.favorite_club) : null;
   const favoriteNationalTeam = profile.favorite_national_team ? mockCountries.find(c => c.name === profile.favorite_national_team) : null;
   const preferencesSkipped = !profile.is_guest && !profile.favorite_club && !profile.favorite_national_team;
-  
+
   const userStreak = userStreaks.find(s => s.user_id === profile.id);
   const levelBetLimit = getLevelBetLimit(profile.level ?? currentLevel?.level_name);
   const maxBetLabel =
     levelBetLimit === null ? 'No Limit' : `${levelBetLimit.toLocaleString()} coins`;
-
-  const PreferenceItem: React.FC<{
-    icon: React.ReactNode;
-    label: string;
-    value?: string;
-    valueIcon?: string | React.ReactNode;
-    onClick: () => void;
-  }> = ({ icon, label, value, valueIcon, onClick }) => (
-    <div className="bg-deep-navy p-4 rounded-xl">
-        <p className="text-xs font-semibold text-text-disabled mb-2 flex items-center gap-1.5">{icon} {label}</p>
-        {value ? (
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 font-semibold text-text-primary">
-                    {typeof valueIcon === 'string' ? <img src={valueIcon} alt={value} className="w-6 h-6" /> : valueIcon}
-                    <span>{value}</span>
-                </div>
-                <button onClick={onClick} className="text-xs font-bold text-electric-blue hover:underline">Change</button>
-            </div>
-        ) : (
-            <button onClick={onClick} className="w-full text-left text-sm font-semibold text-text-disabled hover:text-electric-blue">
-                Tap to choose
-            </button>
-        )}
-    </div>
-  );
-
-  const SpinTierButton: React.FC<{ tier: 'rookie' | 'pro' | 'elite', spins: number }> = ({ tier, spins }) => {
-    const colors = {
-      rookie: 'border-lime-glow text-lime-glow',
-      pro: 'border-warm-yellow text-warm-yellow',
-      elite: 'border-hot-red text-hot-red',
-    };
-    return (
-      <button
-        onClick={() => onOpenSpinWheel(tier)}
-        disabled={spins <= 0}
-        className={`flex-1 flex flex-col items-center justify-center p-3 rounded-xl border-2 ${colors[tier]} bg-deep-navy/50 disabled:opacity-50 disabled:border-disabled disabled:text-text-disabled`}
-      >
-        <span className="font-bold capitalize">{tier}</span>
-        <span className="text-xs">({spins} spins)</span>
-      </button>
-    );
-  };
-
-  const TabButton: React.FC<{ label: string; icon: React.ReactNode; isActive: boolean; onClick: () => void; }> = ({ label, icon, isActive, onClick }) => (
-    <button
-      onClick={onClick}
-      className={`flex-1 flex items-center justify-center gap-2 p-2 rounded-lg font-semibold transition-all text-sm ${isActive ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'}`}
-    >
-      {icon} {label}
-    </button>
-  );
 
   return (
     <>
@@ -165,22 +183,22 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
               <div className="card-base p-5 space-y-3">
                 <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2"><Gift size={20} className="text-warm-yellow" /> Spin the Wheel</h3>
                 <div className="flex gap-2">
-                  <SpinTierButton tier="rookie" spins={userSpinState.availableSpins.rookie} />
-                  <SpinTierButton tier="pro" spins={userSpinState.availableSpins.pro} />
-                  <SpinTierButton tier="elite" spins={userSpinState.availableSpins.elite} />
+                  <SpinTierButton tier="rookie" spins={userSpinState.availableSpins.rookie} onOpenSpinWheel={onOpenSpinWheel} />
+                  <SpinTierButton tier="pro" spins={userSpinState.availableSpins.pro} onOpenSpinWheel={onOpenSpinWheel} />
+                  <SpinTierButton tier="elite" spins={userSpinState.availableSpins.elite} onOpenSpinWheel={onOpenSpinWheel} />
                 </div>
               </div>
             )}
             <div className="card-base p-5 space-y-3">
               <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2"><Edit size={20} className="text-electric-blue" /> Fan Preferences</h3>
-              <PreferenceItem 
+              <PreferenceItem
                   icon={<Award size={16} />}
                   label="Favorite Club"
                   value={favoriteClub?.name}
                   valueIcon={favoriteClub?.logo}
                   onClick={() => setIsSettingsOpen(true)}
               />
-              <PreferenceItem 
+              <PreferenceItem
                   icon={<Globe size={16} />}
                   label="Favorite National Team"
                   value={favoriteNationalTeam?.name}
@@ -238,10 +256,10 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
         {activeTab === 'rewards' && (
           <RewardHistoryPage profile={profile} />
         )}
-        
-        <ProfileSettingsModal 
-          isOpen={isSettingsOpen} 
-          onClose={() => setIsSettingsOpen(false)} 
+
+        <ProfileSettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
           {...props}
         />
       </div>

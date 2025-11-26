@@ -16,6 +16,40 @@ interface ChallengeBetControllerProps {
   profile: Profile;
 }
 
+// Extracted outside to prevent React Error #300
+interface BetOptionProps {
+  label: string;
+  odd: number;
+  prediction: 'teamA' | 'draw' | 'teamB';
+  isSelected: boolean;
+  isWinningOutcome: boolean;
+  disabled: boolean;
+  onSelect: (prediction: 'teamA' | 'draw' | 'teamB') => void;
+}
+
+const BetOption: React.FC<BetOptionProps> = ({
+  label,
+  odd,
+  prediction,
+  isSelected,
+  isWinningOutcome,
+  disabled,
+  onSelect,
+}) => {
+  return (
+    <button
+      onClick={() => onSelect(prediction)}
+      disabled={disabled}
+      className={`flex-1 p-2 border-2 rounded-lg text-center transition-all ${
+        isSelected ? 'bg-electric-blue/20 border-electric-blue' : 'bg-deep-navy border-disabled hover:border-electric-blue/50'
+      } ${disabled ? 'cursor-not-allowed bg-navy-accent' : ''} ${isWinningOutcome ? '!bg-lime-glow/20 !border-lime-glow' : ''}`}
+    >
+      <div className="text-sm font-semibold text-text-primary">{label}</div>
+      <div className="text-xs text-electric-blue">@{odd.toFixed(2)}</div>
+    </button>
+  );
+};
+
 export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ match, bet, onBetChange, disabled, maxAmount, isBoosterArmed, onApplyBooster, isBoosted, boosterType, profile }) => {
   const { teamA, teamB, odds } = match;
   const selectedPrediction = bet?.prediction;
@@ -69,28 +103,6 @@ export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ 
     return finalAmounts.slice(0, 4);
   }, [effectiveMaxAmount]);
 
-  const BetOption: React.FC<{
-    label: string;
-    odd: number;
-    prediction: 'teamA' | 'draw' | 'teamB';
-  }> = ({ label, odd, prediction }) => {
-    const isSelected = selectedPrediction === prediction;
-    const isWinningOutcome = match.status === 'played' && match.result === prediction;
-
-    return (
-      <button
-        onClick={() => handlePredictionClick(prediction)}
-        disabled={disabled}
-        className={`flex-1 p-2 border-2 rounded-lg text-center transition-all ${
-          isSelected ? 'bg-electric-blue/20 border-electric-blue' : 'bg-deep-navy border-disabled hover:border-electric-blue/50'
-        } ${disabled ? 'cursor-not-allowed bg-navy-accent' : ''} ${isWinningOutcome ? '!bg-lime-glow/20 !border-lime-glow' : ''}`}
-      >
-        <div className="text-sm font-semibold text-text-primary">{label}</div>
-        <div className="text-xs text-electric-blue">@{odd.toFixed(2)}</div>
-      </button>
-    );
-  };
-
   return (
     <div className={`bg-navy-accent rounded-xl p-3 space-y-3 border-2 relative ${selectedPrediction ? 'border-electric-blue/50' : 'border-transparent'} ${disabled && match.status === 'played' ? 'opacity-70' : ''}`}>
       {isBoosted && (
@@ -107,9 +119,33 @@ export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ 
         )}
       </div>
       <div className="flex gap-2">
-        <BetOption label={teamA.name} odd={odds.teamA} prediction="teamA" />
-        <BetOption label="Draw" odd={odds.draw} prediction="draw" />
-        <BetOption label={teamB.name} odd={odds.teamB} prediction="teamB" />
+        <BetOption
+          label={teamA.name}
+          odd={odds.teamA}
+          prediction="teamA"
+          isSelected={selectedPrediction === 'teamA'}
+          isWinningOutcome={match.status === 'played' && match.result === 'teamA'}
+          disabled={disabled}
+          onSelect={handlePredictionClick}
+        />
+        <BetOption
+          label="Draw"
+          odd={odds.draw}
+          prediction="draw"
+          isSelected={selectedPrediction === 'draw'}
+          isWinningOutcome={match.status === 'played' && match.result === 'draw'}
+          disabled={disabled}
+          onSelect={handlePredictionClick}
+        />
+        <BetOption
+          label={teamB.name}
+          odd={odds.teamB}
+          prediction="teamB"
+          isSelected={selectedPrediction === 'teamB'}
+          isWinningOutcome={match.status === 'played' && match.result === 'teamB'}
+          disabled={disabled}
+          onSelect={handlePredictionClick}
+        />
       </div>
       <div>
         <input
