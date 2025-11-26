@@ -22,14 +22,20 @@ export const useImportedLeagues = () => {
 
         const { data, error: fetchError } = await supabase
           .from('fb_leagues')
-          .select('id, api_league_id, name, country, logo')
+          .select('id, api_league_id, name, country_id, logo')
           .order('name');
 
         if (fetchError) throw fetchError;
 
         console.log('[useImportedLeagues] Fetched leagues from fb_leagues:', data);
         console.log('[useImportedLeagues] Number of leagues:', data?.length || 0);
-        setLeagues(data || []);
+
+        // Map country_id to country for the interface
+        const mappedData = (data || []).map(league => ({
+          ...league,
+          country: league.country_id
+        }));
+        setLeagues(mappedData);
       } catch (err) {
         console.error('Error fetching imported leagues:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch leagues');
