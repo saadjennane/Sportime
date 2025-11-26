@@ -13,6 +13,8 @@ interface PlayerNodeProps {
 }
 
 const PlayerNode: React.FC<PlayerNodeProps> = ({ player, isSelected, onSelect, isAway }) => {
+  const [imageError, setImageError] = useState(false);
+
   const positionColors: Record<string, string> = {
     G: 'from-amber-400 to-amber-600',
     D: 'from-emerald-400 to-emerald-600',
@@ -21,45 +23,43 @@ const PlayerNode: React.FC<PlayerNodeProps> = ({ player, isSelected, onSelect, i
   };
 
   const gradient = positionColors[player.position] || 'from-gray-400 to-gray-600';
+  const hasValidPhoto = player.photo && !imageError;
 
   return (
     <div className="flex flex-col items-center gap-0.5 relative">
       <button
         onClick={onSelect}
-        className={`relative w-10 h-10 rounded-full overflow-hidden shadow-lg border-2 transition-all duration-200 ${
-          isSelected ? 'border-white scale-110 z-10' : 'border-white/30'
+        className={`relative w-11 h-11 rounded-full overflow-hidden shadow-lg border-2 transition-all duration-200 ${
+          isSelected ? 'border-white scale-110 z-10' : 'border-white/40'
         }`}
       >
-        {player.photo ? (
+        {hasValidPhoto ? (
           <img
             src={player.photo}
             alt={player.name}
             className="w-full h-full object-cover"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-              (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
-            }}
+            onError={() => setImageError(true)}
           />
-        ) : null}
-        <div
-          className={`absolute inset-0 bg-gradient-to-b ${gradient} flex items-center justify-center ${
-            player.photo ? 'hidden' : ''
-          }`}
-        >
-          <span className="text-white font-bold text-sm">{player.number ?? '?'}</span>
-        </div>
+        ) : (
+          <div
+            className={`w-full h-full bg-gradient-to-b ${gradient} flex items-center justify-center`}
+          >
+            <span className="text-white font-bold text-sm">{player.number ?? '?'}</span>
+          </div>
+        )}
       </button>
       <div
-        className={`text-[9px] font-medium text-white text-center max-w-[50px] truncate ${
-          isAway ? 'text-red-200' : 'text-blue-200'
+        className={`text-[9px] font-medium text-center max-w-[52px] leading-tight ${
+          isAway ? 'text-red-100' : 'text-blue-100'
         }`}
       >
-        {player.name.split(' ').pop()}
+        <span className="font-bold">{player.number}</span>{' '}
+        <span className="truncate">{player.name.split(' ').pop()}</span>
       </div>
       {isSelected && (
-        <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-black/90 px-2 py-1 rounded text-[10px] text-white whitespace-nowrap z-20 border border-white/20">
+        <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 bg-black/95 px-3 py-1.5 rounded-lg text-[11px] text-white whitespace-nowrap z-20 border border-white/20 shadow-xl">
           <div className="font-semibold">{player.name}</div>
-          <div className="text-white/70">#{player.number} • {player.position}</div>
+          <div className="text-white/60 text-[10px]">#{player.number} • {player.position}</div>
         </div>
       )}
     </div>
