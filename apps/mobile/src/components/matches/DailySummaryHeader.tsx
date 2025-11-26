@@ -18,10 +18,9 @@ export const DailySummaryHeader: React.FC<DailySummaryHeaderProps> = ({
 }) => {
   return (
     <div className="sticky top-0 z-30 bg-deep-navy/80 backdrop-blur-md -mx-4 px-4 py-3 border-b border-disabled/50">
-      <div className="flex items-center justify-between mb-3">
-        <h1 className="text-xl font-bold text-text-primary">Matches of the Day</h1>
-        <div className="flex items-center gap-1 text-sm font-semibold text-text-secondary">
-          <Calendar size={16} />
+      <div className="flex items-center justify-center mb-3">
+        <div className="flex items-center gap-2 text-lg font-bold text-text-primary">
+          <Calendar size={18} className="text-electric-blue" />
           <span>{date}</span>
         </div>
       </div>
