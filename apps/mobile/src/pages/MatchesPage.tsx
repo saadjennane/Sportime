@@ -2,9 +2,10 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { Match, Bet } from '../types';
 import UpcomingPage from './Upcoming';
 import FinishedMatchesPage from './FinishedMatches';
+import PicksPage from './PicksPage';
 import { DailySummaryHeader } from '../components/matches/DailySummaryHeader';
 import { format } from 'date-fns';
-import { Settings, Calendar } from 'lucide-react';
+import { Settings, Calendar, Target } from 'lucide-react';
 import { useLeagueOrder } from '../hooks/useLeagueOrder';
 import { useImportedLeagues } from '../hooks/useImportedLeagues';
 import { LeagueOrderModal } from '../components/matches/LeagueOrderModal';
@@ -12,7 +13,7 @@ import { MatchStatsDrawer } from '../components/matches/stats/MatchStatsDrawer';
 import { useMatchesOfTheDay } from '../features/matches/useMatchesOfTheDay';
 import type { UiMatch } from '../features/matches/useMatchesOfTheDay';
 
-type Tab = 'today' | 'finished';
+type Tab = 'today' | 'picks' | 'finished';
 
 interface MatchesPageProps {
   matches: Match[];
@@ -201,7 +202,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
         </div>
       </div>
 
-      {/* 2. Onglets Today/Finished */}
+      {/* 2. Onglets Today/Picks/Finished */}
       <div className="flex items-center gap-2">
         <div className="flex-1 flex bg-navy-accent rounded-xl p-1">
           <button
@@ -209,6 +210,18 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
             className={`flex-1 p-2 rounded-lg font-semibold transition-all text-sm ${activeTab === 'today' ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'}`}
           >
             Today
+          </button>
+          <button
+            onClick={() => setActiveTab('picks')}
+            className={`flex-1 p-2 rounded-lg font-semibold transition-all text-sm flex items-center justify-center gap-1 ${activeTab === 'picks' ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'}`}
+          >
+            <Target size={14} />
+            Picks
+            {bets.length > 0 && (
+              <span className={`text-xs px-1.5 py-0.5 rounded-full ${activeTab === 'picks' ? 'bg-white/20' : 'bg-electric-blue/20 text-electric-blue'}`}>
+                {bets.length}
+              </span>
+            )}
           </button>
           <button
             onClick={() => setActiveTab('finished')}
@@ -235,7 +248,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
       {/* 4. Liste des matchs */}
       {activeTab === 'today' ? (
         loading ? (
-          <div className="card-base p-6 text-center text-text-secondary text-sm">Loading today’s matches…</div>
+          <div className="card-base p-6 text-center text-text-secondary text-sm">Loading today's matches…</div>
         ) : error ? (
           <div className="card-base p-6 text-center text-hot-red text-sm">Failed to load matches: {error}</div>
         ) : Object.keys(groupedUpcoming).length === 0 ? (
@@ -250,6 +263,12 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
             onPlayGame={onPlayGame}
           />
         )
+      ) : activeTab === 'picks' ? (
+        <PicksPage
+          bets={bets}
+          onViewStats={setSelectedMatchForStats}
+          orderedLeagues={effectiveOrderedLeagues}
+        />
       ) : (
         <FinishedMatchesPage
           userId={undefined}
