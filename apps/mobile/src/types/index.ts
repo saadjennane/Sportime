@@ -825,8 +825,8 @@ export interface Lineup {
   formation: string;
   lastUpdated: string;
   source: string;
-  starters: { name: string; position: string }[];
-  bench: { name: string; position: string }[];
+  starters: { name: string; position: string; grid?: string; number?: number }[];
+  bench: { name: string; position: string; number?: number }[];
   absentees: { name: string; reason: string }[];
 }
 

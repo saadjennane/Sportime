@@ -53,8 +53,21 @@ type LineupsResponse = {
     team?: { id?: number; name?: string }
     formation?: string | null
     coach?: { name?: string | null }
-    startXI?: Array<{ player?: { name?: string | null; pos?: string | null } }>
-    substitutes?: Array<{ player?: { name?: string | null; pos?: string | null } }>
+    startXI?: Array<{
+      player?: {
+        name?: string | null
+        pos?: string | null
+        grid?: string | null
+        number?: number | null
+      }
+    }>
+    substitutes?: Array<{
+      player?: {
+        name?: string | null
+        pos?: string | null
+        number?: number | null
+      }
+    }>
     update?: string | null
   }>
 }
@@ -252,12 +265,15 @@ async function fetchLineup(fixtureId: number, preferredTeamId: number): Promise<
       selected.startXI?.map((item) => ({
         name: item.player?.name ?? 'Unknown',
         position: item.player?.pos ?? '',
+        grid: item.player?.grid ?? undefined,
+        number: item.player?.number ?? undefined,
       })) ?? []
 
     const bench =
       selected.substitutes?.map((item) => ({
         name: item.player?.name ?? 'Unknown',
         position: item.player?.pos ?? '',
+        number: item.player?.number ?? undefined,
       })) ?? []
 
     return {
