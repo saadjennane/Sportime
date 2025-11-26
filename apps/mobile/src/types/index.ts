@@ -820,6 +820,31 @@ export interface H2HMatch {
   score: string;
 }
 
+export interface LineupPlayer {
+  name: string;
+  position: string;
+  grid?: string;
+  number?: number;
+  photo?: string;
+}
+
+export interface TeamLineup {
+  teamId: number;
+  teamName: string;
+  teamLogo?: string;
+  formation: string;
+  coach?: string;
+  starters: LineupPlayer[];
+  bench: LineupPlayer[];
+}
+
+export interface MatchLineups {
+  home: TeamLineup;
+  away: TeamLineup;
+  lastUpdated: string;
+  source: string;
+}
+
 export interface Lineup {
   status: 'confirmed' | 'tbc';
   formation: string;

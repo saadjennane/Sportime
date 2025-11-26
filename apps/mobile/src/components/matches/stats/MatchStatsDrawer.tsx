@@ -53,10 +53,12 @@ export const MatchStatsDrawer: React.FC<MatchStatsDrawerProps> = ({ match, onClo
       awayTeamId,
       leagueApiId: apiLeagueId ?? undefined,
       season: season ?? undefined,
+      homeTeamLogo: match.teamA.logo ?? undefined,
+      awayTeamLogo: match.teamB.logo ?? undefined,
     };
   }, [match]);
 
-  const { teams, h2h, lineup, loading, error } = useMatchExtras(extrasParams);
+  const { teams, h2h, lineups, loading, error } = useMatchExtras(extrasParams);
 
   useEffect(() => {
     if (match) {
@@ -75,7 +77,7 @@ export const MatchStatsDrawer: React.FC<MatchStatsDrawerProps> = ({ match, onClo
       case 'h2h':
         return <H2HTab data={h2h} loading={loading} />;
       case 'lineups':
-        return <LineupsTab data={lineup ?? undefined} loading={loading} />;
+        return <LineupsTab data={lineups} loading={loading} />;
       default:
         return null;
     }

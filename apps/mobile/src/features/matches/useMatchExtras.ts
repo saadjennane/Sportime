@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiFootball } from '../../lib/apiFootballService'
-import type { TeamStats, H2HMatch, Lineup } from '../../types'
+import type { TeamStats, H2HMatch, Lineup, MatchLineups, TeamLineup } from '../../types'
 
 export interface MatchExtrasParams {
   fixtureId: number
@@ -8,12 +8,15 @@ export interface MatchExtrasParams {
   awayTeamId: number
   leagueApiId?: number
   season?: string | number | null
+  homeTeamLogo?: string
+  awayTeamLogo?: string
 }
 
 interface MatchExtrasState {
   teams?: { home: TeamStats; away: TeamStats }
   h2h?: H2HMatch[]
   lineup?: Lineup | null
+  lineups?: MatchLineups | null
   loading: boolean
   error: string | null
 }
@@ -50,22 +53,26 @@ type FixturesResponse = {
 
 type LineupsResponse = {
   response?: Array<{
-    team?: { id?: number; name?: string }
+    team?: { id?: number; name?: string; logo?: string }
     formation?: string | null
-    coach?: { name?: string | null }
+    coach?: { id?: number; name?: string | null; photo?: string | null }
     startXI?: Array<{
       player?: {
+        id?: number
         name?: string | null
         pos?: string | null
         grid?: string | null
         number?: number | null
+        photo?: string | null
       }
     }>
     substitutes?: Array<{
       player?: {
+        id?: number
         name?: string | null
         pos?: string | null
         number?: number | null
+        photo?: string | null
       }
     }>
     update?: string | null
@@ -78,6 +85,7 @@ const EMPTY_STATE: MatchExtrasState = {
   teams: undefined,
   h2h: undefined,
   lineup: undefined,
+  lineups: undefined,
 }
 
 function formatDate(value?: string | null) {
@@ -290,6 +298,62 @@ async function fetchLineup(fixtureId: number, preferredTeamId: number): Promise<
   }
 }
 
+async function fetchMatchLineups(
+  fixtureId: number,
+  homeTeamId: number,
+  awayTeamId: number,
+  homeTeamLogo?: string,
+  awayTeamLogo?: string
+): Promise<MatchLineups | null> {
+  if (!fixtureId) return null
+
+  try {
+    const data = await apiFootball<LineupsResponse>('/fixtures/lineups', { fixture: fixtureId })
+    const entries = data.response ?? []
+    if (entries.length < 2) return null // Need both teams
+
+    const homeEntry = entries.find((entry) => entry.team?.id === homeTeamId)
+    const awayEntry = entries.find((entry) => entry.team?.id === awayTeamId)
+
+    if (!homeEntry || !awayEntry) return null
+
+    const buildTeamLineup = (
+      entry: NonNullable<LineupsResponse['response']>[0],
+      fallbackLogo?: string
+    ): TeamLineup => ({
+      teamId: entry.team?.id ?? 0,
+      teamName: entry.team?.name ?? 'Unknown',
+      teamLogo: entry.team?.logo ?? fallbackLogo,
+      formation: entry.formation ?? 'Unknown',
+      coach: entry.coach?.name ?? undefined,
+      starters:
+        entry.startXI?.map((item) => ({
+          name: item.player?.name ?? 'Unknown',
+          position: item.player?.pos ?? '',
+          grid: item.player?.grid ?? undefined,
+          number: item.player?.number ?? undefined,
+          photo: item.player?.photo ?? undefined,
+        })) ?? [],
+      bench:
+        entry.substitutes?.map((item) => ({
+          name: item.player?.name ?? 'Unknown',
+          position: item.player?.pos ?? '',
+          number: item.player?.number ?? undefined,
+          photo: item.player?.photo ?? undefined,
+        })) ?? [],
+    })
+
+    return {
+      home: buildTeamLineup(homeEntry, homeTeamLogo),
+      away: buildTeamLineup(awayEntry, awayTeamLogo),
+      lastUpdated: homeEntry.update ?? new Date().toISOString(),
+      source: 'API-Football',
+    }
+  } catch {
+    return null
+  }
+}
+
 export function useMatchExtras(params: MatchExtrasParams | null) {
   const [state, setState] = useState<MatchExtrasState>(EMPTY_STATE)
 
@@ -301,11 +365,18 @@ export function useMatchExtras(params: MatchExtrasParams | null) {
 
     setState((prev) => ({ ...prev, loading: true, error: null }))
     try {
-      const [homeStats, awayStats, h2h, lineup] = await Promise.all([
+      const [homeStats, awayStats, h2h, lineup, lineups] = await Promise.all([
         fetchTeamStats(params.homeTeamId, params.leagueApiId, params.season ?? null),
         fetchTeamStats(params.awayTeamId, params.leagueApiId, params.season ?? null),
         fetchHeadToHead(params.homeTeamId, params.awayTeamId),
         fetchLineup(params.fixtureId, params.homeTeamId),
+        fetchMatchLineups(
+          params.fixtureId,
+          params.homeTeamId,
+          params.awayTeamId,
+          params.homeTeamLogo,
+          params.awayTeamLogo
+        ),
       ])
 
       setState({
@@ -314,6 +385,7 @@ export function useMatchExtras(params: MatchExtrasParams | null) {
         teams: homeStats && awayStats ? { home: homeStats, away: awayStats } : undefined,
         h2h,
         lineup: lineup ?? null,
+        lineups: lineups ?? null,
       })
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Failed to load match data'
@@ -323,6 +395,7 @@ export function useMatchExtras(params: MatchExtrasParams | null) {
         teams: undefined,
         h2h: undefined,
         lineup: null,
+        lineups: null,
       })
     }
   }, [params])
@@ -339,6 +412,7 @@ export function useMatchExtras(params: MatchExtrasParams | null) {
     teams: state.teams,
     h2h: state.h2h,
     lineup: state.lineup ?? undefined,
+    lineups: state.lineups ?? undefined,
     loading: state.loading,
     error: state.error,
     refresh: fetchExtras,
