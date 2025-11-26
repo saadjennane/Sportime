@@ -49,9 +49,10 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
       teamB: m.odds?.away ?? 0,
     };
 
-    const fixtureId = Number(m.id);
-    const homeTeamId = m.homeTeamId ?? (m.home.id ? Number(m.home.id) : Number.NaN);
-    const awayTeamId = m.awayTeamId ?? (m.away.id ? Number(m.away.id) : Number.NaN);
+    // Use API IDs for stats drawer - these are numeric IDs from API-Football
+    const fixtureId = m.apiId ?? Number.NaN;
+    const homeTeamId = m.home.apiId ?? Number.NaN;
+    const awayTeamId = m.away.apiId ?? Number.NaN;
 
     const meta =
       Number.isFinite(fixtureId) &&

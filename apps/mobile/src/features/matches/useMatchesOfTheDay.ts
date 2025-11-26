@@ -17,6 +17,7 @@ import { getLocalDayBounds as getLocalDayBoundsUtil, formatMatchTime as formatMa
 /** ---- UI Types (kept local to the hook) ---- */
 export type UiMatch = {
   id: string // fixture id from API-Football as string
+  apiId?: number // API-Football fixture ID (numeric) for stats
   code: string // legacy identifier (use same as id)
   kickoffISO: string
   kickoffLabel: string
@@ -30,8 +31,8 @@ export type UiMatch = {
   season?: number | null
   leagueInternalId?: string | null
   hasLineup?: boolean
-  home: { id: string; name: string; logo?: string | null; goals?: number | null }
-  away: { id: string; name: string; logo?: string | null; goals?: number | null }
+  home: { id: string; name: string; logo?: string | null; goals?: number | null; apiId?: number }
+  away: { id: string; name: string; logo?: string | null; goals?: number | null; apiId?: number }
   league: { id: string; name: string; logo?: string | null; apiId?: number | null }
   odds?: { home?: number; draw?: number; away?: number; bookmaker?: string }
 }
@@ -143,6 +144,7 @@ export function useMatchesOfTheDay(): HookState {
         .from('fb_fixtures')
         .select(`
           id,
+          api_id,
           date,
           status,
           goals_home,
@@ -210,6 +212,7 @@ export function useMatchesOfTheDay(): HookState {
 
         const match: UiMatch = {
           id: String(r.id),
+          apiId: typeof r.api_id === 'number' ? r.api_id : undefined,
           code: String(r.id),
           kickoffISO: r.date,
           kickoffLabel: formatMatchTimeUtil(r.date, userTimezone),
@@ -227,12 +230,14 @@ export function useMatchesOfTheDay(): HookState {
             name: homeTeam?.name ?? 'Home',
             logo: homeTeam?.logo_url ?? null,
             goals: r.goals_home ?? null,
+            apiId: typeof homeTeam?.api_id === 'number' ? homeTeam.api_id : undefined,
           },
           away: {
             id: r.away_team_id != null ? String(r.away_team_id) : '',
             name: awayTeam?.name ?? 'Away',
             logo: awayTeam?.logo_url ?? null,
             goals: r.goals_away ?? null,
+            apiId: typeof awayTeam?.api_id === 'number' ? awayTeam.api_id : undefined,
           },
           league: {
             id: leagueId,
