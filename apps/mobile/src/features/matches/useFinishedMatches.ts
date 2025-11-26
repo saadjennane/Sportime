@@ -2,10 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { Match, Bet } from '../../types';
 
-interface FinishedMatchFilters {
-  myBetsOnly?: boolean;
-}
-
 interface UseFinishedMatchesReturn {
   matches: Match[];
   isLoading: boolean;
@@ -22,8 +18,7 @@ const MAX_DAYS = 30; // Reasonable limit
 
 export function useFinishedMatches(
   userId?: string,
-  userBets: Bet[] = [],
-  filters: FinishedMatchFilters = {}
+  userBets: Bet[] = []
 ): UseFinishedMatchesReturn {
   const [matches, setMatches] = useState<Match[]>([]);
   const [daysLoaded, setDaysLoaded] = useState(INITIAL_DAYS);
@@ -150,24 +145,14 @@ export function useFinishedMatches(
         })
         .filter((m): m is Match => m !== null);
 
-      // Apply "My Bets Only" filter if enabled
-      const filteredMatches = filters.myBetsOnly
-        ? transformedMatches.filter(match =>
-            userBets.some(bet => bet.matchId === match.id)
-          )
-        : transformedMatches;
-
       console.log('[useFinishedMatches] Final result:', {
         transformedCount: transformedMatches.length,
-        filteredCount: filteredMatches.length,
-        myBetsOnlyEnabled: filters.myBetsOnly,
-        userBetsCount: userBets.length,
       });
 
-      setMatches(filteredMatches);
+      setMatches(transformedMatches);
 
       // Determine if there are more days to load
-      const hasMoreDays = days < MAX_DAYS && filteredMatches.length > 0;
+      const hasMoreDays = days < MAX_DAYS && transformedMatches.length > 0;
       setHasMore(hasMoreDays);
     } catch (err: any) {
       console.error('[useFinishedMatches] Error fetching matches:', err);
@@ -176,7 +161,7 @@ export function useFinishedMatches(
     } finally {
       setIsLoading(false);
     }
-  }, [filters.myBetsOnly, userBets, userId]);
+  }, [userId]);
 
   // Initial load
   useEffect(() => {

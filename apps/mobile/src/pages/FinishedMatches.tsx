@@ -1,9 +1,8 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import { Match, Bet } from '../types';
 import { MatchCard } from '../components/MatchCard';
 import { LeagueMatchGroup } from '../components/matches/LeagueMatchGroup';
 import { DailySummaryHeader } from '../components/matches/DailySummaryHeader';
-import { FinishedMatchesFilterPanel, FinishedMatchesFilters } from '../components/filters/FinishedMatchesFilterPanel';
 import { useFinishedMatches } from '../features/matches/useFinishedMatches';
 import { Loader } from 'lucide-react';
 
@@ -21,14 +20,10 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
   orderedLeagues,
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [filters, setFilters] = useState<FinishedMatchesFilters>({
-    myBetsOnly: false,
-  });
 
   const { matches, isLoading, hasMore, loadMore, daysLoaded } = useFinishedMatches(
     userId,
-    bets,
-    filters
+    bets
   );
 
   // Group matches by league
@@ -114,12 +109,6 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
         isPlayedTab={true}
       />
 
-      {/* Filter Panel */}
-      <FinishedMatchesFilterPanel
-        filters={filters}
-        onFilterChange={setFilters}
-      />
-
       {/* Info Banner */}
       <div className="text-center text-sm text-text-disabled">
         {isLoading && matches.length === 0 ? (
@@ -133,21 +122,10 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
       {showEmptyState && (
         <div className="card-base p-8 text-center">
           <div className="text-6xl mb-4">🏆</div>
-          {filters.myBetsOnly ? (
-            <>
-              <p className="text-text-secondary font-medium">No bets placed yet</p>
-              <p className="text-sm text-text-disabled mt-2">
-                Start betting on upcoming matches to see them here!
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="text-text-secondary font-medium">No finished matches found</p>
-              <p className="text-sm text-text-disabled mt-2">
-                Try adjusting your filters or check back later
-              </p>
-            </>
-          )}
+          <p className="text-text-secondary font-medium">No finished matches found</p>
+          <p className="text-sm text-text-disabled mt-2">
+            Check back later for recent results
+          </p>
         </div>
       )}
 

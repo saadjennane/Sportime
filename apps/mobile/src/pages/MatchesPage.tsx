@@ -173,21 +173,20 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
 
   // Header data for Upcoming tab
   const upcomingHeaderData = useMemo(() => {
-    const picksCount = bets.filter(bet => upcomingMatches.some(m => m.id === bet.matchId)).length;
-    const potentialWinnings = bets.reduce((total, bet) => {
-      const match = upcomingMatches.find(m => m.id === bet.matchId);
-      if (match) {
-        // Validate odds to prevent NaN calculations
-        const safeOdds = typeof bet.odds === 'number' && Number.isFinite(bet.odds) ? bet.odds : 0;
-        // Round up each bet's potential win to nearest whole coin
-        return total + Math.ceil(bet.amount * safeOdds);
-      }
-      return total;
+    const todayBets = bets.filter(bet => upcomingMatches.some(m => m.id === bet.matchId));
+    const picksCount = todayBets.length;
+    const totalBets = todayBets.reduce((total, bet) => total + bet.amount, 0);
+    const potentialWinnings = todayBets.reduce((total, bet) => {
+      // Validate odds to prevent NaN calculations
+      const safeOdds = typeof bet.odds === 'number' && Number.isFinite(bet.odds) ? bet.odds : 0;
+      // Round up each bet's potential win to nearest whole coin
+      return total + Math.ceil(bet.amount * safeOdds);
     }, 0);
 
     return {
       picksCount,
       totalMatches: upcomingMatches.length,
+      totalBets,
       potentialWinnings
     };
   }, [bets, upcomingMatches]);
@@ -240,6 +239,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
         <DailySummaryHeader
           picksCount={upcomingHeaderData.picksCount}
           totalMatches={upcomingHeaderData.totalMatches}
+          totalBets={upcomingHeaderData.totalBets}
           potentialWinnings={upcomingHeaderData.potentialWinnings}
           isPlayedTab={false}
         />

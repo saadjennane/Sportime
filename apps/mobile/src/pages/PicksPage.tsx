@@ -3,7 +3,7 @@ import { Match, Bet } from '../types';
 import { MatchCard } from '../components/MatchCard';
 import { LeagueMatchGroup } from '../components/matches/LeagueMatchGroup';
 import { useUserPicks } from '../features/matches/useUserPicks';
-import { Loader, TrendingUp, TrendingDown, Clock } from 'lucide-react';
+import { Loader, Clock, CheckCircle2, Coins } from 'lucide-react';
 
 interface PicksPageProps {
   bets: Bet[];
@@ -64,35 +64,29 @@ const PicksPage: React.FC<PicksPageProps> = ({
 
   return (
     <div ref={scrollContainerRef} className="space-y-4 max-h-screen overflow-y-auto">
-      {/* Stats Header */}
-      <div className="card-base p-4">
-        <div className="grid grid-cols-4 gap-2 text-center">
-          <div className="flex flex-col items-center">
-            <div className="flex items-center gap-1 text-text-secondary">
-              <Clock size={14} />
-              <span className="text-xs">Pending</span>
-            </div>
-            <span className="text-lg font-bold text-warm-yellow">{stats.pending}</span>
+      {/* Stats Header - 3 columns: Pending | Successful Picks | Winnings */}
+      <div className="grid grid-cols-3 gap-2 text-xs">
+        <div className="bg-navy-accent p-2 rounded-lg flex items-center gap-2">
+          <Clock size={24} className="text-warm-yellow" />
+          <div>
+            <p className="font-bold text-text-primary">Pending</p>
+            <p className="text-text-secondary">{stats.pending}</p>
           </div>
-          <div className="flex flex-col items-center">
-            <div className="flex items-center gap-1 text-text-secondary">
-              <TrendingUp size={14} />
-              <span className="text-xs">Won</span>
-            </div>
-            <span className="text-lg font-bold text-lime-glow">{stats.won}</span>
+        </div>
+        <div className="bg-navy-accent p-2 rounded-lg flex items-center gap-2">
+          <CheckCircle2 size={24} className="text-lime-glow" />
+          <div>
+            <p className="font-bold text-text-primary">Successful Picks</p>
+            <p className="text-text-secondary">{stats.won} / {stats.won + stats.lost}</p>
           </div>
-          <div className="flex flex-col items-center">
-            <div className="flex items-center gap-1 text-text-secondary">
-              <TrendingDown size={14} />
-              <span className="text-xs">Lost</span>
-            </div>
-            <span className="text-lg font-bold text-hot-red">{stats.lost}</span>
-          </div>
-          <div className="flex flex-col items-center">
-            <span className="text-xs text-text-secondary">Net</span>
-            <span className={`text-lg font-bold ${stats.totalWinnings >= 0 ? 'text-lime-glow' : 'text-hot-red'}`}>
-              {stats.totalWinnings >= 0 ? '+' : ''}{stats.totalWinnings}
-            </span>
+        </div>
+        <div className="bg-navy-accent p-2 rounded-lg flex items-center gap-2">
+          <Coins size={24} className="text-warm-yellow" />
+          <div>
+            <p className="font-bold text-text-primary">Winnings</p>
+            <p className={`text-text-secondary ${stats.totalWinnings >= 0 ? 'text-lime-glow' : 'text-hot-red'}`}>
+              {stats.totalWinnings >= 0 ? '+' : ''}{stats.totalWinnings.toLocaleString()} coins
+            </p>
           </div>
         </div>
       </div>
