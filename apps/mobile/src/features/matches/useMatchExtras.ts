@@ -317,6 +317,12 @@ async function fetchMatchLineups(
 
     if (!homeEntry || !awayEntry) return null
 
+    // Build player photo URL from player ID
+    const getPlayerPhoto = (playerId?: number): string | undefined => {
+      if (!playerId) return undefined
+      return `https://media.api-sports.io/football/players/${playerId}.png`
+    }
+
     const buildTeamLineup = (
       entry: NonNullable<LineupsResponse['response']>[0],
       fallbackLogo?: string
@@ -332,14 +338,14 @@ async function fetchMatchLineups(
           position: item.player?.pos ?? '',
           grid: item.player?.grid ?? undefined,
           number: item.player?.number ?? undefined,
-          photo: item.player?.photo ?? undefined,
+          photo: getPlayerPhoto(item.player?.id),
         })) ?? [],
       bench:
         entry.substitutes?.map((item) => ({
           name: item.player?.name ?? 'Unknown',
           position: item.player?.pos ?? '',
           number: item.player?.number ?? undefined,
-          photo: item.player?.photo ?? undefined,
+          photo: getPlayerPhoto(item.player?.id),
         })) ?? [],
     })
 
