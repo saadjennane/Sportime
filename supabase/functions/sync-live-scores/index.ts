@@ -238,6 +238,7 @@ async function updateFixturesInDB(
 /**
  * Mode LIVE: Synchronise les matchs en direct
  * Fait 2 appels espacés de 30 secondes pour atteindre l'intervalle de 30s
+ * + vérifie les matchs marqués comme "live" dans la DB qui ne sont plus live
  */
 async function syncLiveMode(supabase: any): Promise<{
   updated: number
@@ -247,8 +248,8 @@ async function syncLiveMode(supabase: any): Promise<{
   let totalUpdated = 0
   const allUpdates: FixtureUpdate[] = []
 
-  // Premier appel
-  console.log('[sync-live-scores] First API call')
+  // Premier appel - matchs actuellement en direct
+  console.log('[sync-live-scores] First API call - live fixtures')
   const liveFixtures1 = await fetchLiveFixtures()
 
   if (liveFixtures1.length > 0) {
@@ -257,6 +258,33 @@ async function syncLiveMode(supabase: any): Promise<{
     allUpdates.push(...result1.updates)
   } else {
     console.log('[sync-live-scores] No live fixtures at the moment')
+  }
+
+  // Vérifier les matchs dans la DB qui sont marqués comme "live" mais pas dans l'API
+  // (ils sont probablement terminés)
+  const { data: dbLiveFixtures } = await supabase
+    .from('fb_fixtures')
+    .select('api_id, status')
+    .in('status', LIVE_STATUSES)
+    .limit(50)
+
+  if (dbLiveFixtures && dbLiveFixtures.length > 0) {
+    const liveApiIds = new Set(liveFixtures1.map((f: any) => f.fixture?.id))
+    const missingFromApi = dbLiveFixtures.filter((f: any) => !liveApiIds.has(f.api_id))
+
+    if (missingFromApi.length > 0) {
+      console.log(`[sync-live-scores] Found ${missingFromApi.length} DB fixtures not in live API, checking their status...`)
+
+      for (const fixture of missingFromApi) {
+        const apiData = await fetchFixtureById(fixture.api_id)
+        if (apiData) {
+          const result = await updateFixturesInDB(supabase, [apiData])
+          totalUpdated += result.updated
+          allUpdates.push(...result.updates)
+        }
+        await delay(100) // Small delay between API calls
+      }
+    }
   }
 
   // Attendre 30 secondes
@@ -311,13 +339,13 @@ async function syncDailyCorrectionMode(supabase: any): Promise<{
   // 3. NOUVEAU: Trouver les matchs bloqués en statut intermédiaire
   const stuckThreshold = new Date(Date.now() - STUCK_THRESHOLD_MS).toISOString()
 
-  console.log(`[sync-live-scores] Checking for stuck matches (kick_off < ${stuckThreshold})`)
+  console.log(`[sync-live-scores] Checking for stuck matches (date < ${stuckThreshold})`)
 
   const { data: stuckFixtures, error: stuckError } = await supabase
     .from('fb_fixtures')
-    .select('api_id, status, kick_off')
+    .select('api_id, status, date')
     .in('status', LIVE_STATUSES)
-    .lt('kick_off', stuckThreshold)
+    .lt('date', stuckThreshold)
     .limit(50) // Limiter pour éviter trop d'appels API
 
   if (stuckError) {
@@ -326,7 +354,7 @@ async function syncDailyCorrectionMode(supabase: any): Promise<{
     console.log(`[sync-live-scores] Found ${stuckFixtures.length} stuck fixtures to check`)
 
     for (const stuck of stuckFixtures) {
-      console.log(`[sync-live-scores] Checking stuck fixture ${stuck.api_id} (status: ${stuck.status}, kick_off: ${stuck.kick_off})`)
+      console.log(`[sync-live-scores] Checking stuck fixture ${stuck.api_id} (status: ${stuck.status}, date: ${stuck.date})`)
 
       const apiData = await fetchFixtureById(stuck.api_id)
 
