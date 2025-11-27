@@ -282,7 +282,7 @@ export async function getMatchdayWithFixtures(matchdayId: string) {
           league:fb_leagues(id, name, logo),
           home:fb_teams!fb_fixtures_home_team_id_fkey(id, name, logo),
           away:fb_teams!fb_fixtures_away_team_id_fkey(id, name, logo),
-          odds:odds!odds_fixture_id_fkey(home_win, draw, away_win, bookmaker_name)
+          odds:fb_odds(home_win, draw, away_win, bookmaker_name)
         )
       )
     `)
