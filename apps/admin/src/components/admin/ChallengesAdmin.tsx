@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { SportimeGame, TournamentType, GameRewardTier } from '../../types';
-import { Play, Plus, Edit, Trophy, Send, Trash2 } from 'lucide-react';
+import { Play, Plus, Edit, Trophy, Send, Trash2, Calendar, Clock } from 'lucide-react';
 import { GameCreationForm } from './GameCreationForm';
 import { useMockStore } from '../../store/useMockStore';
 import { publishChallenge, deleteChallenge, updateChallenge } from '../../services/challengeService';
+import { format } from 'date-fns';
 
 interface ChallengesAdminProps {
   games: SportimeGame[];
@@ -21,8 +22,18 @@ export const ChallengesAdmin: React.FC<ChallengesAdminProps> = (props) => {
   const [showForm, setShowForm] = useState(false);
   const [editingGame, setEditingGame] = useState<SportimeGame | null>(null);
   const draftGames = games.filter(c => c.status === 'Draft');
+  const scheduledGames = games.filter(c => c.status === 'Scheduled');
   const upcomingGames = games.filter(c => c.status === 'Upcoming');
-  const otherGames = games.filter(c => c.status !== 'Upcoming' && c.status !== 'Draft');
+  const otherGames = games.filter(c => c.status !== 'Upcoming' && c.status !== 'Draft' && c.status !== 'Scheduled');
+
+  const formatPublishDate = (dateStr?: string) => {
+    if (!dateStr) return '-';
+    try {
+      return format(new Date(dateStr), 'dd MMM yyyy, HH:mm');
+    } catch {
+      return dateStr;
+    }
+  };
 
   const handleCreate = (config: Omit<SportimeGame, 'id' | 'status' | 'totalPlayers' | 'participants'>, saveAsDraft: boolean = false) => {
     onCreateGame(config);
@@ -42,9 +53,17 @@ export const ChallengesAdmin: React.FC<ChallengesAdminProps> = (props) => {
   };
 
   const handleEdit = (game: SportimeGame) => {
-    if (game.status !== 'Draft') {
-      addToast('Only draft games can be edited', 'error');
+    if (game.status !== 'Draft' && game.status !== 'Scheduled') {
+      addToast('Only draft and scheduled games can be edited', 'error');
       return;
+    }
+    // Check if publish date has passed for scheduled games
+    if (game.status === 'Scheduled' && game.publish_date) {
+      const publishDateTime = new Date(game.publish_date);
+      if (publishDateTime <= new Date()) {
+        addToast('Cannot edit: publish date has passed. Please publish the game first.', 'error');
+        return;
+      }
     }
     setEditingGame(game);
     setShowForm(true);
@@ -98,33 +117,82 @@ export const ChallengesAdmin: React.FC<ChallengesAdminProps> = (props) => {
         />
       )}
 
+      {/* Drafts Section */}
       {draftGames.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-md font-semibold text-text-secondary">Drafts</h3>
-          {draftGames.map(game => {
-            const publishDate = (game as any).publish_date;
-            const isScheduled = !!publishDate;
-            const scheduledDate = publishDate ? new Date(publishDate) : null;
-            const isPastScheduledDate = scheduledDate && scheduledDate <= new Date();
+          <h3 className="text-md font-semibold text-text-secondary flex items-center gap-2">
+            <Edit size={16} className="text-warm-yellow" /> Drafts ({draftGames.length})
+          </h3>
+          {draftGames.map(game => (
+            <div key={game.id} className="card-base p-3 flex items-center justify-between border-l-4 border-warm-yellow">
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="font-bold text-text-primary">{game.name}</p>
+                  <span className="text-xs px-2 py-0.5 bg-warm-yellow/20 text-warm-yellow rounded">{game.game_type}</span>
+                </div>
+                <p className="text-xs text-warm-yellow mt-1">Draft - Not yet published</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleEdit(game)}
+                  className="p-2 text-electric-blue hover:bg-electric-blue/10 rounded-lg"
+                  title="Edit Draft"
+                >
+                  <Edit size={16} />
+                </button>
+                <button
+                  onClick={() => handlePublish(game.id)}
+                  className="flex items-center gap-2 text-sm font-semibold bg-lime-glow/20 text-lime-glow px-3 py-2 rounded-lg hover:bg-lime-glow/30"
+                  title="Publish Game Now"
+                >
+                  <Send size={16} /> Publish
+                </button>
+                <button
+                  onClick={() => handleDelete(game.id)}
+                  className="p-2 text-hot-red hover:bg-hot-red/10 rounded-lg"
+                  title="Delete Draft"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Scheduled Section */}
+      {scheduledGames.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-md font-semibold text-text-secondary flex items-center gap-2">
+            <Calendar size={16} className="text-electric-blue" /> Scheduled ({scheduledGames.length})
+          </h3>
+          {scheduledGames.map(game => {
+            const publishDate = game.publish_date ? new Date(game.publish_date) : null;
+            const isPastScheduledDate = publishDate && publishDate <= new Date();
 
             return (
-              <div key={game.id} className={`card-base p-3 flex items-center justify-between border-l-4 ${isScheduled ? 'border-electric-blue' : 'border-warm-yellow'}`}>
-                <div>
-                  <p className="font-bold text-text-primary">{game.name}</p>
-                  {isScheduled ? (
-                    <p className={`text-xs ${isPastScheduledDate ? 'text-hot-red' : 'text-electric-blue'}`}>
-                      {isPastScheduledDate ? '⚠️ Ready to publish - ' : '📅 Scheduled for '}
-                      {scheduledDate?.toLocaleString()}
+              <div key={game.id} className={`card-base p-3 flex items-center justify-between border-l-4 ${isPastScheduledDate ? 'border-hot-red' : 'border-electric-blue'}`}>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="font-bold text-text-primary">{game.name}</p>
+                    <span className="text-xs px-2 py-0.5 bg-electric-blue/20 text-electric-blue rounded">{game.game_type}</span>
+                  </div>
+                  <div className="flex items-center gap-4 mt-1">
+                    <p className={`text-xs flex items-center gap-1 ${isPastScheduledDate ? 'text-hot-red' : 'text-electric-blue'}`}>
+                      <Clock size={12} />
+                      {isPastScheduledDate ? '⚠️ Ready to publish - ' : 'Publishes: '}
+                      {formatPublishDate(game.publish_date)}
                     </p>
-                  ) : (
-                    <p className="text-xs text-warm-yellow">Draft - Not yet published</p>
-                  )}
+                    <p className="text-xs text-text-disabled">
+                      Starts: {formatPublishDate(game.start_date)}
+                    </p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleEdit(game)}
-                    className={`p-2 text-electric-blue hover:bg-electric-blue/10 rounded-lg ${isPastScheduledDate ? 'opacity-50' : ''}`}
-                    title={isPastScheduledDate ? "Cannot edit - publish date passed" : "Edit Draft"}
+                    className={`p-2 text-electric-blue hover:bg-electric-blue/10 rounded-lg ${isPastScheduledDate ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    title={isPastScheduledDate ? "Cannot edit - publish date passed" : "Edit Scheduled Game"}
                     disabled={isPastScheduledDate}
                   >
                     <Edit size={16} />
@@ -139,7 +207,7 @@ export const ChallengesAdmin: React.FC<ChallengesAdminProps> = (props) => {
                   <button
                     onClick={() => handleDelete(game.id)}
                     className="p-2 text-hot-red hover:bg-hot-red/10 rounded-lg"
-                    title="Delete Draft"
+                    title="Delete Game"
                   >
                     <Trash2 size={16} />
                   </button>
@@ -149,7 +217,8 @@ export const ChallengesAdmin: React.FC<ChallengesAdminProps> = (props) => {
           })}
         </div>
       )}
-      
+
+      {/* Upcoming (Published) Section */}
       {upcomingGames.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-md font-semibold text-text-secondary">Upcoming</h3>

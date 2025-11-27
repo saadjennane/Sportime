@@ -40,6 +40,7 @@ type ChallengeRow = {
   prizes: any
   rules: Record<string, any> | null
   status: string | null
+  publish_date: string | null
   entry_conditions: Record<string, any> | null
   challenge_configs?: ChallengeConfigRow[] | null
   challenge_leagues?: ChallengeLeagueRow[] | null
@@ -81,6 +82,7 @@ export type ChallengeCatalogResult = {
 
 const STATUS_MAP: Record<string, SportimeGame['status']> = {
   draft: 'Draft',
+  scheduled: 'Scheduled',
   upcoming: 'Upcoming',
   active: 'Ongoing',
   ongoing: 'Ongoing',
@@ -209,6 +211,12 @@ function mapChallengeRow(
     (rules?.maximum_players as number | undefined) ??
     0
 
+  // Determine effective status - if draft with publish_date, it's Scheduled
+  let effectiveStatus = mapStatus(row.status)
+  if (effectiveStatus === 'Draft' && row.publish_date) {
+    effectiveStatus = 'Scheduled'
+  }
+
   return {
     id: row.id,
     name: row.name,
@@ -230,7 +238,8 @@ function mapChallengeRow(
     conditions_logic: entryConditions?.conditions_logic ?? undefined,
     minimum_players: minimumPlayers,
     maximum_players: maximumPlayers,
-    status: mapStatus(row.status),
+    status: effectiveStatus,
+    publish_date: row.publish_date ?? undefined,
     totalPlayers: participantCount,
     participants: [],
     rewards: mapRewards(row.prizes),
@@ -333,6 +342,7 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
       prizes,
       rules,
       status,
+      publish_date,
       entry_conditions,
       challenge_configs (
         config_type,

@@ -360,7 +360,7 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
 
           {publishMode === 'later' && (
             <div>
-              <label className="text-xs text-text-disabled block mb-1">Publish Date & Time</label>
+              <label className="text-xs text-text-disabled block mb-1">Publishing Date & Time</label>
               <input
                 type="datetime-local"
                 value={publishDate}
@@ -368,8 +368,8 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
                 className={formFieldClasses}
                 min={new Date().toISOString().slice(0, 16)}
               />
-              <p className="text-xs text-text-disabled mt-1">
-                Game will remain in draft until this date. You can edit it anytime before publication.
+              <p className="text-xs text-electric-blue mt-1">
+                📅 Game will be <strong>Scheduled</strong> and editable until this date. Once published, users can join.
               </p>
             </div>
           )}
