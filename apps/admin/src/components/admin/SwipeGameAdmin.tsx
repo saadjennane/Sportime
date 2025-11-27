@@ -134,7 +134,7 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
       let query = supabase
         .from('challenges')
         .select('id, name, description, start_date, end_date, entry_cost, status, game_type')
-        .in('game_type', ['prediction', 'betting', 'fantasy']);
+        .in('game_type', ['prediction', 'betting', 'fantasy', 'swipe']);
 
       // If showing archived, only show archived. Otherwise, exclude archived
       if (showArchived) {
