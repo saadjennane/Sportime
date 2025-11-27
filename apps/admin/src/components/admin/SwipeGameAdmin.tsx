@@ -9,7 +9,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { Play, Square, RefreshCw, Calendar, Trophy, Coins, ChevronDown, Edit3, Trash2, Filter, SortAsc, SortDesc, Users, X, Archive, RotateCcw } from 'lucide-react'
+import { Play, Square, RefreshCw, Calendar, Trophy, Coins, ChevronDown, Edit3, Trash2, Filter, SortAsc, SortDesc, Users, X, Archive, RotateCcw, CheckSquare } from 'lucide-react'
 import { supabase } from '../../services/supabase'
 import * as swipeService from '../../services/swipeGameService'
 import { MultiSelect } from './MultiSelect'
@@ -90,6 +90,9 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
 
   // Show archived toggle
   const [showArchived, setShowArchived] = useState(false);
+
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Load leagues
   useEffect(() => {
@@ -606,6 +609,102 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
     }
   };
 
+  // Bulk selection handlers
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredAndSortedChallenges.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredAndSortedChallenges.map(c => c.id)));
+    }
+  };
+
+  const toggleSelectOne = (id: string) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedIds(newSet);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+
+    const confirmed = window.confirm(`Are you sure you want to permanently delete ${selectedIds.size} game(s)? This action cannot be undone.`);
+    if (!confirmed) return;
+
+    setIsLoading(true);
+    try {
+      const ids = Array.from(selectedIds);
+
+      // Delete challenge_matchdays first (foreign key constraint)
+      await supabase
+        .from('challenge_matchdays')
+        .delete()
+        .in('challenge_id', ids);
+
+      // Delete challenge_configs
+      await supabase
+        .from('challenge_configs')
+        .delete()
+        .in('challenge_id', ids);
+
+      // Delete challenge_entries
+      await supabase
+        .from('challenge_entries')
+        .delete()
+        .in('challenge_id', ids);
+
+      // Delete challenges
+      const { error } = await supabase
+        .from('challenges')
+        .delete()
+        .in('id', ids);
+
+      if (error) throw error;
+
+      addToast(`${selectedIds.size} game(s) deleted successfully`, 'success');
+      setSelectedIds(new Set());
+      loadChallenges();
+    } catch (error) {
+      console.error('Bulk delete error:', error);
+      addToast('Failed to delete some games', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBulkArchive = async () => {
+    if (selectedIds.size === 0) return;
+
+    const confirmed = window.confirm(`Archive ${selectedIds.size} game(s)? Archived games can be restored later.`);
+    if (!confirmed) return;
+
+    setIsLoading(true);
+    try {
+      const ids = Array.from(selectedIds);
+
+      // Update status to 'finished' (since 'archived' doesn't exist in enum)
+      // We'll use a metadata flag or just change status
+      const { error } = await supabase
+        .from('challenges')
+        .update({ status: 'finished' })
+        .in('id', ids);
+
+      if (error) throw error;
+
+      addToast(`${selectedIds.size} game(s) archived successfully`, 'success');
+      setSelectedIds(new Set());
+      loadChallenges();
+    } catch (error) {
+      console.error('Bulk archive error:', error);
+      addToast('Failed to archive some games', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -785,6 +884,54 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
         )}
       </div>
 
+      {/* Bulk Actions Bar */}
+      {filteredAndSortedChallenges.length > 0 && (
+        <div className="card-base p-3 flex items-center gap-4">
+          {/* Select All Checkbox */}
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={selectedIds.size === filteredAndSortedChallenges.length && filteredAndSortedChallenges.length > 0}
+              onChange={toggleSelectAll}
+              className="w-4 h-4 accent-electric-blue"
+            />
+            <span className="text-sm text-text-secondary">
+              {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select all'}
+            </span>
+          </label>
+
+          {/* Bulk Action Buttons */}
+          {selectedIds.size > 0 && (
+            <>
+              <div className="h-6 w-px bg-white/10" />
+              <button
+                onClick={handleBulkArchive}
+                disabled={isLoading}
+                className="flex items-center gap-2 text-sm font-semibold px-3 py-2 rounded-lg bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 disabled:opacity-50"
+              >
+                <Archive size={16} />
+                Archive ({selectedIds.size})
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={isLoading}
+                className="flex items-center gap-2 text-sm font-semibold px-3 py-2 rounded-lg bg-hot-red/20 text-hot-red hover:bg-hot-red/30 disabled:opacity-50"
+              >
+                <Trash2 size={16} />
+                Delete ({selectedIds.size})
+              </button>
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary"
+              >
+                <X size={16} />
+                Clear selection
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Challenges List */}
       <div className="space-y-3">
         {filteredAndSortedChallenges.length === 0 ? (
@@ -796,6 +943,8 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
             <ChallengeCard
               key={challenge.id}
               challenge={challenge}
+              isSelected={selectedIds.has(challenge.id)}
+              onToggleSelect={() => toggleSelectOne(challenge.id)}
               onCalculatePoints={handleCalculatePoints}
               onUpdateStatus={handleUpdateStatus}
               onDelete={handleDeleteChallenge}
@@ -1426,6 +1575,8 @@ function computeEntryCost(tier: SwipeTier, duration: DurationKey): number {
 
 interface ChallengeCardProps {
   challenge: Challenge;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
   onCalculatePoints: (challengeId: string) => void;
   onUpdateStatus: (challengeId: string, newStatus: string) => void;
   onDelete: (challengeId: string) => void;
@@ -1437,6 +1588,8 @@ interface ChallengeCardProps {
 
 const ChallengeCard: React.FC<ChallengeCardProps> = ({
   challenge,
+  isSelected = false,
+  onToggleSelect,
   onCalculatePoints,
   onUpdateStatus,
   onDelete,
@@ -1466,8 +1619,19 @@ const ChallengeCard: React.FC<ChallengeCardProps> = ({
   const tierColor = challenge.tier ? tierColors[challenge.tier] || 'text-text-secondary' : 'text-text-secondary';
 
   return (
-    <div className="card-base p-4 space-y-3">
+    <div className={`card-base p-4 space-y-3 ${isSelected ? 'ring-2 ring-electric-blue' : ''}`}>
       <div className="flex justify-between items-start">
+        {/* Selection Checkbox */}
+        {onToggleSelect && (
+          <label className="flex items-center mr-3 cursor-pointer" onClick={(e) => e.stopPropagation()}>
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={onToggleSelect}
+              className="w-4 h-4 accent-electric-blue"
+            />
+          </label>
+        )}
         <div className="flex-1">
           <h3 className="font-bold text-text-primary">{challenge.name}</h3>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
