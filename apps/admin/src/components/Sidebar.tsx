@@ -16,6 +16,10 @@ import {
   DollarSign
 } from 'lucide-react';
 import { useState } from 'react';
+import packageJson from '../../package.json';
+
+const APP_VERSION = packageJson.version;
+const BUILD_DATE = __BUILD_DATE__;
 
 interface SidebarProps {
   className?: string;
@@ -93,8 +97,8 @@ export function Sidebar({ className = '' }: SidebarProps) {
           {/* Footer */}
           <div className="p-4 border-t border-border-subtle">
             <div className="px-4 py-3 rounded-lg bg-background-dark">
-              <p className="text-xs text-text-secondary">Version 1.0.0</p>
-              <p className="text-xs text-text-disabled mt-1">Monorepo Setup</p>
+              <p className="text-xs text-text-secondary font-mono">v{APP_VERSION}</p>
+              <p className="text-xs text-text-disabled mt-1">Build: {BUILD_DATE}</p>
             </div>
           </div>
         </div>
