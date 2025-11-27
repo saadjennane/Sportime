@@ -191,19 +191,25 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
         participantsCountMap.set(p.challenge_id, (participantsCountMap.get(p.challenge_id) || 0) + 1);
       });
 
-      // Step 6: Load tier configs (tier is in config_data, not a direct column)
+      // Step 6: Load tier configs (tier can be in config_type='tier' OR in config_type='swipe' inside config_data)
       const { data: tierConfigs, error: configsError } = await supabase
         .from('challenge_configs')
-        .select('challenge_id, config_data')
-        .eq('config_type', 'tier')
+        .select('challenge_id, config_type, config_data')
+        .in('config_type', ['tier', 'swipe'])
         .in('challenge_id', challengeIds);
 
       if (configsError) throw configsError;
 
-      // Create tier map
+      // Create tier map - check both config_type='tier' and config_type='swipe'
       const tierMap = new Map<string, string>();
       (tierConfigs || []).forEach((cfg: any) => {
-        tierMap.set(cfg.challenge_id, cfg.config_data?.tier || null);
+        // If we already have a tier for this challenge, skip
+        if (tierMap.has(cfg.challenge_id)) return;
+        // Extract tier from config_data (works for both 'tier' and 'swipe' config types)
+        const tier = cfg.config_data?.tier;
+        if (tier) {
+          tierMap.set(cfg.challenge_id, tier);
+        }
       });
 
       // Step 7: Create a map of challenge_id -> league
