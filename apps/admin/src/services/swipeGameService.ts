@@ -81,8 +81,8 @@ export async function createSwipeChallenge(params: {
   entry_cost: number
   prizes?: any
   game_type?: 'betting' | 'prediction' | 'fantasy'
-  tier?: 'rookie' | 'pro' | 'elite'
-  duration_type?: 'daily' | 'mini-series' | 'seasonal'
+  tier?: 'rookie' | 'pro' | 'elite' | 'amateur' | 'master' | 'apex'
+  duration_type?: 'daily' | 'mini-series' | 'seasonal' | 'flash' | 'series' | 'season'
   minimum_level?: string
   minimum_players?: number
   maximum_players?: number

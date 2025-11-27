@@ -9,12 +9,11 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { Play, Square, RefreshCw, Calendar, Trophy, Coins, ChevronDown, Edit3, Trash2 } from 'lucide-react'
+import { Play, Square, RefreshCw, Calendar, Trophy, Coins, ChevronDown, Edit3, Trash2, Filter, SortAsc, SortDesc, Users, X } from 'lucide-react'
 import { supabase } from '../../services/supabase'
 import * as swipeService from '../../services/swipeGameService'
 import { MultiSelect } from './MultiSelect'
-import { getMatchdayDate, formatMatchdayDate } from '../../features/swipe/swipeMappers';
-import type { GameRewardTier } from '../../types'
+import { getMatchdayDate } from '../../features/swipe/swipeMappers';
 
 type DurationKey = 'flash' | 'series' | 'season'
 type SwipeTier = 'amateur' | 'master' | 'apex'
@@ -42,12 +41,23 @@ interface League {
 interface Challenge {
   id: string;
   name: string;
+  description?: string;
   start_date: string;
   end_date: string;
   entry_cost: number;
   status: string;
+  game_type: string;
+  tier?: string;
+  participants_count: number;
   league?: League;
 }
+
+// Filter and Sort types
+type FilterStatus = 'all' | 'draft' | 'scheduled' | 'upcoming' | 'active' | 'finished';
+type FilterGameType = 'all' | 'betting' | 'prediction' | 'fantasy';
+type FilterTier = 'all' | 'amateur' | 'master' | 'apex';
+type SortField = 'date' | 'players';
+type SortOrder = 'asc' | 'desc';
 
 interface LevelOption {
   name: string
@@ -65,6 +75,18 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
   const [badges, setBadges] = useState<BadgeOption[]>([])
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [editingChallenge, setEditingChallenge] = useState<Challenge | null>(null);
+
+  // Filter states
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
+  const [filterGameType, setFilterGameType] = useState<FilterGameType>('all');
+  const [filterTier, setFilterTier] = useState<FilterTier>('all');
+  const [filterLeague, setFilterLeague] = useState<string>('all');
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Sort states
+  const [sortField, setSortField] = useState<SortField>('date');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
 
   // Load leagues
   useEffect(() => {
@@ -100,11 +122,14 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
 
   const loadChallenges = async () => {
     try {
-      // Step 1: Load challenges
+      // Step 1: Load challenges with configs for tier
       const { data: challengesData, error: challengesError } = await supabase
         .from('challenges')
-        .select('id, name, start_date, end_date, entry_cost, status')
-        .eq('game_type', 'prediction')
+        .select(`
+          id, name, description, start_date, end_date, entry_cost, status, game_type,
+          challenge_configs(tier)
+        `)
+        .in('game_type', ['prediction', 'betting', 'fantasy'])
         .order('start_date', { ascending: false });
 
       if (challengesError) throw challengesError;
@@ -138,20 +163,38 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
         leaguesData = data || [];
       }
 
-      // Step 5: Create a map of challenge_id -> league
+      // Step 5: Load participants count for each challenge
+      const { data: participantsCounts, error: participantsError } = await supabase
+        .from('challenge_participants')
+        .select('challenge_id')
+        .in('challenge_id', challengeIds);
+
+      if (participantsError) throw participantsError;
+
+      // Count participants per challenge
+      const participantsCountMap = new Map<string, number>();
+      (participantsCounts || []).forEach(p => {
+        participantsCountMap.set(p.challenge_id, (participantsCountMap.get(p.challenge_id) || 0) + 1);
+      });
+
+      // Step 6: Create a map of challenge_id -> league
       const leagueMap = new Map(leaguesData.map(l => [l.id, l]));
       const challengeLeagueMap = new Map(
         leagueMappings?.map(m => [m.challenge_id, leagueMap.get(m.league_id)]) || []
       );
 
-      // Step 6: Transform data with league information
+      // Step 7: Transform data with league information and participant counts
       const transformed = challengesData.map(c => ({
         id: c.id,
         name: c.name,
+        description: c.description,
         start_date: c.start_date,
         end_date: c.end_date,
         entry_cost: c.entry_cost,
         status: c.status,
+        game_type: c.game_type,
+        tier: (c.challenge_configs as any)?.[0]?.tier || null,
+        participants_count: participantsCountMap.get(c.id) || 0,
         league: challengeLeagueMap.get(c.id),
       }));
 
@@ -419,12 +462,84 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
     }
   };
 
+  const handleEditChallenge = (challenge: Challenge) => {
+    // Only allow editing draft or scheduled challenges
+    if (challenge.status !== 'draft' && challenge.status !== 'scheduled') {
+      addToast('Seuls les jeux en draft ou scheduled peuvent être modifiés', 'error');
+      return;
+    }
+    setEditingChallenge(challenge);
+    setShowCreateForm(true);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingChallenge(null);
+    setShowCreateForm(false);
+  };
+
+  // Filter and sort challenges
+  const filteredAndSortedChallenges = useMemo(() => {
+    let result = [...challenges];
+
+    // Apply filters
+    if (filterStatus !== 'all') {
+      result = result.filter(c => c.status === filterStatus);
+    }
+    if (filterGameType !== 'all') {
+      result = result.filter(c => c.game_type === filterGameType);
+    }
+    if (filterTier !== 'all') {
+      result = result.filter(c => c.tier === filterTier);
+    }
+    if (filterLeague !== 'all') {
+      result = result.filter(c => c.league?.id === filterLeague);
+    }
+
+    // Apply sorting
+    result.sort((a, b) => {
+      if (sortField === 'date') {
+        const dateA = new Date(a.start_date).getTime();
+        const dateB = new Date(b.start_date).getTime();
+        return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+      } else {
+        // players
+        return sortOrder === 'asc'
+          ? a.participants_count - b.participants_count
+          : b.participants_count - a.participants_count;
+      }
+    });
+
+    return result;
+  }, [challenges, filterStatus, filterGameType, filterTier, filterLeague, sortField, sortOrder]);
+
+  // Check if any filter is active
+  const hasActiveFilters = filterStatus !== 'all' || filterGameType !== 'all' || filterTier !== 'all' || filterLeague !== 'all';
+
+  const clearAllFilters = () => {
+    setFilterStatus('all');
+    setFilterGameType('all');
+    setFilterTier('all');
+    setFilterLeague('all');
+  };
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('desc');
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="font-bold text-lg text-electric-blue">Swipe Prediction Games</h2>
         <button
-          onClick={() => setShowCreateForm(!showCreateForm)}
+          onClick={() => {
+            setEditingChallenge(null);
+            setShowCreateForm(!showCreateForm);
+          }}
           className="flex items-center gap-2 text-sm font-semibold bg-lime-glow/20 text-lime-glow px-4 py-3 rounded-lg hover:bg-lime-glow/30"
           disabled={isLoading}
         >
@@ -438,25 +553,164 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
           levels={levels}
           badges={badges}
           onSubmit={handleCreateChallenge}
-          onCancel={() => setShowCreateForm(false)}
+          onCancel={handleCancelEdit}
           isLoading={isLoading}
+          editingChallenge={editingChallenge}
         />
       )}
 
+      {/* Filters and Sort Bar */}
+      <div className="card-base p-3 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          {/* Filter Toggle */}
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex items-center gap-2 text-sm font-semibold px-3 py-2 rounded-lg ${
+              hasActiveFilters
+                ? 'bg-electric-blue/20 text-electric-blue'
+                : 'bg-navy-accent text-text-secondary hover:bg-white/10'
+            }`}
+          >
+            <Filter size={16} />
+            Filters
+            {hasActiveFilters && (
+              <span className="bg-electric-blue text-white text-xs px-1.5 py-0.5 rounded-full">
+                {[filterStatus, filterGameType, filterTier, filterLeague].filter(f => f !== 'all').length}
+              </span>
+            )}
+          </button>
+
+          {/* Sort Buttons */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-text-disabled">Sort by:</span>
+            <button
+              onClick={() => toggleSort('date')}
+              className={`flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded-lg ${
+                sortField === 'date'
+                  ? 'bg-electric-blue/20 text-electric-blue'
+                  : 'bg-navy-accent text-text-secondary hover:bg-white/10'
+              }`}
+            >
+              <Calendar size={14} />
+              Date
+              {sortField === 'date' && (sortOrder === 'asc' ? <SortAsc size={12} /> : <SortDesc size={12} />)}
+            </button>
+            <button
+              onClick={() => toggleSort('players')}
+              className={`flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded-lg ${
+                sortField === 'players'
+                  ? 'bg-electric-blue/20 text-electric-blue'
+                  : 'bg-navy-accent text-text-secondary hover:bg-white/10'
+              }`}
+            >
+              <Users size={14} />
+              Players
+              {sortField === 'players' && (sortOrder === 'asc' ? <SortAsc size={12} /> : <SortDesc size={12} />)}
+            </button>
+          </div>
+
+          {/* Results count */}
+          <span className="text-xs text-text-disabled">
+            {filteredAndSortedChallenges.length} / {challenges.length} games
+          </span>
+        </div>
+
+        {/* Filter Panel */}
+        {showFilters && (
+          <div className="pt-3 border-t border-white/5 space-y-3">
+            <div className="grid grid-cols-4 gap-3">
+              {/* Status Filter */}
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Status</label>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value as FilterStatus)}
+                  className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+                >
+                  <option value="all">All</option>
+                  <option value="draft">Draft</option>
+                  <option value="scheduled">Scheduled</option>
+                  <option value="upcoming">Upcoming</option>
+                  <option value="active">Active</option>
+                  <option value="finished">Finished</option>
+                </select>
+              </div>
+
+              {/* Game Type Filter */}
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Type</label>
+                <select
+                  value={filterGameType}
+                  onChange={(e) => setFilterGameType(e.target.value as FilterGameType)}
+                  className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+                >
+                  <option value="all">All</option>
+                  <option value="betting">Betting</option>
+                  <option value="prediction">Prediction</option>
+                  <option value="fantasy">Fantasy</option>
+                </select>
+              </div>
+
+              {/* Tier Filter */}
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Tier</label>
+                <select
+                  value={filterTier}
+                  onChange={(e) => setFilterTier(e.target.value as FilterTier)}
+                  className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+                >
+                  <option value="all">All</option>
+                  <option value="amateur">Amateur</option>
+                  <option value="master">Master</option>
+                  <option value="apex">Apex</option>
+                </select>
+              </div>
+
+              {/* League Filter */}
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">League</label>
+                <select
+                  value={filterLeague}
+                  onChange={(e) => setFilterLeague(e.target.value)}
+                  className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+                >
+                  <option value="all">All</option>
+                  {leagues.map(league => (
+                    <option key={league.id} value={league.id}>{league.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Clear Filters */}
+            {hasActiveFilters && (
+              <button
+                onClick={clearAllFilters}
+                className="flex items-center gap-1 text-xs text-hot-red hover:text-hot-red/80"
+              >
+                <X size={14} />
+                Clear all filters
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Challenges List */}
       <div className="space-y-3">
-        {challenges.length === 0 ? (
+        {filteredAndSortedChallenges.length === 0 ? (
           <div className="card-base p-6 text-center text-text-disabled">
-            No swipe games created yet
+            {challenges.length === 0 ? 'No swipe games created yet' : 'No games match the current filters'}
           </div>
         ) : (
-          challenges.map(challenge => (
+          filteredAndSortedChallenges.map(challenge => (
             <ChallengeCard
               key={challenge.id}
               challenge={challenge}
               onCalculatePoints={handleCalculatePoints}
               onUpdateStatus={handleUpdateStatus}
               onDelete={handleDeleteChallenge}
+              onEdit={handleEditChallenge}
               isLoading={isLoading}
             />
           ))
@@ -494,6 +748,7 @@ interface CreateSwipeGameFormProps {
   }) => void;
   onCancel: () => void;
   isLoading: boolean;
+  editingChallenge?: Challenge | null;
 }
 
 const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
@@ -503,6 +758,7 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
   onSubmit,
   onCancel,
   isLoading,
+  editingChallenge,
 }) => {
   const today = useMemo(() => new Date().toISOString().split('T')[0], [])
   const nextWeek = useMemo(() => {
@@ -511,16 +767,19 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
     return d.toISOString().split('T')[0]
   }, [])
 
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [leagueId, setLeagueId] = useState('')
-  const [startDate, setStartDate] = useState(today)
-  const [endDate, setEndDate] = useState(nextWeek)
-  const [gameType, setGameType] = useState<'betting' | 'prediction' | 'fantasy'>('prediction')
-  const [tier, setTier] = useState<SwipeTier>(DEFAULT_TIER)
+  // Initialize state with editing values if provided
+  const [name, setName] = useState(editingChallenge?.name || '')
+  const [description, setDescription] = useState(editingChallenge?.description || '')
+  const [leagueId, setLeagueId] = useState(editingChallenge?.league?.id || '')
+  const [startDate, setStartDate] = useState(editingChallenge?.start_date?.split('T')[0] || today)
+  const [endDate, setEndDate] = useState(editingChallenge?.end_date?.split('T')[0] || nextWeek)
+  const [gameType, setGameType] = useState<'betting' | 'prediction' | 'fantasy'>(
+    (editingChallenge?.game_type as 'betting' | 'prediction' | 'fantasy') || 'prediction'
+  )
+  const [tier, setTier] = useState<SwipeTier>((editingChallenge?.tier as SwipeTier) || DEFAULT_TIER)
   const [durationType, setDurationType] = useState<DurationKey>(DEFAULT_DURATION)
-  const [customEntryEnabled, setCustomEntryEnabled] = useState(false)
-  const [entryCost, setEntryCost] = useState<number>(() => computeEntryCost(DEFAULT_TIER, DEFAULT_DURATION))
+  const [customEntryEnabled, setCustomEntryEnabled] = useState(!!editingChallenge)
+  const [entryCost, setEntryCost] = useState<number>(editingChallenge?.entry_cost || computeEntryCost(DEFAULT_TIER, DEFAULT_DURATION))
   const [minimumPlayers, setMinimumPlayers] = useState<number>(0)
   const [maximumPlayers, setMaximumPlayers] = useState<number>(0)
   const [minimumLevel, setMinimumLevel] = useState<string>(DEFAULT_MIN_LEVEL)
@@ -532,6 +791,8 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
   const [publishDate, setPublishDate] = useState('')
   const [publishTime, setPublishTime] = useState('09:00')
   const [isRewardsOpen, setIsRewardsOpen] = useState(false)
+
+  const isEditing = !!editingChallenge
 
   useEffect(() => {
     if (!customEntryEnabled) {
@@ -625,7 +886,9 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
 
   return (
     <form onSubmit={handleSubmit} className="card-base p-4 space-y-3">
-      <h3 className="font-bold text-text-primary">Create New Swipe Game</h3>
+      <h3 className="font-bold text-text-primary">
+        {isEditing ? `Edit: ${editingChallenge?.name}` : 'Create New Swipe Game'}
+      </h3>
 
       <div>
         <label className="block text-xs font-semibold text-text-secondary mb-1">
@@ -1000,7 +1263,7 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
           className="flex-1 py-2 bg-electric-blue text-white rounded-lg font-semibold hover:bg-electric-blue/80 disabled:opacity-50"
           disabled={isLoading}
         >
-          {isLoading ? 'Creating...' : 'Create Game'}
+          {isLoading ? (isEditing ? 'Updating...' : 'Creating...') : (isEditing ? 'Update Game' : 'Create Game')}
         </button>
       </div>
 
@@ -1075,6 +1338,7 @@ interface ChallengeCardProps {
   onCalculatePoints: (challengeId: string) => void;
   onUpdateStatus: (challengeId: string, newStatus: string) => void;
   onDelete: (challengeId: string) => void;
+  onEdit: (challenge: Challenge) => void;
   isLoading: boolean;
 }
 
@@ -1083,27 +1347,48 @@ const ChallengeCard: React.FC<ChallengeCardProps> = ({
   onCalculatePoints,
   onUpdateStatus,
   onDelete,
+  onEdit,
   isLoading,
 }) => {
+  const canEdit = challenge.status === 'draft' || challenge.status === 'scheduled';
   const statusColors: Record<string, string> = {
+    draft: 'bg-purple-500/20 text-purple-400',
+    scheduled: 'bg-amber-500/20 text-amber-400',
     upcoming: 'bg-blue-500/20 text-blue-400',
     active: 'bg-lime-glow/20 text-lime-glow',
     finished: 'bg-gray-500/20 text-gray-400',
   };
 
+  const tierColors: Record<string, string> = {
+    amateur: 'text-green-400',
+    master: 'text-blue-400',
+    apex: 'text-purple-400',
+  };
+
   const statusColor = statusColors[challenge.status] || 'bg-gray-500/20 text-gray-400';
+  const tierColor = challenge.tier ? tierColors[challenge.tier] || 'text-text-secondary' : 'text-text-secondary';
 
   return (
     <div className="card-base p-4 space-y-3">
       <div className="flex justify-between items-start">
         <div className="flex-1">
           <h3 className="font-bold text-text-primary">{challenge.name}</h3>
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
             {challenge.league && (
               <div className="flex items-center gap-1">
-                <img src={challenge.league.logo} alt="" className="w-4 h-4" />
+                {challenge.league.logo && <img src={challenge.league.logo} alt="" className="w-4 h-4" />}
                 <span className="text-xs text-text-secondary">{challenge.league.name}</span>
               </div>
+            )}
+            {challenge.tier && (
+              <span className={`text-xs font-semibold ${tierColor}`}>
+                • {challenge.tier.charAt(0).toUpperCase() + challenge.tier.slice(1)}
+              </span>
+            )}
+            {challenge.game_type && (
+              <span className="text-xs text-text-disabled">
+                • {challenge.game_type}
+              </span>
             )}
           </div>
           <div className="flex items-center gap-3 mt-2 text-xs text-text-disabled">
@@ -1116,6 +1401,10 @@ const ChallengeCard: React.FC<ChallengeCardProps> = ({
               <Coins size={12} />
               {challenge.entry_cost} coins
             </span>
+            <span className="flex items-center gap-1">
+              <Users size={12} />
+              {challenge.participants_count} players
+            </span>
           </div>
         </div>
         <span className={`text-xs font-bold px-2 py-1 rounded-full ${statusColor}`}>
@@ -1124,6 +1413,17 @@ const ChallengeCard: React.FC<ChallengeCardProps> = ({
       </div>
 
       <div className="flex gap-2 pt-2 border-t border-white/5">
+        {/* Edit - seulement pour draft/scheduled */}
+        {canEdit && (
+          <button
+            onClick={() => onEdit(challenge)}
+            className="flex items-center gap-1 text-xs font-semibold bg-amber-500/20 text-amber-400 px-3 py-2 rounded-lg hover:bg-amber-500/30"
+            disabled={isLoading}
+          >
+            <Edit3 size={14} /> Edit
+          </button>
+        )}
+
         {challenge.status === 'upcoming' && (
           <button
             onClick={() => onUpdateStatus(challenge.id, 'active')}
