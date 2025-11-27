@@ -9,7 +9,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { Play, Square, RefreshCw, Calendar, Trophy, Coins, ChevronDown } from 'lucide-react'
+import { Play, Square, RefreshCw, Calendar, Trophy, Coins, ChevronDown, Edit3, Trash2 } from 'lucide-react'
 import { supabase } from '../../services/supabase'
 import * as swipeService from '../../services/swipeGameService'
 import { MultiSelect } from './MultiSelect'
@@ -367,6 +367,58 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
     }
   };
 
+  const handleDeleteChallenge = async (challengeId: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce jeu ? Cette action est irréversible.')) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Supprimer dans l'ordre pour respecter les contraintes FK
+      // 1. Supprimer les predictions
+      await supabase.from('swipe_predictions').delete().eq('challenge_id', challengeId);
+
+      // 2. Récupérer les matchdays pour supprimer les fixtures liées
+      const { data: matchdays } = await supabase
+        .from('challenge_matchdays')
+        .select('id')
+        .eq('challenge_id', challengeId);
+
+      if (matchdays?.length) {
+        const matchdayIds = matchdays.map(m => m.id);
+        // 3. Supprimer les matchday_fixtures
+        await supabase.from('matchday_fixtures').delete().in('matchday_id', matchdayIds);
+        // 4. Supprimer les matchday_participants
+        await supabase.from('matchday_participants').delete().in('matchday_id', matchdayIds);
+      }
+
+      // 5. Supprimer les matchdays
+      await supabase.from('challenge_matchdays').delete().eq('challenge_id', challengeId);
+
+      // 6. Supprimer les participants
+      await supabase.from('challenge_participants').delete().eq('challenge_id', challengeId);
+
+      // 7. Supprimer les challenge_leagues
+      await supabase.from('challenge_leagues').delete().eq('challenge_id', challengeId);
+
+      // 8. Supprimer les challenge_configs
+      await supabase.from('challenge_configs').delete().eq('challenge_id', challengeId);
+
+      // 9. Supprimer le challenge lui-même
+      const { error } = await supabase.from('challenges').delete().eq('id', challengeId);
+
+      if (error) throw error;
+
+      addToast('Challenge supprimé avec succès', 'success');
+      await loadChallenges();
+    } catch (err: any) {
+      console.error('Error deleting challenge:', err);
+      addToast(err.message || 'Erreur lors de la suppression', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -404,6 +456,7 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
               challenge={challenge}
               onCalculatePoints={handleCalculatePoints}
               onUpdateStatus={handleUpdateStatus}
+              onDelete={handleDeleteChallenge}
               isLoading={isLoading}
             />
           ))
@@ -518,15 +571,15 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
           // Calculate matchdays based on fixtures
           const { data: fixtures, error } = await supabase
             .from('fb_fixtures')
-            .select('fixture_date')
+            .select('date')
             .eq('league_id', leagueId)
-            .gte('fixture_date', startDate)
-            .lte('fixture_date', endDate)
+            .gte('date', startDate)
+            .lte('date', endDate)
 
           if (error) throw error
 
           if (fixtures && fixtures.length > 0) {
-            const uniqueDates = [...new Set(fixtures.map((f: any) => f.fixture_date.split('T')[0]))]
+            const uniqueDates = [...new Set(fixtures.map((f: any) => f.date.split('T')[0]))]
             setPeriodInfo({ type: 'matchdays', count: uniqueDates.length })
           } else {
             setPeriodInfo({ type: 'matchdays', count: 0 })
@@ -1021,6 +1074,7 @@ interface ChallengeCardProps {
   challenge: Challenge;
   onCalculatePoints: (challengeId: string) => void;
   onUpdateStatus: (challengeId: string, newStatus: string) => void;
+  onDelete: (challengeId: string) => void;
   isLoading: boolean;
 }
 
@@ -1028,6 +1082,7 @@ const ChallengeCard: React.FC<ChallengeCardProps> = ({
   challenge,
   onCalculatePoints,
   onUpdateStatus,
+  onDelete,
   isLoading,
 }) => {
   const statusColors: Record<string, string> = {
@@ -1107,6 +1162,15 @@ const ChallengeCard: React.FC<ChallengeCardProps> = ({
             <Trophy size={14} /> Recalculate Final Scores
           </button>
         )}
+
+        {/* Delete - toujours disponible */}
+        <button
+          onClick={() => onDelete(challenge.id)}
+          className="flex items-center gap-1 text-xs font-semibold bg-hot-red/20 text-hot-red px-3 py-2 rounded-lg hover:bg-hot-red/30 ml-auto"
+          disabled={isLoading}
+        >
+          <Trash2 size={14} /> Delete
+        </button>
       </div>
     </div>
   );
