@@ -9,7 +9,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { Play, Square, RefreshCw, Calendar, Trophy, Coins, ChevronDown, Edit3, Trash2, Filter, SortAsc, SortDesc, Users, X } from 'lucide-react'
+import { Play, Square, RefreshCw, Calendar, Trophy, Coins, ChevronDown, Edit3, Trash2, Filter, SortAsc, SortDesc, Users, X, Archive, RotateCcw } from 'lucide-react'
 import { supabase } from '../../services/supabase'
 import * as swipeService from '../../services/swipeGameService'
 import { MultiSelect } from './MultiSelect'
@@ -88,6 +88,9 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
 
+  // Show archived toggle
+  const [showArchived, setShowArchived] = useState(false);
+
   // Load leagues
   useEffect(() => {
     loadLeagues();
@@ -95,6 +98,11 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
     loadLevels()
     loadBadges()
   }, []);
+
+  // Reload challenges when showArchived changes
+  useEffect(() => {
+    loadChallenges();
+  }, [showArchived]);
 
   const loadLeagues = async () => {
     try {
@@ -122,14 +130,20 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
 
   const loadChallenges = async () => {
     try {
-      // Step 1: Load challenges with configs for tier
-      const { data: challengesData, error: challengesError } = await supabase
+      // Step 1: Load challenges (filter archived based on toggle)
+      let query = supabase
         .from('challenges')
-        .select(`
-          id, name, description, start_date, end_date, entry_cost, status, game_type,
-          challenge_configs(tier)
-        `)
-        .in('game_type', ['prediction', 'betting', 'fantasy'])
+        .select('id, name, description, start_date, end_date, entry_cost, status, game_type')
+        .in('game_type', ['prediction', 'betting', 'fantasy']);
+
+      // If showing archived, only show archived. Otherwise, exclude archived
+      if (showArchived) {
+        query = query.eq('status', 'archived');
+      } else {
+        query = query.neq('status', 'archived');
+      }
+
+      const { data: challengesData, error: challengesError } = await query
         .order('start_date', { ascending: false });
 
       if (challengesError) throw challengesError;
@@ -177,13 +191,28 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
         participantsCountMap.set(p.challenge_id, (participantsCountMap.get(p.challenge_id) || 0) + 1);
       });
 
-      // Step 6: Create a map of challenge_id -> league
+      // Step 6: Load tier configs (tier is in config_data, not a direct column)
+      const { data: tierConfigs, error: configsError } = await supabase
+        .from('challenge_configs')
+        .select('challenge_id, config_data')
+        .eq('config_type', 'tier')
+        .in('challenge_id', challengeIds);
+
+      if (configsError) throw configsError;
+
+      // Create tier map
+      const tierMap = new Map<string, string>();
+      (tierConfigs || []).forEach((cfg: any) => {
+        tierMap.set(cfg.challenge_id, cfg.config_data?.tier || null);
+      });
+
+      // Step 7: Create a map of challenge_id -> league
       const leagueMap = new Map(leaguesData.map(l => [l.id, l]));
       const challengeLeagueMap = new Map(
         leagueMappings?.map(m => [m.challenge_id, leagueMap.get(m.league_id)]) || []
       );
 
-      // Step 7: Transform data with league information and participant counts
+      // Step 8: Transform data with league information and participant counts
       const transformed = challengesData.map(c => ({
         id: c.id,
         name: c.name,
@@ -193,7 +222,7 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
         entry_cost: c.entry_cost,
         status: c.status,
         game_type: c.game_type,
-        tier: (c.challenge_configs as any)?.[0]?.tier || null,
+        tier: tierMap.get(c.id) || null,
         participants_count: participantsCountMap.get(c.id) || 0,
         league: challengeLeagueMap.get(c.id),
       }));
@@ -462,6 +491,50 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
     }
   };
 
+  const handleArchiveChallenge = async (challengeId: string) => {
+    if (!confirm('Archiver ce jeu ? Il ne sera plus visible pour les utilisateurs mais les données seront conservées.')) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { error } = await supabase
+        .from('challenges')
+        .update({ status: 'archived' })
+        .eq('id', challengeId);
+
+      if (error) throw error;
+
+      addToast('Challenge archivé avec succès', 'success');
+      await loadChallenges();
+    } catch (err: any) {
+      console.error('Error archiving challenge:', err);
+      addToast(err.message || 'Erreur lors de l\'archivage', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRestoreChallenge = async (challengeId: string) => {
+    setIsLoading(true);
+    try {
+      const { error } = await supabase
+        .from('challenges')
+        .update({ status: 'upcoming' })
+        .eq('id', challengeId);
+
+      if (error) throw error;
+
+      addToast('Challenge restauré avec succès', 'success');
+      await loadChallenges();
+    } catch (err: any) {
+      console.error('Error restoring challenge:', err);
+      addToast(err.message || 'Erreur lors de la restauration', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleEditChallenge = (challenge: Challenge) => {
     // Only allow editing draft or scheduled challenges
     if (challenge.status !== 'draft' && challenge.status !== 'scheduled') {
@@ -609,6 +682,20 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
             </button>
           </div>
 
+          {/* Show Archived Toggle */}
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
+              className="accent-electric-blue"
+            />
+            <span className="text-xs text-text-secondary flex items-center gap-1">
+              <Archive size={12} />
+              {showArchived ? 'Showing Archived' : 'Show Archived'}
+            </span>
+          </label>
+
           {/* Results count */}
           <span className="text-xs text-text-disabled">
             {filteredAndSortedChallenges.length} / {challenges.length} games
@@ -711,6 +798,8 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
               onUpdateStatus={handleUpdateStatus}
               onDelete={handleDeleteChallenge}
               onEdit={handleEditChallenge}
+              onArchive={handleArchiveChallenge}
+              onRestore={handleRestoreChallenge}
               isLoading={isLoading}
             />
           ))
@@ -1339,6 +1428,8 @@ interface ChallengeCardProps {
   onUpdateStatus: (challengeId: string, newStatus: string) => void;
   onDelete: (challengeId: string) => void;
   onEdit: (challenge: Challenge) => void;
+  onArchive: (challengeId: string) => void;
+  onRestore: (challengeId: string) => void;
   isLoading: boolean;
 }
 
@@ -1348,15 +1439,19 @@ const ChallengeCard: React.FC<ChallengeCardProps> = ({
   onUpdateStatus,
   onDelete,
   onEdit,
+  onArchive,
+  onRestore,
   isLoading,
 }) => {
   const canEdit = challenge.status === 'draft' || challenge.status === 'scheduled';
+  const isArchived = challenge.status === 'archived';
   const statusColors: Record<string, string> = {
     draft: 'bg-purple-500/20 text-purple-400',
     scheduled: 'bg-amber-500/20 text-amber-400',
     upcoming: 'bg-blue-500/20 text-blue-400',
     active: 'bg-lime-glow/20 text-lime-glow',
     finished: 'bg-gray-500/20 text-gray-400',
+    archived: 'bg-gray-600/20 text-gray-500',
   };
 
   const tierColors: Record<string, string> = {
@@ -1460,6 +1555,28 @@ const ChallengeCard: React.FC<ChallengeCardProps> = ({
             disabled={isLoading}
           >
             <Trophy size={14} /> Recalculate Final Scores
+          </button>
+        )}
+
+        {/* Archive - disponible pour les jeux non archivés */}
+        {!isArchived && (
+          <button
+            onClick={() => onArchive(challenge.id)}
+            className="flex items-center gap-1 text-xs font-semibold bg-gray-500/20 text-gray-400 px-3 py-2 rounded-lg hover:bg-gray-500/30"
+            disabled={isLoading}
+          >
+            <Archive size={14} /> Archive
+          </button>
+        )}
+
+        {/* Restore - disponible seulement pour les jeux archivés */}
+        {isArchived && (
+          <button
+            onClick={() => onRestore(challenge.id)}
+            className="flex items-center gap-1 text-xs font-semibold bg-lime-glow/20 text-lime-glow px-3 py-2 rounded-lg hover:bg-lime-glow/30"
+            disabled={isLoading}
+          >
+            <RotateCcw size={14} /> Restore
           </button>
         )}
 
