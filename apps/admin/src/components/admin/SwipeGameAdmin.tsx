@@ -477,6 +477,7 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
   const [periodInfo, setPeriodInfo] = useState<{ type: string; count: number } | null>(null)
   const [publishMode, setPublishMode] = useState<'now' | 'later'>('now')
   const [publishDate, setPublishDate] = useState('')
+  const [publishTime, setPublishTime] = useState('09:00')
   const [isRewardsOpen, setIsRewardsOpen] = useState(false)
 
   useEffect(() => {
@@ -871,16 +872,31 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
           </label>
         </div>
         {publishMode === 'later' && (
-          <div>
-            <label className="text-xs text-text-disabled block mb-1">Publishing Date & Time</label>
-            <input
-              type="datetime-local"
-              value={publishDate}
-              onChange={(e) => setPublishDate(e.target.value)}
-              className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
-              min={new Date().toISOString().slice(0, 16)}
-            />
-            <p className="text-xs text-electric-blue mt-1">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1">
+                Publishing Date
+              </label>
+              <input
+                type="date"
+                value={publishDate}
+                onChange={(e) => setPublishDate(e.target.value)}
+                className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+                min={today}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1">
+                Publishing Time
+              </label>
+              <input
+                type="time"
+                value={publishTime}
+                onChange={(e) => setPublishTime(e.target.value)}
+                className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+              />
+            </div>
+            <p className="text-xs text-electric-blue col-span-2">
               Game will be <strong>Scheduled</strong> and editable until this date. Once published, users can join.
             </p>
           </div>
