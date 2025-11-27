@@ -136,12 +136,8 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
         .select('id, name, description, start_date, end_date, entry_cost, status, game_type')
         .in('game_type', ['prediction', 'betting', 'fantasy']);
 
-      // If showing archived, only show archived. Otherwise, exclude archived
-      if (showArchived) {
-        query = query.eq('status', 'archived');
-      } else {
-        query = query.neq('status', 'archived');
-      }
+      // Note: 'archived' status doesn't exist in challenge_status_enum
+      // Load all challenges without status filter
 
       const { data: challengesData, error: challengesError } = await query
         .order('start_date', { ascending: false });
