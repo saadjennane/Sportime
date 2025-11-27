@@ -475,6 +475,9 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
   const [requiresSubscription, setRequiresSubscription] = useState(false)
   const [periodType, setPeriodType] = useState<'matchdays' | 'calendar'>('matchdays')
   const [periodInfo, setPeriodInfo] = useState<{ type: string; count: number } | null>(null)
+  const [publishMode, setPublishMode] = useState<'now' | 'later'>('now')
+  const [publishDate, setPublishDate] = useState('')
+  const [isRewardsOpen, setIsRewardsOpen] = useState(false)
 
   useEffect(() => {
     if (!customEntryEnabled) {
@@ -838,6 +841,70 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
             placeholder="Select badges..."
           />
         </div>
+      </div>
+
+      {/* Publishing Options */}
+      <div className="border-t border-disabled/50 pt-4 space-y-3">
+        <h4 className="text-sm font-semibold text-text-secondary">Publishing Options</h4>
+        <div className="flex gap-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="radio"
+              name="publishMode"
+              value="now"
+              checked={publishMode === 'now'}
+              onChange={() => setPublishMode('now')}
+              className="accent-electric-blue"
+            />
+            <span className="text-sm text-text-primary">Publish Now</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="radio"
+              name="publishMode"
+              value="later"
+              checked={publishMode === 'later'}
+              onChange={() => setPublishMode('later')}
+              className="accent-electric-blue"
+            />
+            <span className="text-sm text-text-primary">Schedule for Later</span>
+          </label>
+        </div>
+        {publishMode === 'later' && (
+          <div>
+            <label className="text-xs text-text-disabled block mb-1">Publishing Date & Time</label>
+            <input
+              type="datetime-local"
+              value={publishDate}
+              onChange={(e) => setPublishDate(e.target.value)}
+              className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+              min={new Date().toISOString().slice(0, 16)}
+            />
+            <p className="text-xs text-electric-blue mt-1">
+              Game will be <strong>Scheduled</strong> and editable until this date. Once published, users can join.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Rewards Configuration */}
+      <div className="border-t border-disabled/50 pt-4">
+        <button
+          type="button"
+          onClick={() => setIsRewardsOpen(!isRewardsOpen)}
+          className="w-full flex justify-between items-center"
+        >
+          <h4 className="text-sm font-semibold text-text-secondary">Rewards Configuration</h4>
+          <ChevronDown className={`w-4 h-4 transition-transform ${isRewardsOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {isRewardsOpen && (
+          <div className="mt-4 p-3 bg-navy-accent/50 rounded-lg">
+            <p className="text-xs text-text-disabled">
+              Rewards are automatically configured based on Tier ({tier}) and Duration ({durationType}).
+              Custom rewards configuration coming soon.
+            </p>
+          </div>
+        )}
       </div>
 
       <CollapsibleSummary
