@@ -361,6 +361,44 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
 
   const challengeIds = challenges.map(ch => ch.id)
 
+  // Fetch first kickoff time for each challenge (for entry deadline calculation)
+  const { data: firstKickoffRows, error: kickoffError } = await supabase
+    .from('challenge_matches')
+    .select(`
+      challenge_id,
+      match:matches (
+        kickoff_time
+      )
+    `)
+    .in('challenge_id', challengeIds)
+
+  if (kickoffError) {
+    console.warn('[challengeService] Failed to fetch kickoff times', kickoffError)
+    // Non-fatal: continue without kickoff times
+  }
+
+  // Build a map of challenge_id -> first kickoff time
+  const firstKickoffByChallenge = new Map<string, string>()
+  if (firstKickoffRows) {
+    const kickoffsByChallenge = new Map<string, string[]>()
+    for (const row of firstKickoffRows as Array<{ challenge_id: string; match: { kickoff_time: string | null } | null }>) {
+      const kickoff = row.match?.kickoff_time
+      if (kickoff) {
+        if (!kickoffsByChallenge.has(row.challenge_id)) {
+          kickoffsByChallenge.set(row.challenge_id, [])
+        }
+        kickoffsByChallenge.get(row.challenge_id)!.push(kickoff)
+      }
+    }
+    // Find earliest kickoff for each challenge
+    for (const [challengeId, kickoffs] of kickoffsByChallenge.entries()) {
+      const earliest = kickoffs.sort()[0] // ISO strings sort correctly
+      if (earliest) {
+        firstKickoffByChallenge.set(challengeId, earliest)
+      }
+    }
+  }
+
   const { data: participantsRows, error: participantsError } = await supabase
     .from('challenge_participants')
     .select('challenge_id, user_id')
@@ -389,6 +427,11 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
 
   for (const row of challenges) {
     const mapped = mapChallengeRow(row, 0)
+    // Add first_kickoff_time if available
+    const kickoff = firstKickoffByChallenge.get(row.id)
+    if (kickoff) {
+      mapped.first_kickoff_time = kickoff
+    }
     challengesById.set(row.id, mapped)
   }
 

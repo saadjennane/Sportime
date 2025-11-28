@@ -14,10 +14,18 @@ type GamesTab = 'my-games' | 'browse';
 
 /**
  * Calculates entry deadline: 30 minutes before the first match
- * Uses kickoffTime from matches if available, otherwise falls back to start_date
+ * Priority: first_kickoff_time > matches[].kickoffTime > start_date
  */
 export function calculateEntryDeadline(game: SportimeGame): Date {
-  // Try to get the earliest kickoff time from matches
+  // Priority 1: Use first_kickoff_time if available (set by fetchChallengeCatalog)
+  if (game.first_kickoff_time) {
+    const kickoffDate = new Date(game.first_kickoff_time);
+    if (!isNaN(kickoffDate.getTime())) {
+      return new Date(kickoffDate.getTime() - 30 * 60 * 1000); // 30 minutes before first match
+    }
+  }
+
+  // Priority 2: Try to get the earliest kickoff time from matches array
   if (game.matches && game.matches.length > 0) {
     const kickoffTimes = game.matches
       .map(m => new Date(m.kickoffTime).getTime())
@@ -25,7 +33,7 @@ export function calculateEntryDeadline(game: SportimeGame): Date {
 
     if (kickoffTimes.length > 0) {
       const firstKickoff = Math.min(...kickoffTimes);
-      return new Date(firstKickoff - 30 * 60 * 1000); // 30 minutes before first match
+      return new Date(firstKickoff - 30 * 60 * 1000);
     }
   }
 
