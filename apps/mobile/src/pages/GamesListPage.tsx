@@ -240,8 +240,10 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
 
     // Not joined - check if entry is still open
     if (!hasJoined) {
-      // Deadline passed or game ongoing → LOCKED (FOMO)
-      if (!entryOpen || realStatus === 'Ongoing') {
+      // Entry deadline determines if registration is open, not start_date
+      // A game can have start_date passed (start of the matchday weekend) but still accept entries
+      // until 30 minutes before the first match kickoff (entry deadline)
+      if (!entryOpen) {
         return 'LOCKED';
       }
       // Entry still open
