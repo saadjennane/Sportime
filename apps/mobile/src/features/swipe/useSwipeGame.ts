@@ -112,10 +112,27 @@ export function useSwipeGame(
   const loadMatchdayMatches = useCallback(async (matchdayId: string) => {
     try {
       const data = await swipeService.getMatchdayWithFixtures(matchdayId);
+
+      if (!data) {
+        console.error('No matchday data returned for:', matchdayId);
+        setError(new Error('Matchday not found'));
+        return;
+      }
+
       setCurrentMatchday(data);
 
-      // Extract fixtures from nested structure
-      const fixtures = data.matchday_fixtures?.map((mf: any) => mf.fixture) || [];
+      // Extract fixtures from nested structure with null-safe handling
+      const matchdayFixtures = data.matchday_fixtures || [];
+      const fixtures = matchdayFixtures
+        .map((mf: any) => mf.fixture)
+        .filter(Boolean); // Filter out null/undefined fixtures
+
+      console.log('Extracted fixtures:', fixtures.length, 'from', matchdayFixtures.length, 'matchday_fixtures');
+
+      if (fixtures.length === 0) {
+        console.warn('No fixtures found for matchday:', matchdayId);
+        // Don't throw error - UI will show "No matches available"
+      }
 
       // Get user predictions if logged in
       let predictions: any[] = [];

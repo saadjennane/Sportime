@@ -121,16 +121,16 @@ export const SwipeGamePage: React.FC<SwipeGamePageProps> = ({
         >
           <X size={24} />
         </button>
-        <div className="text-center p-6">
+        <div className="text-center p-6 bg-white rounded-2xl shadow-lg max-w-sm mx-4">
           <p className="text-gray-600 font-semibold text-lg">No matches available</p>
           <p className="text-gray-500 text-sm mt-2">
-            There are no matches for this matchday yet
+            There are no matches for this game yet. Please check back later.
           </p>
           <button
             onClick={onExit}
-            className="mt-4 px-6 py-3 bg-purple-600 text-white rounded-xl font-semibold"
+            className="mt-4 px-6 py-3 bg-purple-600 text-white rounded-xl font-semibold w-full"
           >
-            Go Back
+            Go Back to Games
           </button>
         </div>
       </div>

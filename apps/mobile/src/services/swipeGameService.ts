@@ -271,8 +271,9 @@ export async function getMatchdayWithFixtures(matchdayId: string) {
     .from('challenge_matchdays')
     .select(`
       *,
-      matchday_fixtures!inner(
-        fixture:fb_fixtures!inner(
+      matchday_fixtures(
+        fixture_id,
+        fixture:fb_fixtures(
           id,
           api_id,
           date,
@@ -289,7 +290,15 @@ export async function getMatchdayWithFixtures(matchdayId: string) {
     .eq('id', matchdayId)
     .single();
 
-  if (error) throw error;
+  if (error) {
+    console.error('Error fetching matchday:', error);
+    throw error;
+  }
+
+  // Debug logging
+  console.log('Matchday data:', data);
+  console.log('Fixtures count:', data?.matchday_fixtures?.length || 0);
+
   return data;
 }
 
