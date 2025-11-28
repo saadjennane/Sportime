@@ -9,8 +9,24 @@ import { GameSection } from '../components/GameSection';
 import { add, isWithinInterval, parseISO } from 'date-fns';
 import { Zap, Clock, Flag } from 'lucide-react';
 
-export type CtaState = 'JOIN' | 'PLACE_BETS' | 'MAKE_PREDICTIONS' | 'SELECT_TEAM' | 'COMPLETE_TEAM' | 'AWAITING' | 'RESULTS' | 'IN_PROGRESS';
+export type CtaState = 'JOIN' | 'PLACE_BETS' | 'MAKE_PREDICTIONS' | 'SELECT_TEAM' | 'COMPLETE_TEAM' | 'AWAITING' | 'RESULTS' | 'IN_PROGRESS' | 'LOCKED';
 type GamesTab = 'my-games' | 'browse';
+
+/**
+ * Calculates entry deadline: 30 minutes before the first match (start_date)
+ */
+export function calculateEntryDeadline(game: SportimeGame): Date {
+  const firstMatchDate = parseISO(game.start_date);
+  return new Date(firstMatchDate.getTime() - 30 * 60 * 1000); // 30 minutes before
+}
+
+/**
+ * Checks if entry is still open (before deadline)
+ */
+function isEntryOpen(game: SportimeGame): boolean {
+  const deadline = calculateEntryDeadline(game);
+  return new Date() < deadline;
+}
 
 /**
  * Determines the real status of a game by validating start_date and end_date
@@ -193,19 +209,20 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
     const hasJoined = myGameIds.has(game.id);
     const now = new Date();
     const realStatus = getRealGameStatus(game, now);
+    const entryOpen = isEntryOpen(game);
 
     // Finished games
     if (realStatus === 'Finished' || realStatus === 'Cancelled') {
       return 'RESULTS';
     }
 
-    // Browse tab: Ongoing games not joined (FOMO state)
-    if (!isInMyGamesTab && realStatus === 'Ongoing' && !hasJoined) {
-      return 'IN_PROGRESS';
-    }
-
-    // Not joined - show JOIN button
+    // Not joined - check if entry is still open
     if (!hasJoined) {
+      // Deadline passed or game ongoing → LOCKED (FOMO)
+      if (!entryOpen || realStatus === 'Ongoing') {
+        return 'LOCKED';
+      }
+      // Entry still open
       return 'JOIN';
     }
 

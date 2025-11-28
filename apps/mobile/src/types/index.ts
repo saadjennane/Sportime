@@ -579,6 +579,7 @@ export interface SportimeGame {
   matches?: SwipeMatch[];
   gameWeeks?: FantasyGameWeek[];
   challengeId?: string;
+  entry_deadline?: string; // ISO date, calculated: firstMatchDate - 30min
 }
 
 export interface CelebrationEvent {
