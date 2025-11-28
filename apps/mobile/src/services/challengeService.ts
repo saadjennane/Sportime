@@ -402,18 +402,14 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
     }
   }
 
-  // 2. Try swipe structure: challenge_matchdays → matchday_fixtures → fb_fixtures
+  // 2. Try swipe structure: use challenge_matchdays.deadline directly
+  // The deadline field contains the first kickoff time for each matchday
   const { data: swipeKickoffRows, error: swipeKickoffError } = await supabase
     .from('challenge_matchdays')
-    .select(`
-      challenge_id,
-      matchday_fixtures (
-        fixture:fb_fixtures (
-          date
-        )
-      )
-    `)
+    .select('challenge_id, deadline')
     .in('challenge_id', challengeIds)
+    .not('deadline', 'is', null)
+    .order('deadline', { ascending: true })
 
   if (swipeKickoffError) {
     console.warn('[challengeService] Failed to fetch swipe kickoff times', swipeKickoffError)
@@ -422,22 +418,15 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
   if (swipeKickoffRows) {
     for (const row of swipeKickoffRows as Array<{
       challenge_id: string
-      matchday_fixtures: Array<{ fixture: { date: string | null } | null }> | null
+      deadline: string | null
     }>) {
       // Skip if we already have kickoff from betting structure
       if (firstKickoffByChallenge.has(row.challenge_id)) continue
 
-      const dates: string[] = []
-      if (row.matchday_fixtures) {
-        for (const mf of row.matchday_fixtures) {
-          if (mf.fixture?.date) {
-            dates.push(mf.fixture.date)
-          }
-        }
-      }
-      if (dates.length > 0) {
-        const earliest = dates.sort()[0]
-        firstKickoffByChallenge.set(row.challenge_id, earliest)
+      // Use the deadline directly as the first kickoff time
+      // Since results are ordered by deadline ascending, the first row for each challenge has the earliest deadline
+      if (row.deadline) {
+        firstKickoffByChallenge.set(row.challenge_id, row.deadline)
       }
     }
   }
