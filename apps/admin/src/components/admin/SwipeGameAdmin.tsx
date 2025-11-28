@@ -9,7 +9,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { Play, Square, RefreshCw, Calendar, Trophy, Coins, ChevronDown, Edit3, Trash2, Filter, SortAsc, SortDesc, Users, X, Archive, RotateCcw, CheckSquare } from 'lucide-react'
+import { Play, Square, RefreshCw, Calendar, Trophy, Coins, ChevronDown, Edit3, Trash2, Filter, SortAsc, SortDesc, Users, X, Archive, RotateCcw } from 'lucide-react'
 import { supabase } from '../../services/supabase'
 import * as swipeService from '../../services/swipeGameService'
 import { MultiSelect } from './MultiSelect'
@@ -28,15 +28,111 @@ const DEFAULT_DURATION: DurationKey = 'flash'
 const DEFAULT_TIER: SwipeTier = 'amateur'
 const DEFAULT_MIN_LEVEL = 'Rookie' // Progression level, not tier
 
-// Helper to extract round number from "Regular Season - 14" -> "J14"
-function extractRoundNumber(round: string): string {
-  const match = round.match(/\d+/)
-  return match ? `J${match[0]}` : round
-}
-
 // Helper to format date for display
 function formatMatchDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+// ============================================================================
+// ROUND CLUSTER - for handling split rounds (e.g., J19 split across Dec & Jan)
+// ============================================================================
+
+interface RoundCluster {
+  round: string           // "Regular Season - 19"
+  roundNumber: number     // 19
+  clusterIndex: number    // 0, 1, 2... for split rounds
+  firstMatch: string      // First match date in cluster
+  lastMatch: string       // Last match date in cluster
+  fixtureCount: number    // Number of fixtures in this cluster
+  fixtureIds: string[]    // Fixture IDs
+  displayName: string     // "J19" or "J19 (suite)"
+}
+
+interface FixtureData {
+  id: string
+  date: string
+  round: string
+}
+
+/**
+ * Groups fixtures into clusters based on chronological continuity.
+ * If another round's fixtures appear between fixtures of the same round,
+ * they are split into separate clusters.
+ *
+ * Example: J14, J17(1), J15, J17(1), J16, J17(8) becomes:
+ * - J14 (10 matches)
+ * - J17 (1 match)
+ * - J15 (10 matches)
+ * - J17 (suite) (1 match) <- J15 interrupted J17
+ * - J16 (10 matches)
+ * - J17 (suite 2) (8 matches) <- J16 interrupted J17
+ */
+function groupFixturesIntoClusters(fixtures: FixtureData[]): RoundCluster[] {
+  if (!fixtures || fixtures.length === 0) return []
+
+  // 1. Sort ALL fixtures by date
+  const sorted = [...fixtures].sort((a, b) =>
+    new Date(a.date).getTime() - new Date(b.date).getTime()
+  )
+
+  const clusters: RoundCluster[] = []
+  const roundClusterCount = new Map<string, number>() // Track "suite", "suite 2", etc.
+
+  let currentRound: string | null = null
+  let currentFixtures: FixtureData[] = []
+
+  for (const fixture of sorted) {
+    if (!fixture.round) continue
+
+    if (fixture.round === currentRound) {
+      // Same round, add to current cluster
+      currentFixtures.push(fixture)
+    } else {
+      // New round detected
+      if (currentRound && currentFixtures.length > 0) {
+        // Save previous cluster
+        const clusterIndex = roundClusterCount.get(currentRound) || 0
+        clusters.push(createCluster(currentRound, currentFixtures, clusterIndex))
+        roundClusterCount.set(currentRound, clusterIndex + 1)
+      }
+
+      // Start new cluster
+      currentRound = fixture.round
+      currentFixtures = [fixture]
+    }
+  }
+
+  // Save last cluster
+  if (currentRound && currentFixtures.length > 0) {
+    const clusterIndex = roundClusterCount.get(currentRound) || 0
+    clusters.push(createCluster(currentRound, currentFixtures, clusterIndex))
+  }
+
+  return clusters
+}
+
+function createCluster(round: string, fixtures: FixtureData[], clusterIndex: number): RoundCluster {
+  const roundNumber = parseInt(round.match(/\d+/)?.[0] || '0')
+
+  let displayName = `J${roundNumber}`
+  if (clusterIndex === 1) displayName = `J${roundNumber} (suite)`
+  else if (clusterIndex > 1) displayName = `J${roundNumber} (suite ${clusterIndex})`
+
+  // Sort fixtures by date to get first/last
+  const sortedFixtures = [...fixtures].sort((a, b) =>
+    new Date(a.date).getTime() - new Date(b.date).getTime()
+  )
+
+  return {
+    round,
+    roundNumber,
+    clusterIndex,
+    firstMatch: sortedFixtures[0].date,
+    lastMatch: sortedFixtures[sortedFixtures.length - 1].date,
+    fixtureCount: fixtures.length,
+    fixtureIds: fixtures.map(f => f.id),
+    displayName
+  }
 }
 
 interface SwipeGameAdminProps {
@@ -293,6 +389,7 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
     period_type: 'matchdays' | 'calendar';
     starting_round?: string;
     number_of_rounds?: number;
+    selected_clusters?: RoundCluster[];
   }) => {
     setIsLoading(true);
     try {
@@ -331,8 +428,7 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
         formData.start_date,
         formData.end_date,
         formData.period_type,
-        formData.starting_round,
-        formData.number_of_rounds
+        formData.selected_clusters
       );
 
       addToast('Matchdays generated successfully!', 'success');
@@ -352,8 +448,7 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
     startDate: string,
     endDate: string,
     periodType: 'matchdays' | 'calendar' = 'matchdays',
-    startingRound?: string,
-    numberOfRounds?: number
+    selectedClusters?: RoundCluster[]
   ) => {
     if (periodType === 'calendar') {
       // CALENDAR MODE: One matchday per calendar day, using date range
@@ -399,62 +494,26 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
         currentDate.setDate(currentDate.getDate() + 1);
       }
     } else {
-      // MATCHDAYS MODE: Group by round (championship gameweek)
-      // First, get all unique rounds for this league in date range
-      const { data: allFixtures, error: fixturesError } = await supabase
-        .from('fb_fixtures')
-        .select('id, date, round')
-        .eq('league_id', leagueId)
-        .gte('date', new Date().toISOString())
-        .order('date');
+      // MATCHDAYS MODE: Use pre-computed clusters (handles split rounds)
+      // Each cluster represents a contiguous group of fixtures from the same round
+      // Split rounds (e.g., J19 with matches in Dec and Jan) appear as separate clusters
 
-      if (fixturesError) throw fixturesError;
-
-      if (!allFixtures || allFixtures.length === 0) {
-        throw new Error('No fixtures found for the selected league');
+      if (!selectedClusters || selectedClusters.length === 0) {
+        throw new Error('No matchday clusters selected');
       }
 
-      // Get unique rounds sorted by first match date
-      const roundsMap = new Map<string, { round: string, firstMatch: string, fixtures: typeof allFixtures }>();
-      for (const fixture of allFixtures) {
-        if (!fixture.round) continue;
-        const existing = roundsMap.get(fixture.round);
-        if (!existing) {
-          roundsMap.set(fixture.round, { round: fixture.round, firstMatch: fixture.date, fixtures: [fixture] });
-        } else {
-          existing.fixtures.push(fixture);
-        }
-      }
-
-      const sortedRounds = [...roundsMap.values()].sort((a, b) =>
-        new Date(a.firstMatch).getTime() - new Date(b.firstMatch).getTime()
-      );
-
-      // If startingRound is provided, find which rounds to use
-      let roundsToCreate = sortedRounds;
-      if (startingRound && numberOfRounds) {
-        const startIdx = sortedRounds.findIndex(r => r.round === startingRound);
-        if (startIdx >= 0) {
-          roundsToCreate = sortedRounds.slice(startIdx, startIdx + numberOfRounds);
-        }
-      }
-
-      if (roundsToCreate.length === 0) {
-        throw new Error('No rounds found for the selected criteria');
-      }
-
-      // Create one matchday per round
-      for (const roundData of roundsToCreate) {
-        const firstMatchDate = roundData.fixtures.sort((a, b) =>
-          new Date(a.date).getTime() - new Date(b.date).getTime()
-        )[0]?.date;
-
-        if (!firstMatchDate) continue;
-
-        const dateStr = getMatchdayDate(firstMatchDate);
+      // Create one matchday per cluster
+      for (const cluster of selectedClusters) {
+        const dateStr = getMatchdayDate(cluster.firstMatch);
         const matchday = await swipeService.getOrCreateMatchday(challengeId, dateStr);
-        await swipeService.linkFixturesToMatchday(matchday.id, roundData.fixtures.map(f => f.id));
-        await swipeService.updateMatchdayDeadline(matchday.id, firstMatchDate);
+
+        // Link fixtures from this cluster
+        await swipeService.linkFixturesToMatchday(matchday.id, cluster.fixtureIds);
+
+        // Set deadline to first match of this cluster
+        await swipeService.updateMatchdayDeadline(matchday.id, cluster.firstMatch);
+
+        console.log(`[generateMatchdays] Created matchday for ${cluster.displayName} with ${cluster.fixtureCount} fixtures`);
       }
     }
   };
@@ -1082,10 +1141,10 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
   const [periodType, setPeriodType] = useState<'matchdays' | 'calendar'>('matchdays')
   const [periodInfo, setPeriodInfo] = useState<{ type: string; count: number } | null>(null)
 
-  // Matchdays mode - round selection
-  const [availableRounds, setAvailableRounds] = useState<{round: string, firstMatch: string, lastMatch: string, fixtureCount: number}[]>([])
-  const [startingRound, setStartingRound] = useState<string>('')
-  const [numberOfRounds, setNumberOfRounds] = useState<number>(1)
+  // Matchdays mode - cluster selection (handles split rounds)
+  const [availableClusters, setAvailableClusters] = useState<RoundCluster[]>([])
+  const [startingClusterIndex, setStartingClusterIndex] = useState<number>(0)
+  const [numberOfClusters, setNumberOfClusters] = useState<number>(1)
   const [publishMode, setPublishMode] = useState<'now' | 'later'>('now')
   const [publishDate, setPublishDate] = useState('')
   const [publishTime, setPublishTime] = useState('09:00')
@@ -1111,53 +1170,40 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
     }
   }, [levels, minimumLevel])
 
-  // Load available rounds when league changes (for matchdays mode)
+  // Load available clusters when league changes (for matchdays mode)
+  // Uses clustering algorithm to handle split rounds (e.g., J19 split across Dec & Jan)
   useEffect(() => {
     if (!leagueId) {
-      setAvailableRounds([])
+      setAvailableClusters([])
       return
     }
 
-    const loadAvailableRounds = async () => {
+    const loadAvailableClusters = async () => {
       try {
         const { data, error } = await supabase
           .from('fb_fixtures')
-          .select('round, date')
+          .select('id, round, date')
           .eq('league_id', leagueId)
           .gte('date', new Date().toISOString())
           .order('date')
 
         if (error) throw error
 
-        // Group by round and calculate first/last match + count
-        const roundsMap = new Map<string, {round: string, firstMatch: string, lastMatch: string, fixtureCount: number}>()
-        data?.forEach((f: {round: string, date: string}) => {
-          if (!f.round) return
-          const existing = roundsMap.get(f.round)
-          if (!existing) {
-            roundsMap.set(f.round, { round: f.round, firstMatch: f.date, lastMatch: f.date, fixtureCount: 1 })
-          } else {
-            existing.fixtureCount++
-            if (f.date > existing.lastMatch) existing.lastMatch = f.date
-          }
-        })
+        // Use clustering algorithm to group fixtures
+        // This handles split rounds where J19 might have matches in Dec and Jan
+        const clusters = groupFixturesIntoClusters(data as FixtureData[] || [])
 
-        // Sort by first match date
-        const sorted = [...roundsMap.values()].sort((a, b) =>
-          new Date(a.firstMatch).getTime() - new Date(b.firstMatch).getTime()
-        )
-
-        setAvailableRounds(sorted)
-        if (sorted.length > 0 && !startingRound) {
-          setStartingRound(sorted[0].round)
+        setAvailableClusters(clusters)
+        if (clusters.length > 0) {
+          setStartingClusterIndex(0)
         }
       } catch (error) {
-        console.error('Error loading available rounds:', error)
-        setAvailableRounds([])
+        console.error('Error loading available clusters:', error)
+        setAvailableClusters([])
       }
     }
 
-    loadAvailableRounds()
+    loadAvailableClusters()
   }, [leagueId])
 
   // Calculate period count when dates, league, or period type changes
@@ -1206,17 +1252,16 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // For matchdays mode, calculate dates from selected rounds
+    // For matchdays mode, calculate dates from selected clusters
     let effectiveStartDate = startDate;
     let effectiveEndDate = endDate;
 
-    if (periodType === 'matchdays' && availableRounds.length > 0) {
-      const startIdx = availableRounds.findIndex(r => r.round === startingRound);
-      const selectedRounds = availableRounds.slice(startIdx, startIdx + numberOfRounds);
-      if (selectedRounds.length > 0) {
-        effectiveStartDate = selectedRounds[0].firstMatch.split('T')[0];
-        effectiveEndDate = selectedRounds[selectedRounds.length - 1].lastMatch.split('T')[0];
-      }
+    // Get selected clusters for matchdays mode
+    const selectedClusters = availableClusters.slice(startingClusterIndex, startingClusterIndex + numberOfClusters);
+
+    if (periodType === 'matchdays' && selectedClusters.length > 0) {
+      effectiveStartDate = selectedClusters[0].firstMatch.split('T')[0];
+      effectiveEndDate = selectedClusters[selectedClusters.length - 1].lastMatch.split('T')[0];
     }
 
     onSubmit({
@@ -1236,10 +1281,12 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
       required_badges: requiredBadges,
       requires_subscription: requiresSubscription,
       period_type: periodType,
-      // Pass round info for matchdays mode
-      starting_round: periodType === 'matchdays' ? startingRound : undefined,
-      number_of_rounds: periodType === 'matchdays' ? numberOfRounds : undefined,
-    });
+      // Pass cluster info for matchdays mode
+      starting_round: periodType === 'matchdays' && selectedClusters.length > 0 ? selectedClusters[0].round : undefined,
+      number_of_rounds: periodType === 'matchdays' ? numberOfClusters : undefined,
+      // Pass the actual selected clusters for direct use in generateMatchdays
+      selected_clusters: periodType === 'matchdays' ? selectedClusters : undefined,
+    } as any);
   };
 
   const levelOptions = levels.length ? levels : [{ name: DEFAULT_MIN_LEVEL }]
@@ -1320,75 +1367,90 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
         </p>
       </div>
 
-      {/* MATCHDAYS MODE - Round selection */}
+      {/* MATCHDAYS MODE - Cluster selection (handles split rounds) */}
       {periodType === 'matchdays' && (
         <>
-          {availableRounds.length > 0 ? (
+          {availableClusters.length > 0 ? (
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-text-secondary mb-1">
-                    Starting Round
+                    Starting Matchday
                   </label>
                   <select
-                    value={startingRound}
+                    value={startingClusterIndex}
                     onChange={e => {
-                      setStartingRound(e.target.value)
-                      // Reset number of rounds if it exceeds max
-                      const startIdx = availableRounds.findIndex(r => r.round === e.target.value)
-                      const maxRounds = availableRounds.length - startIdx
-                      if (numberOfRounds > maxRounds) setNumberOfRounds(maxRounds)
+                      const newIndex = parseInt(e.target.value)
+                      setStartingClusterIndex(newIndex)
+                      // Reset number of clusters if it exceeds max
+                      const maxClusters = availableClusters.length - newIndex
+                      if (numberOfClusters > maxClusters) setNumberOfClusters(maxClusters)
                     }}
                     className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
                   >
-                    {availableRounds.map(r => (
-                      <option key={r.round} value={r.round}>
-                        {extractRoundNumber(r.round)} - {formatMatchDate(r.firstMatch)} ({r.fixtureCount} matchs)
+                    {availableClusters.map((c, idx) => (
+                      <option key={`${c.round}-${c.clusterIndex}`} value={idx}>
+                        {c.displayName} - {formatMatchDate(c.firstMatch)} ({c.fixtureCount} matchs)
                       </option>
                     ))}
                   </select>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-text-secondary mb-1">
-                    Number of Rounds
+                    Number of Matchdays
                   </label>
                   <input
                     type="number"
                     min={1}
-                    max={availableRounds.length - availableRounds.findIndex(r => r.round === startingRound)}
-                    value={numberOfRounds}
-                    onChange={e => setNumberOfRounds(Math.max(1, parseInt(e.target.value) || 1))}
+                    max={availableClusters.length - startingClusterIndex}
+                    value={numberOfClusters}
+                    onChange={e => setNumberOfClusters(Math.max(1, parseInt(e.target.value) || 1))}
                     className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
                   />
                   <p className="text-xs text-text-disabled mt-1">
-                    Max: {availableRounds.length - availableRounds.findIndex(r => r.round === startingRound)} rounds disponibles
+                    Max: {availableClusters.length - startingClusterIndex} matchdays disponibles
                   </p>
                 </div>
               </div>
 
-              {/* Preview */}
+              {/* Preview with selected clusters */}
               {(() => {
-                const startIdx = availableRounds.findIndex(r => r.round === startingRound)
-                const selectedRounds = availableRounds.slice(startIdx, startIdx + numberOfRounds)
-                const endRound = selectedRounds[selectedRounds.length - 1]
-                const totalFixtures = selectedRounds.reduce((sum, r) => sum + r.fixtureCount, 0)
+                const selectedClusters = availableClusters.slice(startingClusterIndex, startingClusterIndex + numberOfClusters)
+                const endCluster = selectedClusters[selectedClusters.length - 1]
+                const totalFixtures = selectedClusters.reduce((sum, c) => sum + c.fixtureCount, 0)
                 return (
                   <div className="bg-electric-blue/10 border border-electric-blue/20 rounded-lg p-4">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-start gap-3">
                       <div className="text-3xl">⚽</div>
                       <div className="flex-1">
                         <p className="font-bold text-lg text-electric-blue">
-                          {numberOfRounds} journée{numberOfRounds > 1 ? 's' : ''}
+                          {numberOfClusters} matchday{numberOfClusters > 1 ? 's' : ''}
                         </p>
                         <p className="text-sm text-text-primary">
-                          De {extractRoundNumber(startingRound)} à {extractRoundNumber(endRound?.round || startingRound)}
+                          De {selectedClusters[0]?.displayName} à {endCluster?.displayName || selectedClusters[0]?.displayName}
                         </p>
                         <p className="text-xs text-text-secondary">
-                          Du {formatMatchDate(selectedRounds[0]?.firstMatch)} au {formatMatchDate(endRound?.lastMatch || selectedRounds[0]?.lastMatch)}
+                          Du {formatMatchDate(selectedClusters[0]?.firstMatch)} au {formatMatchDate(endCluster?.lastMatch || selectedClusters[0]?.lastMatch)}
                         </p>
                         <p className="text-xs text-text-disabled mt-1">
                           {totalFixtures} matchs au total
                         </p>
+
+                        {/* List selected matchdays */}
+                        {numberOfClusters <= 10 && (
+                          <div className="mt-3 space-y-1">
+                            {selectedClusters.map(c => (
+                              <div key={`${c.round}-${c.clusterIndex}`} className="flex justify-between text-xs">
+                                <span className={c.clusterIndex > 0 ? 'text-amber-400' : 'text-text-primary'}>
+                                  {c.displayName}
+                                </span>
+                                <span className="text-text-disabled">
+                                  {formatMatchDate(c.firstMatch)} • {c.fixtureCount} matchs
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
