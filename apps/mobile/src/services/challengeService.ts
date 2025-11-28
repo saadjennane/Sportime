@@ -362,7 +362,14 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
   const challengeIds = challenges.map(ch => ch.id)
 
   // Fetch first kickoff time for each challenge (for entry deadline calculation)
-  const { data: firstKickoffRows, error: kickoffError } = await supabase
+  // We need to check both structures:
+  // 1. Betting challenges: challenge_matches → matches (kickoff_time)
+  // 2. Swipe challenges: challenge_matchdays → matchday_fixtures → fb_fixtures (date)
+
+  const firstKickoffByChallenge = new Map<string, string>()
+
+  // 1. Try betting structure: challenge_matches → matches
+  const { data: bettingKickoffRows, error: bettingKickoffError } = await supabase
     .from('challenge_matches')
     .select(`
       challenge_id,
@@ -372,16 +379,13 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
     `)
     .in('challenge_id', challengeIds)
 
-  if (kickoffError) {
-    console.warn('[challengeService] Failed to fetch kickoff times', kickoffError)
-    // Non-fatal: continue without kickoff times
+  if (bettingKickoffError) {
+    console.warn('[challengeService] Failed to fetch betting kickoff times', bettingKickoffError)
   }
 
-  // Build a map of challenge_id -> first kickoff time
-  const firstKickoffByChallenge = new Map<string, string>()
-  if (firstKickoffRows) {
+  if (bettingKickoffRows) {
     const kickoffsByChallenge = new Map<string, string[]>()
-    for (const row of firstKickoffRows as Array<{ challenge_id: string; match: { kickoff_time: string | null } | null }>) {
+    for (const row of bettingKickoffRows as Array<{ challenge_id: string; match: { kickoff_time: string | null } | null }>) {
       const kickoff = row.match?.kickoff_time
       if (kickoff) {
         if (!kickoffsByChallenge.has(row.challenge_id)) {
@@ -390,11 +394,50 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
         kickoffsByChallenge.get(row.challenge_id)!.push(kickoff)
       }
     }
-    // Find earliest kickoff for each challenge
     for (const [challengeId, kickoffs] of kickoffsByChallenge.entries()) {
-      const earliest = kickoffs.sort()[0] // ISO strings sort correctly
+      const earliest = kickoffs.sort()[0]
       if (earliest) {
         firstKickoffByChallenge.set(challengeId, earliest)
+      }
+    }
+  }
+
+  // 2. Try swipe structure: challenge_matchdays → matchday_fixtures → fb_fixtures
+  const { data: swipeKickoffRows, error: swipeKickoffError } = await supabase
+    .from('challenge_matchdays')
+    .select(`
+      challenge_id,
+      matchday_fixtures (
+        fixture:fb_fixtures (
+          date
+        )
+      )
+    `)
+    .in('challenge_id', challengeIds)
+
+  if (swipeKickoffError) {
+    console.warn('[challengeService] Failed to fetch swipe kickoff times', swipeKickoffError)
+  }
+
+  if (swipeKickoffRows) {
+    for (const row of swipeKickoffRows as Array<{
+      challenge_id: string
+      matchday_fixtures: Array<{ fixture: { date: string | null } | null }> | null
+    }>) {
+      // Skip if we already have kickoff from betting structure
+      if (firstKickoffByChallenge.has(row.challenge_id)) continue
+
+      const dates: string[] = []
+      if (row.matchday_fixtures) {
+        for (const mf of row.matchday_fixtures) {
+          if (mf.fixture?.date) {
+            dates.push(mf.fixture.date)
+          }
+        }
+      }
+      if (dates.length > 0) {
+        const earliest = dates.sort()[0]
+        firstKickoffByChallenge.set(row.challenge_id, earliest)
       }
     }
   }
