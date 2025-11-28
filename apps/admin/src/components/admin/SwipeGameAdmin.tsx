@@ -390,7 +390,7 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
     starting_round?: string;
     number_of_rounds?: number;
     selected_clusters?: RoundCluster[];
-  }) => {
+  }, isDraft: boolean = false) => {
     setIsLoading(true);
     try {
       // Validate league is selected
@@ -400,7 +400,7 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
         return;
       }
 
-      // 1. Create challenge
+      // 1. Create challenge with appropriate status
       const challenge = await swipeService.createSwipeChallenge({
         name: formData.name,
         description: formData.description || `Swipe predictions for ${formData.name}`,
@@ -417,21 +417,28 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
         required_badges: formData.required_badges,
         requires_subscription: formData.requires_subscription,
         period_type: formData.period_type,
+        status: isDraft ? 'draft' : 'upcoming',
       });
 
-      addToast('Challenge created successfully!', 'success');
+      if (isDraft) {
+        // Draft saved - don't generate matchdays yet
+        addToast('Draft saved! You can publish it later to generate matchdays.', 'success');
+      } else {
+        addToast('Challenge created successfully!', 'success');
 
-      // 2. Auto-generate matchdays and link fixtures
-      await generateMatchdays(
-        challenge.id,
-        formData.league_id,
-        formData.start_date,
-        formData.end_date,
-        formData.period_type,
-        formData.selected_clusters
-      );
+        // 2. Auto-generate matchdays and link fixtures (only when not draft)
+        await generateMatchdays(
+          challenge.id,
+          formData.league_id,
+          formData.start_date,
+          formData.end_date,
+          formData.period_type,
+          formData.selected_clusters
+        );
 
-      addToast('Matchdays generated successfully!', 'success');
+        addToast('Matchdays generated successfully!', 'success');
+      }
+
       setShowCreateForm(false);
       await loadChallenges();
     } catch (err: any) {
@@ -648,6 +655,86 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
     } catch (err: any) {
       console.error('Error restoring challenge:', err);
       addToast(err.message || 'Erreur lors de la restauration', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePublishDraft = async (challengeId: string) => {
+    setIsLoading(true);
+    try {
+      // 1. Get challenge info with config and league
+      const { data: challenge, error: challengeError } = await supabase
+        .from('challenges')
+        .select('*, challenge_configs(*)')
+        .eq('id', challengeId)
+        .single();
+
+      if (challengeError) throw challengeError;
+
+      // Get league mapping
+      const { data: leagueMapping, error: leagueMappingError } = await supabase
+        .from('challenge_leagues')
+        .select('league_id')
+        .eq('challenge_id', challengeId)
+        .single();
+
+      if (leagueMappingError) throw leagueMappingError;
+
+      const leagueId = leagueMapping.league_id;
+
+      // Get period_type from rules or config
+      const periodType = challenge.rules?.period_type || 'matchdays';
+
+      // 2. Generate matchdays based on period type
+      if (periodType === 'matchdays') {
+        // Load fixtures and create clusters for matchdays mode
+        const { data: fixtures, error: fixturesError } = await supabase
+          .from('fb_fixtures')
+          .select('id, round, date')
+          .eq('league_id', leagueId)
+          .gte('date', challenge.start_date)
+          .lte('date', challenge.end_date)
+          .order('date');
+
+        if (fixturesError) throw fixturesError;
+
+        // Group fixtures into clusters
+        const clusters = groupFixturesIntoClusters(fixtures as FixtureData[] || []);
+
+        // Generate matchdays from clusters
+        await generateMatchdays(
+          challengeId,
+          leagueId,
+          challenge.start_date,
+          challenge.end_date,
+          'matchdays',
+          clusters
+        );
+      } else {
+        // Calendar mode - generate by date range
+        await generateMatchdays(
+          challengeId,
+          leagueId,
+          challenge.start_date,
+          challenge.end_date,
+          'calendar'
+        );
+      }
+
+      // 3. Update status to 'upcoming'
+      const { error: updateError } = await supabase
+        .from('challenges')
+        .update({ status: 'upcoming' })
+        .eq('id', challengeId);
+
+      if (updateError) throw updateError;
+
+      addToast('Challenge published! Matchdays generated.', 'success');
+      await loadChallenges();
+    } catch (err: any) {
+      console.error('Error publishing draft:', err);
+      addToast(err.message || 'Failed to publish draft', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -1064,6 +1151,7 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
               onEdit={handleEditChallenge}
               onArchive={handleArchiveChallenge}
               onRestore={handleRestoreChallenge}
+              onPublish={handlePublishDraft}
               isLoading={isLoading}
             />
           ))
@@ -1098,7 +1186,7 @@ interface CreateSwipeGameFormProps {
     required_badges: string[];
     requires_subscription: boolean;
     period_type: 'matchdays' | 'calendar';
-  }) => void;
+  }, isDraft: boolean) => void;
   onCancel: () => void;
   isLoading: boolean;
   editingChallenge?: Challenge | null;
@@ -1249,8 +1337,8 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
     calculatePeriodCount()
   }, [startDate, endDate, leagueId, periodType])
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (e: React.FormEvent | null, isDraft: boolean = false) => {
+    if (e) e.preventDefault();
 
     // For matchdays mode, calculate dates from selected clusters
     let effectiveStartDate = startDate;
@@ -1286,7 +1374,7 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
       number_of_rounds: periodType === 'matchdays' ? numberOfClusters : undefined,
       // Pass the actual selected clusters for direct use in generateMatchdays
       selected_clusters: periodType === 'matchdays' ? selectedClusters : undefined,
-    } as any);
+    } as any, isDraft);
   };
 
   const levelOptions = levels.length ? levels : [{ name: DEFAULT_MIN_LEVEL }]
@@ -1759,22 +1847,35 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
         <button
           type="button"
           onClick={onCancel}
-          className="flex-1 py-2 bg-navy-accent text-text-secondary rounded-lg font-semibold hover:bg-white/10"
+          className="py-2 px-4 bg-navy-accent text-text-secondary rounded-lg font-semibold hover:bg-white/10"
           disabled={isLoading}
         >
           Cancel
         </button>
+        {!isEditing && (
+          <button
+            type="button"
+            onClick={() => handleSubmit(null, true)}
+            className="flex-1 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 disabled:opacity-50"
+            disabled={isLoading}
+          >
+            {isLoading ? 'Saving...' : 'Save as Draft'}
+          </button>
+        )}
         <button
-          type="submit"
+          type="button"
+          onClick={() => handleSubmit(null, false)}
           className="flex-1 py-2 bg-electric-blue text-white rounded-lg font-semibold hover:bg-electric-blue/80 disabled:opacity-50"
           disabled={isLoading}
         >
-          {isLoading ? (isEditing ? 'Updating...' : 'Creating...') : (isEditing ? 'Update Game' : 'Create Game')}
+          {isLoading ? (isEditing ? 'Updating...' : 'Creating...') : (isEditing ? 'Update Game' : 'Create & Publish')}
         </button>
       </div>
 
       <p className="text-xs text-text-disabled">
-        💡 Matchdays will be automatically generated from fixtures in the selected date range
+        {isEditing
+          ? '💡 Updating will preserve existing matchdays and participants'
+          : '💡 Save as Draft to configure later, or Create & Publish to generate matchdays now'}
       </p>
     </form>
   );
@@ -1849,6 +1950,7 @@ interface ChallengeCardProps {
   onEdit: (challenge: Challenge) => void;
   onArchive: (challengeId: string) => void;
   onRestore: (challengeId: string) => void;
+  onPublish: (challengeId: string) => void;
   isLoading: boolean;
 }
 
@@ -1862,6 +1964,7 @@ const ChallengeCard: React.FC<ChallengeCardProps> = ({
   onEdit,
   onArchive,
   onRestore,
+  onPublish,
   isLoading,
 }) => {
   const canEdit = challenge.status === 'draft' || challenge.status === 'scheduled';
@@ -1948,6 +2051,17 @@ const ChallengeCard: React.FC<ChallengeCardProps> = ({
             disabled={isLoading}
           >
             <Edit3 size={14} /> Edit
+          </button>
+        )}
+
+        {/* Publish - seulement pour draft */}
+        {challenge.status === 'draft' && (
+          <button
+            onClick={() => onPublish(challenge.id)}
+            className="flex items-center gap-1 text-xs font-semibold bg-electric-blue/20 text-electric-blue px-3 py-2 rounded-lg hover:bg-electric-blue/30"
+            disabled={isLoading}
+          >
+            <Play size={14} /> Publish
           </button>
         )}
 
