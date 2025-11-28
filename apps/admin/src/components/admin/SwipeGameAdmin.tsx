@@ -28,6 +28,17 @@ const DEFAULT_DURATION: DurationKey = 'flash'
 const DEFAULT_TIER: SwipeTier = 'amateur'
 const DEFAULT_MIN_LEVEL = 'Rookie' // Progression level, not tier
 
+// Helper to extract round number from "Regular Season - 14" -> "J14"
+function extractRoundNumber(round: string): string {
+  const match = round.match(/\d+/)
+  return match ? `J${match[0]}` : round
+}
+
+// Helper to format date for display
+function formatMatchDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
 interface SwipeGameAdminProps {
   addToast: (message: string, type: 'success' | 'error' | 'info') => void;
 }
@@ -280,6 +291,8 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
     required_badges: string[];
     requires_subscription: boolean;
     period_type: 'matchdays' | 'calendar';
+    starting_round?: string;
+    number_of_rounds?: number;
   }) => {
     setIsLoading(true);
     try {
@@ -312,7 +325,15 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
       addToast('Challenge created successfully!', 'success');
 
       // 2. Auto-generate matchdays and link fixtures
-      await generateMatchdays(challenge.id, formData.league_id, formData.start_date, formData.end_date, formData.period_type);
+      await generateMatchdays(
+        challenge.id,
+        formData.league_id,
+        formData.start_date,
+        formData.end_date,
+        formData.period_type,
+        formData.starting_round,
+        formData.number_of_rounds
+      );
 
       addToast('Matchdays generated successfully!', 'success');
       setShowCreateForm(false);
@@ -330,39 +351,35 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
     leagueId: string,
     startDate: string,
     endDate: string,
-    periodType: 'matchdays' | 'calendar' = 'matchdays'
+    periodType: 'matchdays' | 'calendar' = 'matchdays',
+    startingRound?: string,
+    numberOfRounds?: number
   ) => {
-    // Get all fixtures in the date range for this league
-    const { data: fixtures, error } = await supabase
-      .from('fb_fixtures')
-      .select('id, date, league_id')
-      .eq('league_id', leagueId)
-      .gte('date', startDate)
-      .lte('date', endDate)
-      .order('date');
-
-    if (error) throw error;
-
-    if (!fixtures || fixtures.length === 0) {
-      throw new Error('No fixtures found in this date range for the selected league');
-    }
-
     if (periodType === 'calendar') {
-      // CALENDAR MODE: One matchday per calendar day
+      // CALENDAR MODE: One matchday per calendar day, using date range
+      const { data: fixtures, error } = await supabase
+        .from('fb_fixtures')
+        .select('id, date, league_id')
+        .eq('league_id', leagueId)
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date');
+
+      if (error) throw error;
+
       const start = new Date(startDate);
       const end = new Date(endDate);
       let currentDate = new Date(start);
-      let dayNumber = 1;
 
       while (currentDate <= end) {
         const dateStr = currentDate.toISOString().split('T')[0];
 
         // Find fixtures for this day
-        const fixturesForDay = fixtures.filter(f =>
+        const fixturesForDay = fixtures?.filter(f =>
           getMatchdayDate(f.date) === dateStr
-        );
+        ) || [];
 
-        // Create matchday even if no fixtures (user can still participate)
+        // Create matchday even if no fixtures
         const matchday = await swipeService.getOrCreateMatchday(challengeId, dateStr);
 
         // Link fixtures if any
@@ -380,27 +397,64 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
         }
 
         currentDate.setDate(currentDate.getDate() + 1);
-        dayNumber++;
       }
     } else {
-      // MATCHDAYS MODE: Group by actual match dates
-      const fixturesByDate = new Map<string, string[]>();
-      for (const fixture of fixtures) {
-        const date = getMatchdayDate(fixture.date);
-        const existing = fixturesByDate.get(date) || [];
-        fixturesByDate.set(date, [...existing, fixture.id]);
+      // MATCHDAYS MODE: Group by round (championship gameweek)
+      // First, get all unique rounds for this league in date range
+      const { data: allFixtures, error: fixturesError } = await supabase
+        .from('fb_fixtures')
+        .select('id, date, round')
+        .eq('league_id', leagueId)
+        .gte('date', new Date().toISOString())
+        .order('date');
+
+      if (fixturesError) throw fixturesError;
+
+      if (!allFixtures || allFixtures.length === 0) {
+        throw new Error('No fixtures found for the selected league');
       }
 
-      // Create matchdays and link fixtures
-      for (const [date, fixtureIds] of fixturesByDate.entries()) {
-        const matchday = await swipeService.getOrCreateMatchday(challengeId, date);
-        await swipeService.linkFixturesToMatchday(matchday.id, fixtureIds);
-
-        // Set deadline to first kickoff time
-        const firstFixture = fixtures.find(f => getMatchdayDate(f.date) === date);
-        if (firstFixture) {
-          await swipeService.updateMatchdayDeadline(matchday.id, firstFixture.date);
+      // Get unique rounds sorted by first match date
+      const roundsMap = new Map<string, { round: string, firstMatch: string, fixtures: typeof allFixtures }>();
+      for (const fixture of allFixtures) {
+        if (!fixture.round) continue;
+        const existing = roundsMap.get(fixture.round);
+        if (!existing) {
+          roundsMap.set(fixture.round, { round: fixture.round, firstMatch: fixture.date, fixtures: [fixture] });
+        } else {
+          existing.fixtures.push(fixture);
         }
+      }
+
+      const sortedRounds = [...roundsMap.values()].sort((a, b) =>
+        new Date(a.firstMatch).getTime() - new Date(b.firstMatch).getTime()
+      );
+
+      // If startingRound is provided, find which rounds to use
+      let roundsToCreate = sortedRounds;
+      if (startingRound && numberOfRounds) {
+        const startIdx = sortedRounds.findIndex(r => r.round === startingRound);
+        if (startIdx >= 0) {
+          roundsToCreate = sortedRounds.slice(startIdx, startIdx + numberOfRounds);
+        }
+      }
+
+      if (roundsToCreate.length === 0) {
+        throw new Error('No rounds found for the selected criteria');
+      }
+
+      // Create one matchday per round
+      for (const roundData of roundsToCreate) {
+        const firstMatchDate = roundData.fixtures.sort((a, b) =>
+          new Date(a.date).getTime() - new Date(b.date).getTime()
+        )[0]?.date;
+
+        if (!firstMatchDate) continue;
+
+        const dateStr = getMatchdayDate(firstMatchDate);
+        const matchday = await swipeService.getOrCreateMatchday(challengeId, dateStr);
+        await swipeService.linkFixturesToMatchday(matchday.id, roundData.fixtures.map(f => f.id));
+        await swipeService.updateMatchdayDeadline(matchday.id, firstMatchDate);
       }
     }
   };
@@ -1027,6 +1081,11 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
   const [requiresSubscription, setRequiresSubscription] = useState(false)
   const [periodType, setPeriodType] = useState<'matchdays' | 'calendar'>('matchdays')
   const [periodInfo, setPeriodInfo] = useState<{ type: string; count: number } | null>(null)
+
+  // Matchdays mode - round selection
+  const [availableRounds, setAvailableRounds] = useState<{round: string, firstMatch: string, lastMatch: string, fixtureCount: number}[]>([])
+  const [startingRound, setStartingRound] = useState<string>('')
+  const [numberOfRounds, setNumberOfRounds] = useState<number>(1)
   const [publishMode, setPublishMode] = useState<'now' | 'later'>('now')
   const [publishDate, setPublishDate] = useState('')
   const [publishTime, setPublishTime] = useState('09:00')
@@ -1051,6 +1110,55 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
       setMinimumLevel(levels[0].name)
     }
   }, [levels, minimumLevel])
+
+  // Load available rounds when league changes (for matchdays mode)
+  useEffect(() => {
+    if (!leagueId) {
+      setAvailableRounds([])
+      return
+    }
+
+    const loadAvailableRounds = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('fb_fixtures')
+          .select('round, date')
+          .eq('league_id', leagueId)
+          .gte('date', new Date().toISOString())
+          .order('date')
+
+        if (error) throw error
+
+        // Group by round and calculate first/last match + count
+        const roundsMap = new Map<string, {round: string, firstMatch: string, lastMatch: string, fixtureCount: number}>()
+        data?.forEach((f: {round: string, date: string}) => {
+          if (!f.round) return
+          const existing = roundsMap.get(f.round)
+          if (!existing) {
+            roundsMap.set(f.round, { round: f.round, firstMatch: f.date, lastMatch: f.date, fixtureCount: 1 })
+          } else {
+            existing.fixtureCount++
+            if (f.date > existing.lastMatch) existing.lastMatch = f.date
+          }
+        })
+
+        // Sort by first match date
+        const sorted = [...roundsMap.values()].sort((a, b) =>
+          new Date(a.firstMatch).getTime() - new Date(b.firstMatch).getTime()
+        )
+
+        setAvailableRounds(sorted)
+        if (sorted.length > 0 && !startingRound) {
+          setStartingRound(sorted[0].round)
+        }
+      } catch (error) {
+        console.error('Error loading available rounds:', error)
+        setAvailableRounds([])
+      }
+    }
+
+    loadAvailableRounds()
+  }, [leagueId])
 
   // Calculate period count when dates, league, or period type changes
   useEffect(() => {
@@ -1097,11 +1205,25 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // For matchdays mode, calculate dates from selected rounds
+    let effectiveStartDate = startDate;
+    let effectiveEndDate = endDate;
+
+    if (periodType === 'matchdays' && availableRounds.length > 0) {
+      const startIdx = availableRounds.findIndex(r => r.round === startingRound);
+      const selectedRounds = availableRounds.slice(startIdx, startIdx + numberOfRounds);
+      if (selectedRounds.length > 0) {
+        effectiveStartDate = selectedRounds[0].firstMatch.split('T')[0];
+        effectiveEndDate = selectedRounds[selectedRounds.length - 1].lastMatch.split('T')[0];
+      }
+    }
+
     onSubmit({
       name,
       league_id: leagueId,
-      start_date: startDate,
-      end_date: endDate,
+      start_date: effectiveStartDate,
+      end_date: effectiveEndDate,
       entry_cost: entryCost,
       description,
       game_type: gameType,
@@ -1114,6 +1236,9 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
       required_badges: requiredBadges,
       requires_subscription: requiresSubscription,
       period_type: periodType,
+      // Pass round info for matchdays mode
+      starting_round: periodType === 'matchdays' ? startingRound : undefined,
+      number_of_rounds: periodType === 'matchdays' ? numberOfRounds : undefined,
     });
   };
 
@@ -1175,33 +1300,7 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
         </select>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-semibold text-text-secondary mb-1">
-            Start Date
-          </label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={e => setStartDate(e.target.value)}
-            className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
-            required
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-text-secondary mb-1">
-            End Date
-          </label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={e => setEndDate(e.target.value)}
-            className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
-            required
-          />
-        </div>
-      </div>
-
+      {/* Period Type Selection */}
       <div>
         <label className="block text-xs font-semibold text-text-secondary mb-1">
           Period Type
@@ -1211,42 +1310,147 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
           onChange={(e) => setPeriodType(e.target.value as 'matchdays' | 'calendar')}
           className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
         >
-          <option value="matchdays">Matchdays (grouped by match dates)</option>
-          <option value="calendar">Calendar Days (one period per day)</option>
+          <option value="matchdays">Matchdays (by round/gameweek)</option>
+          <option value="calendar">Calendar Days (by date range)</option>
         </select>
         <p className="text-xs text-text-disabled mt-1">
           {periodType === 'matchdays'
-            ? 'Periods grouped by actual match dates (e.g., GW1, GW2...)'
+            ? 'Select championship rounds (e.g., J14, J15, J16...)'
             : 'One period for each calendar day from start to end'}
         </p>
       </div>
 
-      {periodInfo && (
-        <div className="bg-electric-blue/10 border border-electric-blue/20 rounded-lg p-4">
-          <div className="flex items-center gap-3">
-            <div className="text-3xl">
-              {periodInfo.type === 'calendar' ? '📅' : '⚽'}
+      {/* MATCHDAYS MODE - Round selection */}
+      {periodType === 'matchdays' && (
+        <>
+          {availableRounds.length > 0 ? (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">
+                    Starting Round
+                  </label>
+                  <select
+                    value={startingRound}
+                    onChange={e => {
+                      setStartingRound(e.target.value)
+                      // Reset number of rounds if it exceeds max
+                      const startIdx = availableRounds.findIndex(r => r.round === e.target.value)
+                      const maxRounds = availableRounds.length - startIdx
+                      if (numberOfRounds > maxRounds) setNumberOfRounds(maxRounds)
+                    }}
+                    className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+                  >
+                    {availableRounds.map(r => (
+                      <option key={r.round} value={r.round}>
+                        {extractRoundNumber(r.round)} - {formatMatchDate(r.firstMatch)} ({r.fixtureCount} matchs)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">
+                    Number of Rounds
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={availableRounds.length - availableRounds.findIndex(r => r.round === startingRound)}
+                    value={numberOfRounds}
+                    onChange={e => setNumberOfRounds(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+                  />
+                  <p className="text-xs text-text-disabled mt-1">
+                    Max: {availableRounds.length - availableRounds.findIndex(r => r.round === startingRound)} rounds disponibles
+                  </p>
+                </div>
+              </div>
+
+              {/* Preview */}
+              {(() => {
+                const startIdx = availableRounds.findIndex(r => r.round === startingRound)
+                const selectedRounds = availableRounds.slice(startIdx, startIdx + numberOfRounds)
+                const endRound = selectedRounds[selectedRounds.length - 1]
+                const totalFixtures = selectedRounds.reduce((sum, r) => sum + r.fixtureCount, 0)
+                return (
+                  <div className="bg-electric-blue/10 border border-electric-blue/20 rounded-lg p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="text-3xl">⚽</div>
+                      <div className="flex-1">
+                        <p className="font-bold text-lg text-electric-blue">
+                          {numberOfRounds} journée{numberOfRounds > 1 ? 's' : ''}
+                        </p>
+                        <p className="text-sm text-text-primary">
+                          De {extractRoundNumber(startingRound)} à {extractRoundNumber(endRound?.round || startingRound)}
+                        </p>
+                        <p className="text-xs text-text-secondary">
+                          Du {formatMatchDate(selectedRounds[0]?.firstMatch)} au {formatMatchDate(endRound?.lastMatch || selectedRounds[0]?.lastMatch)}
+                        </p>
+                        <p className="text-xs text-text-disabled mt-1">
+                          {totalFixtures} matchs au total
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
+            </>
+          ) : (
+            <div className="bg-hot-red/10 border border-hot-red/20 rounded-lg p-4">
+              <p className="text-hot-red text-sm">
+                {leagueId ? '⚠️ Aucune journée future trouvée pour cette ligue' : 'Sélectionnez une ligue pour voir les journées disponibles'}
+              </p>
             </div>
-            <div className="flex-1">
-              <p className="font-bold text-lg text-electric-blue">
-                {periodInfo.count} {periodInfo.type === 'calendar' ? 'jours calendaires' : 'matchdays'}
-              </p>
-              <p className="text-xs text-text-secondary">
-                Du {new Date(startDate).toLocaleDateString('fr-FR')} au {new Date(endDate).toLocaleDateString('fr-FR')}
-              </p>
-              {periodInfo.type === 'matchdays' && periodInfo.count === 0 && (
-                <p className="text-xs text-hot-red mt-1">
-                  ⚠️ Aucun match trouvé pour cette ligue dans cette période
-                </p>
-              )}
-              {periodInfo.type === 'matchdays' && periodInfo.count > 0 && (
-                <p className="text-xs text-text-disabled mt-1">
-                  Basé sur les fixtures disponibles pour cette ligue
-                </p>
-              )}
+          )}
+        </>
+      )}
+
+      {/* CALENDAR MODE - Date range selection */}
+      {periodType === 'calendar' && (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1">
+                Start Date
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={e => setStartDate(e.target.value)}
+                className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1">
+                End Date
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={e => setEndDate(e.target.value)}
+                className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+                required
+              />
             </div>
           </div>
-        </div>
+
+          {periodInfo && (
+            <div className="bg-electric-blue/10 border border-electric-blue/20 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <div className="text-3xl">📅</div>
+                <div className="flex-1">
+                  <p className="font-bold text-lg text-electric-blue">
+                    {periodInfo.count} jours calendaires
+                  </p>
+                  <p className="text-xs text-text-secondary">
+                    Du {new Date(startDate).toLocaleDateString('fr-FR')} au {new Date(endDate).toLocaleDateString('fr-FR')}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       <div className="grid grid-cols-3 gap-3">
