@@ -13,11 +13,25 @@ export type CtaState = 'JOIN' | 'PLACE_BETS' | 'MAKE_PREDICTIONS' | 'SELECT_TEAM
 type GamesTab = 'my-games' | 'browse';
 
 /**
- * Calculates entry deadline: 30 minutes before the first match (start_date)
+ * Calculates entry deadline: 30 minutes before the first match
+ * Uses kickoffTime from matches if available, otherwise falls back to start_date
  */
 export function calculateEntryDeadline(game: SportimeGame): Date {
+  // Try to get the earliest kickoff time from matches
+  if (game.matches && game.matches.length > 0) {
+    const kickoffTimes = game.matches
+      .map(m => new Date(m.kickoffTime).getTime())
+      .filter(t => !isNaN(t));
+
+    if (kickoffTimes.length > 0) {
+      const firstKickoff = Math.min(...kickoffTimes);
+      return new Date(firstKickoff - 30 * 60 * 1000); // 30 minutes before first match
+    }
+  }
+
+  // Fallback to start_date (may be midnight, so less accurate)
   const firstMatchDate = parseISO(game.start_date);
-  return new Date(firstMatchDate.getTime() - 30 * 60 * 1000); // 30 minutes before
+  return new Date(firstMatchDate.getTime() - 30 * 60 * 1000);
 }
 
 /**
