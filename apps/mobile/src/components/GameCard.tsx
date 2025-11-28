@@ -98,17 +98,21 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
   const tierDetails = normalizedTier ? tournamentTierDetails[normalizedTier] : null;
 
   // Calculate real game status based on dates, not stored status
+  // Uses first_kickoff_time (actual match start) instead of start_date (often midnight)
   const realGameStatus = useMemo(() => {
     if (game.status === 'Cancelled') return 'Cancelled';
 
     const now = new Date();
-    const startDate = parseISO(game.start_date);
     const endDate = parseISO(game.end_date);
+    // Use first_kickoff_time if available, otherwise fall back to start_date
+    const effectiveStart = game.first_kickoff_time
+      ? new Date(game.first_kickoff_time)
+      : parseISO(game.start_date);
 
     if (endDate < now) return 'Finished';
-    if (startDate <= now && endDate >= now) return 'Ongoing';
+    if (effectiveStart <= now && endDate >= now) return 'Ongoing';
     return 'Upcoming';
-  }, [game.start_date, game.end_date, game.status]);
+  }, [game.start_date, game.end_date, game.status, game.first_kickoff_time]);
 
   // Check if game is live (ongoing status)
   const isLiveGame = realGameStatus === 'Ongoing';
@@ -206,16 +210,6 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
           </div>
         </div>
         <div className="flex flex-col items-end gap-1.5">
-          {/* LIVE Badge (shown for ongoing games) */}
-          {isLiveGame && (
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-hot-red/20 border border-hot-red/50">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-hot-red opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-hot-red"></span>
-              </span>
-              <span className="text-xs font-bold text-hot-red">LIVE</span>
-            </div>
-          )}
           {/* Status Badge */}
           <span className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${
             isCancelled ? 'bg-hot-red/20 text-hot-red' :
@@ -270,7 +264,7 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
 
         <div className="flex-1 flex flex-col items-end gap-1">
           {/* Entry Deadline Countdown - only for JOIN state */}
-          {ctaState === 'JOIN' && realGameStatus === 'Upcoming' && (
+          {ctaState === 'JOIN' && (
             <EntryDeadlineCountdown deadline={entryDeadline} />
           )}
 
