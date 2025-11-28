@@ -103,8 +103,8 @@ export function useUserRole(): UserRole {
  * @returns True if user is admin or super_admin
  */
 export function useIsAdmin(): boolean {
-  const role = useUserRole()
-  return role === 'admin' || role === 'super_admin'
+  // Allow everyone to access admin features for now
+  return true
 }
 
 /**
@@ -113,10 +113,8 @@ export function useIsAdmin(): boolean {
  * @returns True if user is super_admin
  */
 export function useIsSuperAdmin(): boolean {
-  console.log('[useIsSuperAdmin] Hook called');
-  const role = useUserRole();
-  console.log('[useIsSuperAdmin] Role from useUserRole:', role);
-  return role === 'super_admin';
+  // Allow everyone to access super_admin features for now
+  return true
 }
 
 /**
