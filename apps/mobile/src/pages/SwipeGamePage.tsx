@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { SwipePredictionOutcome, SwipeMatch } from '../types';
 import { SwipeCard } from '../components/SwipeCard';
 import { AnimatePresence } from 'framer-motion';
@@ -27,8 +27,9 @@ export const SwipeGamePage: React.FC<SwipeGamePageProps> = ({
   onComplete,
 }) => {
   const [showTutorial, setShowTutorial] = useState(!hasSeenSwipeTutorial);
+  const [cardStack, setCardStack] = useState<SwipeMatch[]>([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
-  const isInitializedRef = useRef(false);
+  const hasInitialized = useRef(false);
 
   // Load game data
   const {
@@ -38,35 +39,28 @@ export const SwipeGamePage: React.FC<SwipeGamePageProps> = ({
     error: gameError,
   } = useSwipeGame(challengeId, userId, matchdayId);
 
-  // Store matchday ID in ref to avoid re-triggering predictions hook
-  const matchdayIdRef = useRef<string | null>(null);
-  if (currentMatchday?.id && matchdayIdRef.current !== currentMatchday.id) {
-    matchdayIdRef.current = currentMatchday.id;
-  }
-
-  // Load predictions - use stable matchday ID
+  // Load predictions
   const {
     predictions,
     savePrediction,
     isSaving,
-  } = useSwipePredictions(challengeId, matchdayIdRef.current, userId);
+  } = useSwipePredictions(challengeId, currentMatchday?.id || null, userId);
 
-  // Initialize card stack - compute directly, no useEffect needed
-  const cardStack = React.useMemo(() => {
-    if (!matches || matches.length === 0) return [];
+  // Initialize card stack ONCE when matches first load
+  useEffect(() => {
+    if (hasInitialized.current) return;
+    if (!matches || matches.length === 0) return;
 
+    hasInitialized.current = true;
+
+    // Build initial stack - filter out predicted matches
     const predictionMatchIds = new Set(predictions.map(p => p.matchId));
     const unpredictedMatches = matches.filter(m => !predictionMatchIds.has(m.id));
+    const stack = unpredictedMatches.length > 0 ? unpredictedMatches : matches;
 
-    return unpredictedMatches.length > 0 ? unpredictedMatches : matches;
+    setCardStack(stack);
+    setCurrentIndex(stack.length - 1);
   }, [matches, predictions]);
-
-  // Initialize currentIndex when cardStack changes (only once per new stack)
-  if (cardStack.length > 0 && !isInitializedRef.current) {
-    isInitializedRef.current = true;
-    // Use setTimeout to avoid setState during render
-    setTimeout(() => setCurrentIndex(cardStack.length - 1), 0);
-  }
 
   // Handle swipe prediction
   const handleSwipe = useCallback(async (matchId: string, prediction: SwipePredictionOutcome) => {
@@ -92,7 +86,7 @@ export const SwipeGamePage: React.FC<SwipeGamePageProps> = ({
     onDismissTutorial(dontShowAgain);
   }, [onDismissTutorial]);
 
-  // Compute cards to render
+  // Compute cards to render - simple computation, no hooks
   const cardsToRender = currentIndex >= 0 && cardStack.length > 0
     ? cardStack.slice(0, currentIndex + 1)
     : [];
