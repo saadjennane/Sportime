@@ -687,7 +687,8 @@ function App() {
   };
 
   const handleExitSwiping = () => {
-    setSwipeGameViewMode('recap');
+    setActiveSwipeGameId(null);
+    setSwipeGameViewMode(null);
   };
 
   const handleDismissSwipeTutorial = (dontShowAgain: boolean) => {

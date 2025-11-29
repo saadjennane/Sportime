@@ -10,7 +10,7 @@ interface SwipeCardProps {
   currentPrediction?: SwipePredictionOutcome;
 }
 
-const swipeThreshold = 100;
+const swipeThreshold = 50;
 
 const cardVariants = {
   initial: { scale: 0.95, y: 20, opacity: 0 },
@@ -44,18 +44,23 @@ export const SwipeCard: React.FC<SwipeCardProps> = ({ match, onSwipe, isTop, cur
 
   const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     if (!isTop) return;
-    
-    const { offset } = info;
+
+    const { offset, velocity } = info;
     let direction: 'left' | 'right' | 'up' | null = null;
     let prediction: SwipePredictionOutcome | null = null;
 
-    if (offset.y < -swipeThreshold && Math.abs(offset.y) > Math.abs(offset.x)) {
+    // Swipe vertical (draw) - priorité si mouvement majoritairement vertical
+    if ((offset.y < -swipeThreshold || velocity.y < -500) && Math.abs(offset.y) > Math.abs(offset.x)) {
       direction = 'up';
       prediction = 'draw';
-    } else if (offset.x < -swipeThreshold) {
+    }
+    // Swipe gauche avec threshold OU vélocité rapide
+    else if (offset.x < -swipeThreshold || velocity.x < -500) {
       direction = 'left';
       prediction = 'teamA';
-    } else if (offset.x > swipeThreshold) {
+    }
+    // Swipe droite avec threshold OU vélocité rapide
+    else if (offset.x > swipeThreshold || velocity.x > 500) {
       direction = 'right';
       prediction = 'teamB';
     }
@@ -70,20 +75,20 @@ export const SwipeCard: React.FC<SwipeCardProps> = ({ match, onSwipe, isTop, cur
 
   // Helper component for team logo/fallback
   const TeamLogo = ({ team }: { team: { name: string; logo?: string; emoji: string } }) => {
-    if (team.logo) {
+    const [imageError, setImageError] = React.useState(false);
+
+    if (team.logo && !imageError) {
       return (
         <img
           src={team.logo}
           alt={team.name}
           className="w-16 h-16 object-contain"
-          onError={(e) => {
-            // Fallback to initial if logo fails to load
-            (e.target as HTMLImageElement).style.display = 'none';
-            (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
-          }}
+          onError={() => setImageError(true)}
         />
       );
     }
+
+    // Fallback: Initial letter
     return (
       <div className="w-16 h-16 bg-deep-navy rounded-full flex items-center justify-center text-2xl font-bold text-text-secondary">
         {team.name.charAt(0)}

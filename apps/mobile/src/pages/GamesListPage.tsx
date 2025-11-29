@@ -168,7 +168,12 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
         } else if (game.game_type === 'prediction') {
           const userEntry = userSwipeEntries.find(e => e.matchDayId === game.id);
           if (userEntry) {
-            isComplete = userEntry.predictions.length >= (game.matches?.length || 0);
+            const allPredictionsMade = userEntry.predictions.length >= (game.matches?.length || 0);
+            // Utiliser first_kickoff_time pour vérifier si le premier match a commencé
+            const firstKickoff = game.first_kickoff_time ? new Date(game.first_kickoff_time) : null;
+            const hasFirstMatchStarted = firstKickoff ? firstKickoff <= now : false;
+            // Complet seulement si toutes les prédictions ET le premier match a commencé
+            isComplete = allPredictionsMade && hasFirstMatchStarted;
           }
         } else if (game.game_type === 'fantasy') {
           const userTeam = userFantasyTeams.find(t => t.gameId === game.id);
@@ -276,8 +281,15 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       const userEntry = userSwipeEntries.find(e => e.matchDayId === game.id);
       if (!userEntry) return 'MAKE_PREDICTIONS';
 
-      const isComplete = userEntry.predictions.length >= (game.matches?.length || 0);
-      return isComplete ? 'AWAITING' : 'MAKE_PREDICTIONS';
+      const allPredictionsMade = userEntry.predictions.length >= (game.matches?.length || 0);
+      const firstKickoff = game.first_kickoff_time ? new Date(game.first_kickoff_time) : null;
+      const hasFirstMatchStarted = firstKickoff ? firstKickoff <= new Date() : false;
+
+      // Awaiting seulement si complet ET premier match commencé
+      if (allPredictionsMade && hasFirstMatchStarted) {
+        return 'AWAITING';
+      }
+      return 'MAKE_PREDICTIONS';
     }
 
     return 'JOIN';
