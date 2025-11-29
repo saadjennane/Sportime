@@ -46,6 +46,11 @@ export const SwipeGamePage: React.FC<SwipeGamePageProps> = ({
     isSaving,
   } = useSwipePredictions(challengeId, currentMatchday?.id || null, userId);
 
+  // Stabilize savePrediction reference to prevent handleSwipe recreation
+  // This breaks the re-render cascade: savePrediction changes → handleSwipe recreates → SwipeCard re-renders
+  const savePredictionRef = useRef(savePrediction);
+  savePredictionRef.current = savePrediction;
+
   // Initialize card stack ONCE when matches first load
   // IMPORTANT: Do NOT depend on predictions - that causes the infinite loop!
   // The card stack should be ALL matches, and we track completion via currentIndex
@@ -62,6 +67,7 @@ export const SwipeGamePage: React.FC<SwipeGamePageProps> = ({
   }, [matches]); // ONLY matches - NOT predictions!
 
   // Handle swipe prediction
+  // Uses savePredictionRef to avoid recreating this callback when savePrediction changes
   const handleSwipe = useCallback(async (matchId: string, prediction: SwipePredictionOutcome) => {
     if (currentIndex < 0 || !currentMatchday) return;
 
@@ -69,7 +75,7 @@ export const SwipeGamePage: React.FC<SwipeGamePageProps> = ({
     if (!match) return;
 
     try {
-      await savePrediction(matchId, prediction, match.odds);
+      await savePredictionRef.current(matchId, prediction, match.odds);
       setCurrentIndex(prevIndex => prevIndex - 1);
 
       if (currentIndex === 0 && onComplete) {
@@ -78,7 +84,7 @@ export const SwipeGamePage: React.FC<SwipeGamePageProps> = ({
     } catch (err) {
       console.error('Error saving prediction:', err);
     }
-  }, [currentIndex, currentMatchday, cardStack, savePrediction, onComplete]);
+  }, [currentIndex, currentMatchday, cardStack, onComplete]); // NO savePrediction - uses ref instead
 
   const handleCloseTutorial = useCallback((dontShowAgain: boolean) => {
     setShowTutorial(false);
