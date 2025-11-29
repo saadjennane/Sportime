@@ -106,7 +106,7 @@ export function useSwipePredictions(
     }
   }, [matchdayId, userId]);
 
-  // Save a prediction
+  // Save a prediction - using OPTIMISTIC UPDATE to avoid re-render cascade
   const savePrediction = useCallback(
     async (
       fixtureId: string,
@@ -120,15 +120,36 @@ export function useSwipePredictions(
       setIsSaving(true);
       setError(null);
 
+      // 1. Create optimistic prediction BEFORE API call
+      const optimisticPrediction: SwipePrediction = {
+        matchId: fixtureId,
+        prediction,
+        oddsAtPrediction: odds,
+      };
+
+      // 2. Store previous state for rollback
+      const previousPredictions = predictions;
+
+      // 3. Optimistic update - update local state immediately
+      setPredictions(prev => {
+        const existingIndex = prev.findIndex(p => p.matchId === fixtureId);
+        if (existingIndex >= 0) {
+          // Update existing prediction
+          const updated = [...prev];
+          updated[existingIndex] = optimisticPrediction;
+          return updated;
+        }
+        // Add new prediction
+        return [...prev, optimisticPrediction];
+      });
+
       try {
-        // Convert odds from UI format to DB format
+        // 4. Convert and save to DB (NO reload after!)
         const dbOdds = {
           home: odds.teamA,
           draw: odds.draw,
           away: odds.teamB,
         };
-
-        // Convert prediction from UI format to DB format
         const dbPrediction = mapOutcomeToPrediction(prediction);
 
         await swipeService.savePrediction({
@@ -140,17 +161,18 @@ export function useSwipePredictions(
           odds: dbOdds,
         });
 
-        // Reload predictions to get updated state
-        await loadPredictions();
+        // Success! Local state is already correct, no need to reload
       } catch (err) {
+        // 5. Rollback on error - restore previous state
         console.error('Error saving prediction:', err);
+        setPredictions(previousPredictions);
         setError(err as Error);
         throw err;
       } finally {
         setIsSaving(false);
       }
     },
-    [challengeId, matchdayId, userId, loadPredictions]
+    [challengeId, matchdayId, userId, predictions] // NO loadPredictions dependency!
   );
 
   // Check if user has prediction for a fixture

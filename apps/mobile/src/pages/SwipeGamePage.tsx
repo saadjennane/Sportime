@@ -47,20 +47,19 @@ export const SwipeGamePage: React.FC<SwipeGamePageProps> = ({
   } = useSwipePredictions(challengeId, currentMatchday?.id || null, userId);
 
   // Initialize card stack ONCE when matches first load
+  // IMPORTANT: Do NOT depend on predictions - that causes the infinite loop!
+  // The card stack should be ALL matches, and we track completion via currentIndex
   useEffect(() => {
     if (hasInitialized.current) return;
     if (!matches || matches.length === 0) return;
 
     hasInitialized.current = true;
 
-    // Build initial stack - filter out predicted matches
-    const predictionMatchIds = new Set(predictions.map(p => p.matchId));
-    const unpredictedMatches = matches.filter(m => !predictionMatchIds.has(m.id));
-    const stack = unpredictedMatches.length > 0 ? unpredictedMatches : matches;
-
-    setCardStack(stack);
-    setCurrentIndex(stack.length - 1);
-  }, [matches, predictions]);
+    // Set stack to ALL matches - we'll use currentIndex to track progress
+    // Don't filter by predictions here - that would cause re-render cascade
+    setCardStack(matches);
+    setCurrentIndex(matches.length - 1);
+  }, [matches]); // ONLY matches - NOT predictions!
 
   // Handle swipe prediction
   const handleSwipe = useCallback(async (matchId: string, prediction: SwipePredictionOutcome) => {
