@@ -48,19 +48,26 @@ export const SwipeGamePage: React.FC<SwipeGamePageProps> = ({
   const [cardStack, setCardStack] = useState<SwipeMatch[]>([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
 
+  // Memoize prediction match IDs to avoid recalculating on every render
+  const predictionMatchIds = useMemo(
+    () => new Set(predictions.map(p => p.matchId)),
+    [predictions]
+  );
+
   // Initialize card stack with unpredicted matches
   useEffect(() => {
     if (!matches || matches.length === 0) return;
 
     // Filter out matches that already have predictions
-    const unpredictedMatches = matches.filter(m => !hasPredictionFor(m.id));
+    const unpredictedMatches = matches.filter(m => !predictionMatchIds.has(m.id));
 
     // If all matches are predicted, show all matches (for editing)
     const initialStack = unpredictedMatches.length > 0 ? unpredictedMatches : matches;
 
     setCardStack(initialStack);
     setCurrentIndex(initialStack.length - 1);
-  }, [matches, predictions, hasPredictionFor]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matches, predictionMatchIds]);
 
   // Handle swipe prediction
   const handleSwipe = async (matchId: string, prediction: SwipePredictionOutcome) => {
