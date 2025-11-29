@@ -172,7 +172,7 @@ export function useSwipePredictions(
         setIsSaving(false);
       }
     },
-    [challengeId, matchdayId, userId, predictions] // NO loadPredictions dependency!
+    [challengeId, matchdayId, userId] // NO predictions or loadPredictions - setPredictions uses functional update
   );
 
   // Check if user has prediction for a fixture
