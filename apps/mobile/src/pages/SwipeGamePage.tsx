@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { SwipePredictionOutcome, SwipeMatch } from '../types';
 import { SwipeCard } from '../components/SwipeCard';
 import { AnimatePresence } from 'framer-motion';
@@ -14,7 +14,7 @@ interface SwipeGamePageProps {
   hasSeenSwipeTutorial: boolean;
   onDismissTutorial: (dontShowAgain: boolean) => void;
   onExit: () => void;
-  onComplete?: () => void; // Called when all predictions are made
+  onComplete?: () => void;
 }
 
 export const SwipeGamePage: React.FC<SwipeGamePageProps> = ({
@@ -27,6 +27,8 @@ export const SwipeGamePage: React.FC<SwipeGamePageProps> = ({
   onComplete,
 }) => {
   const [showTutorial, setShowTutorial] = useState(!hasSeenSwipeTutorial);
+  const [currentIndex, setCurrentIndex] = useState(-1);
+  const isInitializedRef = useRef(false);
 
   // Load game data
   const {
@@ -36,74 +38,64 @@ export const SwipeGamePage: React.FC<SwipeGamePageProps> = ({
     error: gameError,
   } = useSwipeGame(challengeId, userId, matchdayId);
 
-  // Load predictions
+  // Store matchday ID in ref to avoid re-triggering predictions hook
+  const matchdayIdRef = useRef<string | null>(null);
+  if (currentMatchday?.id && matchdayIdRef.current !== currentMatchday.id) {
+    matchdayIdRef.current = currentMatchday.id;
+  }
+
+  // Load predictions - use stable matchday ID
   const {
     predictions,
     savePrediction,
-    hasPredictionFor,
     isSaving,
-    isLoading: isLoadingPredictions,
-  } = useSwipePredictions(challengeId, currentMatchday?.id || null, userId);
+  } = useSwipePredictions(challengeId, matchdayIdRef.current, userId);
 
-  const [cardStack, setCardStack] = useState<SwipeMatch[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(-1);
-  const [isInitialized, setIsInitialized] = useState(false);
+  // Initialize card stack - compute directly, no useEffect needed
+  const cardStack = React.useMemo(() => {
+    if (!matches || matches.length === 0) return [];
 
-  // Initialize card stack with unpredicted matches - only run once when data is ready
-  useEffect(() => {
-    // Only initialize once when matches are loaded and we haven't initialized yet
-    if (isInitialized || !matches || matches.length === 0) return;
-
-    // Create set of predicted match IDs
     const predictionMatchIds = new Set(predictions.map(p => p.matchId));
-
-    // Filter out matches that already have predictions
     const unpredictedMatches = matches.filter(m => !predictionMatchIds.has(m.id));
 
-    // If all matches are predicted, show all matches (for editing)
-    const initialStack = unpredictedMatches.length > 0 ? unpredictedMatches : matches;
+    return unpredictedMatches.length > 0 ? unpredictedMatches : matches;
+  }, [matches, predictions]);
 
-    setCardStack(initialStack);
-    setCurrentIndex(initialStack.length - 1);
-    setIsInitialized(true);
-  }, [matches, predictions, isInitialized]);
+  // Initialize currentIndex when cardStack changes (only once per new stack)
+  if (cardStack.length > 0 && !isInitializedRef.current) {
+    isInitializedRef.current = true;
+    // Use setTimeout to avoid setState during render
+    setTimeout(() => setCurrentIndex(cardStack.length - 1), 0);
+  }
 
   // Handle swipe prediction
-  const handleSwipe = async (matchId: string, prediction: SwipePredictionOutcome) => {
+  const handleSwipe = useCallback(async (matchId: string, prediction: SwipePredictionOutcome) => {
     if (currentIndex < 0 || !currentMatchday) return;
 
     const match = cardStack[currentIndex];
     if (!match) return;
 
     try {
-      // Save prediction
       await savePrediction(matchId, prediction, match.odds);
-
-      // Move to next card
       setCurrentIndex(prevIndex => prevIndex - 1);
 
-      // Check if all predictions are made
       if (currentIndex === 0 && onComplete) {
-        // Small delay before calling onComplete to let the animation finish
-        setTimeout(() => {
-          onComplete();
-        }, 350);
+        setTimeout(() => onComplete(), 350);
       }
     } catch (err) {
       console.error('Error saving prediction:', err);
     }
-  };
+  }, [currentIndex, currentMatchday, cardStack, savePrediction, onComplete]);
 
-  const handleCloseTutorial = (dontShowAgain: boolean) => {
+  const handleCloseTutorial = useCallback((dontShowAgain: boolean) => {
     setShowTutorial(false);
     onDismissTutorial(dontShowAgain);
-  };
+  }, [onDismissTutorial]);
 
-  // The cards to be rendered - MUST be called before any early returns to maintain hook order
-  const cardsToRender = useMemo(() => {
-    if (currentIndex < 0 || cardStack.length === 0) return [];
-    return cardStack.slice(0, currentIndex + 1);
-  }, [cardStack, currentIndex]);
+  // Compute cards to render
+  const cardsToRender = currentIndex >= 0 && cardStack.length > 0
+    ? cardStack.slice(0, currentIndex + 1)
+    : [];
 
   const swipedCount = cardStack.length - (currentIndex + 1);
   const totalMatchesInStack = cardStack.length;
