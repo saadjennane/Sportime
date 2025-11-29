@@ -174,10 +174,59 @@ export function useSwipePredictions(
     await loadPredictions();
   }, [loadPredictions]);
 
-  // Initial load
+  // Initial load - use direct deps instead of loadPredictions to avoid infinite loop
+  // The problem: loadPredictions is recreated when matchdayId changes, which triggers this
+  // useEffect, which calls loadPredictions(), which updates state, causing a re-render loop.
   useEffect(() => {
-    loadPredictions();
-  }, [loadPredictions]);
+    // Early return if no user or matchday
+    if (!userId || !matchdayId) {
+      setPredictions([]);
+      setPredictionRecords([]);
+      setIsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const load = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const records = await swipeService.getUserMatchdayPredictions(matchdayId, userId);
+        if (cancelled) return;
+
+        setPredictionRecords(records);
+        const uiPredictions = predictionRecordsToSwipePredictions(records);
+        setPredictions(uiPredictions);
+
+        const totalPoints = records.reduce((sum, p) => sum + (p.points_earned || 0), 0);
+        const correctCount = records.filter(p => p.is_correct === true).length;
+        const totalCount = records.length;
+
+        setStats({
+          totalPredictions: totalCount,
+          correctPredictions: correctCount,
+          totalPoints,
+          accuracy: totalCount > 0 ? (correctCount / totalCount) * 100 : 0,
+        });
+      } catch (err) {
+        if (cancelled) return;
+        console.error('Error loading predictions:', err);
+        setError(err as Error);
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [matchdayId, userId]); // Direct deps - NOT loadPredictions!
 
   // Real-time subscription disabled temporarily to debug re-render issue
   // TODO: Re-enable after fixing infinite loop
