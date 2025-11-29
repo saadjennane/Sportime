@@ -99,14 +99,14 @@ export const SwipeGamePage: React.FC<SwipeGamePageProps> = ({
     onDismissTutorial(dontShowAgain);
   };
 
-  const swipedCount = cardStack.length - (currentIndex + 1);
-  const totalMatchesInStack = cardStack.length;
-
-  // The cards to be rendered
+  // The cards to be rendered - MUST be called before any early returns to maintain hook order
   const cardsToRender = useMemo(() => {
     if (currentIndex < 0 || cardStack.length === 0) return [];
     return cardStack.slice(0, currentIndex + 1);
   }, [cardStack, currentIndex]);
+
+  const swipedCount = cardStack.length - (currentIndex + 1);
+  const totalMatchesInStack = cardStack.length;
 
   // Error state
   if (gameError) {

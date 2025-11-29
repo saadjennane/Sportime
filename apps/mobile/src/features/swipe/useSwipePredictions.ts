@@ -179,31 +179,18 @@ export function useSwipePredictions(
     loadPredictions();
   }, [loadPredictions]);
 
-  // Subscribe to real-time updates on predictions
-  useEffect(() => {
-    if (!userId || !matchdayId) return;
-
-    const channel = supabase
-      .channel(`swipe-predictions-${matchdayId}-${userId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'swipe_predictions',
-          filter: `matchday_id=eq.${matchdayId},user_id=eq.${userId}`,
-        },
-        (payload) => {
-          console.log('Prediction updated:', payload);
-          loadPredictions();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      channel.unsubscribe();
-    };
-  }, [matchdayId, userId, loadPredictions]);
+  // Real-time subscription disabled temporarily to debug re-render issue
+  // TODO: Re-enable after fixing infinite loop
+  // useEffect(() => {
+  //   if (!userId || !matchdayId) return;
+  //   const channel = supabase
+  //     .channel(`swipe-predictions-${matchdayId}-${userId}`)
+  //     .on('postgres_changes', { event: '*', schema: 'public', table: 'swipe_predictions',
+  //       filter: `matchday_id=eq.${matchdayId},user_id=eq.${userId}` },
+  //       () => loadPredictions()
+  //     ).subscribe();
+  //   return () => { channel.unsubscribe(); };
+  // }, [matchdayId, userId, loadPredictions]);
 
   return {
     predictions,

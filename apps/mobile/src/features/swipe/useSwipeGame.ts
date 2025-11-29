@@ -232,33 +232,17 @@ export function useSwipeGame(
     refresh();
   }, [challengeId]);
 
-  // Subscribe to real-time updates on fixtures
-  useEffect(() => {
-    if (!currentMatchday) return;
-
-    const channel = supabase
-      .channel(`swipe-game-${currentMatchday.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'fixtures',
-        },
-        async (payload) => {
-          console.log('Fixture updated:', payload);
-          // Reload matches when a fixture updates (status/score change)
-          if (currentMatchday) {
-            await loadMatchdayMatches(currentMatchday.id);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      channel.unsubscribe();
-    };
-  }, [currentMatchday?.id, loadMatchdayMatches]);
+  // Real-time subscription disabled temporarily to debug re-render issue
+  // TODO: Re-enable after fixing infinite loop
+  // useEffect(() => {
+  //   if (!currentMatchday) return;
+  //   const channel = supabase
+  //     .channel(`swipe-game-${currentMatchday.id}`)
+  //     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'fixtures' },
+  //       async () => { if (currentMatchday) await loadMatchdayMatches(currentMatchday.id); }
+  //     ).subscribe();
+  //   return () => { channel.unsubscribe(); };
+  // }, [currentMatchday?.id, loadMatchdayMatches]);
 
   return {
     challenge,
