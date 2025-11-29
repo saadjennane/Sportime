@@ -81,7 +81,8 @@ export function useUserPicks(userBets: Bet[] = []): UseUserPicksReturn {
               id,
               name,
               logo
-            )
+            ),
+            odds:fb_odds(home_win, draw, away_win, bookmaker_name)
           `)
           .in('api_id', numericIds)
           .order('date', { ascending: false });
@@ -111,7 +112,8 @@ export function useUserPicks(userBets: Bet[] = []): UseUserPicksReturn {
               id,
               name,
               logo
-            )
+            ),
+            odds:fb_odds(home_win, draw, away_win, bookmaker_name)
           `)
           .in('id', uuidIds)
           .order('date', { ascending: false });
@@ -190,6 +192,9 @@ export function useUserPicks(userBets: Bet[] = []): UseUserPicksReturn {
             }
           }
 
+          // Get odds data (first available bookmaker)
+          const oddsData = fixture.odds?.[0];
+
           const match: Match = {
             id: String(fixture.api_id || fixture.id),
             leagueName: fixture.league?.name || 'Unknown League',
@@ -209,9 +214,9 @@ export function useUserPicks(userBets: Bet[] = []): UseUserPicksReturn {
             rawStatus: fixture.status || 'NS',
             isLive: !isFinished && fixture.status !== 'NS' && fixture.status !== 'TBD',
             odds: {
-              teamA: 0,
-              draw: 0,
-              teamB: 0,
+              teamA: oddsData?.home_win || 0,
+              draw: oddsData?.draw || 0,
+              teamB: oddsData?.away_win || 0,
             },
             score: isFinished ? {
               teamA: fixture.goals_home || 0,

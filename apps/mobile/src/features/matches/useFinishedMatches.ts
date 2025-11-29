@@ -49,7 +49,7 @@ export function useFinishedMatches(
         daysRequested: days,
       });
 
-      // Build query (without fb_odds join - no foreign key exists in Supabase)
+      // Build query
       const query = supabase
         .from('fb_fixtures')
         .select(`
@@ -66,7 +66,8 @@ export function useFinishedMatches(
             id,
             name,
             logo
-          )
+          ),
+          odds:fb_odds(home_win, draw, away_win, bookmaker_name)
         `)
         .gte('date', fromDate.toISOString())
         .lte('date', today.toISOString())
@@ -112,6 +113,9 @@ export function useFinishedMatches(
 
           if (!homeTeam || !awayTeam) return null;
 
+          // Get odds data (first available bookmaker)
+          const oddsData = fixture.odds?.[0];
+
           const match: Match = {
             id: String(fixture.api_id || fixture.id),
             leagueName: fixture.league?.name || 'Unknown League',
@@ -130,9 +134,9 @@ export function useFinishedMatches(
             status: 'played',
             rawStatus: fixture.status || 'FT',
             odds: {
-              teamA: 0, // TODO: fetch odds separately when foreign key is configured
-              draw: 0,
-              teamB: 0,
+              teamA: oddsData?.home_win || 0,
+              draw: oddsData?.draw || 0,
+              teamB: oddsData?.away_win || 0,
             },
             score: {
               teamA: fixture.goals_home || 0,
