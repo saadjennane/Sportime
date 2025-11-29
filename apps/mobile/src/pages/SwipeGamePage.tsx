@@ -33,6 +33,7 @@ export const SwipeGamePage: React.FC<SwipeGamePageProps> = ({
     currentMatchday,
     matches,
     isLoading: isLoadingGame,
+    error: gameError,
   } = useSwipeGame(challengeId, userId, matchdayId);
 
   // Load predictions
@@ -101,10 +102,43 @@ export const SwipeGamePage: React.FC<SwipeGamePageProps> = ({
     return cardStack.slice(0, currentIndex + 1);
   }, [cardStack, currentIndex]);
 
-  // Loading state
-  if (isLoadingGame || isLoadingPredictions) {
+  // Error state
+  if (gameError) {
     return (
       <div className="fixed inset-0 bg-deep-navy flex flex-col items-center justify-center z-40">
+        <button
+          onClick={onExit}
+          className="absolute top-4 right-4 z-50 bg-navy-accent backdrop-blur-sm p-2 rounded-full text-text-secondary hover:bg-white/10 hover:scale-110 transition-all"
+        >
+          <X size={24} />
+        </button>
+        <div className="text-center p-6 bg-navy-accent border border-white/10 rounded-2xl shadow-lg max-w-sm mx-4">
+          <p className="text-text-primary font-semibold text-lg">Error loading game</p>
+          <p className="text-text-secondary text-sm mt-2">
+            {gameError.message || 'Something went wrong. Please try again.'}
+          </p>
+          <button
+            onClick={onExit}
+            className="mt-4 px-6 py-3 bg-electric-blue text-white rounded-xl font-semibold w-full hover:bg-electric-blue/80"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading state - only show when game is still loading
+  // Don't wait for predictions loading since it depends on matchday being loaded
+  if (isLoadingGame) {
+    return (
+      <div className="fixed inset-0 bg-deep-navy flex flex-col items-center justify-center z-40">
+        <button
+          onClick={onExit}
+          className="absolute top-4 right-4 z-50 bg-navy-accent backdrop-blur-sm p-2 rounded-full text-text-secondary hover:bg-white/10 hover:scale-110 transition-all"
+        >
+          <X size={24} />
+        </button>
         <Loader2 className="animate-spin text-electric-blue" size={48} />
         <p className="mt-4 text-text-secondary font-semibold">Loading matches...</p>
       </div>

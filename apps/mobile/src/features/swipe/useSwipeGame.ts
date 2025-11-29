@@ -83,32 +83,7 @@ export function useSwipeGame(
     }
   }, [challengeId]);
 
-  // Load all matchdays
-  const loadMatchdays = useCallback(async () => {
-    try {
-      const data = await swipeService.getChallengeMatchdays(challengeId);
-      setMatchdays(data);
-
-      // Auto-select matchday
-      if (data.length > 0) {
-        let selectedMatchday: ChallengeMatchday;
-
-        if (initialMatchdayId) {
-          selectedMatchday = data.find(md => md.id === initialMatchdayId) || data[0];
-        } else {
-          // Select first active/upcoming matchday
-          selectedMatchday = data.find(md => md.status !== 'finished') || data[data.length - 1];
-        }
-
-        await loadMatchdayMatches(selectedMatchday.id);
-      }
-    } catch (err) {
-      console.error('Error loading matchdays:', err);
-      setError(err as Error);
-    }
-  }, [challengeId, initialMatchdayId]);
-
-  // Load matches for a specific matchday
+  // Load matches for a specific matchday (defined before loadMatchdays to avoid hoisting issues)
   const loadMatchdayMatches = useCallback(async (matchdayId: string) => {
     try {
       const data = await swipeService.getMatchdayWithFixtures(matchdayId);
@@ -167,6 +142,35 @@ export function useSwipeGame(
       setError(err as Error);
     }
   }, [userId]);
+
+  // Load all matchdays
+  const loadMatchdays = useCallback(async () => {
+    try {
+      const data = await swipeService.getChallengeMatchdays(challengeId);
+      setMatchdays(data);
+
+      // Auto-select matchday
+      if (data.length > 0) {
+        let selectedMatchday: ChallengeMatchday;
+
+        if (initialMatchdayId) {
+          selectedMatchday = data.find(md => md.id === initialMatchdayId) || data[0];
+        } else {
+          // Select first active/upcoming matchday
+          selectedMatchday = data.find(md => md.status !== 'finished') || data[data.length - 1];
+        }
+
+        await loadMatchdayMatches(selectedMatchday.id);
+      } else {
+        // No matchdays found - set empty matches to exit loading state
+        setMatches([]);
+        setCurrentMatchday(null);
+      }
+    } catch (err) {
+      console.error('Error loading matchdays:', err);
+      setError(err as Error);
+    }
+  }, [challengeId, initialMatchdayId, loadMatchdayMatches]);
 
   // Check if user has joined
   const checkJoinStatus = useCallback(async () => {
