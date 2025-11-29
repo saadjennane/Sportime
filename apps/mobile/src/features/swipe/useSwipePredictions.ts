@@ -104,7 +104,7 @@ export function useSwipePredictions(
     } finally {
       setIsLoading(false);
     }
-  }, [challengeId, matchdayId, userId]);
+  }, [matchdayId, userId]);
 
   // Save a prediction
   const savePrediction = useCallback(
