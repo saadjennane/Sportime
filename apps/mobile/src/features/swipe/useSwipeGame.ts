@@ -227,10 +227,112 @@ export function useSwipeGame(
     }
   }, [loadChallenge, loadMatchdays, checkJoinStatus]);
 
-  // Initial load
+  // Initial load - inline logic to avoid dependency on refresh callback
   useEffect(() => {
-    refresh();
-  }, [challengeId]);
+    let cancelled = false;
+
+    const loadAll = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        // Load challenge
+        const challengeData = await swipeService.getSwipeChallenge(challengeId);
+        if (cancelled) return;
+
+        const leagueData = challengeData.challenge_leagues?.[0]?.league;
+        setChallenge({
+          id: challengeData.id,
+          name: challengeData.name,
+          description: challengeData.description || '',
+          league_id: leagueData?.id,
+          league_name: leagueData?.name || '',
+          league_logo: leagueData?.logo || '',
+          start_date: challengeData.start_date,
+          end_date: challengeData.end_date,
+          game_type: 'prediction',
+          tier: 'free',
+          entry_cost: challengeData.entry_cost || 0,
+          rewards: challengeData.prizes || [],
+          matches: [],
+          status: challengeData.status,
+        });
+
+        // Load matchdays
+        const matchdaysData = await swipeService.getChallengeMatchdays(challengeId);
+        if (cancelled) return;
+        setMatchdays(matchdaysData);
+
+        // Auto-select and load matchday
+        if (matchdaysData.length > 0) {
+          let selectedMatchday: ChallengeMatchday;
+
+          if (initialMatchdayId) {
+            selectedMatchday = matchdaysData.find(md => md.id === initialMatchdayId) || matchdaysData[0];
+          } else {
+            selectedMatchday = matchdaysData.find(md => md.status !== 'finished') || matchdaysData[matchdaysData.length - 1];
+          }
+
+          // Load matchday with fixtures
+          const matchdayData = await swipeService.getMatchdayWithFixtures(selectedMatchday.id);
+          if (cancelled) return;
+
+          if (matchdayData) {
+            setCurrentMatchday(matchdayData);
+
+            const matchdayFixtures = matchdayData.matchday_fixtures || [];
+            const fixtures = matchdayFixtures.map((mf: any) => mf.fixture).filter(Boolean);
+
+            let predictions: any[] = [];
+            if (userId) {
+              predictions = await swipeService.getUserMatchdayPredictions(selectedMatchday.id, userId);
+              if (cancelled) return;
+            }
+
+            const swipeMatches = fixturesToSwipeMatches(fixtures as FixtureData[], predictions);
+            setMatches(swipeMatches);
+
+            const fixturesByDate = groupFixturesByDate(fixtures as FixtureData[]);
+            const matchesByDateMap = new Map<string, SwipeMatch[]>();
+            const predictionsByFixtureId = new Map(predictions.map(p => [p.fixture_id, p]));
+
+            for (const [date, dateFixtures] of fixturesByDate.entries()) {
+              const datePredictions = dateFixtures.map(f => predictionsByFixtureId.get(f.id)).filter(Boolean);
+              matchesByDateMap.set(date, fixturesToSwipeMatches(dateFixtures, datePredictions));
+            }
+
+            setMatchesByDate(matchesByDateMap);
+          }
+        } else {
+          setMatches([]);
+          setCurrentMatchday(null);
+        }
+
+        // Check join status
+        if (userId) {
+          const joined = await swipeService.hasJoinedChallenge(challengeId, userId);
+          if (cancelled) return;
+          setHasJoined(joined);
+        } else {
+          setHasJoined(false);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        console.error('Error loading swipe game:', err);
+        setError(err as Error);
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadAll();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [challengeId, userId, initialMatchdayId]); // Direct deps only
 
   // Real-time subscription disabled temporarily to debug re-render issue
   // TODO: Re-enable after fixing infinite loop
