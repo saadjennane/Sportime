@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { SwipePredictionOutcome, SwipeMatch } from '../types';
 import { SwipeCard } from '../components/SwipeCard';
 import { AnimatePresence } from 'framer-motion';
@@ -86,10 +86,18 @@ export const SwipeGamePage: React.FC<SwipeGamePageProps> = ({
     onDismissTutorial(dontShowAgain);
   }, [onDismissTutorial]);
 
-  // Compute cards to render - simple computation, no hooks
-  const cardsToRender = currentIndex >= 0 && cardStack.length > 0
-    ? cardStack.slice(0, currentIndex + 1)
-    : [];
+  // Memoize cards to render to prevent unnecessary re-renders
+  const cardsToRender = useMemo(() => {
+    if (currentIndex < 0 || cardStack.length === 0) return [];
+    return cardStack.slice(0, currentIndex + 1);
+  }, [currentIndex, cardStack]);
+
+  // Create stable prediction lookup map
+  const predictionMap = useMemo(() => {
+    const map = new Map<string, SwipePredictionOutcome>();
+    predictions.forEach(p => map.set(p.matchId, p.prediction));
+    return map;
+  }, [predictions]);
 
   const swipedCount = cardStack.length - (currentIndex + 1);
   const totalMatchesInStack = cardStack.length;
@@ -182,7 +190,6 @@ export const SwipeGamePage: React.FC<SwipeGamePageProps> = ({
         <AnimatePresence>
           {cardsToRender.map((match, index) => {
             const isTop = index === cardsToRender.length - 1;
-            const currentPrediction = predictions.find(p => p.matchId === match.id)?.prediction;
 
             return (
               <SwipeCard
@@ -190,7 +197,7 @@ export const SwipeGamePage: React.FC<SwipeGamePageProps> = ({
                 match={match}
                 onSwipe={handleSwipe}
                 isTop={isTop}
-                currentPrediction={currentPrediction}
+                currentPrediction={predictionMap.get(match.id)}
               />
             );
           })}

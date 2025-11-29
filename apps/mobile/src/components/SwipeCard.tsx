@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { motion, PanInfo, useMotionValue, useTransform } from 'framer-motion';
 import { SwipeMatch, SwipePredictionOutcome } from '../types';
 import { flushSync } from 'react-dom';
@@ -11,6 +11,29 @@ interface SwipeCardProps {
 }
 
 const swipeThreshold = 50;
+
+// TeamLogo component defined OUTSIDE SwipeCard to prevent recreation on each render
+const TeamLogo = memo(({ team }: { team: { name: string; logo?: string; emoji: string } }) => {
+  const [imageError, setImageError] = useState(false);
+
+  if (team.logo && !imageError) {
+    return (
+      <img
+        src={team.logo}
+        alt={team.name}
+        className="w-16 h-16 object-contain"
+        onError={() => setImageError(true)}
+      />
+    );
+  }
+
+  // Fallback: Initial letter
+  return (
+    <div className="w-16 h-16 bg-deep-navy rounded-full flex items-center justify-center text-2xl font-bold text-text-secondary">
+      {team.name.charAt(0)}
+    </div>
+  );
+});
 
 const cardVariants = {
   initial: { scale: 0.95, y: 20, opacity: 0 },
@@ -71,29 +94,6 @@ export const SwipeCard: React.FC<SwipeCardProps> = ({ match, onSwipe, isTop, cur
       });
       onSwipe(match.id, prediction as SwipePredictionOutcome);
     }
-  };
-
-  // Helper component for team logo/fallback
-  const TeamLogo = ({ team }: { team: { name: string; logo?: string; emoji: string } }) => {
-    const [imageError, setImageError] = React.useState(false);
-
-    if (team.logo && !imageError) {
-      return (
-        <img
-          src={team.logo}
-          alt={team.name}
-          className="w-16 h-16 object-contain"
-          onError={() => setImageError(true)}
-        />
-      );
-    }
-
-    // Fallback: Initial letter
-    return (
-      <div className="w-16 h-16 bg-deep-navy rounded-full flex items-center justify-center text-2xl font-bold text-text-secondary">
-        {team.name.charAt(0)}
-      </div>
-    );
   };
 
   return (
