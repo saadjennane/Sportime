@@ -144,14 +144,20 @@ export function useSwipeGame(
       const swipeMatches = fixturesToSwipeMatches(fixtures as FixtureData[], predictions);
       setMatches(swipeMatches);
 
-      // Group by date
+      // Group by date with O(n) optimization
       const fixturesByDate = groupFixturesByDate(fixtures as FixtureData[]);
       const matchesByDateMap = new Map<string, SwipeMatch[]>();
 
+      // Create a Map for O(1) prediction lookup instead of O(n) filter
+      const predictionsByFixtureId = new Map(
+        predictions.map(p => [p.fixture_id, p])
+      );
+
       for (const [date, dateFixtures] of fixturesByDate.entries()) {
-        const datePredictions = predictions.filter(p =>
-          dateFixtures.some(f => f.id === p.fixture_id)
-        );
+        // O(n) lookup instead of O(n²) filter
+        const datePredictions = dateFixtures
+          .map(f => predictionsByFixtureId.get(f.id))
+          .filter(Boolean);
         matchesByDateMap.set(date, fixturesToSwipeMatches(dateFixtures, datePredictions));
       }
 

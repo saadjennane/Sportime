@@ -9,27 +9,27 @@ export const SwipeTutorialModal: React.FC<SwipeTutorialModalProps> = ({ onClose 
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
   const GestureInfo: React.FC<{ icon: React.ReactNode, title: string, description: string }> = ({ icon, title, description }) => (
-    <div className="flex items-center gap-4 bg-gray-50 p-3 rounded-lg">
-      <div className="bg-gray-200 p-3 rounded-full text-gray-600">
+    <div className="flex items-center gap-4 bg-deep-navy p-3 rounded-lg">
+      <div className="bg-navy-accent p-3 rounded-full text-text-secondary">
         {icon}
       </div>
       <div>
-        <h4 className="font-bold text-gray-800">{title}</h4>
-        <p className="text-sm text-gray-600">{description}</p>
+        <h4 className="font-bold text-text-primary">{title}</h4>
+        <p className="text-sm text-text-secondary">{description}</p>
       </div>
     </div>
   );
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-scale-in">
-      <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-6 relative">
-        
+      <div className="bg-navy-accent border border-white/10 rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-6 relative">
+
         <div className="text-center space-y-1">
-          <div className="inline-block bg-purple-100 p-3 rounded-full mb-2">
-            <MousePointerClick className="w-8 h-8 text-purple-600" />
+          <div className="inline-block bg-electric-blue/20 p-3 rounded-full mb-2">
+            <MousePointerClick className="w-8 h-8 text-electric-blue" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900">How to Play</h2>
-          <p className="text-sm text-gray-500">Swipe the cards to make your predictions!</p>
+          <h2 className="text-2xl font-bold text-text-primary">How to Play</h2>
+          <p className="text-sm text-text-secondary">Swipe the cards to make your predictions!</p>
         </div>
 
         <div className="space-y-3">
@@ -38,7 +38,7 @@ export const SwipeTutorialModal: React.FC<SwipeTutorialModalProps> = ({ onClose 
           <GestureInfo icon={<ArrowUp />} title="Swipe Up" description="To predict a Draw" />
         </div>
 
-        <p className="text-center text-xs text-gray-500 bg-blue-50 p-3 rounded-lg">
+        <p className="text-center text-xs text-text-secondary bg-electric-blue/10 border border-electric-blue/20 p-3 rounded-lg">
           Don't worry! You can review and edit all your picks on the next screen before the first match starts.
         </p>
 
@@ -49,16 +49,16 @@ export const SwipeTutorialModal: React.FC<SwipeTutorialModalProps> = ({ onClose 
               type="checkbox"
               checked={dontShowAgain}
               onChange={(e) => setDontShowAgain(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+              className="h-4 w-4 rounded border-white/20 bg-deep-navy text-electric-blue focus:ring-electric-blue"
             />
-            <label htmlFor="dont-show-again-swipe" className="ml-2 block text-sm text-gray-700">
+            <label htmlFor="dont-show-again-swipe" className="ml-2 block text-sm text-text-secondary">
               Don't show this again
             </label>
           </div>
 
           <button
             onClick={() => onClose(dontShowAgain)}
-            className="w-full py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:shadow-lg text-white rounded-xl font-bold transition-colors"
+            className="w-full py-3 bg-gradient-to-r from-electric-blue to-neon-cyan hover:shadow-lg text-white rounded-xl font-bold transition-colors"
           >
             Got it!
           </button>

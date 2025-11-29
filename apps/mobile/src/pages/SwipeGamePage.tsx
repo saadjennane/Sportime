@@ -104,9 +104,9 @@ export const SwipeGamePage: React.FC<SwipeGamePageProps> = ({
   // Loading state
   if (isLoadingGame || isLoadingPredictions) {
     return (
-      <div className="fixed inset-0 bg-gray-100 flex flex-col items-center justify-center z-40">
-        <Loader2 className="animate-spin text-purple-600" size={48} />
-        <p className="mt-4 text-gray-600 font-semibold">Loading matches...</p>
+      <div className="fixed inset-0 bg-deep-navy flex flex-col items-center justify-center z-40">
+        <Loader2 className="animate-spin text-electric-blue" size={48} />
+        <p className="mt-4 text-text-secondary font-semibold">Loading matches...</p>
       </div>
     );
   }
@@ -114,21 +114,21 @@ export const SwipeGamePage: React.FC<SwipeGamePageProps> = ({
   // No matches available
   if (!currentMatchday || matches.length === 0) {
     return (
-      <div className="fixed inset-0 bg-gray-100 flex flex-col items-center justify-center z-40">
+      <div className="fixed inset-0 bg-deep-navy flex flex-col items-center justify-center z-40">
         <button
           onClick={onExit}
-          className="absolute top-4 right-4 z-50 bg-white/50 backdrop-blur-sm p-2 rounded-full text-gray-700 hover:bg-white hover:scale-110 transition-all"
+          className="absolute top-4 right-4 z-50 bg-navy-accent backdrop-blur-sm p-2 rounded-full text-text-secondary hover:bg-white/10 hover:scale-110 transition-all"
         >
           <X size={24} />
         </button>
-        <div className="text-center p-6 bg-white rounded-2xl shadow-lg max-w-sm mx-4">
-          <p className="text-gray-600 font-semibold text-lg">No matches available</p>
-          <p className="text-gray-500 text-sm mt-2">
+        <div className="text-center p-6 bg-navy-accent border border-white/10 rounded-2xl shadow-lg max-w-sm mx-4">
+          <p className="text-text-primary font-semibold text-lg">No matches available</p>
+          <p className="text-text-secondary text-sm mt-2">
             There are no matches for this game yet. Please check back later.
           </p>
           <button
             onClick={onExit}
-            className="mt-4 px-6 py-3 bg-purple-600 text-white rounded-xl font-semibold w-full"
+            className="mt-4 px-6 py-3 bg-electric-blue text-white rounded-xl font-semibold w-full hover:bg-electric-blue/80"
           >
             Go Back to Games
           </button>
@@ -138,18 +138,18 @@ export const SwipeGamePage: React.FC<SwipeGamePageProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-gray-100 flex flex-col items-center justify-center z-40 overflow-hidden">
+    <div className="fixed inset-0 bg-deep-navy flex flex-col items-center justify-center z-40 overflow-hidden">
       <button
         onClick={onExit}
-        className="absolute top-4 right-4 z-50 bg-white/50 backdrop-blur-sm p-2 rounded-full text-gray-700 hover:bg-white hover:scale-110 transition-all"
+        className="absolute top-4 right-4 z-50 bg-navy-accent backdrop-blur-sm p-2 rounded-full text-text-secondary hover:bg-white/10 hover:scale-110 transition-all"
       >
         <X size={24} />
       </button>
 
       <div className="relative w-[90vw] max-w-sm h-[60vh] flex items-center justify-center">
         {isSaving && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/10 backdrop-blur-sm rounded-3xl z-50">
-            <Loader2 className="animate-spin text-purple-600" size={32} />
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm rounded-3xl z-50">
+            <Loader2 className="animate-spin text-electric-blue" size={32} />
           </div>
         )}
 
@@ -173,15 +173,15 @@ export const SwipeGamePage: React.FC<SwipeGamePageProps> = ({
         {/* All done message */}
         {currentIndex < 0 && cardStack.length > 0 && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="bg-white rounded-3xl shadow-2xl p-8 text-center max-w-sm">
+            <div className="bg-navy-accent border border-white/10 rounded-3xl shadow-2xl p-8 text-center max-w-sm">
               <div className="text-6xl mb-4">🎉</div>
-              <h3 className="text-2xl font-bold text-gray-800 mb-2">All Done!</h3>
-              <p className="text-gray-600 mb-6">
+              <h3 className="text-2xl font-bold text-text-primary mb-2">All Done!</h3>
+              <p className="text-text-secondary mb-6">
                 You've made predictions for all {totalMatchesInStack} matches
               </p>
               <button
                 onClick={onExit}
-                className="w-full py-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700"
+                className="w-full py-3 bg-gradient-to-r from-electric-blue to-neon-cyan text-white rounded-xl font-semibold hover:shadow-lg"
               >
                 View Recap
               </button>
@@ -191,7 +191,7 @@ export const SwipeGamePage: React.FC<SwipeGamePageProps> = ({
       </div>
 
       {currentIndex >= 0 && (
-        <div className="absolute bottom-6 text-center text-gray-500 font-semibold bg-white/50 backdrop-blur-sm px-4 py-2 rounded-full">
+        <div className="absolute bottom-6 text-center text-text-secondary font-semibold bg-navy-accent backdrop-blur-sm px-4 py-2 rounded-full border border-white/10">
           <p>
             {swipedCount} / {totalMatchesInStack}
           </p>

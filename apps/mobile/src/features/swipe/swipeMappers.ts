@@ -162,19 +162,26 @@ export function mapOutcomeToPrediction(outcome: SwipePredictionOutcome): 'home' 
 }
 
 /**
- * Get best odds from multiple bookmakers
+ * Get best odds from multiple bookmakers with reasonable defaults
+ * Default odds (1.5, 3.5, 2.5) represent typical balanced match odds
  */
 function getBestOdds(oddsArray?: Array<{ home_win: number; draw: number; away_win: number }>) {
+  // Reasonable default odds if none available
+  const DEFAULT_ODDS = { home: 1.5, draw: 3.5, away: 2.5 };
+
   if (!oddsArray || oddsArray.length === 0) {
-    return { home: 1.0, draw: 1.0, away: 1.0 };
+    console.warn('No odds available, using defaults');
+    return DEFAULT_ODDS;
   }
 
   // Take first odds (should be prioritized bookmaker from query)
   const odds = oddsArray[0];
+
+  // Validate each odds value - must be > 1.0 to be realistic
   return {
-    home: odds.home_win || 1.0,
-    draw: odds.draw || 1.0,
-    away: odds.away_win || 1.0,
+    home: odds.home_win && odds.home_win > 1.0 ? odds.home_win : DEFAULT_ODDS.home,
+    draw: odds.draw && odds.draw > 1.0 ? odds.draw : DEFAULT_ODDS.draw,
+    away: odds.away_win && odds.away_win > 1.0 ? odds.away_win : DEFAULT_ODDS.away,
   };
 }
 
@@ -197,10 +204,12 @@ export function fixtureToSwipeMatch(
     id: fixture.id,
     teamA: {
       name: fixture.home.name,
+      logo: fixture.home.logo,
       emoji: getTeamEmoji(fixture.home.name),
     },
     teamB: {
       name: fixture.away.name,
+      logo: fixture.away.logo,
       emoji: getTeamEmoji(fixture.away.name),
     },
     kickoffTime: fixture.date,

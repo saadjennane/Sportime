@@ -268,8 +268,8 @@ export interface FantasyConfig {
 
 export interface SwipeMatch {
   id: string;
-  teamA: { name: string; emoji: string };
-  teamB: { name: string; emoji: string };
+  teamA: { name: string; logo?: string; emoji: string };
+  teamB: { name: string; logo?: string; emoji: string };
   kickoffTime: string;
   odds: { teamA: number; draw: number; teamB: number };
   result?: SwipePredictionOutcome;
