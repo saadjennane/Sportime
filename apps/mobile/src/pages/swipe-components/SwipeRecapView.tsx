@@ -54,6 +54,53 @@ interface SwipeRecapViewProps {
 // Stable empty array to prevent re-renders
 const EMPTY_LEAGUES: never[] = [];
 
+// ============================================================================
+// TEAM NAME ABBREVIATION
+// ============================================================================
+
+// Mapping pour les cas spéciaux (noms à 3+ mots ou abréviations connues)
+const KNOWN_ABBREVIATIONS: Record<string, string> = {
+  'Paris Saint-Germain': 'PSG',
+  'Paris Saint Germain': 'PSG',
+  'Borussia Monchengladbach': 'Gladbach',
+  'RB Leipzig': 'Leipzig',
+  'Tottenham Hotspur': 'Tottenham',
+  'West Ham United': 'West Ham',
+  'Wolverhampton Wanderers': 'Wolves',
+  'Sheffield United': 'Sheffield U.',
+  'Brighton & Hove Albion': 'Brighton',
+  'Nottingham Forest': 'N. Forest',
+  'Newcastle United': 'Newcastle',
+  'Leicester City': 'Leicester',
+  'Crystal Palace': 'C. Palace',
+  'Aston Villa': 'Aston Villa',
+};
+
+function abbreviateTeamName(name: string, maxLength: number = 12): string {
+  // 1. Vérifier les abréviations connues
+  if (KNOWN_ABBREVIATIONS[name]) {
+    return KNOWN_ABBREVIATIONS[name];
+  }
+
+  // 2. Supprimer les préfixes courants
+  const prefixes = ['FC ', 'CF ', 'AC ', 'AS ', 'SC ', 'RC ', 'SL ', 'SS '];
+  let cleanName = name;
+  for (const prefix of prefixes) {
+    if (name.startsWith(prefix)) {
+      cleanName = name.slice(prefix.length);
+      break;
+    }
+  }
+
+  // 3. Si ça rentre, on garde le nom nettoyé
+  if (cleanName.length <= maxLength) return cleanName;
+
+  // 4. Sinon on abrège: première lettre + "." + 2ème mot
+  const words = cleanName.split(' ');
+  if (words.length === 1) return cleanName;
+  return `${words[0][0]}. ${words[1]}`;
+}
+
 export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView({
   challenge,
   matchdays,
@@ -289,7 +336,7 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
                       ) : (
                         <span className="text-lg">{match.teamA.emoji}</span>
                       )}
-                      <span className="text-xs truncate max-w-[70px]">{match.teamA.name}</span>
+                      <span className="text-xs truncate max-w-[70px]">{abbreviateTeamName(match.teamA.name)}</span>
                       {isEditable && (
                         <span className="text-xs opacity-70">@{match.odds.teamA.toFixed(2)}</span>
                       )}
@@ -330,7 +377,7 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
                       ) : (
                         <span className="text-lg">{match.teamB.emoji}</span>
                       )}
-                      <span className="text-xs truncate max-w-[70px]">{match.teamB.name}</span>
+                      <span className="text-xs truncate max-w-[70px]">{abbreviateTeamName(match.teamB.name)}</span>
                       {isEditable && (
                         <span className="text-xs opacity-70">@{match.odds.teamB.toFixed(2)}</span>
                       )}
