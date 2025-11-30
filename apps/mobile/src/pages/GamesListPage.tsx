@@ -14,7 +14,7 @@ type GamesTab = 'my-games' | 'browse';
 
 /**
  * Calculates entry deadline: 30 minutes before the first match
- * Priority: first_kickoff_time > matches[].kickoffTime > start_date
+ * Priority: first_kickoff_time > matches[].kickoffTime > end_date (fallback)
  */
 export function calculateEntryDeadline(game: SportimeGame): Date {
   // Priority 1: Use first_kickoff_time if available (set by fetchChallengeCatalog)
@@ -37,9 +37,10 @@ export function calculateEntryDeadline(game: SportimeGame): Date {
     }
   }
 
-  // Fallback to start_date (may be midnight, so less accurate)
-  const firstMatchDate = parseISO(game.start_date);
-  return new Date(firstMatchDate.getTime() - 30 * 60 * 1000);
+  // Fallback to end_date to avoid premature locking
+  // Games without matches remain open until end_date
+  const endDate = parseISO(game.end_date);
+  return endDate;
 }
 
 /**
@@ -58,8 +59,9 @@ function hasFirstMatchStarted(game: SportimeGame): boolean {
   if (game.first_kickoff_time) {
     return new Date(game.first_kickoff_time) <= new Date();
   }
-  // Fallback: if no first_kickoff_time, use start_date
-  return parseISO(game.start_date) <= new Date();
+  // If no first_kickoff_time, game has no matches yet - not locked
+  // User can continue to play until matches are added
+  return false;
 }
 
 /**

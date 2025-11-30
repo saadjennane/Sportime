@@ -459,14 +459,14 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
 
   for (const row of challenges) {
     const mapped = mapChallengeRow(row, 0)
-    // Add first_kickoff_time if available, fallback to start_date
+    // Add first_kickoff_time if available from match data
     const kickoff = firstKickoffByChallenge.get(row.id)
     if (kickoff) {
       mapped.first_kickoff_time = kickoff
-    } else {
-      // Fallback: use start_date as first_kickoff_time if no match data available
-      mapped.first_kickoff_time = row.start_date
     }
+    // Note: If no kickoff data, we intentionally leave first_kickoff_time undefined
+    // This allows GamesListPage to handle games without matches gracefully
+    // (they won't be locked until matches are added)
     challengesById.set(row.id, mapped)
   }
 

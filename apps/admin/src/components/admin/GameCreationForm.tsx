@@ -214,6 +214,12 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
   const handleSubmit = (e: React.FormEvent, saveAsDraft: boolean = false) => {
     e.preventDefault();
 
+    // Validate game name is provided
+    if (!formState.name || formState.name.trim() === '') {
+      addToast('Please enter a game name', 'error');
+      return;
+    }
+
     // Validate league is selected
     if (!formState.league_id || formState.league_id === '') {
       addToast('Please select a league', 'error');
