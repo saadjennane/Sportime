@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   Profile,
   UserLeague,
@@ -12,8 +12,8 @@ import { useMockStore } from '../store/useMockStore';
 import { LeaderboardPeriodFilter } from '../components/leagues/LeaderboardPeriodFilter';
 import { format, parseISO, isWithinInterval } from 'date-fns';
 import { CelebrationModal } from '../components/leagues/CelebrationModal';
-import { useSwipeGame } from '../features/swipe/useSwipeGame';
-import { useSwipeLeaderboard } from '../features/swipe/useSwipeLeaderboard';
+import { useSwipeGameData, useSwipeLeaderboardData } from '../features/swipe/useSwipeSelectors';
+import { useSwipeActions } from '../features/swipe/useSwipeActions';
 
 interface SwipeLeaderboardPageProps {
   challengeId: string;
@@ -53,16 +53,31 @@ const SwipeLeaderboardPage: React.FC<SwipeLeaderboardPageProps> = (props) => {
   );
   const [isCelebrationModalOpen, setIsCelebrationModalOpen] = useState(false);
 
-  // Load game data
-  const { challenge, isLoading: isLoadingGame } = useSwipeGame(challengeId, userId);
+  // Get stable actions (never recreated)
+  const { initSwipe, loadLeaderboard } = useSwipeActions();
 
-  // Load leaderboard
+  // Get game data from store
+  const { challenge, isLoading: isLoadingGame } = useSwipeGameData();
+
+  // Get leaderboard data from store
   const {
     leaderboard,
     userStats,
     userPosition,
     isLoading: isLoadingLeaderboard,
-  } = useSwipeLeaderboard(challengeId, userId);
+  } = useSwipeLeaderboardData();
+
+  // Initialize store when component mounts
+  useEffect(() => {
+    initSwipe(challengeId, userId);
+  }, [initSwipe, challengeId, userId]);
+
+  // Load leaderboard after game is loaded
+  useEffect(() => {
+    if (challenge) {
+      loadLeaderboard();
+    }
+  }, [challenge, loadLeaderboard]);
 
   const { leagueGame, currentLeague, isCurrentUserAdmin } = useMemo(() => {
     if (!activeFilterLeagueId || !challenge)

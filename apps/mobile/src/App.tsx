@@ -40,6 +40,7 @@ import { MiniCreateLeagueModal } from './components/leagues/MiniCreateLeagueModa
 import { SelectLeaguesToLinkModal } from './components/leagues/SelectLeaguesToLinkModal';
 import { useMockStore } from './store/useMockStore';
 import { useSpinStore } from './store/useSpinStore';
+import { useSwipeStore } from './store/swipeStore';
 import * as streakService from './services/streakService';
 // Load diagnostic tools in dev mode
 if (import.meta.env.DEV) {
@@ -690,6 +691,8 @@ function App() {
   const handleExitSwiping = useCallback(() => {
     setActiveSwipeGameId(null);
     setSwipeGameViewMode(null);
+    // Reset swipe store when exiting to clean up state
+    useSwipeStore.getState().reset();
   }, []);
 
   const handleDismissSwipeTutorial = useCallback((dontShowAgain: boolean) => {

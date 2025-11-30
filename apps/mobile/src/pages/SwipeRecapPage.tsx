@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, useRef } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { SwipePredictionOutcome, Profile, UserLeague, LeagueMember, LeagueGame, Game } from '../types';
 import {
   ArrowLeft,
@@ -15,9 +15,9 @@ import { format } from 'date-fns';
 import { MatchDaySwitcher } from '../components/fantasy/MatchDaySwitcher';
 import { SwipeRulesModal } from '../components/SwipeRulesModal';
 import { LinkGameButton } from '../components/leagues/LinkGameButton';
-import { useSwipeGame } from '../features/swipe/useSwipeGame';
-import { useSwipePredictions } from '../features/swipe/useSwipePredictions';
-import { mapPredictionToOutcome, mapOutcomeToPrediction } from '../features/swipe/swipeMappers';
+import { useSwipeGameData, useSwipePredictionsData } from '../features/swipe/useSwipeSelectors';
+import { useSwipeActions } from '../features/swipe/useSwipeActions';
+import { mapPredictionToOutcome } from '../features/swipe/swipeMappers';
 
 // Stable constant to prevent re-renders from creating new array references
 const EMPTY_LEAGUES: never[] = [];
@@ -56,25 +56,19 @@ export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = (props) => {
   const [isPicksVisible, setIsPicksVisible] = useState(true);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
 
-  // Load game data
-  const { challenge, matchdays, currentMatchday, matches, isLoading: isLoadingGame } = useSwipeGame(
-    challengeId,
-    userId,
-    selectedMatchdayId
-  );
+  // Get stable actions (never recreated)
+  const { initSwipe, savePrediction } = useSwipeActions();
 
-  // Load predictions
-  const {
-    predictions,
-    predictionRecords,
-    savePrediction,
-    isLoading: isLoadingPredictions,
-    isSaving,
-  } = useSwipePredictions(challengeId, currentMatchday?.id || null, userId);
+  // Get game data from store
+  const { challenge, matchdays, currentMatchday, matches, isLoading: isLoadingGame } = useSwipeGameData();
 
-  // Stabilize savePrediction reference to prevent handleUpdatePrediction recreation
-  const savePredictionRef = useRef(savePrediction);
-  savePredictionRef.current = savePrediction;
+  // Get predictions data from store
+  const { predictionRecords, isLoading: isLoadingPredictions, isSaving } = useSwipePredictionsData();
+
+  // Initialize store when component mounts
+  useEffect(() => {
+    initSwipe(challengeId, userId, selectedMatchdayId);
+  }, [initSwipe, challengeId, userId, selectedMatchdayId]);
 
   if (isLoadingGame || isLoadingPredictions) {
     return (
@@ -140,7 +134,7 @@ export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = (props) => {
     return num.toString();
   };
 
-  // Uses savePredictionRef to avoid recreating this callback when savePrediction changes
+  // savePrediction is a stable reference from store, no need for useRef
   const handleUpdatePrediction = useCallback(async (
     matchId: string,
     prediction: SwipePredictionOutcome
@@ -151,11 +145,11 @@ export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = (props) => {
     if (!match) return;
 
     try {
-      await savePredictionRef.current(matchId, prediction, match.odds);
+      await savePrediction(matchId, prediction, match.odds);
     } catch (err) {
       console.error('Error updating prediction:', err);
     }
-  }, [isEditable, matches]); // NO savePrediction - uses ref instead
+  }, [isEditable, matches, savePrediction]);
 
   return (
     <div className="space-y-4">
