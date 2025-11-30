@@ -1315,12 +1315,21 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
           const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
 
           // Fetch fixtures in date range to count days with matches
-          const { data: fixtures } = await supabase
+          const { data: fixtures, error: fixturesError } = await supabase
             .from('fb_fixtures')
             .select('id, date')
             .eq('league_id', leagueId)
-            .gte('date', startDate)
+            .gte('date', startDate + 'T00:00:00Z')
             .lte('date', endDate + 'T23:59:59Z')
+
+          // Debug: Log query parameters and results
+          console.log('[SwipeGameAdmin] Fixtures query:', {
+            leagueId,
+            startDate: startDate + 'T00:00:00Z',
+            endDate: endDate + 'T23:59:59Z',
+            fixturesCount: fixtures?.length ?? 0,
+            error: fixturesError
+          })
 
           if (fixtures && fixtures.length > 0) {
             const uniqueDays = new Set(fixtures.map((f: any) => f.date.split('T')[0]))

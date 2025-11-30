@@ -52,7 +52,24 @@ const calculateChallengePoints = (entry: UserChallengeEntry, matches: ChallengeM
 
 const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   const { challenge, matches, userEntry, onUpdateDailyBets, onSetDailyBooster, onBack, onViewLeaderboard, boosterInfoPreferences, onUpdateBoosterPreferences, onLinkGame, profile, userLeagues, leagueMembers, leagueGames } = props;
-  const betsLocked = challenge.status === 'Ongoing' || challenge.status === 'Finished';
+
+  // Lock bets when the first match has started, not based on challenge status
+  const hasFirstMatchStarted = (): boolean => {
+    // Find earliest kickoff time from matches
+    const kickoffTimes = matches
+      .map(m => m.kickoffTime ? new Date(m.kickoffTime).getTime() : null)
+      .filter((t): t is number => t !== null);
+
+    if (kickoffTimes.length > 0) {
+      const firstKickoff = Math.min(...kickoffTimes);
+      return Date.now() >= firstKickoff;
+    }
+
+    // Fallback: if no kickoff times, check if status is Finished
+    return challenge.status === 'Finished';
+  };
+
+  const betsLocked = hasFirstMatchStarted();
 
   const [selectedDay, setSelectedDay] = useState<number>(() => {
     const today = new Date();

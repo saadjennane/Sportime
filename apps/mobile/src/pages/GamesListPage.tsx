@@ -283,19 +283,14 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
 
     // Betting games - can place bets until first match starts
     if (game.game_type === 'betting') {
+      // Once first match has started, user can only view (not edit) - show AWAITING
       if (firstMatchStarted) {
         return 'AWAITING';
       }
 
-      const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
-      if (!userEntry) return 'PLACE_BETS';
-
-      const isComplete = userEntry.dailyEntries.every((daily: any) => {
-        const totalBet = daily.bets.reduce((sum: number, b: any) => sum + b.amount, 0);
-        return totalBet >= (game.challengeBalance || 1000);
-      });
-
-      return isComplete ? 'AWAITING' : 'PLACE_BETS';
+      // Before first match: can still edit bets
+      // Show PLACE_BETS even if complete, so user can access and modify
+      return 'PLACE_BETS';
     }
 
     // Prediction games - can make predictions until first match starts

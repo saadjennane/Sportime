@@ -45,6 +45,7 @@ export interface ChallengeMatch {
   odds: { teamA: number; draw: number; teamB: number };
   status: 'upcoming' | 'played';
   result?: 'teamA' | 'draw' | 'teamB';
+  kickoffTime?: string; // ISO date string for match kickoff
 }
 
 export interface ChallengeBet {

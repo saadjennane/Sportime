@@ -833,6 +833,7 @@ async function buildMatchesFromChallengeMatches(challengeId: string, rows: Chall
         odds,
         status,
         result,
+        kickoffTime: match.kickoff_time ?? undefined,
       }
     })
     .sort((a, b) => a.day - b.day)

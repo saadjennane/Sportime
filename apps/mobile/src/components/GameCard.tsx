@@ -117,6 +117,14 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
   // Check if game is live (ongoing status)
   const isLiveGame = realGameStatus === 'Ongoing';
 
+  // Check if first match has started (for showing leaderboard to non-participants)
+  const hasFirstMatchStarted = useMemo(() => {
+    if (game.first_kickoff_time) {
+      return new Date(game.first_kickoff_time) <= new Date();
+    }
+    return false;
+  }, [game.first_kickoff_time]);
+
   const { hasTicket, hasEnoughCoins } = useMemo(() => {
     if (!profile) return { hasTicket: false, hasEnoughCoins: false };
     const validTicket = userTickets.find(t => 
@@ -276,8 +284,8 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
           <div className="flex items-center gap-2">
             {startsIn && ctaState === 'NOTIFY' && <span className="text-xs text-text-disabled font-semibold">{startsIn}</span>}
 
-            {/* View Leaderboard button for live games not joined */}
-            {isLiveGame && (ctaState === 'IN_PROGRESS' || isLocked) && onViewLeaderboard && (
+            {/* View Leaderboard button for games where first match has started and user hasn't joined */}
+            {hasFirstMatchStarted && isLocked && onViewLeaderboard && (
               <button
                 onClick={onViewLeaderboard}
                 className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all bg-warm-yellow/20 text-warm-yellow hover:bg-warm-yellow/30 border border-warm-yellow/50"
