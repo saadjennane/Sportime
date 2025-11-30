@@ -13,10 +13,8 @@ import GamesListPage from './pages/GamesListPage';
 import ChallengeRoomPage from './pages/ChallengeRoomPage';
 import LeaderboardPage from './pages/LeaderboardPage';
 import { ChooseEntryMethodModal } from './components/ChooseEntryMethodModal';
-import { SwipeGamePage } from './pages/SwipeGamePage';
-import { SwipeRecapPage } from './pages/SwipeRecapPage';
+import { SwipeFlowPage } from './pages/SwipeFlowPage';
 import { JoinSwipeGameConfirmationModal } from './components/JoinSwipeGameConfirmationModal';
-import SwipeLeaderboardPage from './pages/SwipeLeaderboardPage';
 import { supabase } from './services/supabase';
 import { useToast } from './hooks/useToast';
 import { useUserStreak } from './hooks/useUserStreak';
@@ -40,7 +38,6 @@ import { MiniCreateLeagueModal } from './components/leagues/MiniCreateLeagueModa
 import { SelectLeaguesToLinkModal } from './components/leagues/SelectLeaguesToLinkModal';
 import { useMockStore } from './store/useMockStore';
 import { useSpinStore } from './store/useSpinStore';
-import { useSwipeStore } from './store/swipeStore';
 import * as streakService from './services/streakService';
 // Load diagnostic tools in dev mode
 if (import.meta.env.DEV) {
@@ -690,9 +687,8 @@ function App() {
 
   const handleExitSwiping = useCallback(() => {
     setActiveSwipeGameId(null);
+    setViewingSwipeLeaderboardFor(null);
     setSwipeGameViewMode(null);
-    // Reset swipe store when exiting to clean up state
-    useSwipeStore.getState().reset();
   }, []);
 
   const handleDismissSwipeTutorial = useCallback((dontShowAgain: boolean) => {
@@ -1071,48 +1067,23 @@ function App() {
       }
     }
 
-    if (viewingSwipeLeaderboardFor && profile) {
-      return <SwipeLeaderboardPage
-        challengeId={viewingSwipeLeaderboardFor}
-        userId={profile.id}
-        onBack={handleLeaderboardBack}
-        initialLeagueContext={leaderboardContext}
-        allUsers={allUsers}
-        userLeagues={myLeagues}
-        leagueMembers={leagueMembers}
-        leagueGames={leagueGames}
-        currentUserId={profile.id}
-      />;
-    }
-
-    if (activeSwipeGameId && profile) {
-      if (swipeGameViewMode === 'swiping') {
-        return <SwipeGamePage
-          challengeId={activeSwipeGameId}
+    // Swipe game flow - single unified component
+    if ((activeSwipeGameId || viewingSwipeLeaderboardFor) && profile) {
+      const swipeChallengeId = activeSwipeGameId || viewingSwipeLeaderboardFor;
+      return (
+        <SwipeFlowPage
+          challengeId={swipeChallengeId!}
           userId={profile.id}
           hasSeenSwipeTutorial={hasSeenSwipeTutorial}
           onDismissTutorial={handleDismissSwipeTutorial}
           onExit={handleExitSwiping}
-          onComplete={handleSwipeComplete}
-        />;
-      } else {
-        return <SwipeRecapPage
-          challengeId={activeSwipeGameId}
-          userId={profile.id}
-          onBack={() => setActiveSwipeGameId(null)}
-          onViewLeaderboard={() => setViewingSwipeLeaderboardFor(activeSwipeGameId)}
-          onSelectMatchday={(matchdayId) => {
-            // When switching matchdays, stay in recap mode
-            setActiveSwipeGameId(activeSwipeGameId);
-          }}
-          onEditPicks={handleEditSwipePicks}
-          onLinkGame={handleOpenLinkGameFlow}
           profile={profile}
           userLeagues={myLeagues}
           leagueMembers={leagueMembers}
           leagueGames={leagueGames}
-        />;
-      }
+          onLinkGame={handleOpenLinkGameFlow}
+        />
+      );
     }
     
     if (activeFantasyGameId) {

@@ -1,32 +1,9 @@
 /**
  * Swipe Game Features
  *
- * Export all swipe game store, selectors, actions, and utilities
+ * Export mappers and utilities for the swipe prediction game.
+ * The main flow is now handled by SwipeFlowPage with simple useState.
  */
-
-// Store
-export { useSwipeStore } from '../../store/swipeStore';
-
-// Selectors (with shallow equality)
-export {
-  useSwipeGameData,
-  useSwipePredictionsData,
-  useSwipeLeaderboardData,
-  useSwipeLoadingStates,
-  useSwipeError,
-  useSwipeContext,
-  useHasPrediction,
-  usePredictionFor,
-} from './useSwipeSelectors';
-
-// Actions (stable references)
-export {
-  useSwipeActions,
-  useSavePrediction,
-  useSelectMatchday,
-  useInitSwipe,
-  useResetSwipe,
-} from './useSwipeActions';
 
 // Mappers and utilities
 export * from './swipeMappers';

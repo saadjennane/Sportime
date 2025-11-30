@@ -55,7 +55,7 @@ const cardVariants = {
   }
 };
 
-export const SwipeCard: React.FC<SwipeCardProps> = ({ match, onSwipe, isTop, currentPrediction }) => {
+export const SwipeCard = memo<SwipeCardProps>(function SwipeCard({ match, onSwipe, isTop, currentPrediction }) {
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const [exitDirection, setExitDirection] = useState<'left' | 'right' | 'up' | null>(null);
@@ -149,4 +149,6 @@ export const SwipeCard: React.FC<SwipeCardProps> = ({ match, onSwipe, isTop, cur
       </div>
     </motion.div>
   );
-};
+});
+
+SwipeCard.displayName = 'SwipeCard';
