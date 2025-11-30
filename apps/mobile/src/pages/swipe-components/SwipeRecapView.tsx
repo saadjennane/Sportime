@@ -132,7 +132,15 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
     );
   }
 
-  const isEditable = currentMatchday.status === 'upcoming';
+  // Determine if editing is allowed based on REAL kickoff time (not just matchday.status)
+  const now = Date.now();
+  const firstMatchKickoff = matches.length > 0
+    ? Math.min(...matches.map(m => new Date(m.kickoffTime).getTime()))
+    : null;
+  const hasFirstMatchStarted = firstMatchKickoff !== null && firstMatchKickoff <= now;
+
+  // Block editing if first match has started OR matchday is not upcoming
+  const isEditable = !hasFirstMatchStarted && currentMatchday.status === 'upcoming';
 
   // Calculate points - simple iteration, no useMemo needed for small arrays
   let totalPoints = 0;

@@ -350,6 +350,7 @@ export async function updateMatchdayStatus(
 
 /**
  * Save or update a prediction
+ * Validates that the match has not started before allowing the prediction
  */
 export async function savePrediction(params: {
   challengeId: string;
@@ -359,6 +360,20 @@ export async function savePrediction(params: {
   prediction: 'home' | 'draw' | 'away';
   odds: { home: number; draw: number; away: number };
 }) {
+  // Backend validation: Check if match has already started
+  const { data: fixture, error: fixtureError } = await supabase
+    .from('fb_fixtures')
+    .select('date')
+    .eq('id', params.fixtureId)
+    .single();
+
+  if (fixtureError) {
+    console.warn('[savePrediction] Could not verify fixture kickoff time:', fixtureError);
+    // Continue anyway - the frontend should have already validated
+  } else if (fixture && new Date(fixture.date) <= new Date()) {
+    throw new Error('Cannot save prediction - match has already started');
+  }
+
   const { data, error } = await supabase
     .from('swipe_predictions')
     .upsert({

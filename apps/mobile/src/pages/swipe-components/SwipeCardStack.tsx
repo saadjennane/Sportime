@@ -53,6 +53,19 @@ export const SwipeCardStack = memo<SwipeCardStackProps>(function SwipeCardStack(
   }
 
   function handleSwipe(matchId: string, prediction: SwipePredictionOutcome) {
+    // Block swipe if match has already started
+    const match = matches.find(m => m.id === matchId);
+    if (match && new Date(match.kickoffTime) <= new Date()) {
+      console.warn('[SwipeCardStack] Match already started, cannot save prediction');
+      // Move to next card without saving
+      if (currentIndex <= 0) {
+        setTimeout(() => onComplete(), 350);
+      } else {
+        setCurrentIndex(prev => prev - 1);
+      }
+      return;
+    }
+
     // Call parent handler
     onSwipe(matchId, prediction);
 
