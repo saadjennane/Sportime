@@ -67,9 +67,20 @@ export async function saveDailyEntry(params: SaveDailyEntryParams) {
     throw new Error('Cannot place bets on a finished or cancelled challenge')
   }
 
-  if (challengeStatus === 'active' || challengeStatus === 'ongoing') {
-    // Challenge has started - bets are locked
-    throw new Error('Challenge has started - bets are locked')
+  // ====== VALIDATION 1b: Check if first match has started ======
+  // We lock bets when the first match starts, NOT based on challenge status
+  const { data: kickoffData } = await supabase
+    .from('challenge_matches')
+    .select('match:matches(kickoff_time)')
+    .eq('challenge_id', challengeId)
+    .not('match.kickoff_time', 'is', null)
+    .order('match(kickoff_time)', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  const firstKickoff = (kickoffData?.match as any)?.kickoff_time
+  if (firstKickoff && new Date(firstKickoff) <= new Date()) {
+    throw new Error('First match has started - bets are locked')
   }
 
   // ====== VALIDATION 2: Check daily balance ======

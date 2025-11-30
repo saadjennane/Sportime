@@ -51,6 +51,18 @@ function isEntryOpen(game: SportimeGame): boolean {
 }
 
 /**
+ * Checks if the first match of a game has started
+ * Used to lock betting/predictions once matches begin
+ */
+function hasFirstMatchStarted(game: SportimeGame): boolean {
+  if (game.first_kickoff_time) {
+    return new Date(game.first_kickoff_time) <= new Date();
+  }
+  // Fallback: if no first_kickoff_time, use start_date
+  return parseISO(game.start_date) <= new Date();
+}
+
+/**
  * Determines the real status of a game by validating start_date and end_date
  * against the current time, regardless of what the status field says.
  * Priority: end_date > start_date > stored status
@@ -256,15 +268,23 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
     }
 
     // USER HAS JOINED - determine action state
+    const firstMatchStarted = hasFirstMatchStarted(game);
 
-    // Fantasy games - always show team management
+    // Fantasy games - show team management until first match starts
     if (game.game_type === 'fantasy') {
+      if (firstMatchStarted) {
+        return 'AWAITING';
+      }
       const userTeam = userFantasyTeams.find(t => t.gameId === game.id);
       return userTeam ? 'COMPLETE_TEAM' : 'SELECT_TEAM';
     }
 
-    // Betting games
+    // Betting games - can place bets until first match starts
     if (game.game_type === 'betting') {
+      if (firstMatchStarted) {
+        return 'AWAITING';
+      }
+
       const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
       if (!userEntry) return 'PLACE_BETS';
 
@@ -276,17 +296,15 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       return isComplete ? 'AWAITING' : 'PLACE_BETS';
     }
 
-    // Prediction games
+    // Prediction games - can make predictions until first match starts
     if (game.game_type === 'prediction') {
       const userEntry = userSwipeEntries.find(e => e.matchDayId === game.id);
       if (!userEntry) return 'MAKE_PREDICTIONS';
 
       const allPredictionsMade = userEntry.predictions.length >= (game.matches?.length || 0);
-      const firstKickoff = game.first_kickoff_time ? new Date(game.first_kickoff_time) : null;
-      const hasFirstMatchStarted = firstKickoff ? firstKickoff <= new Date() : false;
 
-      // Awaiting seulement si complet ET premier match commencé
-      if (allPredictionsMade && hasFirstMatchStarted) {
+      // Awaiting only if complete AND first match has started
+      if (allPredictionsMade && firstMatchStarted) {
         return 'AWAITING';
       }
       return 'MAKE_PREDICTIONS';

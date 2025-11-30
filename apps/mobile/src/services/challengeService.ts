@@ -459,10 +459,13 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
 
   for (const row of challenges) {
     const mapped = mapChallengeRow(row, 0)
-    // Add first_kickoff_time if available
+    // Add first_kickoff_time if available, fallback to start_date
     const kickoff = firstKickoffByChallenge.get(row.id)
     if (kickoff) {
       mapped.first_kickoff_time = kickoff
+    } else {
+      // Fallback: use start_date as first_kickoff_time if no match data available
+      mapped.first_kickoff_time = row.start_date
     }
     challengesById.set(row.id, mapped)
   }
