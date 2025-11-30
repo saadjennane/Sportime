@@ -247,6 +247,7 @@ function mapChallengeRow(
     matches: undefined,
     gameWeeks: undefined,
     challengeId: row.id,
+    period_type: rules?.period_type ?? undefined,
   }
 }
 

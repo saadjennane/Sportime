@@ -1070,25 +1070,24 @@ export async function fetchChallengeMatches(challengeId: string) {
         date,
         status,
         matchday_fixtures (
-          fixture:fixtures (
+          fixture:fb_fixtures (
             id,
-            api_id,
             date,
             status,
             goals_home,
             goals_away,
-            odds (
+            odds:fb_odds (
               home_win,
               draw,
               away_win,
               bookmaker_name
             ),
-            home:teams!fixtures_home_team_id_fkey (
+            home:fb_teams!fb_fixtures_home_team_id_fkey (
               id,
               name,
               logo_url
             ),
-            away:teams!fixtures_away_team_id_fkey (
+            away:fb_teams!fb_fixtures_away_team_id_fkey (
               id,
               name,
               logo_url

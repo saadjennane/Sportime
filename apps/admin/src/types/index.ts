@@ -578,6 +578,7 @@ export interface SportimeGame {
   matches?: SwipeMatch[];
   gameWeeks?: FantasyGameWeek[];
   challengeId?: string;
+  period_type?: 'matchdays' | 'calendar';
 }
 
 export interface CelebrationEvent {

@@ -129,6 +129,11 @@ export const ChallengesAdmin: React.FC<ChallengesAdminProps> = (props) => {
                 <div className="flex items-center gap-2">
                   <p className="font-bold text-text-primary">{game.name}</p>
                   <span className="text-xs px-2 py-0.5 bg-warm-yellow/20 text-warm-yellow rounded">{game.game_type}</span>
+                  {game.period_type && (
+                    <span className={`text-xs px-2 py-0.5 rounded ${game.period_type === 'calendar' ? 'bg-lime-glow/20 text-lime-glow' : 'bg-purple-500/20 text-purple-400'}`}>
+                      {game.period_type === 'calendar' ? 'Calendar' : 'Matchdays'}
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-warm-yellow mt-1">Draft - Not yet published</p>
               </div>
@@ -176,6 +181,11 @@ export const ChallengesAdmin: React.FC<ChallengesAdminProps> = (props) => {
                   <div className="flex items-center gap-2">
                     <p className="font-bold text-text-primary">{game.name}</p>
                     <span className="text-xs px-2 py-0.5 bg-electric-blue/20 text-electric-blue rounded">{game.game_type}</span>
+                    {game.period_type && (
+                      <span className={`text-xs px-2 py-0.5 rounded ${game.period_type === 'calendar' ? 'bg-lime-glow/20 text-lime-glow' : 'bg-purple-500/20 text-purple-400'}`}>
+                        {game.period_type === 'calendar' ? 'Calendar' : 'Matchdays'}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-4 mt-1">
                     <p className={`text-xs flex items-center gap-1 ${isPastScheduledDate ? 'text-hot-red' : 'text-electric-blue'}`}>
@@ -225,7 +235,15 @@ export const ChallengesAdmin: React.FC<ChallengesAdminProps> = (props) => {
           {upcomingGames.map(game => (
             <div key={game.id} className="card-base p-3 flex items-center justify-between">
               <div>
-                <p className="font-bold text-text-primary">{game.name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-bold text-text-primary">{game.name}</p>
+                  <span className="text-xs px-2 py-0.5 bg-electric-blue/20 text-electric-blue rounded">{game.game_type}</span>
+                  {game.period_type && (
+                    <span className={`text-xs px-2 py-0.5 rounded ${game.period_type === 'calendar' ? 'bg-lime-glow/20 text-lime-glow' : 'bg-purple-500/20 text-purple-400'}`}>
+                      {game.period_type === 'calendar' ? 'Calendar' : 'Matchdays'}
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-text-disabled">Min Players: {game.minimum_players || 'N/A'}, Current: {game.participants.length}</p>
               </div>
               <div className="flex items-center gap-2">
@@ -256,7 +274,15 @@ export const ChallengesAdmin: React.FC<ChallengesAdminProps> = (props) => {
           {otherGames.map(game => (
              <div key={game.id} className={`card-base p-3 flex items-center justify-between opacity-70 ${game.status === 'Cancelled' ? 'bg-hot-red/10' : ''}`}>
               <div>
-                <p className="font-bold text-text-primary">{game.name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-bold text-text-primary">{game.name}</p>
+                  <span className="text-xs px-2 py-0.5 bg-electric-blue/20 text-electric-blue rounded">{game.game_type}</span>
+                  {game.period_type && (
+                    <span className={`text-xs px-2 py-0.5 rounded ${game.period_type === 'calendar' ? 'bg-lime-glow/20 text-lime-glow' : 'bg-purple-500/20 text-purple-400'}`}>
+                      {game.period_type === 'calendar' ? 'Calendar' : 'Matchdays'}
+                    </span>
+                  )}
+                </div>
                 <p className={`text-xs font-bold ${game.status === 'Cancelled' ? 'text-hot-red' : 'text-text-disabled'}`}>Status: {game.status}</p>
               </div>
               {game.duration_type === 'season' && (
