@@ -243,22 +243,45 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
   };
 
   const formFieldClasses = "input-base text-sm";
+  const isNameValid = formState.name && formState.name.trim() !== '';
+  const isFormValid = isNameValid && formState.league_id;
 
   return (
     <form onSubmit={handleSubmit} className="card-base p-4 space-y-4">
       {/* Basic Info */}
       <div className="grid grid-cols-2 gap-3">
-        <input type="text" name="name" placeholder="Game Name" value={formState.name} onChange={handleChange} className={formFieldClasses} required />
-        <select name="league_id" value={formState.league_id} onChange={handleChange} className={formFieldClasses} required>
-          {leagues.length === 0 ? (
-            <option value="">Loading leagues...</option>
-          ) : (
-            <>
-              <option value="">Select a league</option>
-              {leagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-            </>
+        <div>
+          <label className="text-xs text-text-disabled flex items-center gap-1 mb-1">
+            Game Name <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            name="name"
+            placeholder="Enter game name"
+            value={formState.name}
+            onChange={handleChange}
+            className={`${formFieldClasses} ${!isNameValid ? 'border-red-500/50 focus:border-red-500' : ''}`}
+            required
+          />
+          {!isNameValid && (
+            <p className="text-xs text-red-500 mt-1">Game name is required</p>
           )}
-        </select>
+        </div>
+        <div>
+          <label className="text-xs text-text-disabled flex items-center gap-1 mb-1">
+            League <span className="text-red-500">*</span>
+          </label>
+          <select name="league_id" value={formState.league_id} onChange={handleChange} className={formFieldClasses} required>
+            {leagues.length === 0 ? (
+              <option value="">Loading leagues...</option>
+            ) : (
+              <>
+                <option value="">Select a league</option>
+                {leagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </>
+            )}
+          </select>
+        </div>
       </div>
       <textarea name="description" placeholder="Description..." value={formState.description} onChange={handleChange} className={`${formFieldClasses} h-20`} />
       
@@ -409,12 +432,25 @@ export const GameCreationForm: React.FC<GameCreationFormProps> = ({ onCreate, on
           <button
             type="button"
             onClick={(e) => handleSubmit(e, true)}
-            className="flex-1 py-2 bg-warm-yellow/20 text-warm-yellow rounded-lg font-semibold hover:bg-warm-yellow/30"
+            disabled={!isFormValid}
+            className={`flex-1 py-2 rounded-lg font-semibold transition-colors ${
+              isFormValid
+                ? 'bg-warm-yellow/20 text-warm-yellow hover:bg-warm-yellow/30'
+                : 'bg-gray-600/20 text-gray-500 cursor-not-allowed'
+            }`}
           >
             Save as Draft
           </button>
         )}
-        <button type="submit" className="flex-1 primary-button py-2">
+        <button
+          type="submit"
+          disabled={!isFormValid}
+          className={`flex-1 py-2 rounded-lg font-semibold transition-colors ${
+            isFormValid
+              ? 'primary-button'
+              : 'bg-gray-600/20 text-gray-500 cursor-not-allowed'
+          }`}
+        >
           {isEditing ? 'Update Game' : 'Create & Publish'}
         </button>
       </div>
