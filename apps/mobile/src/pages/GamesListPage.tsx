@@ -206,13 +206,18 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
     }
 
     // Sorting
-    const sortByStartDate = (a: SportimeGame, b: SportimeGame) => parseISO(a.start_date).getTime() - parseISO(b.start_date).getTime();
+    // Play Now: Sort by urgency - earliest first_kickoff_time (deadline) first
+    const sortByUrgency = (a: SportimeGame, b: SportimeGame) => {
+      const aTime = a.first_kickoff_time ? new Date(a.first_kickoff_time).getTime() : parseISO(a.start_date).getTime();
+      const bTime = b.first_kickoff_time ? new Date(b.first_kickoff_time).getTime() : parseISO(b.start_date).getTime();
+      return aTime - bTime;
+    };
     const sortByEndDateDesc = (a: SportimeGame, b: SportimeGame) => parseISO(b.end_date).getTime() - parseISO(a.end_date).getTime();
 
-    // Active: Sort by urgency (earliest start date first)
-    active.sort(sortByStartDate);
-    // Awaiting: Sort by start date (most recent first)
-    awaiting.sort(sortByStartDate);
+    // Active (Play Now): Sort by urgency (earliest kickoff first)
+    active.sort(sortByUrgency);
+    // Awaiting: Sort by kickoff time
+    awaiting.sort(sortByUrgency);
     // Finished: Sort by end date (most recent first)
     finished.sort(sortByEndDateDesc);
 
@@ -220,6 +225,7 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
   }, [processedGames, myGameIds, userChallengeEntries, userSwipeEntries, userFantasyTeams]);
 
   // Separate upcoming/ongoing games from past games for Browse tab
+  // Hide games that user has already joined
   const { browseGames, pastGames } = useMemo(() => {
     const now = new Date();
 
@@ -227,6 +233,10 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
     const past: (SportimeGame & { isEligible: boolean })[] = [];
 
     for (const game of processedGames) {
+      // Hide joined games from Browse tab
+      const hasJoined = myGameIds.has(game.id);
+      if (hasJoined) continue;
+
       const realStatus = getRealGameStatus(game, now);
 
       if (realStatus === 'Finished' || realStatus === 'Cancelled') {
@@ -244,7 +254,7 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       browseGames: upcoming.sort(sortByStartDate),
       pastGames: past.sort(sortByEndDateDesc)
     };
-  }, [processedGames]);
+  }, [processedGames, myGameIds]);
 
   const getCtaState = (game: SportimeGame & { isEligible: boolean }, isInMyGamesTab: boolean): CtaState => {
     const hasJoined = myGameIds.has(game.id);
@@ -371,7 +381,7 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       {activeTab === 'my-games' && (
         <>
           <GameSection
-            title="Active"
+            title="Play Now"
             count={activeGames.length}
             icon={<Zap />}
             colorClass="text-lime-glow"
@@ -391,7 +401,7 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
           </GameSection>
 
           <GameSection
-            title="Finished"
+            title="Past Games"
             count={finishedGames.length}
             icon={<Flag />}
             colorClass="text-text-disabled"
