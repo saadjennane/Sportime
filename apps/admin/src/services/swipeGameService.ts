@@ -639,6 +639,81 @@ export async function getUserChallengeStats(challengeId: string, userId: string)
   };
 }
 
+// ============================================================================
+// MATCHDAY GENERATION (Shared for all game types)
+// ============================================================================
+
+/**
+ * Helper to get matchday date in YYYY-MM-DD format
+ */
+function getMatchdayDate(date: string): string {
+  return new Date(date).toISOString().split('T')[0];
+}
+
+/**
+ * Generate matchdays for any challenge type (betting, prediction, etc.)
+ * Creates one matchday per calendar day within the date range
+ * and links all fixtures for that league on each day
+ */
+export async function generateMatchdaysForChallenge(params: {
+  challengeId: string;
+  leagueId: string;
+  startDate: string;
+  endDate: string;
+}): Promise<{ matchdaysCreated: number; fixturesLinked: number }> {
+  const { challengeId, leagueId, startDate, endDate } = params;
+
+  // Fetch all fixtures for this league in the date range
+  const { data: fixtures, error } = await supabase
+    .from('fb_fixtures')
+    .select('id, date, league_id')
+    .eq('league_id', leagueId)
+    .gte('date', startDate)
+    .lte('date', endDate)
+    .order('date');
+
+  if (error) throw error;
+
+  let matchdaysCreated = 0;
+  let fixturesLinked = 0;
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  let currentDate = new Date(start);
+
+  while (currentDate <= end) {
+    const dateStr = currentDate.toISOString().split('T')[0];
+
+    // Find fixtures for this day
+    const fixturesForDay = fixtures?.filter(f =>
+      getMatchdayDate(f.date) === dateStr
+    ) || [];
+
+    // Only create matchday if there are fixtures
+    if (fixturesForDay.length > 0) {
+      const matchday = await getOrCreateMatchday(challengeId, dateStr);
+      matchdaysCreated++;
+
+      // Link fixtures
+      await linkFixturesToMatchday(matchday.id, fixturesForDay.map(f => f.id));
+      fixturesLinked += fixturesForDay.length;
+
+      // Set deadline to first kickoff time
+      const firstFixture = fixturesForDay[0];
+      if (firstFixture) {
+        await updateMatchdayDeadline(matchday.id, firstFixture.date);
+      }
+
+      console.log(`[generateMatchdaysForChallenge] Created matchday ${dateStr} with ${fixturesForDay.length} fixtures`);
+    }
+
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  console.log(`[generateMatchdaysForChallenge] Total: ${matchdaysCreated} matchdays, ${fixturesLinked} fixtures`);
+  return { matchdaysCreated, fixturesLinked };
+}
+
 export default {
   // Challenge
   createSwipeChallenge,
@@ -653,6 +728,7 @@ export default {
   linkFixturesToMatchday,
   updateMatchdayDeadline,
   updateMatchdayStatus,
+  generateMatchdaysForChallenge,
 
   // Predictions
   savePrediction,

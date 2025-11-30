@@ -14,6 +14,7 @@ import { BadgeManager } from '../components/admin/BadgeManager';
 import { Zap } from 'lucide-react';
 import { USE_SUPABASE } from '../config/env';
 import * as challengeService from '../services/challengeService';
+import { generateMatchdaysForChallenge } from '../services/swipeGameService';
 
 type AdminSection = 'challenges' | 'swipe' | 'progression' | 'datasync' | 'feed' | 'developer';
 
@@ -104,6 +105,24 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
         };
 
         const result = await challengeService.createChallenge(params);
+
+        // Generate matchdays for betting games (linking fixtures automatically)
+        // Prediction games handle this in SwipeGameAdmin.tsx
+        if (config.game_type === 'betting' && config.league_id && result?.id) {
+          try {
+            const { matchdaysCreated, fixturesLinked } = await generateMatchdaysForChallenge({
+              challengeId: result.id,
+              leagueId: config.league_id,
+              startDate: config.start_date,
+              endDate: config.end_date,
+            });
+            console.log(`[handleCreateGame] Generated ${matchdaysCreated} matchdays with ${fixturesLinked} fixtures for betting game`);
+          } catch (matchdayError) {
+            console.error('[handleCreateGame] Failed to generate matchdays:', matchdayError);
+            // Don't fail the whole creation, just warn
+            addToast('Game created but failed to link matches. Please check manually.', 'info');
+          }
+        }
 
         const message = publishDate
           ? `Game scheduled for publication on ${new Date(publishDate).toLocaleString()}`
