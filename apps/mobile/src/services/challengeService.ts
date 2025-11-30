@@ -619,12 +619,12 @@ type RawMatchday = {
       home: {
         id: string
         name: string | null
-        logo: string | null
+        logo_url: string | null
       } | null
       away: {
         id: string
         name: string | null
-        logo: string | null
+        logo_url: string | null
       } | null
     } | null
   }> | null
@@ -756,10 +756,12 @@ function buildChallengeMatches(challengeId: string, matchdays: RawMatchday[] | n
         teamA: {
           name: fixture.home?.name ?? 'Home',
           emoji: nameInitialEmoji(fixture.home?.name),
+          logo: fixture.home?.logo_url ?? undefined,
         },
         teamB: {
           name: fixture.away?.name ?? 'Away',
           emoji: nameInitialEmoji(fixture.away?.name),
+          logo: fixture.away?.logo_url ?? undefined,
         },
         odds,
         status,

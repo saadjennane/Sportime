@@ -40,8 +40,8 @@ export interface ChallengeMatch {
   id: string;
   challengeId: string;
   day: number;
-  teamA: { name: string; emoji: string };
-  teamB: { name: string; emoji: string };
+  teamA: { name: string; emoji: string; logo?: string };
+  teamB: { name: string; emoji: string; logo?: string };
   odds: { teamA: number; draw: number; teamB: number };
   status: 'upcoming' | 'played';
   result?: 'teamA' | 'draw' | 'teamB';
