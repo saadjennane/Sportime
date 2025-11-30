@@ -157,6 +157,7 @@ interface Challenge {
   tier?: string;
   participants_count: number;
   league?: League;
+  rules?: { period_type?: 'matchdays' | 'calendar'; [key: string]: any };
 }
 
 // Filter and Sort types
@@ -243,7 +244,7 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
       // Step 1: Load challenges (filter archived based on toggle)
       let query = supabase
         .from('challenges')
-        .select('id, name, description, start_date, end_date, entry_cost, status, game_type')
+        .select('id, name, description, start_date, end_date, entry_cost, status, game_type, rules')
         .in('game_type', ['prediction', 'betting', 'fantasy']);
 
       // Note: 'archived' status doesn't exist in challenge_status_enum
@@ -337,6 +338,7 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
         tier: tierMap.get(c.id) || null,
         participants_count: participantsCountMap.get(c.id) || 0,
         league: challengeLeagueMap.get(c.id),
+        rules: c.rules,
       }));
 
       setChallenges(transformed);
@@ -2076,6 +2078,11 @@ const ChallengeCard: React.FC<ChallengeCardProps> = ({
             {challenge.game_type && (
               <span className="text-xs text-text-disabled">
                 • {challenge.game_type}
+              </span>
+            )}
+            {challenge.rules?.period_type && (
+              <span className={`text-xs px-2 py-0.5 rounded ${challenge.rules.period_type === 'calendar' ? 'bg-lime-glow/20 text-lime-glow' : 'bg-purple-500/20 text-purple-400'}`}>
+                {challenge.rules.period_type === 'calendar' ? 'Calendar' : 'Matchdays'}
               </span>
             )}
           </div>
