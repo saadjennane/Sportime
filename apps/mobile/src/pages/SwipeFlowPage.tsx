@@ -467,6 +467,7 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
         onEditPicks={handleGoToCards}
         onViewLeaderboard={handleGoToLeaderboard}
         onSelectMatchday={handleSelectMatchday}
+        onUpdatePrediction={handleSwipe}
         onLinkGame={onLinkGame}
         profile={profile}
         userLeagues={userLeagues}

@@ -43,6 +43,7 @@ interface SwipeRecapViewProps {
   onEditPicks: () => void;
   onViewLeaderboard: () => void;
   onSelectMatchday: (matchdayId: string) => void;
+  onUpdatePrediction: (matchId: string, prediction: SwipePredictionOutcome) => void;
   onLinkGame: (game: Game) => void;
   profile: Profile;
   userLeagues: UserLeague[];
@@ -63,6 +64,7 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
   onEditPicks,
   onViewLeaderboard,
   onSelectMatchday,
+  onUpdatePrediction,
   onLinkGame,
   profile,
   userLeagues,
@@ -269,6 +271,7 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
                   <div className="grid grid-cols-3 gap-2">
                     <button
                       disabled={!isEditable}
+                      onClick={() => isEditable && onUpdatePrediction(match.id, 'teamA')}
                       className={`p-2 rounded-lg text-sm font-semibold transition-colors flex flex-col items-center justify-center ${getButtonClass(
                         match,
                         'teamA',
@@ -283,6 +286,7 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
                     </button>
                     <button
                       disabled={!isEditable}
+                      onClick={() => isEditable && onUpdatePrediction(match.id, 'draw')}
                       className={`p-2 rounded-lg text-sm font-semibold transition-colors flex flex-col items-center justify-center ${getButtonClass(
                         match,
                         'draw',
@@ -297,6 +301,7 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
                     </button>
                     <button
                       disabled={!isEditable}
+                      onClick={() => isEditable && onUpdatePrediction(match.id, 'teamB')}
                       className={`p-2 rounded-lg text-sm font-semibold transition-colors flex flex-col items-center justify-center ${getButtonClass(
                         match,
                         'teamB',
