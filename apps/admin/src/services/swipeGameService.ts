@@ -663,16 +663,29 @@ export async function generateMatchdaysForChallenge(params: {
 }): Promise<{ matchdaysCreated: number; fixturesLinked: number }> {
   const { challengeId, leagueId, startDate, endDate } = params;
 
+  // Add one day to endDate to make it inclusive (since fb_fixtures.date is a timestamp)
+  // e.g., if endDate is "2025-12-07", we want to include matches like "2025-12-07T20:00:00Z"
+  const endDatePlusOne = new Date(endDate);
+  endDatePlusOne.setDate(endDatePlusOne.getDate() + 1);
+  const endDateInclusive = endDatePlusOne.toISOString().split('T')[0];
+
+  console.log(`[generateMatchdaysForChallenge] Starting for challenge ${challengeId}, league ${leagueId}, dates ${startDate} to ${endDate} (inclusive: ${endDateInclusive})`);
+
   // Fetch all fixtures for this league in the date range
   const { data: fixtures, error } = await supabase
     .from('fb_fixtures')
     .select('id, date, league_id')
     .eq('league_id', leagueId)
     .gte('date', startDate)
-    .lte('date', endDate)
+    .lt('date', endDateInclusive)  // Use lt with next day instead of lte
     .order('date');
 
-  if (error) throw error;
+  if (error) {
+    console.error(`[generateMatchdaysForChallenge] Error fetching fixtures:`, error);
+    throw error;
+  }
+
+  console.log(`[generateMatchdaysForChallenge] Found ${fixtures?.length || 0} fixtures for league ${leagueId}`);
 
   let matchdaysCreated = 0;
   let fixturesLinked = 0;

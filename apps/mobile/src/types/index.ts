@@ -584,6 +584,10 @@ export interface SportimeGame {
   first_kickoff_time?: string; // ISO date, earliest match kickoff time
 }
 
+// Alias for backwards compatibility - SportimeGame is the unified type for all games
+export type BettingChallenge = SportimeGame;
+export type Game = SportimeGame;
+
 export interface CelebrationEvent {
   id: string;
   gameId: string;

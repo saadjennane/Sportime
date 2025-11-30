@@ -301,6 +301,7 @@ function App() {
   const [activeLiveGame, setActiveLiveGame] = useState<{ id: string; status: 'Upcoming' | 'Ongoing' | 'Finished' } | null>(null);
   const [boosterInfoPreferences, setBoosterInfoPreferences] = useState<{ x2: boolean, x3: boolean }>({ x2: false, x3: false });
   const [challengeToJoin, setChallengeToJoin] = useState<SportimeGame | null>(null);
+  const [swipeGameToJoin, setSwipeGameToJoin] = useState<Game | null>(null);
   const [joinSwipeGameModalState, setJoinSwipeGameModalState] = useState<{ isOpen: boolean; game: Game | null; }>({ isOpen: false, game: null });
   const [hasSeenSwipeTutorial, setHasSeenSwipeTutorial] = useState(false);
   const [swipeGameViewMode, setSwipeGameViewMode] = useState<'swiping' | 'recap'>('swiping');
@@ -634,7 +635,30 @@ function App() {
       return;
     }
     const gameToJoin = games.find(g => g.id === gameId);
-    if (gameToJoin) setJoinSwipeGameModalState({ isOpen: true, game: gameToJoin });
+    if (!gameToJoin || !profile) return;
+
+    // Check for valid ticket (same logic as betting games)
+    const validTicket = userTickets.find(t =>
+      t.user_id === profile.id &&
+      t.type === gameToJoin.tier &&
+      !t.is_used &&
+      isBefore(new Date(), parseISO(t.expires_at))
+    );
+    const hasEnoughCoins = profile.coins_balance >= gameToJoin.entry_cost;
+
+    // If user has both ticket and coins, show choice modal
+    if (validTicket && hasEnoughCoins) {
+      // Use the same ChooseEntryMethodModal as betting games
+      setSwipeGameToJoin(gameToJoin);
+    } else if (validTicket) {
+      // Auto-join with ticket
+      void handleConfirmJoinSwipeGameWithMethod(gameToJoin, 'ticket');
+    } else if (hasEnoughCoins) {
+      // Show confirmation modal for coins
+      setJoinSwipeGameModalState({ isOpen: true, game: gameToJoin });
+    } else {
+      addToast("You don't have enough coins or a valid ticket to join.", 'error');
+    }
   };
 
   const handleConfirmJoinSwipeGame = async () => {
@@ -666,6 +690,58 @@ function App() {
         addToast('Insufficient funds to join this game.', 'error');
     }
   };
+
+  // Handle joining swipe game with ticket or coins
+  const handleConfirmJoinSwipeGameWithMethod = async (game: Game, method: 'coins' | 'ticket') => {
+    if (!profile || isGuest) return;
+
+    try {
+      const { joinSwipeChallenge } = await import('./services/swipeGameService');
+
+      if (method === 'ticket') {
+        // Find and use the ticket
+        const validTicket = userTickets.find(t =>
+          t.user_id === profile.id &&
+          t.type === game.tier &&
+          !t.is_used &&
+          isBefore(new Date(), parseISO(t.expires_at))
+        );
+        if (!validTicket) {
+          addToast('No valid ticket found.', 'error');
+          return;
+        }
+        // Mark ticket as used (in real app, this should be done server-side)
+        useTicket(validTicket.id);
+      } else {
+        // Deduct coins
+        handleSetCoinBalance(coinBalance - game.entry_cost);
+      }
+
+      const result = await joinSwipeChallenge(game.id, profile.id);
+
+      if (result.alreadyJoined) {
+        addToast(`You've already joined "${game.name}"!`, 'info');
+        // Refund if they already joined
+        if (method === 'coins') {
+          handleSetCoinBalance(coinBalance);
+        }
+      } else {
+        const methodText = method === 'ticket' ? 'ticket' : `${game.entry_cost} coins`;
+        addToast(`Successfully joined "${game.name}" using ${methodText}!`, 'success');
+      }
+
+      setSwipeGameToJoin(null);
+      setSwipeGameViewMode('swiping');
+      setActiveSwipeGameId(game.id);
+    } catch (err: any) {
+      addToast(err.message || 'Failed to join game', 'error');
+      // Refund coins if payment was made
+      if (method === 'coins') {
+        handleSetCoinBalance(coinBalance);
+      }
+    }
+  };
+
   const handlePlaySwipeGame = async (challengeId: string) => {
     // When clicking on a swipe game, default to recap view
     // Users can click "Swipe" button to go to swiping mode
@@ -1254,6 +1330,14 @@ function App() {
           onClose={() => setChallengeToJoin(null)}
           onSelectMethod={(method) => handleConfirmJoinChallenge(challengeToJoin.id, method)}
           challenge={challengeToJoin}
+        />
+      )}
+      {swipeGameToJoin && (
+        <ChooseEntryMethodModal
+          isOpen={!!swipeGameToJoin}
+          onClose={() => setSwipeGameToJoin(null)}
+          onSelectMethod={(method) => handleConfirmJoinSwipeGameWithMethod(swipeGameToJoin, method)}
+          challenge={swipeGameToJoin}
         />
       )}
       {joinSwipeGameModalState.isOpen && joinSwipeGameModalState.game && ( <JoinSwipeGameConfirmationModal isOpen={joinSwipeGameModalState.isOpen} onClose={() => setJoinSwipeGameModalState({ isOpen: false, game: null })} onConfirm={handleConfirmJoinSwipeGame} game={joinSwipeGameModalState.game as SwipeMatchDay} userBalance={coinBalance} /> )}
