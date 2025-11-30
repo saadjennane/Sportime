@@ -403,7 +403,7 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
       // 1. Create challenge with appropriate status
       const challenge = await swipeService.createSwipeChallenge({
         name: formData.name,
-        description: formData.description || `Swipe predictions for ${formData.name}`,
+        description: formData.description || `Challenge: ${formData.name}`,
         league_id: formData.league_id,
         start_date: formData.start_date,
         end_date: formData.end_date,
@@ -908,7 +908,7 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="font-bold text-lg text-electric-blue">Swipe Prediction Games</h2>
+        <h2 className="font-bold text-lg text-electric-blue">Challenges</h2>
         <button
           onClick={() => {
             setEditingChallenge(null);
@@ -917,7 +917,7 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
           className="flex items-center gap-2 text-sm font-semibold bg-lime-glow/20 text-lime-glow px-4 py-3 rounded-lg hover:bg-lime-glow/30"
           disabled={isLoading}
         >
-          {showCreateForm ? 'Cancel' : '+ Create Swipe Game'}
+          {showCreateForm ? 'Cancel' : '+ Create Challenge'}
         </button>
       </div>
 
@@ -1136,7 +1136,7 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
       <div className="space-y-3">
         {filteredAndSortedChallenges.length === 0 ? (
           <div className="card-base p-6 text-center text-text-disabled">
-            {challenges.length === 0 ? 'No swipe games created yet' : 'No games match the current filters'}
+            {challenges.length === 0 ? 'No challenges created yet' : 'No games match the current filters'}
           </div>
         ) : (
           filteredAndSortedChallenges.map(challenge => (
@@ -1239,6 +1239,10 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
   const [isRewardsOpen, setIsRewardsOpen] = useState(false)
 
   const isEditing = !!editingChallenge
+
+  // Validation for required fields
+  const isNameValid = name && name.trim() !== '';
+  const isFormValid = isNameValid && leagueId;
 
   useEffect(() => {
     if (!customEntryEnabled) {
@@ -1387,21 +1391,28 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
   return (
     <form onSubmit={handleSubmit} className="card-base p-4 space-y-3">
       <h3 className="font-bold text-text-primary">
-        {isEditing ? `Edit: ${editingChallenge?.name}` : 'Create New Swipe Game'}
+        {isEditing ? `Edit: ${editingChallenge?.name}` : 'Create New Challenge'}
       </h3>
 
       <div>
         <label className="block text-xs font-semibold text-text-secondary mb-1">
-          Game Name
+          Game Name <span className="text-red-500">*</span>
         </label>
         <input
           type="text"
           value={name}
           onChange={e => setName(e.target.value)}
           placeholder="e.g., Champions League November 2025"
-          className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+          className={`w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border focus:outline-none ${
+            !isNameValid
+              ? 'border-red-500/50 focus:border-red-500'
+              : 'border-white/10 focus:border-electric-blue'
+          }`}
           required
         />
+        {!isNameValid && (
+          <p className="text-xs text-red-500 mt-1">Game name is required</p>
+        )}
       </div>
 
       <div>
@@ -1856,8 +1867,12 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
           <button
             type="button"
             onClick={() => handleSubmit(null, true)}
-            className="flex-1 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 disabled:opacity-50"
-            disabled={isLoading}
+            className={`flex-1 py-2 rounded-lg font-semibold transition-colors ${
+              isFormValid
+                ? 'bg-purple-600 text-white hover:bg-purple-700'
+                : 'bg-gray-600/20 text-gray-500 cursor-not-allowed'
+            }`}
+            disabled={isLoading || !isFormValid}
           >
             {isLoading ? 'Saving...' : 'Save as Draft'}
           </button>
@@ -1865,8 +1880,12 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
         <button
           type="button"
           onClick={() => handleSubmit(null, false)}
-          className="flex-1 py-2 bg-electric-blue text-white rounded-lg font-semibold hover:bg-electric-blue/80 disabled:opacity-50"
-          disabled={isLoading}
+          className={`flex-1 py-2 rounded-lg font-semibold transition-colors ${
+            isFormValid
+              ? 'bg-electric-blue text-white hover:bg-electric-blue/80'
+              : 'bg-gray-600/20 text-gray-500 cursor-not-allowed'
+          }`}
+          disabled={isLoading || !isFormValid}
         >
           {isLoading ? (isEditing ? 'Updating...' : 'Creating...') : (isEditing ? 'Update Game' : 'Create & Publish')}
         </button>
