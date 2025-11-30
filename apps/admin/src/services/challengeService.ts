@@ -812,6 +812,11 @@ export type UpdateChallengeParams = {
  * Create a new challenge (admin only)
  */
 export async function createChallenge(params: CreateChallengeParams) {
+  // Validate required fields
+  if (!params.name || params.name.trim() === '') {
+    throw new Error('Game name is required')
+  }
+
   const { data, error } = await supabase
     .rpc('create_challenge', {
       p_name: params.name,
