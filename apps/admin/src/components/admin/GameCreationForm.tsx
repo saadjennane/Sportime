@@ -1,3 +1,4 @@
+// Game Creation Form - Admin Dashboard
 import React, { useState, useMemo, useEffect } from 'react';
 import { SportimeGame, TournamentType, GameType, GameFormat, RewardTier, ConditionsLogic, GameRewardTier } from '../../types';
 import { TOURNAMENT_COSTS } from '../../config/constants';
