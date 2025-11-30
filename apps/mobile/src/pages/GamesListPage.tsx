@@ -182,7 +182,9 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
         } else if (game.game_type === 'prediction') {
           const userEntry = userSwipeEntries.find(e => e.matchDayId === game.id);
           if (userEntry) {
-            const allPredictionsMade = userEntry.predictions.length >= (game.matches?.length || 0);
+            const matchCount = game.matches?.length || 0;
+            // A game with 0 matches cannot be "complete" - require at least 1 match
+            const allPredictionsMade = matchCount > 0 && userEntry.predictions.length >= matchCount;
             // Utiliser first_kickoff_time pour vérifier si le premier match a commencé
             const firstKickoff = game.first_kickoff_time ? new Date(game.first_kickoff_time) : null;
             const hasFirstMatchStarted = firstKickoff ? firstKickoff <= now : false;

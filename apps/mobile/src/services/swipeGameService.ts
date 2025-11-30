@@ -159,12 +159,11 @@ export async function getSwipeChallenge(challengeId: string) {
     .from('challenges')
     .select(`
       *,
-      challenge_leagues!inner(
+      challenge_leagues(
         league:fb_leagues(*)
       )
     `)
     .eq('id', challengeId)
-    .eq('game_type', 'prediction')
     .single();
 
   if (error) throw error;

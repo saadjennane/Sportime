@@ -431,6 +431,49 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
     }
   }
 
+  // 3. Fallback: For swipe challenges where deadline is NULL, fetch from matchday_fixtures → fb_fixtures
+  // This handles cases where matchdays were created without setting the deadline field
+  const challengesMissingKickoff = challengeIds.filter(id => !firstKickoffByChallenge.has(id))
+  if (challengesMissingKickoff.length > 0) {
+    const { data: fixtureKickoffs, error: fixtureError } = await supabase
+      .from('matchday_fixtures')
+      .select(`
+        matchday:challenge_matchdays!inner(challenge_id),
+        fixture:fb_fixtures(date)
+      `)
+      .not('fixture.date', 'is', null)
+
+    if (fixtureError) {
+      console.warn('[challengeService] Failed to fetch fixture kickoff fallback', fixtureError)
+    }
+
+    if (fixtureKickoffs) {
+      // Group by challenge_id and find earliest date
+      const kickoffsByChallenge = new Map<string, string[]>()
+      for (const row of fixtureKickoffs as Array<{
+        matchday: { challenge_id: string } | null
+        fixture: { date: string } | null
+      }>) {
+        const challengeId = row.matchday?.challenge_id
+        const fixtureDate = row.fixture?.date
+        if (challengeId && fixtureDate && challengesMissingKickoff.includes(challengeId)) {
+          if (!kickoffsByChallenge.has(challengeId)) {
+            kickoffsByChallenge.set(challengeId, [])
+          }
+          kickoffsByChallenge.get(challengeId)!.push(fixtureDate)
+        }
+      }
+
+      // Set the earliest fixture date as first_kickoff_time
+      for (const [challengeId, dates] of kickoffsByChallenge.entries()) {
+        const earliest = dates.sort()[0]
+        if (earliest) {
+          firstKickoffByChallenge.set(challengeId, earliest)
+        }
+      }
+    }
+  }
+
   const { data: participantsRows, error: participantsError } = await supabase
     .from('challenge_participants')
     .select('challenge_id, user_id')
