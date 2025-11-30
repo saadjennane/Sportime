@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback, useRef } from 'react';
 import { SwipePredictionOutcome, Profile, UserLeague, LeagueMember, LeagueGame, Game } from '../types';
 import {
   ArrowLeft,
@@ -69,6 +69,10 @@ export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = (props) => {
     isSaving,
   } = useSwipePredictions(challengeId, currentMatchday?.id || null, userId);
 
+  // Stabilize savePrediction reference to prevent handleUpdatePrediction recreation
+  const savePredictionRef = useRef(savePrediction);
+  savePredictionRef.current = savePrediction;
+
   if (isLoadingGame || isLoadingPredictions) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -133,7 +137,8 @@ export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = (props) => {
     return num.toString();
   };
 
-  const handleUpdatePrediction = async (
+  // Uses savePredictionRef to avoid recreating this callback when savePrediction changes
+  const handleUpdatePrediction = useCallback(async (
     matchId: string,
     prediction: SwipePredictionOutcome
   ) => {
@@ -143,11 +148,11 @@ export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = (props) => {
     if (!match) return;
 
     try {
-      await savePrediction(matchId, prediction, match.odds);
+      await savePredictionRef.current(matchId, prediction, match.odds);
     } catch (err) {
       console.error('Error updating prediction:', err);
     }
-  };
+  }, [isEditable, matches]); // NO savePrediction - uses ref instead
 
   return (
     <div className="space-y-4">
