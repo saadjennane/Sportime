@@ -171,29 +171,37 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
         // Determine if user has completed their submissions
         let isComplete = false;
 
-        if (game.game_type === 'betting') {
+        // RÈGLE UNIFIÉE: Calculer hasFirstMatchStarted pour TOUS les types de jeux
+        const firstKickoff = game.first_kickoff_time ? new Date(game.first_kickoff_time) : null;
+        const hasFirstMatchStarted = firstKickoff ? firstKickoff <= now : false;
+
+        // RÈGLE PRIORITAIRE: Si le premier match a commencé → Awaiting Results (lecture seule)
+        if (hasFirstMatchStarted) {
+          isComplete = true;
+        } else if (game.game_type === 'betting') {
           const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
           if (userEntry) {
-            isComplete = userEntry.dailyEntries.every((daily: any) => {
-              const totalBet = daily.bets.reduce((sum: number, b: any) => sum + b.amount, 0);
-              return totalBet >= (game.challengeBalance || 1000);
-            });
+            // Fix: Un jeu avec 0 dailyEntries ne peut pas être "complete"
+            if (userEntry.dailyEntries.length === 0) {
+              isComplete = false;
+            } else {
+              isComplete = userEntry.dailyEntries.every((daily: any) => {
+                const totalBet = daily.bets.reduce((sum: number, b: any) => sum + b.amount, 0);
+                return totalBet >= (game.challengeBalance || 1000);
+              });
+            }
           }
         } else if (game.game_type === 'prediction') {
+          // Le check hasFirstMatchStarted est déjà fait ci-dessus
+          // Ici on vérifie juste si les prédictions sont faites (quand le match n'a pas encore commencé)
           const userEntry = userSwipeEntries.find(e => e.matchDayId === game.id);
           if (userEntry) {
             const matchCount = game.matches?.length || 0;
-            // A game with 0 matches cannot be "complete" - require at least 1 match
             const allPredictionsMade = matchCount > 0 && userEntry.predictions.length >= matchCount;
-            // Utiliser first_kickoff_time pour vérifier si le premier match a commencé
-            const firstKickoff = game.first_kickoff_time ? new Date(game.first_kickoff_time) : null;
-            const hasFirstMatchStarted = firstKickoff ? firstKickoff <= now : false;
-            // Complet seulement si toutes les prédictions ET le premier match a commencé
-            isComplete = allPredictionsMade && hasFirstMatchStarted;
+            isComplete = allPredictionsMade;
           }
         } else if (game.game_type === 'fantasy') {
-          const userTeam = userFantasyTeams.find(t => t.gameId === game.id);
-          // For fantasy, if team exists, assume it can always be edited (Complete Team CTA)
+          // Fantasy reste toujours modifiable jusqu'au deadline (géré par hasFirstMatchStarted)
           isComplete = false;
         }
 

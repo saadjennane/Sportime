@@ -1244,7 +1244,9 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
 
   // Validation for required fields
   const isNameValid = name && name.trim() !== '';
-  const isFormValid = isNameValid && leagueId;
+  // Date validation: start_date must be <= end_date (only for calendar mode)
+  const isDateRangeValid = periodType === 'matchdays' || new Date(startDate) <= new Date(endDate);
+  const isFormValid = isNameValid && leagueId && isDateRangeValid;
 
   useEffect(() => {
     if (!customEntryEnabled) {
@@ -1625,11 +1627,23 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
                 type="date"
                 value={endDate}
                 onChange={e => setEndDate(e.target.value)}
-                className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+                min={startDate}
+                className={`w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border focus:outline-none ${
+                  !isDateRangeValid
+                    ? 'border-red-500/50 focus:border-red-500'
+                    : 'border-white/10 focus:border-electric-blue'
+                }`}
                 required
               />
             </div>
           </div>
+
+          {/* Date range validation error */}
+          {!isDateRangeValid && (
+            <div className="text-red-500 text-sm mt-2">
+              ⚠️ End date must be after or equal to start date
+            </div>
+          )}
 
           {periodInfo && (
             <div className="bg-electric-blue/10 border border-electric-blue/20 rounded-lg p-4">
