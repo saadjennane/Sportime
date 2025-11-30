@@ -110,12 +110,12 @@ export interface FixtureData {
   home: {
     id: string;
     name: string;
-    logo?: string;
+    logo_url?: string;
   };
   away: {
     id: string;
     name: string;
-    logo?: string;
+    logo_url?: string;
   };
   odds?: {
     home_win: number;
@@ -204,12 +204,12 @@ export function fixtureToSwipeMatch(
     id: fixture.id,
     teamA: {
       name: fixture.home.name,
-      logo: fixture.home.logo,
+      logo: fixture.home.logo_url,
       emoji: getTeamEmoji(fixture.home.name),
     },
     teamB: {
       name: fixture.away.name,
-      logo: fixture.away.logo,
+      logo: fixture.away.logo_url,
       emoji: getTeamEmoji(fixture.away.name),
     },
     kickoffTime: fixture.date,
