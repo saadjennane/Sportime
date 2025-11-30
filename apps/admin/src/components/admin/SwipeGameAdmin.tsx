@@ -1227,7 +1227,7 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
   const [requiredBadges, setRequiredBadges] = useState<string[]>([])
   const [requiresSubscription, setRequiresSubscription] = useState(false)
   const [periodType, setPeriodType] = useState<'matchdays' | 'calendar'>('matchdays')
-  const [periodInfo, setPeriodInfo] = useState<{ type: string; count: number } | null>(null)
+  const [periodInfo, setPeriodInfo] = useState<{ type: string; count: number; daysWithMatches?: number; totalMatches?: number } | null>(null)
 
   // Matchdays mode - cluster selection (handles split rounds)
   const [availableClusters, setAvailableClusters] = useState<RoundCluster[]>([])
@@ -1313,7 +1313,31 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
           const end = new Date(endDate)
           const diffTime = Math.abs(end.getTime() - start.getTime())
           const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
-          setPeriodInfo({ type: 'calendar', count: diffDays })
+
+          // Fetch fixtures in date range to count days with matches
+          const { data: fixtures } = await supabase
+            .from('fb_fixtures')
+            .select('id, date')
+            .eq('league_id', leagueId)
+            .gte('date', startDate)
+            .lte('date', endDate + 'T23:59:59Z')
+
+          if (fixtures && fixtures.length > 0) {
+            const uniqueDays = new Set(fixtures.map((f: any) => f.date.split('T')[0]))
+            setPeriodInfo({
+              type: 'calendar',
+              count: diffDays,
+              daysWithMatches: uniqueDays.size,
+              totalMatches: fixtures.length
+            })
+          } else {
+            setPeriodInfo({
+              type: 'calendar',
+              count: diffDays,
+              daysWithMatches: 0,
+              totalMatches: 0
+            })
+          }
         } else {
           // Calculate matchdays based on fixtures
           const { data: fixtures, error } = await supabase
@@ -1602,7 +1626,13 @@ const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
                 <div className="text-3xl">📅</div>
                 <div className="flex-1">
                   <p className="font-bold text-lg text-electric-blue">
-                    {periodInfo.count} jours calendaires
+                    {periodInfo.daysWithMatches !== undefined && periodInfo.totalMatches !== undefined ? (
+                      periodInfo.totalMatches > 0
+                        ? `${periodInfo.daysWithMatches} jour${periodInfo.daysWithMatches > 1 ? 's' : ''} avec matchs - ${periodInfo.totalMatches} match${periodInfo.totalMatches > 1 ? 's' : ''}`
+                        : 'Aucun match dans cette période'
+                    ) : (
+                      `${periodInfo.count} jours calendaires`
+                    )}
                   </p>
                   <p className="text-xs text-text-secondary">
                     Du {new Date(startDate).toLocaleDateString('fr-FR')} au {new Date(endDate).toLocaleDateString('fr-FR')}
