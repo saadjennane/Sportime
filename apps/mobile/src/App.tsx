@@ -675,28 +675,29 @@ function App() {
     setActiveSwipeGameId(challengeId);
   };
   // Swipe game handlers - now using live API
-  const handleSwipeComplete = () => {
+  // CRITICAL: All callbacks MUST be wrapped in useCallback to prevent re-render cascade
+  const handleSwipeComplete = useCallback(() => {
     // When all predictions are made, switch to recap view
     setTimeout(() => setSwipeGameViewMode('recap'), 350);
-  };
+  }, []);
 
-  const handleEditSwipePicks = () => {
+  const handleEditSwipePicks = useCallback(() => {
     if (activeSwipeGameId) {
       setSwipeGameViewMode('swiping');
     }
-  };
+  }, [activeSwipeGameId]);
 
-  const handleExitSwiping = () => {
+  const handleExitSwiping = useCallback(() => {
     setActiveSwipeGameId(null);
     setSwipeGameViewMode(null);
-  };
+  }, []);
 
-  const handleDismissSwipeTutorial = (dontShowAgain: boolean) => {
+  const handleDismissSwipeTutorial = useCallback((dontShowAgain: boolean) => {
     if (dontShowAgain) {
       localStorage.setItem('sportime_seen_swipe_tutorial', 'true');
     }
     setHasSeenSwipeTutorial(true);
-  };
+  }, []);
   const handleViewFantasyGame = (gameId: string) => {
     setActiveFantasyGameId(gameId);
   };

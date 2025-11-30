@@ -19,6 +19,9 @@ import { useSwipeGame } from '../features/swipe/useSwipeGame';
 import { useSwipePredictions } from '../features/swipe/useSwipePredictions';
 import { mapPredictionToOutcome, mapOutcomeToPrediction } from '../features/swipe/swipeMappers';
 
+// Stable constant to prevent re-renders from creating new array references
+const EMPTY_LEAGUES: never[] = [];
+
 interface SwipeRecapPageProps {
   challengeId: string;
   selectedMatchdayId?: string;
@@ -127,7 +130,7 @@ export const SwipeRecapPage: React.FC<SwipeRecapPageProps> = (props) => {
       name: format(new Date(md.date), 'MMM d, yyyy'),
       startDate: md.date,
       endDate: md.date,
-      leagues: [],
+      leagues: EMPTY_LEAGUES, // Use stable constant instead of [] to prevent re-renders
       status: md.status === 'upcoming' ? 'Upcoming' : md.status === 'active' ? 'Ongoing' : 'Finished',
     }));
   }, [matchdays]);

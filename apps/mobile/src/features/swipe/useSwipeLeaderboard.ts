@@ -8,7 +8,7 @@
  * - Real-time updates
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../services/supabase';
 import * as swipeService from '../../services/swipeGameService';
 import type { SwipeLeaderboardEntry } from '../../types';
@@ -112,12 +112,46 @@ export function useSwipeLeaderboard(
     }
   }, [loadChallengeLeaderboard, loadUserStats]);
 
-  // Initial load
+  // Refs to stabilize callbacks and prevent infinite re-render loops
+  const loadChallengeLeaderboardRef = useRef(loadChallengeLeaderboard);
+  loadChallengeLeaderboardRef.current = loadChallengeLeaderboard;
+
+  const loadUserStatsRef = useRef(loadUserStats);
+  loadUserStatsRef.current = loadUserStats;
+
+  // Initial load - use direct deps instead of refresh to avoid loops
   useEffect(() => {
-    refresh();
+    let cancelled = false;
+
+    const load = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        await Promise.all([
+          loadChallengeLeaderboardRef.current(),
+          loadUserStatsRef.current(),
+        ]);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err as Error);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
   }, [challengeId, userId]);
 
   // Subscribe to real-time updates on challenge_participants
+  // CRITICAL: Use refs to avoid re-subscribing on every callback change
   useEffect(() => {
     const channel = supabase
       .channel(`swipe-leaderboard-${challengeId}`)
@@ -131,9 +165,9 @@ export function useSwipeLeaderboard(
         },
         (payload) => {
           console.log('Leaderboard updated:', payload);
-          loadChallengeLeaderboard();
+          loadChallengeLeaderboardRef.current();
           if (userId) {
-            loadUserStats();
+            loadUserStatsRef.current();
           }
         }
       )
@@ -142,7 +176,7 @@ export function useSwipeLeaderboard(
     return () => {
       channel.unsubscribe();
     };
-  }, [challengeId, userId, loadChallengeLeaderboard, loadUserStats]);
+  }, [challengeId, userId]); // REMOVED loadChallengeLeaderboard, loadUserStats from deps
 
   return {
     leaderboard,
