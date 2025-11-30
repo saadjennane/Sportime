@@ -71,6 +71,8 @@ interface SwipeState {
   userPosition: number | null;
   error: string | null;
   isSaving: boolean;
+  /** True when editing predictions from recap view */
+  editMode: boolean;
 }
 
 interface SwipeFlowPageProps {
@@ -104,6 +106,7 @@ const INITIAL_STATE: SwipeState = {
   userPosition: null,
   error: null,
   isSaving: false,
+  editMode: false,
 };
 
 // ============================================================================
@@ -327,16 +330,17 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
   }
 
   function handleSwipeComplete() {
-    // All cards swiped - go to recap
-    setState(prev => ({ ...prev, view: 'recap' }));
+    // All cards swiped - go to recap, reset edit mode
+    setState(prev => ({ ...prev, view: 'recap', editMode: false }));
   }
 
   function handleGoToCards() {
-    setState(prev => ({ ...prev, view: 'cards' }));
+    // Coming from recap - enable edit mode to show all cards
+    setState(prev => ({ ...prev, view: 'cards', editMode: true }));
   }
 
   function handleGoToRecap() {
-    setState(prev => ({ ...prev, view: 'recap' }));
+    setState(prev => ({ ...prev, view: 'recap', editMode: false }));
   }
 
   async function handleGoToLeaderboard() {
@@ -449,7 +453,8 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
         onDismissTutorial={onDismissTutorial}
         onSwipe={handleSwipe}
         onComplete={handleSwipeComplete}
-        onExit={onExit}
+        onExit={state.editMode ? handleGoToRecap : onExit}
+        editMode={state.editMode}
       />
     );
   }

@@ -22,6 +22,8 @@ interface SwipeCardStackProps {
   onSwipe: (matchId: string, prediction: SwipePredictionOutcome) => void;
   onComplete: () => void;
   onExit: () => void;
+  /** If true, show all matches (including already predicted) for editing */
+  editMode?: boolean;
 }
 
 export const SwipeCardStack = memo<SwipeCardStackProps>(function SwipeCardStack({
@@ -32,18 +34,18 @@ export const SwipeCardStack = memo<SwipeCardStackProps>(function SwipeCardStack(
   onSwipe,
   onComplete,
   onExit,
+  editMode = false,
 }) {
   const [showTutorial, setShowTutorial] = useState(!hasSeenTutorial);
+
+  // In edit mode, show ALL matches; otherwise only unpredicted
+  const matchesToShow = editMode ? matches : matches.filter(m => !predictions[m.id]);
+
   const [currentIndex, setCurrentIndex] = useState(() => {
-    // Calculate initial index based on matches without predictions
     // Start from the end (stack displays top card last)
-    const unpredictedCount = matches.filter(m => !predictions[m.id]).length;
-    return unpredictedCount - 1;
+    return matchesToShow.length - 1;
   });
   const [isSaving, setIsSaving] = useState(false);
-
-  // Get matches that don't have predictions yet
-  const unpredictedMatches = matches.filter(m => !predictions[m.id]);
 
   function handleCloseTutorial(dontShowAgain: boolean) {
     setShowTutorial(false);
@@ -89,8 +91,8 @@ export const SwipeCardStack = memo<SwipeCardStackProps>(function SwipeCardStack(
     );
   }
 
-  // All predictions made
-  if (unpredictedMatches.length === 0 || currentIndex < 0) {
+  // All cards swiped through
+  if (matchesToShow.length === 0 || currentIndex < 0) {
     return (
       <div className="fixed inset-0 bg-deep-navy flex flex-col items-center justify-center z-40">
         <button
@@ -100,10 +102,13 @@ export const SwipeCardStack = memo<SwipeCardStackProps>(function SwipeCardStack(
           <X size={24} />
         </button>
         <div className="bg-navy-accent border border-white/10 rounded-3xl shadow-2xl p-8 text-center max-w-sm mx-4">
-          <div className="text-6xl mb-4">All Done!</div>
-          <h3 className="text-2xl font-bold text-text-primary mb-2">All Done!</h3>
+          <h3 className="text-2xl font-bold text-text-primary mb-2">
+            {editMode ? 'Review Complete!' : 'All Done!'}
+          </h3>
           <p className="text-text-secondary mb-6">
-            You've made predictions for all {matches.length} matches
+            {editMode
+              ? `You've reviewed all ${matches.length} matches`
+              : `You've made predictions for all ${matches.length} matches`}
           </p>
           <button
             onClick={onComplete}
@@ -116,9 +121,9 @@ export const SwipeCardStack = memo<SwipeCardStackProps>(function SwipeCardStack(
     );
   }
 
-  // Cards to show (slice from unpredicted matches)
-  const cardsToRender = unpredictedMatches.slice(0, currentIndex + 1);
-  const swipedCount = unpredictedMatches.length - cardsToRender.length;
+  // Cards to show (slice from matches to show)
+  const cardsToRender = matchesToShow.slice(0, currentIndex + 1);
+  const swipedCount = matchesToShow.length - cardsToRender.length;
 
   return (
     <div className="fixed inset-0 bg-deep-navy flex flex-col items-center justify-center z-40 overflow-hidden">
@@ -160,7 +165,7 @@ export const SwipeCardStack = memo<SwipeCardStackProps>(function SwipeCardStack(
       {/* Progress indicator */}
       <div className="absolute bottom-6 text-center text-text-secondary font-semibold bg-navy-accent backdrop-blur-sm px-4 py-2 rounded-full border border-white/10">
         <p>
-          {swipedCount} / {unpredictedMatches.length}
+          {swipedCount} / {matchesToShow.length}
         </p>
       </div>
 
