@@ -272,14 +272,24 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
                     <button
                       disabled={!isEditable}
                       onClick={() => isEditable && onUpdatePrediction(match.id, 'teamA')}
-                      className={`p-2 rounded-lg text-sm font-semibold transition-colors flex flex-col items-center justify-center ${getButtonClass(
+                      className={`p-2 rounded-lg text-sm font-semibold transition-colors flex flex-col items-center justify-center gap-1 ${getButtonClass(
                         match,
                         'teamA',
                         prediction,
                         isCorrect
                       )}`}
                     >
-                      <span>{match.teamA.name.split(' ')[0]}</span>
+                      {match.teamA.logo ? (
+                        <img
+                          src={match.teamA.logo}
+                          alt={match.teamA.name}
+                          className="w-6 h-6 object-contain"
+                          onError={(e) => { e.currentTarget.style.display = 'none' }}
+                        />
+                      ) : (
+                        <span className="text-lg">{match.teamA.emoji}</span>
+                      )}
+                      <span className="text-xs truncate max-w-[70px]">{match.teamA.name}</span>
                       {isEditable && (
                         <span className="text-xs opacity-70">@{match.odds.teamA.toFixed(2)}</span>
                       )}
@@ -287,14 +297,15 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
                     <button
                       disabled={!isEditable}
                       onClick={() => isEditable && onUpdatePrediction(match.id, 'draw')}
-                      className={`p-2 rounded-lg text-sm font-semibold transition-colors flex flex-col items-center justify-center ${getButtonClass(
+                      className={`p-2 rounded-lg text-sm font-semibold transition-colors flex flex-col items-center justify-center gap-1 ${getButtonClass(
                         match,
                         'draw',
                         prediction,
                         isCorrect
                       )}`}
                     >
-                      <span>Draw</span>
+                      <span className="text-lg">🤝</span>
+                      <span className="text-xs">Draw</span>
                       {isEditable && (
                         <span className="text-xs opacity-70">@{match.odds.draw.toFixed(2)}</span>
                       )}
@@ -302,14 +313,24 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
                     <button
                       disabled={!isEditable}
                       onClick={() => isEditable && onUpdatePrediction(match.id, 'teamB')}
-                      className={`p-2 rounded-lg text-sm font-semibold transition-colors flex flex-col items-center justify-center ${getButtonClass(
+                      className={`p-2 rounded-lg text-sm font-semibold transition-colors flex flex-col items-center justify-center gap-1 ${getButtonClass(
                         match,
                         'teamB',
                         prediction,
                         isCorrect
                       )}`}
                     >
-                      <span>{match.teamB.name.split(' ')[0]}</span>
+                      {match.teamB.logo ? (
+                        <img
+                          src={match.teamB.logo}
+                          alt={match.teamB.name}
+                          className="w-6 h-6 object-contain"
+                          onError={(e) => { e.currentTarget.style.display = 'none' }}
+                        />
+                      ) : (
+                        <span className="text-lg">{match.teamB.emoji}</span>
+                      )}
+                      <span className="text-xs truncate max-w-[70px]">{match.teamB.name}</span>
                       {isEditable && (
                         <span className="text-xs opacity-70">@{match.odds.teamB.toFixed(2)}</span>
                       )}
