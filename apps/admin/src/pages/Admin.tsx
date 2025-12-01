@@ -105,10 +105,17 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
         };
 
         const result = await challengeService.createChallenge(params);
+        console.log('[handleCreateGame] Challenge created:', result?.id, 'game_type:', config.game_type, 'league_id:', config.league_id);
 
         // Generate matchdays for betting games (linking fixtures automatically)
         // Prediction games handle this in SwipeGameAdmin.tsx
         if (config.game_type === 'betting' && config.league_id && result?.id) {
+          console.log('[handleCreateGame] About to generate matchdays for betting game', {
+            challengeId: result.id,
+            leagueId: config.league_id,
+            startDate: config.start_date,
+            endDate: config.end_date,
+          });
           try {
             const { matchdaysCreated, fixturesLinked } = await generateMatchdaysForChallenge({
               challengeId: result.id,
@@ -116,12 +123,22 @@ const AdminPage: React.FC<AdminPageProps> = ({ profile, addToast }) => {
               startDate: config.start_date,
               endDate: config.end_date,
             });
-            console.log(`[handleCreateGame] Generated ${matchdaysCreated} matchdays with ${fixturesLinked} fixtures for betting game`);
+            console.log(`[handleCreateGame] SUCCESS: Generated ${matchdaysCreated} matchdays with ${fixturesLinked} fixtures for betting game`);
+            if (fixturesLinked === 0) {
+              addToast('Game created but no matches found for the selected dates. Check the league has fixtures.', 'info');
+            }
           } catch (matchdayError) {
             console.error('[handleCreateGame] Failed to generate matchdays:', matchdayError);
             // Don't fail the whole creation, just warn
             addToast('Game created but failed to link matches. Please check manually.', 'info');
           }
+        } else {
+          console.log('[handleCreateGame] Skipping matchday generation:', {
+            gameType: config.game_type,
+            leagueId: config.league_id,
+            resultId: result?.id,
+            condition: config.game_type === 'betting' && config.league_id && result?.id
+          });
         }
 
         const message = publishDate
