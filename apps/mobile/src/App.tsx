@@ -1105,10 +1105,21 @@ function App() {
           ? activeChallengeMatches
           : mockChallengeMatches.filter(m => m.challengeId === activeChallengeId);
 
+        // Wait for matches to be loaded before creating user entry
+        if (USE_SUPABASE && matchesForChallenge.length === 0 && !activeChallengeMatchesLoading) {
+          // Matches loaded but empty - show message
+          return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-deep-navy p-4">
+              <div className="text-xl font-semibold text-text-secondary mb-4">No matches available for this challenge</div>
+              <button onClick={() => setActiveChallengeId(null)} className="text-electric-blue font-semibold">Back to Games</button>
+            </div>
+          );
+        }
+
         const existingEntry = userChallengeEntries.find(e => e.challengeId === activeChallengeId && e.user_id === profile.id);
         const userEntry = existingEntry ?? (USE_SUPABASE ? createEmptyChallengeEntry(activeChallengeId, profile.id, matchesForChallenge) : undefined);
 
-        if (userEntry) {
+        if (userEntry && matchesForChallenge.length > 0) {
           return <ChallengeRoomPage
             challenge={challenge}
             matches={matchesForChallenge}
