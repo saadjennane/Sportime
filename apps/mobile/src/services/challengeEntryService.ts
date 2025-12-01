@@ -132,29 +132,19 @@ export async function saveDailyEntry(params: SaveDailyEntryParams) {
 
   if (bets.length > 0) {
     // ====== FETCH ODDS SNAPSHOT ======
-    // Get all challenge_match_ids to fetch their fixture_ids
+    // For betting games using matchdays, the challengeMatchId IS the fixture_id directly
+    // (it's the fb_fixtures.id, not a challenge_matches.id)
+    // So we can use challengeMatchIds directly as fixture_ids
     const challengeMatchIds = bets.map(b => b.challengeMatchId)
-    const { data: matchesData, error: matchesError } = await supabase
-      .from('challenge_matches')
-      .select('id, match:matches(fixture_id)')
-      .in('id', challengeMatchIds)
 
-    if (matchesError) {
-      console.error('[challengeEntryService] Failed to fetch fixture IDs', matchesError)
-      throw matchesError
-    }
-
-    // Build a map: challenge_match_id -> fixture_id
+    // Build a map: challenge_match_id -> fixture_id (they're the same for betting games)
     const matchToFixtureMap = new Map<string, string>()
-    for (const row of matchesData ?? []) {
-      const fixtureId = (row.match as any)?.fixture_id
-      if (fixtureId) {
-        matchToFixtureMap.set(row.id, fixtureId)
-      }
+    for (const id of challengeMatchIds) {
+      matchToFixtureMap.set(id, id)
     }
 
     // Fetch odds for all fixtures
-    const fixtureIds = Array.from(matchToFixtureMap.values())
+    const fixtureIds = challengeMatchIds
     const oddsMap = await fetchMultipleFixtureOdds(fixtureIds)
 
     // Build inserts with odds_snapshot

@@ -57,7 +57,14 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   console.log('[ChallengeRoomPage] matches:', matches.length, 'days:', [...new Set(matches.map(m => m.day))]);
   console.log('[ChallengeRoomPage] userEntry.dailyEntries:', userEntry.dailyEntries);
 
-  // Lock bets when the first match has started, not based on challenge status
+  // Check if a specific match is locked (kickoff has passed)
+  const isMatchLocked = (match: ChallengeMatch): boolean => {
+    if (challenge.status === 'Finished') return true;
+    if (!match.kickoffTime) return false;
+    return new Date(match.kickoffTime).getTime() <= Date.now();
+  };
+
+  // Check if ALL bets should be locked (for UI elements like booster selector)
   const hasFirstMatchStarted = (): boolean => {
     // Find earliest kickoff time from matches
     const kickoffTimes = matches
@@ -116,7 +123,13 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
     if (prediction === null) {
       newBets = otherBets;
     } else {
-      newBets = [...otherBets, { challengeMatchId: matchId, prediction, amount }];
+      // Auto-allocate full daily balance if there's only one match on this day
+      const dayMatches = matches.filter(m => m.day === day);
+      let finalAmount = amount;
+      if (dayMatches.length === 1 && amount === 0) {
+        finalAmount = 1000; // dailyBalance
+      }
+      newBets = [...otherBets, { challengeMatchId: matchId, prediction, amount: finalAmount }];
     }
     onUpdateDailyBets(challenge.id, day, newBets);
   };
@@ -324,7 +337,7 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
                       match={match}
                       bet={bet}
                       onBetChange={(pred, amount) => handleBetChange(dailyEntry.day, match.id, pred, amount)}
-                      disabled={betsLocked}
+                      disabled={isMatchLocked(match)}
                       maxAmount={remainingDayBalance + (bet?.amount || 0)}
                       isBoosterArmed={armingBooster?.day === dailyEntry.day && !dailyEntry.booster}
                       onApplyBooster={() => handleApplyBooster(dailyEntry.day, match.id)}
