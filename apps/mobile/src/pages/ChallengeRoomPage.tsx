@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Challenge, ChallengeMatch, UserChallengeEntry, ChallengeBet, BoosterSelection, DailyChallengeEntry, LeaderboardEntry, Profile, UserLeague, LeagueMember, LeagueGame, Game } from '../types';
 import { ArrowLeft, Coins, ShieldAlert, Trophy, ScrollText } from 'lucide-react';
 import { ChallengeBetController } from '../components/ChallengeBetController';
@@ -24,6 +24,7 @@ interface ChallengeRoomPageProps {
   userLeagues: UserLeague[];
   leagueMembers: LeagueMember[];
   leagueGames: LeagueGame[];
+  onRefreshMatches?: () => void;
 }
 
 const calculateChallengePoints = (entry: UserChallengeEntry, matches: ChallengeMatch[]): number => {
@@ -61,12 +62,27 @@ const getGroupKeyForMatch = (match: ChallengeMatch, periodType: 'matchdays' | 'c
 };
 
 const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
-  const { challenge, matches, userEntry, onUpdateDailyBets, onSetDailyBooster, onBack, onViewLeaderboard, boosterInfoPreferences, onUpdateBoosterPreferences, onLinkGame, profile, userLeagues, leagueMembers, leagueGames } = props;
+  const { challenge, matches, userEntry, onUpdateDailyBets, onSetDailyBooster, onBack, onViewLeaderboard, boosterInfoPreferences, onUpdateBoosterPreferences, onLinkGame, profile, userLeagues, leagueMembers, leagueGames, onRefreshMatches } = props;
 
   // Debug logging
   console.log('[ChallengeRoomPage] matches:', matches.length, 'days:', [...new Set(matches.map(m => m.day))]);
   console.log('[ChallengeRoomPage] userEntry.dailyEntries:', userEntry.dailyEntries);
   console.log('[ChallengeRoomPage] period_type:', challenge.period_type);
+
+  // Auto-refresh match scores every 20 seconds while there are live matches
+  useEffect(() => {
+    if (!onRefreshMatches) return;
+
+    const hasLiveMatches = matches.some(m => m.status !== 'played');
+    if (!hasLiveMatches) return;
+
+    const interval = setInterval(() => {
+      console.log('[ChallengeRoomPage] Auto-refreshing match scores...');
+      onRefreshMatches();
+    }, 20000); // 20 seconds
+
+    return () => clearInterval(interval);
+  }, [matches, onRefreshMatches]);
 
   // Check if a specific match is locked (kickoff has passed)
   const isMatchLocked = (match: ChallengeMatch): boolean => {

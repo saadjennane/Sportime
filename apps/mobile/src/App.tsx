@@ -318,6 +318,7 @@ function App() {
   const {
     matches: activeChallengeMatches,
     isLoading: activeChallengeMatchesLoading,
+    refresh: refreshActiveChallengeMatches,
   } = useChallengeMatches(activeChallengeId, shouldUseSupabaseChallenges && !!activeChallengeId);
 
   const {
@@ -1146,6 +1147,7 @@ function App() {
             userLeagues={myLeagues}
             leagueMembers={leagueMembers}
             leagueGames={leagueGames}
+            onRefreshMatches={refreshActiveChallengeMatches}
           />;
         }
       }

@@ -303,7 +303,26 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
 
     // Betting games - can place bets until first match starts
     if (game.game_type === 'betting') {
-      // Once first match has started, user can only view (not edit) - show AWAITING
+      // Check if there are still upcoming matches (not yet played)
+      const hasUpcomingMatches = game.matches?.some(m => {
+        // Match is upcoming if kickoff hasn't passed or no result yet
+        const kickoffPassed = m.kickoffTime && new Date(m.kickoffTime) <= new Date();
+        return !kickoffPassed || !m.result;
+      }) ?? false;
+
+      // If all matches have results, show RESULTS
+      const allMatchesPlayed = game.matches && game.matches.length > 0 &&
+        game.matches.every(m => m.result !== undefined);
+      if (allMatchesPlayed) {
+        return 'RESULTS';
+      }
+
+      // If first match started but there are still upcoming matches, user can still place bets
+      if (firstMatchStarted && hasUpcomingMatches) {
+        return 'PLACE_BETS';
+      }
+
+      // Once first match has started and no upcoming matches, show AWAITING
       if (firstMatchStarted) {
         return 'AWAITING';
       }

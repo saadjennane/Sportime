@@ -79,11 +79,21 @@ const LeaderboardPage: React.FC<LeaderboardPageProps> = (props) => {
   }, [leagueGame, currentLeague, challenge]);
 
   const filteredMatches = useMemo(() => {
-    const interval = { start: parseISO(activePeriod.start_date), end: parseISO(activePeriod.end_date) };
-    return matches.filter(match => {
-      const matchDate = addDays(parseISO(challenge.startDate), match.day - 1);
-      return isWithinInterval(matchDate, interval);
-    });
+    // Guard against invalid dates to prevent crash
+    if (!activePeriod.start_date || !activePeriod.end_date || !challenge.startDate) {
+      return matches;
+    }
+
+    try {
+      const interval = { start: parseISO(activePeriod.start_date), end: parseISO(activePeriod.end_date) };
+      return matches.filter(match => {
+        const matchDate = addDays(parseISO(challenge.startDate), match.day - 1);
+        return isWithinInterval(matchDate, interval);
+      });
+    } catch (e) {
+      console.error('[LeaderboardPage] Date parsing error:', e);
+      return matches;
+    }
   }, [matches, activePeriod, challenge.startDate]);
 
   const fullLeaderboard = useMemo(() => {
