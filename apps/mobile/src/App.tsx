@@ -583,9 +583,6 @@ function App() {
           ticketId: existingEntry?.ticketId ?? null,
         });
         await refreshChallenges();
-        if (!result.alreadyJoined && method === 'coins') {
-          await reloadProfile();
-        }
         addToast('Your bets are saved.', 'success');
       } catch (error) {
         console.error('[App] Failed to save challenge bets', error);
