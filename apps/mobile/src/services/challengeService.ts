@@ -1170,9 +1170,12 @@ export async function fetchChallengeMatches(challengeId: string) {
     throw countError
   }
 
+  console.log('[fetchChallengeMatches] challengeRow.challenge_matchdays:', challengeRow.challenge_matchdays)
   let matches = buildChallengeMatches(challengeId, challengeRow.challenge_matchdays as RawMatchday[])
+  console.log('[fetchChallengeMatches] Built matches from matchdays:', matches.length)
 
   if (matches.length === 0) {
+    console.log('[fetchChallengeMatches] No matches from matchdays, trying challenge_matches fallback...')
     const { data: directRows, error: directError } = await supabase
       .from('challenge_matches')
       .select(`
