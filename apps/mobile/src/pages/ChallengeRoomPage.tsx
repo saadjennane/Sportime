@@ -5,7 +5,7 @@ import { ChallengeBetController } from '../components/ChallengeBetController';
 import { BoosterSelector } from '../components/BoosterSelector';
 import { BoosterInfoModal } from '../components/BoosterInfoModal';
 import { MatchDaySwitcher } from '../components/fantasy/MatchDaySwitcher';
-import { addDays, parseISO, isBefore } from 'date-fns';
+import { addDays, parseISO, isBefore, format } from 'date-fns';
 import { RulesModal } from '../components/RulesModal';
 import { LinkGameButton } from '../components/leagues/LinkGameButton';
 
@@ -50,12 +50,23 @@ const calculateChallengePoints = (entry: UserChallengeEntry, matches: ChallengeM
   return Math.round(totalPoints);
 };
 
+// Helper to get group key based on period_type
+const getGroupKeyForMatch = (match: ChallengeMatch, periodType: 'matchdays' | 'calendar' | undefined): string => {
+  if (periodType === 'calendar') {
+    // For calendar mode, group by actual kickoff date
+    return match.kickoffTime ? format(new Date(match.kickoffTime), 'yyyy-MM-dd') : match.day.toString();
+  }
+  // For matchday mode (default), group by matchday number
+  return match.day.toString();
+};
+
 const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   const { challenge, matches, userEntry, onUpdateDailyBets, onSetDailyBooster, onBack, onViewLeaderboard, boosterInfoPreferences, onUpdateBoosterPreferences, onLinkGame, profile, userLeagues, leagueMembers, leagueGames } = props;
 
   // Debug logging
   console.log('[ChallengeRoomPage] matches:', matches.length, 'days:', [...new Set(matches.map(m => m.day))]);
   console.log('[ChallengeRoomPage] userEntry.dailyEntries:', userEntry.dailyEntries);
+  console.log('[ChallengeRoomPage] period_type:', challenge.period_type);
 
   // Check if a specific match is locked (kickoff has passed)
   const isMatchLocked = (match: ChallengeMatch): boolean => {
@@ -82,40 +93,112 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
 
   const betsLocked = hasFirstMatchStarted();
 
-  const [selectedDay, setSelectedDay] = useState<number>(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const challengeStartDate = parseISO(challenge.start_date);
+  // Get unique groups based on period_type
+  const matchGroups = useMemo(() => {
+    const groups = new Map<string, { key: string; matches: ChallengeMatch[]; displayName: string; date: Date; matchdays: number[] }>();
 
-    for (const dailyEntry of userEntry.dailyEntries) {
-        const dayDate = addDays(challengeStartDate, dailyEntry.day - 1);
-        if (!isBefore(dayDate, today)) {
-            return dailyEntry.day;
+    matches.forEach(match => {
+      const key = getGroupKeyForMatch(match, challenge.period_type);
+      if (!groups.has(key)) {
+        let displayName: string;
+        let date: Date;
+
+        if (challenge.period_type === 'calendar') {
+          // Calendar mode: use actual date
+          date = match.kickoffTime ? new Date(match.kickoffTime) : addDays(parseISO(challenge.start_date), match.day - 1);
+          displayName = format(date, 'MMM d');
+        } else {
+          // Matchday mode: use day number
+          date = addDays(parseISO(challenge.start_date), match.day - 1);
+          displayName = `Day ${match.day}`;
         }
-    }
-    return userEntry.dailyEntries[userEntry.dailyEntries.length - 1]?.day || 1;
-  });
 
-  const [armingBooster, setArmingBooster] = useState<{ day: number, type: 'x2' | 'x3' } | null>(null);
-  const [modalState, setModalState] = useState<{ day: number, type: 'x2' | 'x3' } | null>(null);
-  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
+        groups.set(key, { key, matches: [], displayName, date, matchdays: [] });
+      }
+      const group = groups.get(key)!;
+      group.matches.push(match);
+      if (!group.matchdays.includes(match.day)) {
+        group.matchdays.push(match.day);
+      }
+    });
+
+    // Sort by date
+    return Array.from(groups.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
+  }, [matches, challenge.period_type, challenge.start_date]);
 
   const matchDaysForSwitcher = useMemo(() => {
-    return userEntry.dailyEntries.map(dailyEntry => {
-      const date = addDays(parseISO(challenge.start_date), dailyEntry.day - 1);
-      return {
-        id: dailyEntry.day.toString(),
-        name: `Day ${dailyEntry.day}`,
-        startDate: date.toISOString(),
-        endDate: date.toISOString(),
-        leagues: [],
-        status: challenge.status,
-      };
-    });
-  }, [userEntry.dailyEntries, challenge.start_date, challenge.status]);
+    return matchGroups.map(group => ({
+      id: group.key,
+      name: group.displayName,
+      startDate: group.date.toISOString(),
+      endDate: group.date.toISOString(),
+      leagues: [],
+      status: challenge.status,
+    }));
+  }, [matchGroups, challenge.status]);
 
-  const handleBetChange = (day: number, matchId: string, prediction: 'teamA' | 'draw' | 'teamB' | null, amount: number) => {
-    const dailyEntry = userEntry.dailyEntries.find(d => d.day === day);
+  // Initialize selectedGroupKey based on current date
+  const [selectedGroupKey, setSelectedGroupKey] = useState<string>(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Find the first group that is today or in the future
+    for (const group of matchGroups) {
+      const groupDate = new Date(group.date);
+      groupDate.setHours(0, 0, 0, 0);
+      if (groupDate >= today) {
+        return group.key;
+      }
+    }
+    // Default to last group
+    return matchGroups[matchGroups.length - 1]?.key || '1';
+  });
+
+  const [armingBooster, setArmingBooster] = useState<{ groupKey: string, type: 'x2' | 'x3' } | null>(null);
+  const [modalState, setModalState] = useState<{ groupKey: string, type: 'x2' | 'x3' } | null>(null);
+  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
+
+  // Get current group
+  const currentGroup = useMemo(() => {
+    return matchGroups.find(g => g.key === selectedGroupKey) || matchGroups[0];
+  }, [matchGroups, selectedGroupKey]);
+
+  // Get bets and calculate remaining balance for current group
+  // For calendar mode, we need to aggregate bets across all matchdays in the group
+  const { groupBets, remainingGroupBalance, groupBooster } = useMemo(() => {
+    if (!currentGroup) return { groupBets: [], remainingGroupBalance: 1000, groupBooster: undefined };
+
+    // Get all daily entries that belong to this group
+    const dailyBalance = 1000;
+    let totalBet = 0;
+    let bets: ChallengeBet[] = [];
+    let booster: BoosterSelection | undefined;
+
+    currentGroup.matchdays.forEach(matchday => {
+      const dailyEntry = userEntry.dailyEntries.find(d => d.day === matchday);
+      if (dailyEntry) {
+        // Only include bets for matches that are actually in this group
+        const matchIdsInGroup = new Set(currentGroup.matches.map(m => m.id));
+        const groupBetsFromDay = dailyEntry.bets.filter(b => matchIdsInGroup.has(b.challengeMatchId));
+        bets = [...bets, ...groupBetsFromDay];
+        totalBet += groupBetsFromDay.reduce((sum, b) => sum + b.amount, 0);
+
+        // Check if booster is on a match in this group
+        if (dailyEntry.booster && matchIdsInGroup.has(dailyEntry.booster.matchId)) {
+          booster = dailyEntry.booster;
+        }
+      }
+    });
+
+    return { groupBets: bets, remainingGroupBalance: dailyBalance - totalBet, groupBooster: booster };
+  }, [currentGroup, userEntry.dailyEntries]);
+
+  const handleBetChange = (matchId: string, prediction: 'teamA' | 'draw' | 'teamB' | null, amount: number) => {
+    // Find which matchday this match belongs to
+    const match = matches.find(m => m.id === matchId);
+    if (!match) return;
+
+    const dailyEntry = userEntry.dailyEntries.find(d => d.day === match.day);
     if (!dailyEntry) return;
 
     const otherBets = dailyEntry.bets.filter(b => b.challengeMatchId !== matchId);
@@ -123,48 +206,60 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
     if (prediction === null) {
       newBets = otherBets;
     } else {
-      // Auto-allocate full daily balance if there's only one match on this day
-      const dayMatches = matches.filter(m => m.day === day);
+      // Auto-allocate full daily balance if there's only one match in this group
       let finalAmount = amount;
-      if (dayMatches.length === 1 && amount === 0) {
+      if (currentGroup && currentGroup.matches.length === 1 && amount === 0) {
         finalAmount = 1000; // dailyBalance
       }
       newBets = [...otherBets, { challengeMatchId: matchId, prediction, amount: finalAmount }];
     }
-    onUpdateDailyBets(challenge.id, day, newBets);
+    onUpdateDailyBets(challenge.id, match.day, newBets);
   };
 
-  const handleBoosterClick = (day: number, type: 'x2' | 'x3') => {
-    const dailyEntry = userEntry.dailyEntries.find(d => d.day === day);
-    if (!dailyEntry || dailyEntry.booster) return;
+  const handleBoosterClick = (type: 'x2' | 'x3') => {
+    if (groupBooster) return; // Already has a booster
 
-    if (armingBooster?.day === day && armingBooster?.type === type) {
+    if (armingBooster?.groupKey === selectedGroupKey && armingBooster?.type === type) {
       setArmingBooster(null);
       return;
     }
 
     if (!boosterInfoPreferences[type]) {
-      setModalState({ day, type });
+      setModalState({ groupKey: selectedGroupKey, type });
     } else {
-      setArmingBooster({ day, type });
+      setArmingBooster({ groupKey: selectedGroupKey, type });
     }
   };
 
   const handleActivateBoosterFromModal = () => {
     if (modalState) {
-      setArmingBooster({ day: modalState.day, type: modalState.type });
+      setArmingBooster({ groupKey: modalState.groupKey, type: modalState.type });
       setModalState(null);
     }
   };
 
-  const handleApplyBooster = (day: number, matchId: string) => {
-    if (!armingBooster || armingBooster.day !== day) return;
-    onSetDailyBooster(challenge.id, day, { type: armingBooster.type, matchId });
+  const handleApplyBooster = (matchId: string) => {
+    if (!armingBooster || armingBooster.groupKey !== selectedGroupKey) return;
+
+    // Find which matchday this match belongs to
+    const match = matches.find(m => m.id === matchId);
+    if (!match) return;
+
+    onSetDailyBooster(challenge.id, match.day, { type: armingBooster.type, matchId });
     setArmingBooster(null);
   };
 
-  const handleCancelBooster = (day: number) => {
-    onSetDailyBooster(challenge.id, day, undefined);
+  const handleCancelBooster = () => {
+    // Find the matchday with the booster
+    if (!currentGroup) return;
+
+    for (const matchday of currentGroup.matchdays) {
+      const dailyEntry = userEntry.dailyEntries.find(d => d.day === matchday);
+      if (dailyEntry?.booster && currentGroup.matches.some(m => m.id === dailyEntry.booster?.matchId)) {
+        onSetDailyBooster(challenge.id, matchday, undefined);
+        break;
+      }
+    }
     setArmingBooster(null);
   };
 
@@ -197,43 +292,42 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   };
 
   const { points, pointsLabel } = useMemo(() => {
-    const dayEntry = userEntry.dailyEntries.find(d => d.day === selectedDay);
-    if (!dayEntry) return { points: 0, pointsLabel: 'Potential Points' };
+    if (!currentGroup) return { points: 0, pointsLabel: 'Potential Points' };
 
-    const dayMatches = matches.filter(m => m.day === selectedDay);
-    const isDayFinished = dayMatches.every(m => m.status === 'played');
+    const groupMatches = currentGroup.matches;
+    const isDayFinished = groupMatches.every(m => m.status === 'played');
 
     if (isDayFinished) {
-        let finalPoints = 0;
-        dayEntry.bets.forEach(bet => {
-            const match = dayMatches.find(m => m.id === bet.challengeMatchId);
-            if (match && match.result) {
-                if (match.result === bet.prediction) {
-                    let gain = (bet.amount * match.odds[bet.prediction]);
-                    if (dayEntry.booster?.matchId === bet.challengeMatchId) {
-                        if (dayEntry.booster.type === 'x2') gain *= 2;
-                        if (dayEntry.booster.type === 'x3') gain *= 3;
-                    }
-                    finalPoints += gain;
-                } else {
-                    if (dayEntry.booster?.matchId === bet.challengeMatchId && dayEntry.booster.type === 'x3') {
-                        finalPoints -= 200;
-                    }
-                }
+      let finalPoints = 0;
+      groupBets.forEach(bet => {
+        const match = groupMatches.find(m => m.id === bet.challengeMatchId);
+        if (match && match.result) {
+          if (match.result === bet.prediction) {
+            let gain = (bet.amount * match.odds[bet.prediction]);
+            if (groupBooster?.matchId === bet.challengeMatchId) {
+              if (groupBooster.type === 'x2') gain *= 2;
+              if (groupBooster.type === 'x3') gain *= 3;
             }
-        });
-        return { points: Math.round(finalPoints), pointsLabel: 'Final Points' };
+            finalPoints += gain;
+          } else {
+            if (groupBooster?.matchId === bet.challengeMatchId && groupBooster.type === 'x3') {
+              finalPoints -= 200;
+            }
+          }
+        }
+      });
+      return { points: Math.round(finalPoints), pointsLabel: 'Final Points' };
     } else {
-        const potentialPoints = dayEntry.bets.reduce((total, bet) => {
-            const match = dayMatches.find(m => m.id === bet.challengeMatchId);
-            if (match) {
-                total += (bet.amount * match.odds[bet.prediction]);
-            }
-            return total;
-        }, 0);
-        return { points: Math.round(potentialPoints), pointsLabel: 'Potential Points' };
+      const potentialPoints = groupBets.reduce((total, bet) => {
+        const match = groupMatches.find(m => m.id === bet.challengeMatchId);
+        if (match) {
+          total += (bet.amount * match.odds[bet.prediction]);
+        }
+        return total;
+      }, 0);
+      return { points: Math.round(potentialPoints), pointsLabel: 'Potential Points' };
     }
-  }, [userEntry, selectedDay, matches]);
+  }, [currentGroup, groupBets, groupBooster]);
 
 
   return (
@@ -269,8 +363,8 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
       <div className="-mx-4">
         <MatchDaySwitcher
           gameWeeks={matchDaysForSwitcher}
-          selectedGameWeekId={selectedDay.toString()}
-          onSelect={(id) => setSelectedDay(Number(id))}
+          selectedGameWeekId={selectedGroupKey}
+          onSelect={(id) => setSelectedGroupKey(id)}
         />
       </div>
 
@@ -293,65 +387,57 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
         </div>
       )}
 
-      <div className="space-y-6">
-        {userEntry.dailyEntries
-          .filter(d => d.day === selectedDay)
-          .map(dailyEntry => {
-          const dayMatches = matches.filter(m => m.day === dailyEntry.day);
-          const totalBetOnDay = dailyEntry.bets.reduce((sum, b) => sum + b.amount, 0);
-          const remainingDayBalance = dailyBalance - totalBetOnDay;
-
-          return (
-            <div key={dailyEntry.day} className="card-base p-4 space-y-4 animate-scale-in">
-              <div className="flex justify-between items-center border-b border-white/10 pb-3">
-                <div className="flex items-baseline gap-3">
-                  {!betsLocked && <BoosterSelector
-                    day={dailyEntry.day}
-                    activeBooster={dailyEntry.booster}
-                    armingBoosterType={armingBooster?.day === dailyEntry.day ? armingBooster.type : undefined}
-                    onBoosterClick={(type) => handleBoosterClick(dailyEntry.day, type)}
-                    onCancel={() => handleCancelBooster(dailyEntry.day)}
-                  />}
-                </div>
-                <div className="flex items-center gap-2 bg-deep-navy px-3 py-1.5 rounded-lg">
-                  <Coins size={16} className="text-warm-yellow" />
-                  <span className="font-bold text-text-primary">{remainingDayBalance.toLocaleString()}</span>
-                  <span className="text-xs text-text-disabled">left</span>
-                </div>
+      {currentGroup && (
+        <div className="space-y-6">
+          <div className="card-base p-4 space-y-4 animate-scale-in">
+            <div className="flex justify-between items-center border-b border-white/10 pb-3">
+              <div className="flex items-baseline gap-3">
+                {!betsLocked && <BoosterSelector
+                  day={currentGroup.matchdays[0] || 1}
+                  activeBooster={groupBooster}
+                  armingBoosterType={armingBooster?.groupKey === selectedGroupKey ? armingBooster.type : undefined}
+                  onBoosterClick={(type) => handleBoosterClick(type)}
+                  onCancel={() => handleCancelBooster()}
+                />}
               </div>
-              
-              {armingBooster?.day === dailyEntry.day && !dailyEntry.booster && (
-                <div className="bg-warm-yellow/10 border border-warm-yellow/20 p-3 rounded-lg text-center">
-                  <p className="text-sm font-semibold text-warm-yellow">
-                    Select a match below to apply the <span className="font-bold">{armingBooster.type.toUpperCase()}</span> booster.
-                  </p>
-                </div>
-              )}
-
-              <div className="space-y-3">
-                {dayMatches.map(match => {
-                  const bet = dailyEntry.bets.find(b => b.challengeMatchId === match.id);
-                  return (
-                    <ChallengeBetController
-                      key={match.id}
-                      match={match}
-                      bet={bet}
-                      onBetChange={(pred, amount) => handleBetChange(dailyEntry.day, match.id, pred, amount)}
-                      disabled={isMatchLocked(match)}
-                      maxAmount={remainingDayBalance + (bet?.amount || 0)}
-                      isBoosterArmed={armingBooster?.day === dailyEntry.day && !dailyEntry.booster}
-                      onApplyBooster={() => handleApplyBooster(dailyEntry.day, match.id)}
-                      isBoosted={dailyEntry.booster?.matchId === match.id}
-                      boosterType={dailyEntry.booster?.matchId === match.id ? dailyEntry.booster.type : undefined}
-                      profile={profile}
-                    />
-                  );
-                })}
+              <div className="flex items-center gap-2 bg-deep-navy px-3 py-1.5 rounded-lg">
+                <Coins size={16} className="text-warm-yellow" />
+                <span className="font-bold text-text-primary">{remainingGroupBalance.toLocaleString()}</span>
+                <span className="text-xs text-text-disabled">left</span>
               </div>
             </div>
-          );
-        })}
-      </div>
+
+            {armingBooster?.groupKey === selectedGroupKey && !groupBooster && (
+              <div className="bg-warm-yellow/10 border border-warm-yellow/20 p-3 rounded-lg text-center">
+                <p className="text-sm font-semibold text-warm-yellow">
+                  Select a match below to apply the <span className="font-bold">{armingBooster.type.toUpperCase()}</span> booster.
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {currentGroup.matches.map(match => {
+                const bet = groupBets.find(b => b.challengeMatchId === match.id);
+                return (
+                  <ChallengeBetController
+                    key={match.id}
+                    match={match}
+                    bet={bet}
+                    onBetChange={(pred, amount) => handleBetChange(match.id, pred, amount)}
+                    disabled={isMatchLocked(match)}
+                    maxAmount={remainingGroupBalance + (bet?.amount || 0)}
+                    isBoosterArmed={armingBooster?.groupKey === selectedGroupKey && !groupBooster}
+                    onApplyBooster={() => handleApplyBooster(match.id)}
+                    isBoosted={groupBooster?.matchId === match.id}
+                    boosterType={groupBooster?.matchId === match.id ? groupBooster.type : undefined}
+                    profile={profile}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {modalState && (
         <BoosterInfoModal

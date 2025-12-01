@@ -208,6 +208,9 @@ function mapChallengeRow(
     (rules?.maximum_players as number | undefined) ??
     0
 
+  // Extract period_type from rules (matchdays or calendar)
+  const periodType = (rules?.period_type as 'matchdays' | 'calendar' | undefined) ?? 'matchdays'
+
   return {
     id: row.id,
     name: row.name,
@@ -237,6 +240,7 @@ function mapChallengeRow(
     matches: undefined,
     gameWeeks: undefined,
     challengeId: row.id,
+    period_type: periodType,
   }
 }
 

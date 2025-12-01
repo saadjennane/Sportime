@@ -82,6 +82,7 @@ export interface Challenge {
   challengeBalance: number;
   status: 'Upcoming' | 'Ongoing' | 'Finished';
   totalPlayers: number;
+  period_type?: 'matchdays' | 'calendar'; // How to group matches: by championship matchday or calendar date
 }
 
 export interface LeaderboardEntry {
@@ -582,6 +583,7 @@ export interface SportimeGame {
   challengeId?: string;
   entry_deadline?: string; // ISO date, calculated: firstMatchDate - 30min
   first_kickoff_time?: string; // ISO date, earliest match kickoff time
+  period_type?: 'matchdays' | 'calendar'; // How to group matches: by championship matchday or calendar date
 }
 
 // Alias for backwards compatibility - SportimeGame is the unified type for all games
