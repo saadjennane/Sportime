@@ -4,6 +4,7 @@ import type {
   UserChallengeEntry,
   UserSwipeEntry,
   UserFantasyTeam,
+  ChallengeBet,
 } from '../../types'
 import { fetchChallengeCatalog } from '../../services/challengeService'
 
@@ -61,6 +62,27 @@ export function useChallengesCatalog(userId: string | null, enabled: boolean) {
 
   const joinedSet = useMemo(() => new Set(state.joinedChallengeIds), [state.joinedChallengeIds])
 
+  // Update user entry bets locally without refetching from server (optimistic update)
+  const updateUserEntryBets = useCallback((
+    challengeId: string,
+    day: number,
+    newBets: ChallengeBet[]
+  ) => {
+    setState(prev => ({
+      ...prev,
+      userChallengeEntries: prev.userChallengeEntries.map(entry => {
+        if (entry.challengeId !== challengeId) return entry;
+        return {
+          ...entry,
+          dailyEntries: entry.dailyEntries.map(d => {
+            if (d.day !== day) return d;
+            return { ...d, bets: newBets };
+          }),
+        };
+      }),
+    }));
+  }, []);
+
   return {
     games: state.games,
     userChallengeEntries: state.userChallengeEntries,
@@ -72,5 +94,6 @@ export function useChallengesCatalog(userId: string | null, enabled: boolean) {
     error,
     hasError,
     refresh: loadCatalog,
+    updateUserEntryBets,
   }
 }

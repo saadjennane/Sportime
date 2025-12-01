@@ -182,6 +182,7 @@ function App() {
     isLoading: challengesLoading,
     hasError: challengesError,
     refresh: refreshChallenges,
+    updateUserEntryBets,
   } = useChallengesCatalog(profile?.id ?? null, USE_SUPABASE);
 
   const shouldUseSupabaseChallenges = USE_SUPABASE && !challengesError;
@@ -570,6 +571,9 @@ function App() {
 
   const handleUpdateDailyBets = async (challengeId: string, day: number, newBets: ChallengeBet[]) => {
     if (shouldUseSupabaseChallenges && profile) {
+      // Optimistic update: update local state immediately
+      updateUserEntryBets(challengeId, day, newBets);
+
       try {
         const existingEntry = userChallengeEntries.find(entry => entry.challengeId === challengeId && entry.user_id === profile.id);
         const dailyEntry = existingEntry?.dailyEntries.find(d => d.day === day);
@@ -582,10 +586,11 @@ function App() {
           entryMethod: existingEntry?.entryMethod ?? 'coins',
           ticketId: existingEntry?.ticketId ?? null,
         });
-        await refreshChallenges();
-        addToast('Your bets are saved.', 'success');
+        // No need to refresh - local state already updated
       } catch (error) {
         console.error('[App] Failed to save challenge bets', error);
+        // Revert optimistic update on error by refreshing from server
+        await refreshChallenges();
         addToast('Unable to save your bets. Please try again.', 'error');
       }
       return;
