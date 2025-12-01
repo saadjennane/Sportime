@@ -1106,7 +1106,10 @@ export async function fetchChallengeMatches(challengeId: string) {
       rules,
       status,
       entry_conditions,
-      challenge_configs,
+      challenge_configs (
+        config_type,
+        config_data
+      ),
       challenge_leagues (
         league_id
       ),
