@@ -1117,7 +1117,16 @@ function App() {
         }
 
         const existingEntry = userChallengeEntries.find(e => e.challengeId === activeChallengeId && e.user_id === profile.id);
-        const userEntry = existingEntry ?? (USE_SUPABASE ? createEmptyChallengeEntry(activeChallengeId, profile.id, matchesForChallenge) : undefined);
+
+        // If existingEntry has empty dailyEntries but we have matches, regenerate dailyEntries
+        let userEntry = existingEntry;
+        if (existingEntry && existingEntry.dailyEntries.length === 0 && matchesForChallenge.length > 0) {
+          console.log('[App] Regenerating dailyEntries for existing entry with', matchesForChallenge.length, 'matches');
+          const freshEntry = createEmptyChallengeEntry(activeChallengeId, profile.id, matchesForChallenge);
+          userEntry = { ...existingEntry, dailyEntries: freshEntry.dailyEntries };
+        } else if (!existingEntry && USE_SUPABASE) {
+          userEntry = createEmptyChallengeEntry(activeChallengeId, profile.id, matchesForChallenge);
+        }
 
         if (userEntry && matchesForChallenge.length > 0) {
           return <ChallengeRoomPage
