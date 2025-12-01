@@ -53,6 +53,10 @@ const calculateChallengePoints = (entry: UserChallengeEntry, matches: ChallengeM
 const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   const { challenge, matches, userEntry, onUpdateDailyBets, onSetDailyBooster, onBack, onViewLeaderboard, boosterInfoPreferences, onUpdateBoosterPreferences, onLinkGame, profile, userLeagues, leagueMembers, leagueGames } = props;
 
+  // Debug logging
+  console.log('[ChallengeRoomPage] matches:', matches.length, 'days:', [...new Set(matches.map(m => m.day))]);
+  console.log('[ChallengeRoomPage] userEntry.dailyEntries:', userEntry.dailyEntries);
+
   // Lock bets when the first match has started, not based on challenge status
   const hasFirstMatchStarted = (): boolean => {
     // Find earliest kickoff time from matches
