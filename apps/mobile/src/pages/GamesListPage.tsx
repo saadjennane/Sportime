@@ -9,6 +9,7 @@ import { GameSection } from '../components/GameSection';
 import { parseISO } from 'date-fns';
 import { Zap, Clock, Flag } from 'lucide-react';
 import { calculateBettingGameState, safeParseISO } from '../services/gameStateService';
+import { hasViewedResults, markResultsViewed } from '../services/resultsViewedService';
 
 export type CtaState = 'JOIN' | 'PLACE_BETS' | 'MAKE_PREDICTIONS' | 'SELECT_TEAM' | 'COMPLETE_TEAM' | 'AWAITING' | 'RESULTS' | 'IN_PROGRESS' | 'LOCKED';
 type GamesTab = 'my-games' | 'browse';
@@ -66,9 +67,13 @@ function hasFirstMatchStarted(game: SportimeGame): boolean {
 }
 
 /**
- * Determines the real status of a game based on dates and match results.
- * For games with matches (betting/prediction), only mark as Finished when ALL matches have results.
- * Priority: match results > end_date > start_date > stored status
+ * Determines the real status of a game based on match results and user viewing state.
+ *
+ * A game is only "Finished" (Past Games) when:
+ * 1. ALL matches have results
+ * 2. AND the user has clicked "View Results" (stored in localStorage)
+ *
+ * This applies to betting, prediction, and fantasy games.
  */
 function getRealGameStatus(game: SportimeGame, now: Date): 'Upcoming' | 'Ongoing' | 'Finished' | 'Cancelled' {
   // Cancelled games stay cancelled
@@ -77,39 +82,29 @@ function getRealGameStatus(game: SportimeGame, now: Date): 'Upcoming' | 'Ongoing
   }
 
   const startDate = safeParseISO(game.start_date);
-  const endDate = safeParseISO(game.end_date);
 
-  // For games with matches (betting/prediction), check if ALL matches have results
-  if ((game.game_type === 'betting' || game.game_type === 'prediction') && game.matches && game.matches.length > 0) {
-    const allMatchesHaveResults = game.matches.every(m => m.result !== undefined);
+  // Check if all matches have results (for games with matches)
+  const hasMatches = game.matches && game.matches.length > 0;
+  const allMatchesHaveResults = hasMatches
+    ? game.matches!.every(m => m.result !== undefined)
+    : false;
 
-    if (allMatchesHaveResults) {
-      return 'Finished';
-    }
-
-    // If not all matches finished, check if started
-    if (startDate && startDate < now) {
-      return 'Ongoing';
-    }
-
-    return 'Upcoming';
-  }
-
-  // For other game types (fantasy, etc.), use date-based logic
-  if (endDate && endDate < now) {
+  // Game is "Finished" only when all matches done AND user has viewed results
+  if (allMatchesHaveResults && hasViewedResults(game.id)) {
     return 'Finished';
   }
 
-  if (startDate && startDate < now && endDate && endDate >= now) {
+  // If all matches have results but not viewed yet, keep as Ongoing (so it shows in Play Now with View Results CTA)
+  if (allMatchesHaveResults) {
     return 'Ongoing';
   }
 
-  if (startDate && startDate >= now) {
+  // For games without matches yet or with incomplete matches
+  if (startDate && startDate > now) {
     return 'Upcoming';
   }
 
-  // Fallback to stored status
-  return game.status as 'Upcoming' | 'Ongoing' | 'Finished' | 'Cancelled';
+  return 'Ongoing';
 }
 
 interface GamesListPageProps {
@@ -352,10 +347,18 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
   const renderGameCard = (game: SportimeGame & { isEligible: boolean }, isInMyGamesTab: boolean) => {
     const ctaState = getCtaState(game, isInMyGamesTab);
 
+    // Wrap navigation with markResultsViewed when viewing results
+    const wrapWithResultsViewed = (action: () => void) => () => {
+      if (ctaState === 'RESULTS') {
+        markResultsViewed(game.id);
+      }
+      action();
+    };
+
     let onPlayAction = () => {};
-    if (game.game_type === 'betting') onPlayAction = () => onViewChallenge(game.id);
-    if (game.game_type === 'prediction') onPlayAction = () => onPlaySwipeGame(game.id);
-    if (game.game_type === 'fantasy') onPlayAction = () => onViewFantasyGame(game.id);
+    if (game.game_type === 'betting') onPlayAction = wrapWithResultsViewed(() => onViewChallenge(game.id));
+    if (game.game_type === 'prediction') onPlayAction = wrapWithResultsViewed(() => onPlaySwipeGame(game.id));
+    if (game.game_type === 'fantasy') onPlayAction = wrapWithResultsViewed(() => onViewFantasyGame(game.id));
 
     // For live games not joined, show leaderboard in read-only mode
     const handleViewLeaderboard = () => {
