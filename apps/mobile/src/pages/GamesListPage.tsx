@@ -70,8 +70,9 @@ function hasFirstMatchStarted(game: SportimeGame): boolean {
  * Determines the real status of a game based on match results and user viewing state.
  *
  * A game is only "Finished" (Past Games) when:
- * 1. ALL matches have results
- * 2. AND the user has clicked "View Results" (stored in localStorage)
+ * 1. The end_date has passed
+ * 2. AND all matches have results
+ * 3. AND the user has clicked "View Results" (stored in localStorage)
  *
  * This applies to betting, prediction, and fantasy games.
  */
@@ -82,6 +83,7 @@ function getRealGameStatus(game: SportimeGame, now: Date): 'Upcoming' | 'Ongoing
   }
 
   const startDate = safeParseISO(game.start_date);
+  const endDate = safeParseISO(game.end_date);
 
   // Check if all matches have results (for games with matches)
   const hasMatches = game.matches && game.matches.length > 0;
@@ -89,21 +91,23 @@ function getRealGameStatus(game: SportimeGame, now: Date): 'Upcoming' | 'Ongoing
     ? game.matches!.every(m => m.result !== undefined)
     : false;
 
-  // Game is "Finished" only when all matches done AND user has viewed results
-  if (allMatchesHaveResults && hasViewedResults(game.id)) {
+  // Check if end_date has passed
+  const isEndDatePassed = endDate ? endDate < now : false;
+
+  // Game is "Finished" only when:
+  // 1. end_date is passed
+  // 2. AND all matches have results
+  // 3. AND user has viewed results
+  if (isEndDatePassed && allMatchesHaveResults && hasViewedResults(game.id)) {
     return 'Finished';
   }
 
-  // If all matches have results but not viewed yet, keep as Ongoing (so it shows in Play Now with View Results CTA)
-  if (allMatchesHaveResults) {
-    return 'Ongoing';
-  }
-
-  // For games without matches yet or with incomplete matches
+  // For games that haven't started yet
   if (startDate && startDate > now) {
     return 'Upcoming';
   }
 
+  // Game is ongoing (started but end_date not passed, or not all conditions met for Finished)
   return 'Ongoing';
 }
 
