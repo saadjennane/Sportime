@@ -7,7 +7,7 @@ import { FooterNav } from './components/FooterNav';
 import { mockMatches } from './data/mockMatches';
 import { mockChallengeMatches } from './data/mockChallenges';
 import { mockFantasyPlayers } from './data/mockFantasy.tsx';
-import { Match, Bet, UserChallengeEntry, Profile, LevelConfig, Badge, UserBadge, UserFantasyTeam, UserTicket, SportimeGame, SpinTier, SwipeMatchDay, FantasyGame, ActiveSession, ContextualPromptType, DailyChallengeEntry, ChallengeMatch, ChallengeBet } from './types';
+import { Match, Bet, UserChallengeEntry, Profile, LevelConfig, Badge, UserBadge, UserFantasyTeam, UserTicket, SportimeGame, SpinTier, SwipeMatchDay, FantasyGame, ActiveSession, ContextualPromptType, DailyChallengeEntry, ChallengeMatch, ChallengeBet, Challenge } from './types';
 import AdminPage from './pages/Admin';
 import GamesListPage from './pages/GamesListPage';
 import ChallengeRoomPage from './pages/ChallengeRoomPage';
@@ -1069,8 +1069,20 @@ function App() {
         );
       }
 
-      const challenge = games.find(c => c.id === viewingLeaderboardFor && c.game_type === 'betting');
-      if (challenge && profile) {
+      const game = games.find(c => c.id === viewingLeaderboardFor && c.game_type === 'betting');
+      if (game && profile) {
+        // Convert SportimeGame to Challenge format (different property names)
+        const challenge: Challenge = {
+          id: game.id,
+          name: game.name,
+          startDate: game.start_date,
+          endDate: game.end_date,
+          entryCost: game.entry_cost,
+          challengeBalance: game.challengeBalance ?? 1000,
+          status: game.status === 'Cancelled' ? 'Finished' : game.status,
+          totalPlayers: game.totalPlayers,
+        };
+
         const matchesForLeaderboard = USE_SUPABASE
           ? leaderboardChallengeMatches
           : mockChallengeMatches.filter(m => m.challengeId === viewingLeaderboardFor);
