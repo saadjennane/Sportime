@@ -97,12 +97,12 @@ export function useMatchesOfTheDay(): HookState {
   const userTimezone = useUserTimezone()
 
   // Calculate day bounds using UTC to match API-Football data storage
-  // Include today AND tomorrow to give users more matches to bet on
+  // Only show TODAY's matches in the Today tab
   const [{ startISO, endISO }] = useState(() => {
     const now = new Date()
     const startUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0))
-    // End of tomorrow (2 days from start of today)
-    const endUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 23, 59, 59, 999))
+    // End of today only (not tomorrow)
+    const endUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999))
 
     return {
       startISO: startUTC.toISOString(),
