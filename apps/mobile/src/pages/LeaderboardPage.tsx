@@ -157,10 +157,16 @@ const LeaderboardPage: React.FC<LeaderboardPageProps> = (props) => {
   };
 
   const challengeEvents = useMemo(() => {
-    const uniqueDays = [...new Set(matches.map(m => m.day))];
-    return uniqueDays.map(day => ({
-      startDate: addDays(parseISO(challenge.startDate), day - 1).toISOString()
-    }));
+    if (!challenge.startDate) return [];
+    try {
+      const uniqueDays = [...new Set(matches.map(m => m.day))];
+      return uniqueDays.map(day => ({
+        startDate: addDays(parseISO(challenge.startDate), day - 1).toISOString()
+      }));
+    } catch (e) {
+      console.error('[LeaderboardPage] challengeEvents date error:', e);
+      return [];
+    }
   }, [matches, challenge.startDate]);
 
 
@@ -179,7 +185,7 @@ const LeaderboardPage: React.FC<LeaderboardPageProps> = (props) => {
         onSelectLeague={setActiveFilterLeagueId}
       />
       
-      {!isCurrentUserAdmin && (
+      {!isCurrentUserAdmin && activePeriod.start_date && activePeriod.end_date && (
         <div className="text-xs text-center text-text-disabled bg-deep-navy/50 p-2 rounded-lg flex items-center justify-center gap-2">
           <Info size={14} />
           Showing results from {format(parseISO(activePeriod.start_date), 'MMM d')} to {format(parseISO(activePeriod.end_date), 'MMM d')}

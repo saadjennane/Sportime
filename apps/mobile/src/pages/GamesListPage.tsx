@@ -175,9 +175,19 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
         const firstKickoff = game.first_kickoff_time ? new Date(game.first_kickoff_time) : null;
         const hasFirstMatchStarted = firstKickoff ? firstKickoff <= now : false;
 
-        // RÈGLE PRIORITAIRE: Si le premier match a commencé → Awaiting Results (lecture seule)
+        // RÈGLE PRIORITAIRE: Si le premier match a commencé
         if (hasFirstMatchStarted) {
-          isComplete = true;
+          // Pour les betting games, vérifier s'il reste des matchs futurs à jouer
+          if (game.game_type === 'betting') {
+            const hasUpcomingMatches = game.matches?.some(m => {
+              const kickoffPassed = m.kickoffTime && new Date(m.kickoffTime) <= now;
+              return !kickoffPassed;
+            }) ?? false;
+            // Active si matchs futurs, Awaiting sinon
+            isComplete = !hasUpcomingMatches;
+          } else {
+            isComplete = true;
+          }
         } else if (game.game_type === 'betting') {
           const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
           if (userEntry) {
