@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { SportimeGame, TournamentType, Profile, UserTicket, GameType } from '../types';
 import { format, parseISO, isBefore, formatDistanceToNowStrict } from 'date-fns';
 import { Calendar, Coins, Gift, ArrowRight, Check, Clock, Users, Ticket, Ban, Star, Trophy, Award, ScrollText, Bell, Flame, Lock } from 'lucide-react';
-import { CtaState, calculateEntryDeadline } from '../pages/GamesListPage';
+import { CtaState, GameBadge, calculateEntryDeadline } from '../pages/GamesListPage';
 import { normalizeTournamentTier } from '../config/constants';
 import { getBettingGameDeadline } from '../services/gameStateService';
 
@@ -71,11 +71,13 @@ const EntryDeadlineCountdown: React.FC<EntryDeadlineProps> = ({ deadline }) => {
 interface GameCardProps {
   game: SportimeGame;
   ctaState: CtaState;
+  badge?: GameBadge;
   onJoinClick: () => void;
   onPlay: () => void;
   onShowRewards: () => void;
   onShowRules: () => void;
   onViewLeaderboard?: () => void;
+  onViewResults?: () => void;
   profile: Profile | null;
   userTickets: UserTicket[];
 }
@@ -93,7 +95,7 @@ const tournamentTierDetails: Record<TournamentType, { label: string; color: stri
   apex: { label: 'Apex', color: 'bg-hot-red/20 text-hot-red' },
 };
 
-export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick, onPlay, onShowRewards, onShowRules, onViewLeaderboard, profile, userTickets }) => {
+export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, badge, onJoinClick, onPlay, onShowRewards, onShowRules, onViewLeaderboard, onViewResults, profile, userTickets }) => {
   const details = gameTypeDetails[game.game_type as keyof typeof gameTypeDetails];
   const normalizedTier = normalizeTournamentTier(game.tier);
   const tierDetails = normalizedTier ? tournamentTierDetails[normalizedTier] : null;
@@ -227,14 +229,38 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
           </div>
         </div>
         <div className="flex flex-col items-end gap-1.5">
-          {/* Status Badge */}
-          <span className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${
-            isCancelled ? 'bg-hot-red/20 text-hot-red' :
-            realGameStatus === 'Upcoming' ? 'bg-electric-blue/20 text-electric-blue' :
-            realGameStatus === 'Ongoing' ? 'bg-lime-glow/20 text-lime-glow' : 'bg-disabled text-text-disabled'
-          }`}>
-            {realGameStatus}
-          </span>
+          {/* Game Badge (Ongoing, Results Available, Finished) */}
+          {badge === 'ONGOING' && (
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap bg-warm-yellow/20 text-warm-yellow flex items-center gap-1">
+              <Clock size={12} />
+              Ongoing
+            </span>
+          )}
+          {badge === 'RESULTS_AVAILABLE' && onViewResults && (
+            <button
+              onClick={onViewResults}
+              className="text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap bg-lime-glow/20 text-lime-glow hover:bg-lime-glow/30 transition-colors flex items-center gap-1"
+            >
+              <Check size={12} />
+              Results Available
+            </button>
+          )}
+          {badge === 'FINISHED' && (
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap bg-text-disabled/20 text-text-disabled flex items-center gap-1">
+              <Check size={12} />
+              Finished
+            </span>
+          )}
+          {/* Status Badge - only show if no game badge */}
+          {!badge && (
+            <span className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${
+              isCancelled ? 'bg-hot-red/20 text-hot-red' :
+              realGameStatus === 'Upcoming' ? 'bg-electric-blue/20 text-electric-blue' :
+              realGameStatus === 'Ongoing' ? 'bg-lime-glow/20 text-lime-glow' : 'bg-disabled text-text-disabled'
+            }`}>
+              {realGameStatus}
+            </span>
+          )}
         </div>
       </div>
       

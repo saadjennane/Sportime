@@ -33,6 +33,8 @@ export interface BettingGameState {
   deadline: Date | null;
   /** Whether bets can be edited */
   isEditable: boolean;
+  /** Whether there are results available from previous matchdays */
+  hasAvailableResults: boolean;
 }
 
 // ============================================================================
@@ -146,6 +148,7 @@ export function calculateBettingGameState(
       cta: 'VIEW_RESULTS',
       deadline: null,
       isEditable: false,
+      hasAvailableResults: false,
     };
   }
 
@@ -169,6 +172,7 @@ export function calculateBettingGameState(
       cta: 'VIEW_RESULTS',
       deadline: null,
       isEditable: false,
+      hasAvailableResults: false,
     };
   }
 
@@ -233,6 +237,11 @@ export function calculateBettingGameState(
   const dailyEntry = userEntry?.dailyEntries.find(d => d.day === currentMatchday.day);
   const hasUserBets = (dailyEntry?.bets?.length || 0) > 0;
 
+  // Check if there are results available from previous matchdays
+  // hasAvailableResults = true if any matchday before the current one is fully finished
+  const hasAvailableResults = currentMatchdayIndex > 0 &&
+    matchdayInfos.slice(0, currentMatchdayIndex).some(m => m.allMatchesFinished);
+
   // State 1: Premier match pas encore commencé
   if (!hasStarted) {
     return {
@@ -242,6 +251,7 @@ export function calculateBettingGameState(
       cta: hasUserBets ? 'EDIT_BETS' : 'PLACE_BETS',
       deadline: currentMatchday.firstKickoff,
       isEditable: true,
+      hasAvailableResults,
     };
   }
 
@@ -254,6 +264,7 @@ export function calculateBettingGameState(
       cta: 'VIEW_GAME',
       deadline: null,
       isEditable: false,
+      hasAvailableResults,
     };
   }
 
@@ -276,6 +287,8 @@ export function calculateBettingGameState(
         cta: hasNextBets ? 'EDIT_BETS' : 'PLACE_BETS',
         deadline: nextMatchday.firstKickoff,
         isEditable: true,
+        // Previous matchday just finished, so results are available
+        hasAvailableResults: true,
       };
     }
 
@@ -287,6 +300,7 @@ export function calculateBettingGameState(
       cta: 'VIEW_RESULTS',
       deadline: null,
       isEditable: false,
+      hasAvailableResults,
     };
   }
 
@@ -298,6 +312,7 @@ export function calculateBettingGameState(
     cta: 'VIEW_RESULTS',
     deadline: null,
     isEditable: false,
+    hasAvailableResults: false,
   };
 }
 

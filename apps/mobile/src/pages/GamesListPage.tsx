@@ -12,6 +12,7 @@ import { calculateBettingGameState, safeParseISO } from '../services/gameStateSe
 import { hasViewedResults, markResultsViewed } from '../services/resultsViewedService';
 
 export type CtaState = 'JOIN' | 'PLACE_BETS' | 'MAKE_PREDICTIONS' | 'SELECT_TEAM' | 'COMPLETE_TEAM' | 'AWAITING' | 'RESULTS' | 'IN_PROGRESS' | 'LOCKED';
+export type GameBadge = 'ONGOING' | 'RESULTS_AVAILABLE' | 'FINISHED' | null;
 type GamesTab = 'my-games' | 'browse';
 
 /**
@@ -365,8 +366,49 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
     return 'JOIN';
   };
 
+  const getGameBadge = (game: SportimeGame & { isEligible: boolean }): GameBadge => {
+    const hasJoined = myGameIds.has(game.id);
+    if (!hasJoined) return null;
+
+    const now = new Date();
+    const endDate = safeParseISO(game.end_date);
+    const isEndDatePassed = endDate ? endDate < now : false;
+
+    // Finished badge - end_date has passed
+    if (isEndDatePassed) return 'FINISHED';
+
+    // For betting games, check state from service
+    if (game.game_type === 'betting') {
+      const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
+      const gameState = calculateBettingGameState(game, userEntry, now);
+
+      // Ongoing badge - matches in progress
+      if (gameState.category === 'awaiting') return 'ONGOING';
+
+      // Results Available badge - previous matchday finished, next available
+      if (gameState.hasAvailableResults) return 'RESULTS_AVAILABLE';
+    }
+
+    // For prediction/fantasy games
+    if (game.game_type === 'prediction' || game.game_type === 'fantasy') {
+      const firstKickoff = game.first_kickoff_time ? new Date(game.first_kickoff_time) : null;
+      const hasFirstMatchStarted = firstKickoff ? firstKickoff <= now : false;
+
+      // Check if all matches have results
+      const allMatchesHaveResults = game.matches && game.matches.length > 0
+        ? game.matches.every(m => m.result !== undefined)
+        : false;
+
+      // Ongoing - first match started but not all results
+      if (hasFirstMatchStarted && !allMatchesHaveResults) return 'ONGOING';
+    }
+
+    return null;
+  };
+
   const renderGameCard = (game: SportimeGame & { isEligible: boolean }, isInMyGamesTab: boolean) => {
     const ctaState = getCtaState(game, isInMyGamesTab);
+    const badge = getGameBadge(game);
 
     // Wrap navigation with markResultsViewed when viewing results
     const wrapWithResultsViewed = (action: () => void) => () => {
@@ -388,16 +430,25 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       if (game.game_type === 'fantasy') onViewFantasyGame(game.id);
     };
 
+    // Handler for "Results Available" badge click
+    const handleViewResults = () => {
+      if (game.game_type === 'betting') onViewChallenge(game.id);
+      if (game.game_type === 'prediction') onPlaySwipeGame(game.id);
+      if (game.game_type === 'fantasy') onViewFantasyGame(game.id);
+    };
+
     return (
       <GameCard
         key={game.id}
         game={game}
         ctaState={ctaState}
+        badge={badge}
         onJoinClick={() => game.game_type === 'betting' ? onJoinChallenge(game) : onJoinSwipeGame(game.id)}
         onPlay={onPlayAction}
         onShowRewards={() => setViewingRewardsFor(game)}
         onShowRules={() => setIsRulesModalOpen(true)}
         onViewLeaderboard={handleViewLeaderboard}
+        onViewResults={handleViewResults}
         profile={profile}
         userTickets={userTickets}
       />
