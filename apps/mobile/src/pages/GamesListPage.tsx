@@ -183,6 +183,7 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
         finished.push(game);
       } else if (realStatus === 'Ongoing' || realStatus === 'Upcoming') {
         // BETTING GAMES: Use centralized state service
+        // BUT: Never put in finished if getRealGameStatus says Ongoing (end_date not passed)
         if (game.game_type === 'betting') {
           const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
           const gameState = calculateBettingGameState(game, userEntry, now);
@@ -192,7 +193,9 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
           } else if (gameState.category === 'awaiting') {
             awaiting.push(game);
           } else {
-            finished.push(game);
+            // gameState.category === 'finished' BUT realStatus is NOT Finished
+            // This means end_date hasn't passed yet - keep in active with "View Results"
+            active.push(game);
           }
           continue;
         }
