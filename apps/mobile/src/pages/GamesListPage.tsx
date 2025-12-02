@@ -172,21 +172,23 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
 
       const realStatus = getRealGameStatus(game, now);
 
-      if (realStatus === 'Finished' || realStatus === 'Cancelled') {
-        finished.push(game);
-      } else if (realStatus === 'Ongoing' || realStatus === 'Upcoming') {
-        // Check if end_date has passed - if so, game should be in Play Now for "View Results"
-        const endDate = safeParseISO(game.end_date);
-        const isEndDatePassed = endDate ? endDate < now : false;
+      // Check if end_date has passed
+      const endDate = safeParseISO(game.end_date);
+      const isEndDatePassed = endDate ? endDate < now : false;
 
+      // RULE: Games with end_date passed go to Past Games (if results viewed) or Play Now (if not)
+      if (realStatus === 'Finished' || realStatus === 'Cancelled' || isEndDatePassed) {
+        if (hasViewedResults(game.id)) {
+          finished.push(game); // Past Games
+        } else {
+          active.push(game); // Play Now with "View Results"
+        }
+        continue;
+      }
+
+      if (realStatus === 'Ongoing' || realStatus === 'Upcoming') {
         // BETTING GAMES: Use centralized state service
         if (game.game_type === 'betting') {
-          // If end_date has passed, put in Play Now with "View Results" regardless of gameState
-          if (isEndDatePassed) {
-            active.push(game);
-            continue;
-          }
-
           const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
           const gameState = calculateBettingGameState(game, userEntry, now, game.end_date);
 
@@ -195,19 +197,12 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
           } else if (gameState.category === 'awaiting') {
             awaiting.push(game);
           } else {
-            // gameState.category === 'finished' BUT realStatus is NOT Finished
-            // This means end_date hasn't passed yet - keep in active with "View Results"
             active.push(game);
           }
           continue;
         }
 
         // OTHER GAME TYPES (prediction, fantasy)
-        // If end_date has passed, put in Play Now with "View Results"
-        if (isEndDatePassed) {
-          active.push(game);
-          continue;
-        }
 
         let isComplete = false;
         const firstKickoff = game.first_kickoff_time ? new Date(game.first_kickoff_time) : null;
