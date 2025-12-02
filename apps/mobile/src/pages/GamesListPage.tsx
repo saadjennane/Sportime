@@ -188,7 +188,7 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
           }
 
           const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
-          const gameState = calculateBettingGameState(game, userEntry, now);
+          const gameState = calculateBettingGameState(game, userEntry, now, game.end_date);
 
           if (gameState.category === 'active') {
             active.push(game);
@@ -332,7 +332,7 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
     // Betting games - use centralized state service
     if (game.game_type === 'betting') {
       const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
-      const gameState = calculateBettingGameState(game, userEntry, now);
+      const gameState = calculateBettingGameState(game, userEntry, now, game.end_date);
 
       // Map service CTA to component CTA
       switch (gameState.cta) {
@@ -380,7 +380,7 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
     // For betting games, check state from service
     if (game.game_type === 'betting') {
       const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
-      const gameState = calculateBettingGameState(game, userEntry, now);
+      const gameState = calculateBettingGameState(game, userEntry, now, game.end_date);
 
       // Ongoing badge - matches in progress
       if (gameState.category === 'awaiting') return 'ONGOING';

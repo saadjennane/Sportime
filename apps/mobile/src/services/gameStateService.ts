@@ -135,8 +135,12 @@ function getMatchdayInfo(day: number, matches: MatchWithDay[]): MatchdayInfo | n
 export function calculateBettingGameState(
   game: SportimeGame,
   userEntry: UserChallengeEntry | undefined,
-  now: Date = new Date()
+  now: Date = new Date(),
+  endDate?: string | null
 ): BettingGameState {
+  // Parse end_date to check if game is truly finished
+  const gameEndDate = safeParseISO(endDate);
+  const isEndDatePassed = gameEndDate ? gameEndDate < now : false;
   const matches = (game.matches || []) as MatchWithDay[];
 
   // No matches - game is finished or not set up
@@ -269,10 +273,8 @@ export function calculateBettingGameState(
   }
 
   // State 3: Tous les matchs du matchday sont terminés
-  // → Show "View Results" in Play Now section
-  // After viewing, if there's a next matchday, it becomes available
   if (hasStarted && allFinished) {
-    // If there's a next matchday that hasn't started, show it
+    // If there's a next matchday that hasn't started, show it in Play Now
     if (nextMatchday && nextMatchday.firstKickoff > now) {
       // Check if user has bets for next matchday
       const nextDailyEntry = userEntry?.dailyEntries.find(d => d.day === nextMatchday.day);
@@ -292,15 +294,29 @@ export function calculateBettingGameState(
       };
     }
 
-    // All matchdays finished or next is also live/finished
+    // No next matchday available - check if end_date passed
+    if (isEndDatePassed) {
+      // end_date passée → View Results (will go to Past Games after viewing)
+      return {
+        currentMatchday,
+        nextMatchday,
+        category: 'active',
+        cta: 'VIEW_RESULTS',
+        deadline: null,
+        isEditable: false,
+        hasAvailableResults,
+      };
+    }
+
+    // end_date NOT passed → stay in Awaiting Results with View Game
     return {
       currentMatchday,
       nextMatchday,
-      category: 'active', // Stay in Play Now for "View Results"
-      cta: 'VIEW_RESULTS',
+      category: 'awaiting',
+      cta: 'VIEW_GAME',
       deadline: null,
       isEditable: false,
-      hasAvailableResults,
+      hasAvailableResults: true,
     };
   }
 
@@ -337,6 +353,6 @@ export function getBettingGameDeadline(
   userEntry: UserChallengeEntry | undefined,
   now: Date = new Date()
 ): Date | null {
-  const state = calculateBettingGameState(game, userEntry, now);
+  const state = calculateBettingGameState(game, userEntry, now, game.end_date);
   return state.deadline;
 }
