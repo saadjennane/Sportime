@@ -66,9 +66,9 @@ function hasFirstMatchStarted(game: SportimeGame): boolean {
 }
 
 /**
- * Determines the real status of a game by validating start_date and end_date
- * against the current time, regardless of what the status field says.
- * Priority: end_date > start_date > stored status
+ * Determines the real status of a game based on dates and match results.
+ * For games with matches (betting/prediction), only mark as Finished when ALL matches have results.
+ * Priority: match results > end_date > start_date > stored status
  */
 function getRealGameStatus(game: SportimeGame, now: Date): 'Upcoming' | 'Ongoing' | 'Finished' | 'Cancelled' {
   // Cancelled games stay cancelled
@@ -76,21 +76,35 @@ function getRealGameStatus(game: SportimeGame, now: Date): 'Upcoming' | 'Ongoing
     return 'Cancelled';
   }
 
-  const startDate = parseISO(game.start_date);
-  const endDate = parseISO(game.end_date);
+  const startDate = safeParseISO(game.start_date);
+  const endDate = safeParseISO(game.end_date);
 
-  // Priority 1: End date passed → Always Finished
-  if (endDate < now) {
+  // For games with matches (betting/prediction), check if ALL matches have results
+  if ((game.game_type === 'betting' || game.game_type === 'prediction') && game.matches && game.matches.length > 0) {
+    const allMatchesHaveResults = game.matches.every(m => m.result !== undefined);
+
+    if (allMatchesHaveResults) {
+      return 'Finished';
+    }
+
+    // If not all matches finished, check if started
+    if (startDate && startDate < now) {
+      return 'Ongoing';
+    }
+
+    return 'Upcoming';
+  }
+
+  // For other game types (fantasy, etc.), use date-based logic
+  if (endDate && endDate < now) {
     return 'Finished';
   }
 
-  // Priority 2: Start date passed but not end → Ongoing
-  if (startDate < now && endDate >= now) {
+  if (startDate && startDate < now && endDate && endDate >= now) {
     return 'Ongoing';
   }
 
-  // Priority 3: Start date not passed → Upcoming
-  if (startDate >= now) {
+  if (startDate && startDate >= now) {
     return 'Upcoming';
   }
 
