@@ -160,7 +160,9 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
                 </div>
               </div>
             )}
+{/* DISABLED: Streak system temporarily disabled
             <DailyStreakTracker streak={userStreak} />
+*/}
             {userSpinState && (
               <div className="card-base p-5 space-y-3">
                 <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2"><Gift size={20} className="text-warm-yellow" /> Spin the Wheel</h3>

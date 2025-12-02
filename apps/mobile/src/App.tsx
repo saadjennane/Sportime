@@ -381,18 +381,18 @@ function App() {
 
     initializeUserSpinState(profile.id);
 
-    if (!isGuest) {
-      streakService.checkDailyStreak(profile.id)
-        .then((result) => {
-          // Montrer le modal dès que le streak est disponible (2ème jour et au-delà)
-          if (result.is_available) {
-            setDailyStreakData({ isOpen: true, streakDay: result.streak_day });
-          }
-        })
-        .catch((error) => {
-          console.error('[App] Failed to check daily streak:', error);
-        });
-    }
+    // DISABLED: Streak system temporarily disabled
+    // if (!isGuest) {
+    //   streakService.checkDailyStreak(profile.id)
+    //     .then((result) => {
+    //       if (result.is_available) {
+    //         setDailyStreakData({ isOpen: true, streakDay: result.streak_day });
+    //       }
+    //     })
+    //     .catch((error) => {
+    //       console.error('[App] Failed to check daily streak:', error);
+    //     });
+    // }
 
     const seenTutorial = localStorage.getItem('sportime_seen_swipe_tutorial');
     if (seenTutorial) {
@@ -1464,11 +1464,13 @@ function App() {
       }}
       onTriggerSignUp={handleTriggerSignUp}
     />
+{/* DISABLED: Streak system temporarily disabled
     <DailyStreakModal
       isOpen={dailyStreakData.isOpen}
       onClaim={handleClaimStreak}
       streakDay={dailyStreakData.streakDay}
     />
+*/}
     {contextualPrompt && <ContextualPremiumPrompt {...contextualPrompt} />}
     </div>
     );
