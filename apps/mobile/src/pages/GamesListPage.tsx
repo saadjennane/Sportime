@@ -6,8 +6,9 @@ import { RulesModal } from '../components/RulesModal';
 import { GamesFilterPanel } from '../components/filters/GamesFilterPanel';
 import { checkEligibility } from '../lib/eligibility';
 import { GameSection } from '../components/GameSection';
-import { add, isWithinInterval, parseISO } from 'date-fns';
+import { parseISO } from 'date-fns';
 import { Zap, Clock, Flag } from 'lucide-react';
+import { calculateBettingGameState, safeParseISO } from '../services/gameStateService';
 
 export type CtaState = 'JOIN' | 'PLACE_BETS' | 'MAKE_PREDICTIONS' | 'SELECT_TEAM' | 'COMPLETE_TEAM' | 'AWAITING' | 'RESULTS' | 'IN_PROGRESS' | 'LOCKED';
 type GamesTab = 'my-games' | 'browse';
@@ -168,55 +169,41 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       if (realStatus === 'Finished' || realStatus === 'Cancelled') {
         finished.push(game);
       } else if (realStatus === 'Ongoing' || realStatus === 'Upcoming') {
-        // Determine if user has completed their submissions
-        let isComplete = false;
+        // BETTING GAMES: Use centralized state service
+        if (game.game_type === 'betting') {
+          const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
+          const gameState = calculateBettingGameState(game, userEntry, now);
 
-        // RÈGLE UNIFIÉE: Calculer hasFirstMatchStarted pour TOUS les types de jeux
+          if (gameState.category === 'active') {
+            active.push(game);
+          } else if (gameState.category === 'awaiting') {
+            awaiting.push(game);
+          } else {
+            finished.push(game);
+          }
+          continue;
+        }
+
+        // OTHER GAME TYPES: Keep existing logic
+        let isComplete = false;
         const firstKickoff = game.first_kickoff_time ? new Date(game.first_kickoff_time) : null;
         const hasFirstMatchStarted = firstKickoff ? firstKickoff <= now : false;
 
-        // RÈGLE PRIORITAIRE: Si le premier match a commencé
-        if (hasFirstMatchStarted) {
-          // Pour les betting games, vérifier s'il reste des matchs futurs à jouer
-          if (game.game_type === 'betting') {
-            const hasUpcomingMatches = game.matches?.some(m => {
-              const kickoffPassed = m.kickoffTime && new Date(m.kickoffTime) <= now;
-              return !kickoffPassed;
-            }) ?? false;
-            // Active si matchs futurs, Awaiting sinon
-            isComplete = !hasUpcomingMatches;
-          } else {
+        if (game.game_type === 'prediction') {
+          if (hasFirstMatchStarted) {
             isComplete = true;
-          }
-        } else if (game.game_type === 'betting') {
-          const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
-          if (userEntry) {
-            // Fix: Un jeu avec 0 dailyEntries ne peut pas être "complete"
-            if (userEntry.dailyEntries.length === 0) {
-              isComplete = false;
-            } else {
-              isComplete = userEntry.dailyEntries.every((daily: any) => {
-                const totalBet = daily.bets.reduce((sum: number, b: any) => sum + b.amount, 0);
-                return totalBet >= (game.challengeBalance || 1000);
-              });
+          } else {
+            const userEntry = userSwipeEntries.find(e => e.matchDayId === game.id);
+            if (userEntry) {
+              const matchCount = game.matches?.length || 0;
+              const allPredictionsMade = matchCount > 0 && userEntry.predictions.length >= matchCount;
+              isComplete = allPredictionsMade;
             }
           }
-        } else if (game.game_type === 'prediction') {
-          // Le check hasFirstMatchStarted est déjà fait ci-dessus
-          // Ici on vérifie juste si les prédictions sont faites (quand le match n'a pas encore commencé)
-          const userEntry = userSwipeEntries.find(e => e.matchDayId === game.id);
-          if (userEntry) {
-            const matchCount = game.matches?.length || 0;
-            const allPredictionsMade = matchCount > 0 && userEntry.predictions.length >= matchCount;
-            isComplete = allPredictionsMade;
-          }
         } else if (game.game_type === 'fantasy') {
-          // Fantasy reste toujours modifiable jusqu'au deadline (géré par hasFirstMatchStarted)
-          isComplete = false;
+          isComplete = hasFirstMatchStarted;
         }
 
-        // If incomplete, goes to Active
-        // If complete, goes to Awaiting
         if (!isComplete) {
           active.push(game);
         } else {
@@ -311,35 +298,24 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       return userTeam ? 'COMPLETE_TEAM' : 'SELECT_TEAM';
     }
 
-    // Betting games - can place bets until first match starts
+    // Betting games - use centralized state service
     if (game.game_type === 'betting') {
-      // Check if there are still upcoming matches (not yet played)
-      const hasUpcomingMatches = game.matches?.some(m => {
-        // Match is upcoming if kickoff hasn't passed or no result yet
-        const kickoffPassed = m.kickoffTime && new Date(m.kickoffTime) <= new Date();
-        return !kickoffPassed || !m.result;
-      }) ?? false;
+      const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
+      const gameState = calculateBettingGameState(game, userEntry, now);
 
-      // If all matches have results, show RESULTS
-      const allMatchesPlayed = game.matches && game.matches.length > 0 &&
-        game.matches.every(m => m.result !== undefined);
-      if (allMatchesPlayed) {
-        return 'RESULTS';
+      // Map service CTA to component CTA
+      switch (gameState.cta) {
+        case 'PLACE_BETS':
+          return 'PLACE_BETS';
+        case 'EDIT_BETS':
+          return 'PLACE_BETS'; // Use same CTA, text will be different
+        case 'VIEW_GAME':
+          return 'AWAITING';
+        case 'VIEW_RESULTS':
+          return 'RESULTS';
+        default:
+          return 'PLACE_BETS';
       }
-
-      // If first match started but there are still upcoming matches, user can still place bets
-      if (firstMatchStarted && hasUpcomingMatches) {
-        return 'PLACE_BETS';
-      }
-
-      // Once first match has started and no upcoming matches, show AWAITING
-      if (firstMatchStarted) {
-        return 'AWAITING';
-      }
-
-      // Before first match: can still edit bets
-      // Show PLACE_BETS even if complete, so user can access and modify
-      return 'PLACE_BETS';
     }
 
     // Prediction games - can make predictions until first match starts

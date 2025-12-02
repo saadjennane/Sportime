@@ -4,6 +4,7 @@ import { format, parseISO, isBefore, formatDistanceToNowStrict } from 'date-fns'
 import { Calendar, Coins, Gift, ArrowRight, Check, Clock, Users, Ticket, Ban, Star, Trophy, Award, ScrollText, Bell, Flame, Lock } from 'lucide-react';
 import { CtaState, calculateEntryDeadline } from '../pages/GamesListPage';
 import { normalizeTournamentTier } from '../config/constants';
+import { getBettingGameDeadline } from '../services/gameStateService';
 
 // =============================================================================
 // ENTRY DEADLINE COUNTDOWN COMPONENT
@@ -161,6 +162,14 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
   // Calculate entry deadline for countdown display
   const entryDeadline = useMemo(() => calculateEntryDeadline(game), [game]);
 
+  // For betting games, get the matchday-specific deadline
+  const bettingDeadline = useMemo(() => {
+    if (game.game_type === 'betting') {
+      return getBettingGameDeadline(game, undefined, new Date());
+    }
+    return null;
+  }, [game]);
+
   const ctaConfig = {
     JOIN: { onClick: onJoinClick, disabled: isJoinDisabled, style: 'primary', content: joinButtonContent() },
     PLACE_BETS: { text: 'Place your bets', onClick: onPlay, disabled: false, style: 'primary', icon: <ArrowRight size={16} /> },
@@ -271,9 +280,12 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
         </div>
 
         <div className="flex-1 flex flex-col items-end gap-1">
-          {/* Entry Deadline Countdown - only for JOIN state */}
+          {/* Entry Deadline Countdown - for JOIN and betting PLACE_BETS states */}
           {ctaState === 'JOIN' && (
             <EntryDeadlineCountdown deadline={entryDeadline} />
+          )}
+          {ctaState === 'PLACE_BETS' && game.game_type === 'betting' && bettingDeadline && (
+            <EntryDeadlineCountdown deadline={bettingDeadline} />
           )}
 
           {/* Registration closed message for LOCKED state */}
