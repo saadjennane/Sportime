@@ -67,12 +67,11 @@ function hasFirstMatchStarted(game: SportimeGame): boolean {
 }
 
 /**
- * Determines the real status of a game based on match results and user viewing state.
+ * Determines the real status of a game based on end_date and user viewing state.
  *
  * A game is only "Finished" (Past Games) when:
  * 1. The end_date has passed
- * 2. AND all matches have results
- * 3. AND the user has clicked "View Results" (stored in localStorage)
+ * 2. AND the user has clicked "View Results" (stored in localStorage)
  *
  * This applies to betting, prediction, and fantasy games.
  */
@@ -85,20 +84,13 @@ function getRealGameStatus(game: SportimeGame, now: Date): 'Upcoming' | 'Ongoing
   const startDate = safeParseISO(game.start_date);
   const endDate = safeParseISO(game.end_date);
 
-  // Check if all matches have results (for games with matches)
-  const hasMatches = game.matches && game.matches.length > 0;
-  const allMatchesHaveResults = hasMatches
-    ? game.matches!.every(m => m.result !== undefined)
-    : false;
-
   // Check if end_date has passed
   const isEndDatePassed = endDate ? endDate < now : false;
 
   // Game is "Finished" only when:
   // 1. end_date is passed
-  // 2. AND all matches have results
-  // 3. AND user has viewed results
-  if (isEndDatePassed && allMatchesHaveResults && hasViewedResults(game.id)) {
+  // 2. AND user has viewed results
+  if (isEndDatePassed && hasViewedResults(game.id)) {
     return 'Finished';
   }
 
@@ -107,7 +99,7 @@ function getRealGameStatus(game: SportimeGame, now: Date): 'Upcoming' | 'Ongoing
     return 'Upcoming';
   }
 
-  // Game is ongoing (started but end_date not passed, or not all conditions met for Finished)
+  // Game is ongoing (started but end_date not passed, or not viewed results yet)
   return 'Ongoing';
 }
 
@@ -319,6 +311,13 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
 
     // USER HAS JOINED - determine action state
     const firstMatchStarted = hasFirstMatchStarted(game);
+
+    // Check if end_date has passed - if so, always show "View Results"
+    const endDate = safeParseISO(game.end_date);
+    const isEndDatePassed = endDate ? endDate < now : false;
+    if (isEndDatePassed) {
+      return 'RESULTS';
+    }
 
     // Fantasy games - show team management until first match starts
     if (game.game_type === 'fantasy') {
