@@ -182,9 +182,18 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       if (realStatus === 'Finished' || realStatus === 'Cancelled') {
         finished.push(game);
       } else if (realStatus === 'Ongoing' || realStatus === 'Upcoming') {
+        // Check if end_date has passed - if so, game should be in Play Now for "View Results"
+        const endDate = safeParseISO(game.end_date);
+        const isEndDatePassed = endDate ? endDate < now : false;
+
         // BETTING GAMES: Use centralized state service
-        // BUT: Never put in finished if getRealGameStatus says Ongoing (end_date not passed)
         if (game.game_type === 'betting') {
+          // If end_date has passed, put in Play Now with "View Results" regardless of gameState
+          if (isEndDatePassed) {
+            active.push(game);
+            continue;
+          }
+
           const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
           const gameState = calculateBettingGameState(game, userEntry, now);
 
@@ -200,7 +209,13 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
           continue;
         }
 
-        // OTHER GAME TYPES: Keep existing logic
+        // OTHER GAME TYPES (prediction, fantasy)
+        // If end_date has passed, put in Play Now with "View Results"
+        if (isEndDatePassed) {
+          active.push(game);
+          continue;
+        }
+
         let isComplete = false;
         const firstKickoff = game.first_kickoff_time ? new Date(game.first_kickoff_time) : null;
         const hasFirstMatchStarted = firstKickoff ? firstKickoff <= now : false;
