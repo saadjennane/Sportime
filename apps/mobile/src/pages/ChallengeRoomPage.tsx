@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Challenge, ChallengeMatch, UserChallengeEntry, ChallengeBet, BoosterSelection, DailyChallengeEntry, LeaderboardEntry, Profile, UserLeague, LeagueMember, LeagueGame, Game } from '../types';
-import { ArrowLeft, Coins, ShieldAlert, Trophy, ScrollText } from 'lucide-react';
+import { ArrowLeft, Coins, ShieldAlert, Trophy, ScrollText, Clock, Lock } from 'lucide-react';
 import { ChallengeBetController } from '../components/ChallengeBetController';
 import { BoosterSelector } from '../components/BoosterSelector';
 import { BoosterInfoModal } from '../components/BoosterInfoModal';
@@ -110,7 +110,7 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   const betsLocked = hasFirstMatchStarted();
 
   // Get unique groups based on period_type
-  const matchGroups = useMemo(() => {
+  const allMatchGroups = useMemo(() => {
     const groups = new Map<string, { key: string; matches: ChallengeMatch[]; displayName: string; date: Date; matchdays: number[] }>();
 
     matches.forEach(match => {
@@ -141,6 +141,47 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
     // Sort by date
     return Array.from(groups.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
   }, [matches, challenge.period_type, challenge.start_date]);
+
+  // Filter to show only current and past matchdays (hide future ones)
+  const { matchGroups, currentMatchdayIndex, hasNextMatchday } = useMemo(() => {
+    const now = new Date();
+    let currentIdx = -1;
+
+    // Find current matchday:
+    // - First group where matches haven't all started, OR
+    // - First group with live matches (started but not all finished)
+    for (let i = 0; i < allMatchGroups.length; i++) {
+      const group = allMatchGroups[i];
+      const allFinished = group.matches.every(m => m.status === 'played');
+      const hasStarted = group.matches.some(m => m.kickoffTime && new Date(m.kickoffTime) <= now);
+
+      if (!hasStarted) {
+        // Found upcoming matchday
+        currentIdx = i;
+        break;
+      }
+
+      if (hasStarted && !allFinished) {
+        // Found live matchday
+        currentIdx = i;
+        break;
+      }
+    }
+
+    // If all matchdays are finished, show the last one
+    if (currentIdx === -1) {
+      currentIdx = allMatchGroups.length - 1;
+    }
+
+    // Only show matchdays up to and including the current one
+    const visibleGroups = allMatchGroups.slice(0, currentIdx + 1);
+
+    return {
+      matchGroups: visibleGroups,
+      currentMatchdayIndex: currentIdx,
+      hasNextMatchday: currentIdx < allMatchGroups.length - 1
+    };
+  }, [allMatchGroups]);
 
   const matchDaysForSwitcher = useMemo(() => {
     return matchGroups.map(group => ({
@@ -173,6 +214,61 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   const [armingBooster, setArmingBooster] = useState<{ groupKey: string, type: 'x2' | 'x3' } | null>(null);
   const [modalState, setModalState] = useState<{ groupKey: string, type: 'x2' | 'x3' } | null>(null);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
+
+  // Countdown calculation for current matchday deadline
+  const currentMatchdayDeadline = useMemo(() => {
+    if (!matchGroups.length) return null;
+    const currentGroup = matchGroups[matchGroups.length - 1];
+    if (!currentGroup) return null;
+
+    // Get the earliest kickoff time from the current matchday
+    const kickoffTimes = currentGroup.matches
+      .map(m => m.kickoffTime ? new Date(m.kickoffTime).getTime() : null)
+      .filter((t): t is number => t !== null);
+
+    if (kickoffTimes.length === 0) return null;
+    return new Date(Math.min(...kickoffTimes));
+  }, [matchGroups]);
+
+  const [countdownText, setCountdownText] = useState('');
+  const [isUrgent, setIsUrgent] = useState(false);
+
+  useEffect(() => {
+    if (!currentMatchdayDeadline) {
+      setCountdownText('');
+      return;
+    }
+
+    const updateCountdown = () => {
+      const now = new Date();
+      const diff = currentMatchdayDeadline.getTime() - now.getTime();
+
+      if (diff <= 0) {
+        setCountdownText('');
+        return;
+      }
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+      setIsUrgent(hours < 1 && days === 0);
+
+      if (days > 0) {
+        setCountdownText(`${days}d ${hours}h left to bet`);
+      } else if (hours >= 1) {
+        setCountdownText(`${hours}h ${minutes}min left to bet`);
+      } else {
+        setCountdownText(`${minutes}min left to bet`);
+      }
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 60000);
+    return () => clearInterval(interval);
+  }, [currentMatchdayDeadline]);
+
+  const deadlinePassed = currentMatchdayDeadline ? currentMatchdayDeadline <= new Date() : false;
 
   // Get current group
   const currentGroup = useMemo(() => {
@@ -355,6 +451,12 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
       <div className="flex justify-between items-start">
         <div>
             <h2 className="text-2xl font-bold text-text-primary">{challenge.name}</h2>
+            {countdownText && !deadlinePassed && (
+              <div className={`flex items-center gap-1.5 mt-1 ${isUrgent ? 'text-hot-red font-semibold' : 'text-text-secondary'}`}>
+                <Clock size={14} />
+                <span className="text-sm">{countdownText}</span>
+              </div>
+            )}
         </div>
         <div className="flex items-center gap-2">
           <LinkGameButton
@@ -400,6 +502,13 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
               <p className="text-sm">This challenge has started. You can no longer place or modify bets.</p>
             </div>
           </div>
+        </div>
+      )}
+
+      {hasNextMatchday && (
+        <div className="flex items-center gap-2 text-text-secondary text-sm bg-navy-accent/50 px-4 py-2 rounded-lg">
+          <Lock size={14} />
+          <span>Next matchday unlocks after current matches finish</span>
         </div>
       )}
 

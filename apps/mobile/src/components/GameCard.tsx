@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { SportimeGame, TournamentType, Profile, UserTicket, GameType } from '../types';
-import { format, parseISO, isBefore, formatDistanceToNowStrict } from 'date-fns';
+import { format, parseISO, isBefore } from 'date-fns';
 import { Calendar, Coins, Gift, ArrowRight, Clock, Users, Ticket, Star, Trophy, Award, ScrollText, Flame, Lock } from 'lucide-react';
 import { CtaState, calculateEntryDeadline } from '../pages/GamesListPage';
 import { normalizeTournamentTier } from '../config/constants';
@@ -98,25 +98,6 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
   const normalizedTier = normalizeTournamentTier(game.tier);
   const tierDetails = normalizedTier ? tournamentTierDetails[normalizedTier] : null;
 
-  // Calculate real game status based on dates, not stored status
-  // Uses first_kickoff_time (actual match start) instead of start_date (often midnight)
-  const realGameStatus = useMemo(() => {
-    if (game.status === 'Cancelled') return 'Cancelled';
-
-    const now = new Date();
-    const endDate = parseISO(game.end_date);
-    // Use first_kickoff_time if available, otherwise fall back to start_date
-    const effectiveStart = game.first_kickoff_time
-      ? new Date(game.first_kickoff_time)
-      : parseISO(game.start_date);
-
-    if (endDate < now) return 'Finished';
-    if (effectiveStart <= now && endDate >= now) return 'Ongoing';
-    return 'Upcoming';
-  }, [game.start_date, game.end_date, game.status, game.first_kickoff_time]);
-
-  // Check if game is live (ongoing status)
-  const isLiveGame = realGameStatus === 'Ongoing';
 
   // Check if first match has started (for showing leaderboard to non-participants)
   const hasFirstMatchStarted = useMemo(() => {
@@ -154,7 +135,7 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
     return <>Choose Entry</>;
   };
 
-  const isCancelled = realGameStatus === 'Cancelled';
+  const isCancelled = game.status === 'Cancelled';
   const isJoinDisabled = ctaState === 'JOIN' && !hasTicket && !hasEnoughCoins;
   const isInProgress = ctaState === 'IN_PROGRESS';
   const isLocked = ctaState === 'LOCKED';
@@ -197,10 +178,6 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
     game.required_badges && game.required_badges.length > 0 && <Award key="badge" size={14} title={`Requires ${game.required_badges.length} badge(s)`} />,
   ].filter(Boolean);
 
-  const startsIn = useMemo(() => {
-    if (realGameStatus !== 'Upcoming') return null;
-    return formatDistanceToNowStrict(parseISO(game.start_date), { addSuffix: true, unit: 'day' });
-  }, [game.start_date, realGameStatus]);
 
   return (
     <div className={`card-base p-4 space-y-3 transition-all hover:border-neon-cyan/50 ${isCancelled || isInProgress || isLocked ? 'opacity-60' : ''}`}>
@@ -225,16 +202,6 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
               </div>
             )}
           </div>
-        </div>
-        <div className="flex flex-col items-end gap-1.5">
-          {/* Status Badge */}
-          <span className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${
-            isCancelled ? 'bg-hot-red/20 text-hot-red' :
-            realGameStatus === 'Upcoming' ? 'bg-electric-blue/20 text-electric-blue' :
-            realGameStatus === 'Ongoing' ? 'bg-lime-glow/20 text-lime-glow' : 'bg-disabled text-text-disabled'
-          }`}>
-            {realGameStatus}
-          </span>
         </div>
       </div>
       
@@ -294,7 +261,6 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
           )}
 
           <div className="flex items-center gap-2">
-            {startsIn && ctaState === 'NOTIFY' && <span className="text-xs text-text-disabled font-semibold">{startsIn}</span>}
 
             {/* View Leaderboard button for games where first match has started and user hasn't joined */}
             {hasFirstMatchStarted && isLocked && onViewLeaderboard && (

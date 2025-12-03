@@ -8,7 +8,7 @@ import { checkEligibility } from '../lib/eligibility';
 import { GameSection } from '../components/GameSection';
 import { parseISO } from 'date-fns';
 import { Zap, Clock, Flag, Trophy } from 'lucide-react';
-import { calculateBettingGameState, safeParseISO } from '../services/gameStateService';
+import { calculateBettingGameState, safeParseISO, getBettingGameDeadline } from '../services/gameStateService';
 import { hasViewedResults, markResultsViewed } from '../services/resultsViewedService';
 
 export type CtaState = 'JOIN' | 'PLACE_BETS' | 'MAKE_PREDICTIONS' | 'SELECT_TEAM' | 'COMPLETE_TEAM' | 'AWAITING' | 'RESULTS' | 'IN_PROGRESS' | 'LOCKED';
@@ -246,16 +246,24 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       playNow.push(game);
     }
 
-    // Sorting
-    const sortByUrgency = (a: SportimeGame, b: SportimeGame) => {
-      const aTime = a.first_kickoff_time ? new Date(a.first_kickoff_time).getTime() : parseISO(a.start_date).getTime();
-      const bTime = b.first_kickoff_time ? new Date(b.first_kickoff_time).getTime() : parseISO(b.start_date).getTime();
-      return aTime - bTime;
+    // Sorting - Play Now by deadline (most urgent first)
+    const getDeadline = (game: SportimeGame): number => {
+      if (game.game_type === 'betting') {
+        const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
+        const deadline = getBettingGameDeadline(game, userEntry, now);
+        return deadline ? deadline.getTime() : Infinity;
+      }
+      // For other game types, use first_kickoff_time or start_date
+      return game.first_kickoff_time
+        ? new Date(game.first_kickoff_time).getTime()
+        : parseISO(game.start_date).getTime();
     };
+
+    const sortByDeadline = (a: SportimeGame, b: SportimeGame) => getDeadline(a) - getDeadline(b);
     const sortByEndDateDesc = (a: SportimeGame, b: SportimeGame) => parseISO(b.end_date).getTime() - parseISO(a.end_date).getTime();
 
-    playNow.sort(sortByUrgency);
-    awaiting.sort(sortByUrgency);
+    playNow.sort(sortByDeadline);
+    awaiting.sort(sortByDeadline);
     recentlyFinished.sort(sortByEndDateDesc);
     past.sort(sortByEndDateDesc);
 
