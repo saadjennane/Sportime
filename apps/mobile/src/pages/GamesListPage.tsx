@@ -7,13 +7,14 @@ import { GamesFilterPanel } from '../components/filters/GamesFilterPanel';
 import { checkEligibility } from '../lib/eligibility';
 import { GameSection } from '../components/GameSection';
 import { parseISO } from 'date-fns';
-import { Zap, Clock, Flag } from 'lucide-react';
+import { Zap, Clock, Flag, Trophy } from 'lucide-react';
 import { calculateBettingGameState, safeParseISO } from '../services/gameStateService';
 import { hasViewedResults, markResultsViewed } from '../services/resultsViewedService';
 
 export type CtaState = 'JOIN' | 'PLACE_BETS' | 'MAKE_PREDICTIONS' | 'SELECT_TEAM' | 'COMPLETE_TEAM' | 'AWAITING' | 'RESULTS' | 'IN_PROGRESS' | 'LOCKED';
-export type GameBadge = 'ONGOING' | 'RESULTS_AVAILABLE' | 'FINISHED' | null;
 type GamesTab = 'my-games' | 'browse';
+
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * Calculates entry deadline: 30 minutes before the first match
@@ -158,81 +159,94 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       });
   }, [games, profile, userTickets, filters]);
 
-  // Categorization for My Games tab
-  const { activeGames, awaitingGames, finishedGames } = useMemo(() => {
-    const now = new Date(); // Fixed date for stable mock environment
+  // Categorization for My Games tab - 4 sections
+  const { playNowGames, awaitingGames, recentlyFinishedGames, pastGamesSection } = useMemo(() => {
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - SEVEN_DAYS_MS);
 
-    const active: (SportimeGame & { isEligible: boolean })[] = [];
+    const playNow: (SportimeGame & { isEligible: boolean })[] = [];
     const awaiting: (SportimeGame & { isEligible: boolean })[] = [];
-    const finished: (SportimeGame & { isEligible: boolean })[] = [];
+    const recentlyFinished: (SportimeGame & { isEligible: boolean })[] = [];
+    const past: (SportimeGame & { isEligible: boolean })[] = [];
 
     for (const game of processedGames) {
       const hasJoined = myGameIds.has(game.id);
       if (!hasJoined) continue; // My Games = only joined games
 
-      const realStatus = getRealGameStatus(game, now);
-
-      // Check if end_date has passed
       const endDate = safeParseISO(game.end_date);
       const isEndDatePassed = endDate ? endDate < now : false;
 
-      // RULE: Games with end_date passed go to Past Games (if results viewed) or Play Now (if not)
-      if (realStatus === 'Finished' || realStatus === 'Cancelled' || isEndDatePassed) {
-        if (hasViewedResults(game.id)) {
-          finished.push(game); // Past Games
+      // RULE: end_date passed → Recently Finished (< 7 days) or Past Games (≥ 7 days)
+      if (isEndDatePassed && endDate) {
+        if (endDate > sevenDaysAgo) {
+          recentlyFinished.push(game);
         } else {
-          active.push(game); // Play Now with "View Results"
+          past.push(game);
         }
         continue;
       }
 
-      if (realStatus === 'Ongoing' || realStatus === 'Upcoming') {
-        // BETTING GAMES: Use centralized state service
-        if (game.game_type === 'betting') {
-          const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
-          const gameState = calculateBettingGameState(game, userEntry, now, game.end_date);
+      // Cancelled games go to Past Games
+      if (game.status === 'Cancelled') {
+        past.push(game);
+        continue;
+      }
 
-          if (gameState.category === 'active') {
-            active.push(game);
-          } else if (gameState.category === 'awaiting') {
-            awaiting.push(game);
-          } else {
-            active.push(game);
-          }
-          continue;
+      // BETTING GAMES: Use centralized state service
+      if (game.game_type === 'betting') {
+        const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
+        const gameState = calculateBettingGameState(game, userEntry, now, game.end_date);
+
+        if (gameState.category === 'awaiting') {
+          awaiting.push(game);
+        } else {
+          playNow.push(game);
         }
+        continue;
+      }
 
-        // OTHER GAME TYPES (prediction, fantasy)
-
-        let isComplete = false;
+      // PREDICTION GAMES
+      if (game.game_type === 'prediction') {
         const firstKickoff = game.first_kickoff_time ? new Date(game.first_kickoff_time) : null;
         const hasFirstMatchStarted = firstKickoff ? firstKickoff <= now : false;
 
-        if (game.game_type === 'prediction') {
-          if (hasFirstMatchStarted) {
-            isComplete = true;
-          } else {
-            const userEntry = userSwipeEntries.find(e => e.matchDayId === game.id);
-            if (userEntry) {
-              const matchCount = game.matches?.length || 0;
-              const allPredictionsMade = matchCount > 0 && userEntry.predictions.length >= matchCount;
-              isComplete = allPredictionsMade;
-            }
-          }
-        } else if (game.game_type === 'fantasy') {
-          isComplete = hasFirstMatchStarted;
-        }
+        // Check if all matches have results
+        const allMatchesHaveResults = game.matches && game.matches.length > 0
+          ? game.matches.every(m => m.result !== undefined)
+          : false;
 
-        if (!isComplete) {
-          active.push(game);
-        } else {
+        if (hasFirstMatchStarted && !allMatchesHaveResults) {
+          // Match in progress
           awaiting.push(game);
+        } else if (allMatchesHaveResults) {
+          // All matches finished - check if there are more fixtures available
+          // For now, treat as Play Now (user can make predictions for next fixture)
+          playNow.push(game);
+        } else {
+          // Match not started yet
+          playNow.push(game);
         }
+        continue;
       }
+
+      // FANTASY GAMES
+      if (game.game_type === 'fantasy') {
+        const firstKickoff = game.first_kickoff_time ? new Date(game.first_kickoff_time) : null;
+        const hasFirstMatchStarted = firstKickoff ? firstKickoff <= now : false;
+
+        if (hasFirstMatchStarted) {
+          awaiting.push(game);
+        } else {
+          playNow.push(game);
+        }
+        continue;
+      }
+
+      // Default: Play Now
+      playNow.push(game);
     }
 
     // Sorting
-    // Play Now: Sort by urgency - earliest first_kickoff_time (deadline) first
     const sortByUrgency = (a: SportimeGame, b: SportimeGame) => {
       const aTime = a.first_kickoff_time ? new Date(a.first_kickoff_time).getTime() : parseISO(a.start_date).getTime();
       const bTime = b.first_kickoff_time ? new Date(b.first_kickoff_time).getTime() : parseISO(b.start_date).getTime();
@@ -240,14 +254,12 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
     };
     const sortByEndDateDesc = (a: SportimeGame, b: SportimeGame) => parseISO(b.end_date).getTime() - parseISO(a.end_date).getTime();
 
-    // Active (Play Now): Sort by urgency (earliest kickoff first)
-    active.sort(sortByUrgency);
-    // Awaiting: Sort by kickoff time
+    playNow.sort(sortByUrgency);
     awaiting.sort(sortByUrgency);
-    // Finished: Sort by end date (most recent first)
-    finished.sort(sortByEndDateDesc);
+    recentlyFinished.sort(sortByEndDateDesc);
+    past.sort(sortByEndDateDesc);
 
-    return { activeGames: active, awaitingGames: awaiting, finishedGames: finished };
+    return { playNowGames: playNow, awaitingGames: awaiting, recentlyFinishedGames: recentlyFinished, pastGamesSection: past };
   }, [processedGames, myGameIds, userChallengeEntries, userSwipeEntries, userFantasyTeams]);
 
   // Separate upcoming/ongoing games from past games for Browse tab
@@ -361,49 +373,8 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
     return 'JOIN';
   };
 
-  const getGameBadge = (game: SportimeGame & { isEligible: boolean }): GameBadge => {
-    const hasJoined = myGameIds.has(game.id);
-    if (!hasJoined) return null;
-
-    const now = new Date();
-    const endDate = safeParseISO(game.end_date);
-    const isEndDatePassed = endDate ? endDate < now : false;
-
-    // Finished badge - end_date has passed
-    if (isEndDatePassed) return 'FINISHED';
-
-    // For betting games, check state from service
-    if (game.game_type === 'betting') {
-      const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
-      const gameState = calculateBettingGameState(game, userEntry, now, game.end_date);
-
-      // Ongoing badge - matches in progress
-      if (gameState.category === 'awaiting') return 'ONGOING';
-
-      // Results Available badge - previous matchday finished, next available
-      if (gameState.hasAvailableResults) return 'RESULTS_AVAILABLE';
-    }
-
-    // For prediction/fantasy games
-    if (game.game_type === 'prediction' || game.game_type === 'fantasy') {
-      const firstKickoff = game.first_kickoff_time ? new Date(game.first_kickoff_time) : null;
-      const hasFirstMatchStarted = firstKickoff ? firstKickoff <= now : false;
-
-      // Check if all matches have results
-      const allMatchesHaveResults = game.matches && game.matches.length > 0
-        ? game.matches.every(m => m.result !== undefined)
-        : false;
-
-      // Ongoing - first match started but not all results
-      if (hasFirstMatchStarted && !allMatchesHaveResults) return 'ONGOING';
-    }
-
-    return null;
-  };
-
   const renderGameCard = (game: SportimeGame & { isEligible: boolean }, isInMyGamesTab: boolean) => {
     const ctaState = getCtaState(game, isInMyGamesTab);
-    const badge = getGameBadge(game);
 
     // Wrap navigation with markResultsViewed when viewing results
     const wrapWithResultsViewed = (action: () => void) => () => {
@@ -425,25 +396,16 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       if (game.game_type === 'fantasy') onViewFantasyGame(game.id);
     };
 
-    // Handler for "Results Available" badge click
-    const handleViewResults = () => {
-      if (game.game_type === 'betting') onViewChallenge(game.id);
-      if (game.game_type === 'prediction') onPlaySwipeGame(game.id);
-      if (game.game_type === 'fantasy') onViewFantasyGame(game.id);
-    };
-
     return (
       <GameCard
         key={game.id}
         game={game}
         ctaState={ctaState}
-        badge={badge}
         onJoinClick={() => game.game_type === 'betting' ? onJoinChallenge(game) : onJoinSwipeGame(game.id)}
         onPlay={onPlayAction}
         onShowRewards={() => setViewingRewardsFor(game)}
         onShowRules={() => setIsRulesModalOpen(true)}
         onViewLeaderboard={handleViewLeaderboard}
-        onViewResults={handleViewResults}
         profile={profile}
         userTickets={userTickets}
       />
@@ -481,12 +443,12 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
         <>
           <GameSection
             title="Play Now"
-            count={activeGames.length}
+            count={playNowGames.length}
             icon={<Zap />}
             colorClass="text-lime-glow"
             defaultOpen={true}
           >
-            {activeGames.map(game => renderGameCard(game, true))}
+            {playNowGames.map(game => renderGameCard(game, true))}
           </GameSection>
 
           <GameSection
@@ -500,16 +462,26 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
           </GameSection>
 
           <GameSection
+            title="Recently Finished"
+            count={recentlyFinishedGames.length}
+            icon={<Trophy />}
+            colorClass="text-neon-cyan"
+            defaultOpen={true}
+          >
+            {recentlyFinishedGames.map(game => renderGameCard(game, true))}
+          </GameSection>
+
+          <GameSection
             title="Past Games"
-            count={finishedGames.length}
+            count={pastGamesSection.length}
             icon={<Flag />}
             colorClass="text-text-disabled"
             defaultOpen={false}
           >
-            {finishedGames.map(game => renderGameCard(game, true))}
+            {pastGamesSection.map(game => renderGameCard(game, true))}
           </GameSection>
 
-          {activeGames.length === 0 && awaitingGames.length === 0 && finishedGames.length === 0 && (
+          {playNowGames.length === 0 && awaitingGames.length === 0 && recentlyFinishedGames.length === 0 && pastGamesSection.length === 0 && (
             <div className="card-base p-8 text-center">
               <p className="text-text-secondary text-sm">You haven't joined any games yet.</p>
               <p className="text-text-secondary text-xs mt-2">Switch to Browse Games to discover available games!</p>
