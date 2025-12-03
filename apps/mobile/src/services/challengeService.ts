@@ -172,7 +172,8 @@ function extractConfigValue<T>(
 
 function mapChallengeRow(
   row: ChallengeRow,
-  participantCount: number
+  participantCount: number,
+  matches?: Array<{ id: string; day: number; kickoffTime: string | undefined; result: 'teamA' | 'draw' | 'teamB' | undefined }>
 ): SportimeGame {
   const rules = row.rules ?? {}
   const entryConditions = row.entry_conditions ?? {}
@@ -237,7 +238,17 @@ function mapChallengeRow(
     participants: [],
     rewards: mapRewards(row.prizes),
     challengeBalance: rules?.challengeBalance ?? rules?.challenge_balance ?? undefined,
-    matches: undefined,
+    // Map matches for betting game categorization (minimal SwipeMatch format)
+    matches: matches?.map(m => ({
+      id: m.id,
+      day: m.day,
+      kickoffTime: m.kickoffTime,
+      result: m.result,
+      // Minimal required fields for SwipeMatch type
+      teamA: { name: '', emoji: '' },
+      teamB: { name: '', emoji: '' },
+      league: { name: '', logo: '' },
+    })),
     gameWeeks: undefined,
     challengeId: row.id,
     period_type: periodType,
@@ -415,6 +426,78 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
     .not('deadline', 'is', null)
     .order('deadline', { ascending: true })
 
+  // 2b. Fetch matchday details for betting game categorization
+  // We need day info and match results to determine if games are in "Awaiting Results"
+  const { data: matchdayDetailsRows, error: matchdayDetailsError } = await supabase
+    .from('challenge_matches')
+    .select(`
+      challenge_id,
+      day_number,
+      match:matches (
+        kickoff_time,
+        status,
+        score
+      )
+    `)
+    .in('challenge_id', challengeIds)
+
+  if (matchdayDetailsError) {
+    console.warn('[challengeService] Failed to fetch matchday details for categorization', matchdayDetailsError)
+  }
+
+  // Build matches array per challenge for betting game categorization
+  const matchesByChallenge = new Map<string, Array<{
+    id: string
+    day: number
+    kickoffTime: string | undefined
+    result: 'teamA' | 'draw' | 'teamB' | undefined
+  }>>()
+
+  if (matchdayDetailsRows) {
+    for (const row of matchdayDetailsRows as Array<{
+      challenge_id: string
+      day_number: number | null
+      match: { kickoff_time: string | null; status: string | null; score: Record<string, any> | null } | null
+    }>) {
+      if (!matchesByChallenge.has(row.challenge_id)) {
+        matchesByChallenge.set(row.challenge_id, [])
+      }
+
+      const match = row.match
+      if (!match) continue
+
+      // Determine result from status and score
+      const status = (match.status ?? 'NS').toUpperCase()
+      const finishedStatuses = ['FT', 'AET', 'PEN', 'AWARDED', 'W.O', 'CANC', 'ABD', 'POST']
+      const isFinished = finishedStatuses.includes(status)
+
+      let result: 'teamA' | 'draw' | 'teamB' | undefined
+      if (isFinished && match.score) {
+        const homeGoals = typeof match.score.home === 'number'
+          ? match.score.home
+          : typeof match.score.goals_home === 'number'
+            ? match.score.goals_home
+            : null
+        const awayGoals = typeof match.score.away === 'number'
+          ? match.score.away
+          : typeof match.score.goals_away === 'number'
+            ? match.score.goals_away
+            : null
+
+        if (homeGoals !== null && awayGoals !== null) {
+          result = homeGoals === awayGoals ? 'draw' : homeGoals > awayGoals ? 'teamA' : 'teamB'
+        }
+      }
+
+      matchesByChallenge.get(row.challenge_id)!.push({
+        id: `${row.challenge_id}-${row.day_number}`,
+        day: row.day_number ?? 1,
+        kickoffTime: match.kickoff_time ?? undefined,
+        result,
+      })
+    }
+  }
+
   if (swipeKickoffError) {
     console.warn('[challengeService] Failed to fetch swipe kickoff times', swipeKickoffError)
   }
@@ -505,7 +588,9 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
   }
 
   for (const row of challenges) {
-    const mapped = mapChallengeRow(row, 0)
+    // Get matches for this challenge (for betting game categorization)
+    const challengeMatches = matchesByChallenge.get(row.id)
+    const mapped = mapChallengeRow(row, 0, challengeMatches)
     // Add first_kickoff_time if available from match data
     const kickoff = firstKickoffByChallenge.get(row.id)
     if (kickoff) {
