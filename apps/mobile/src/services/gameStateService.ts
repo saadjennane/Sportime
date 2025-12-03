@@ -261,6 +261,29 @@ export function calculateBettingGameState(
 
   // State 2: Premier match commencé mais pas tous terminés (live)
   if (hasStarted && !allFinished) {
+    // IMPORTANT: Check if there's a next matchday that hasn't started yet
+    // If so, show that matchday in Play Now with "Place Bets" instead of
+    // keeping the current one in Awaiting Results
+    if (nextMatchday && nextMatchday.firstKickoff > now) {
+      // Check if user has bets for next matchday
+      const nextDailyEntry = userEntry?.dailyEntries.find(d => d.day === nextMatchday.day);
+      const hasNextBets = (nextDailyEntry?.bets?.length || 0) > 0;
+
+      return {
+        currentMatchday: nextMatchday,
+        nextMatchday: currentMatchdayIndex + 2 < matchdayInfos.length
+          ? matchdayInfos[currentMatchdayIndex + 2]
+          : null,
+        category: 'active',
+        cta: hasNextBets ? 'EDIT_BETS' : 'PLACE_BETS',
+        deadline: nextMatchday.firstKickoff,
+        isEditable: true,
+        // Current matchday is live/finished, so results are available
+        hasAvailableResults: true,
+      };
+    }
+
+    // No upcoming matchday - stay in awaiting
     return {
       currentMatchday,
       nextMatchday,
