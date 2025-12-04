@@ -8,7 +8,7 @@ import { checkEligibility } from '../lib/eligibility';
 import { GameSection } from '../components/GameSection';
 import { parseISO } from 'date-fns';
 import { Zap, Clock, Flag, Trophy } from 'lucide-react';
-import { calculateBettingGameState, safeParseISO, getBettingGameDeadline } from '../services/gameStateService';
+import { calculateBettingGameState, safeParseISO, getBettingGameDeadline, calculateGameState, getGameDeadline } from '../services/gameStateService';
 import { hasViewedResults, markResultsViewed } from '../services/resultsViewedService';
 
 export type CtaState = 'JOIN' | 'PLACE_BETS' | 'MAKE_PREDICTIONS' | 'SELECT_TEAM' | 'COMPLETE_TEAM' | 'AWAITING' | 'RESULTS' | 'IN_PROGRESS' | 'LOCKED';
@@ -192,105 +192,32 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
         continue;
       }
 
-      // BETTING GAMES: Use centralized state service
-      if (game.game_type === 'betting') {
-        const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
-        const gameState = calculateBettingGameState(game, userEntry, now, game.end_date);
+      // UNIFIED CATEGORIZATION for ALL game types (betting, prediction, fantasy)
+      // Supports BOTH period_types (matchdays and calendar)
+      const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
+      const userFantasyTeam = userFantasyTeams.find(t => t.gameId === game.id);
+      const gameState = calculateGameState(game, userEntry, userFantasyTeam, now);
 
-        if (gameState.category === 'awaiting') {
-          awaiting.push(game);
-        } else {
-          playNow.push(game);
-        }
-        continue;
+      if (gameState.category === 'awaiting') {
+        awaiting.push(game);
+      } else if (gameState.category === 'finished') {
+        // Shouldn't happen since end_date passed is handled above, but just in case
+        recentlyFinished.push(game);
+      } else {
+        playNow.push(game);
       }
-
-      // PREDICTION GAMES
-      if (game.game_type === 'prediction') {
-        // Pour period_type = 'calendar': logique par jour calendaire
-        // Awaiting: quand le premier match du jour a commencé mais pas tous terminés
-        // Play Now: quand tous les matchs du jour sont terminés (ou pas de matchs aujourd'hui)
-        if (game.period_type === 'calendar' && game.matches && game.matches.length > 0) {
-          const today = now.toISOString().split('T')[0]; // YYYY-MM-DD
-
-          // Trouver les matchs du jour actuel
-          const todayMatches = game.matches.filter(m =>
-            m.kickoffTime?.startsWith(today)
-          );
-
-          if (todayMatches.length > 0) {
-            const firstKickoffToday = todayMatches
-              .map(m => new Date(m.kickoffTime!))
-              .sort((a, b) => a.getTime() - b.getTime())[0];
-
-            const allTodayMatchesFinished = todayMatches.every(m => m.result !== undefined);
-
-            // Premier match du jour a commencé mais pas tous terminés → Awaiting
-            if (firstKickoffToday <= now && !allTodayMatchesFinished) {
-              awaiting.push(game);
-              continue;
-            }
-          }
-
-          // Pas de matchs aujourd'hui OU tous les matchs du jour sont terminés → Play Now
-          playNow.push(game);
-          continue;
-        }
-
-        // Pour matchdays ou autres: logique existante (basée sur first_kickoff_time global)
-        const firstKickoff = game.first_kickoff_time ? new Date(game.first_kickoff_time) : null;
-        const hasFirstMatchStarted = firstKickoff ? firstKickoff <= now : false;
-
-        // Check if all matches have results
-        const allMatchesHaveResults = game.matches && game.matches.length > 0
-          ? game.matches.every(m => m.result !== undefined)
-          : false;
-
-        if (hasFirstMatchStarted && !allMatchesHaveResults) {
-          // Match in progress
-          awaiting.push(game);
-        } else if (allMatchesHaveResults) {
-          // All matches finished - check if there are more fixtures available
-          // For now, treat as Play Now (user can make predictions for next fixture)
-          playNow.push(game);
-        } else {
-          // Match not started yet
-          playNow.push(game);
-        }
-        continue;
-      }
-
-      // FANTASY GAMES
-      if (game.game_type === 'fantasy') {
-        const firstKickoff = game.first_kickoff_time ? new Date(game.first_kickoff_time) : null;
-        const hasFirstMatchStarted = firstKickoff ? firstKickoff <= now : false;
-
-        if (hasFirstMatchStarted) {
-          awaiting.push(game);
-        } else {
-          playNow.push(game);
-        }
-        continue;
-      }
-
-      // Default: Play Now
-      playNow.push(game);
     }
 
     // Sorting - Play Now by deadline (most urgent first)
-    const getDeadline = (game: SportimeGame): number => {
-      if (game.game_type === 'betting') {
-        const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
-        const deadline = getBettingGameDeadline(game, userEntry, now);
-        return deadline ? deadline.getTime() : Infinity;
-      }
-      // For other game types, use first_kickoff_time or start_date
-      return game.first_kickoff_time
-        ? new Date(game.first_kickoff_time).getTime()
-        : parseISO(game.start_date).getTime();
+    // Uses unified getGameDeadline for ALL game types
+    const getDeadlineForSort = (game: SportimeGame): number => {
+      const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
+      const userFantasyTeam = userFantasyTeams.find(t => t.gameId === game.id);
+      const deadline = getGameDeadline(game, userEntry, userFantasyTeam, now);
+      return deadline ? deadline.getTime() : Infinity;
     };
 
-    const sortByDeadline = (a: SportimeGame, b: SportimeGame) => getDeadline(a) - getDeadline(b);
+    const sortByDeadline = (a: SportimeGame, b: SportimeGame) => getDeadlineForSort(a) - getDeadlineForSort(b);
     const sortByEndDateDesc = (a: SportimeGame, b: SportimeGame) => parseISO(b.end_date).getTime() - parseISO(a.end_date).getTime();
 
     playNow.sort(sortByDeadline);
@@ -356,60 +283,30 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       return 'JOIN';
     }
 
-    // USER HAS JOINED - determine action state
-    const firstMatchStarted = hasFirstMatchStarted(game);
+    // USER HAS JOINED - use unified calculateGameState for ALL game types
+    // Supports betting, prediction, fantasy with both matchdays and calendar period_types
+    const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
+    const userFantasyTeam = userFantasyTeams.find(t => t.gameId === game.id);
+    const gameState = calculateGameState(game, userEntry, userFantasyTeam, now);
 
-    // Check if end_date has passed - if so, always show "View Results"
-    const endDate = safeParseISO(game.end_date);
-    const isEndDatePassed = endDate ? endDate < now : false;
-    if (isEndDatePassed) {
-      return 'RESULTS';
-    }
-
-    // Fantasy games - show team management until first match starts
-    if (game.game_type === 'fantasy') {
-      if (firstMatchStarted) {
+    // Map unified GameCTA to component CtaState
+    switch (gameState.cta) {
+      case 'PLACE_BETS':
+      case 'EDIT_BETS':
+        return 'PLACE_BETS';
+      case 'MAKE_PREDICTIONS':
+        return 'MAKE_PREDICTIONS';
+      case 'SELECT_TEAM':
+        return 'SELECT_TEAM';
+      case 'COMPLETE_TEAM':
+        return 'COMPLETE_TEAM';
+      case 'VIEW_GAME':
         return 'AWAITING';
-      }
-      const userTeam = userFantasyTeams.find(t => t.gameId === game.id);
-      return userTeam ? 'COMPLETE_TEAM' : 'SELECT_TEAM';
-    }
-
-    // Betting games - use centralized state service
-    if (game.game_type === 'betting') {
-      const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
-      const gameState = calculateBettingGameState(game, userEntry, now, game.end_date);
-
-      // Map service CTA to component CTA
-      switch (gameState.cta) {
-        case 'PLACE_BETS':
-          return 'PLACE_BETS';
-        case 'EDIT_BETS':
-          return 'PLACE_BETS'; // Use same CTA, text will be different
-        case 'VIEW_GAME':
-          return 'AWAITING';
-        case 'VIEW_RESULTS':
-          return 'RESULTS';
-        default:
-          return 'PLACE_BETS';
-      }
-    }
-
-    // Prediction games - can make predictions until first match starts
-    if (game.game_type === 'prediction') {
-      const userEntry = userSwipeEntries.find(e => e.matchDayId === game.id);
-      if (!userEntry) return 'MAKE_PREDICTIONS';
-
-      const allPredictionsMade = userEntry.predictions.length >= (game.matches?.length || 0);
-
-      // Awaiting only if complete AND first match has started
-      if (allPredictionsMade && firstMatchStarted) {
+      case 'VIEW_RESULTS':
+        return 'RESULTS';
+      default:
         return 'AWAITING';
-      }
-      return 'MAKE_PREDICTIONS';
     }
-
-    return 'JOIN';
   };
 
   const renderGameCard = (game: SportimeGame & { isEligible: boolean }, isInMyGamesTab: boolean) => {
@@ -451,27 +348,8 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
     );
   };
 
-  // Debug: find Liga Calendar test game
-  const ligaCalendarGame = processedGames.find(g => g.name.toLowerCase().includes('liga calendar'));
-  const debugInfo = ligaCalendarGame ? {
-    name: ligaCalendarGame.name,
-    matches: ligaCalendarGame.matches?.length ?? 0,
-    period_type: ligaCalendarGame.period_type,
-    first_kickoff: ligaCalendarGame.first_kickoff_time,
-  } : null;
-
   return (
     <div className="space-y-4">
-      {/* DEBUG BANNER - Remove after testing */}
-      <div className="bg-hot-red text-white text-center py-2 font-bold text-xs rounded-lg space-y-1">
-        <div>🔴 DEBUG v7 | {processedGames.length} games</div>
-        {debugInfo && (
-          <div className="text-[10px] opacity-90">
-            {debugInfo.name}: {debugInfo.matches} matches | {debugInfo.period_type} | kickoff: {debugInfo.first_kickoff?.slice(0, 16) ?? 'none'}
-          </div>
-        )}
-      </div>
-
       {/* Tab Switcher */}
       <div className="flex bg-navy-accent rounded-xl p-1">
         <button

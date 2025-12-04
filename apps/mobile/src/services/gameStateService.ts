@@ -1,10 +1,11 @@
 /**
  * Game State Service
- * Centralized logic for determining betting game state, categorization, and CTA
+ * Centralized logic for determining game state, categorization, and CTA
+ * Supports ALL game types (betting, prediction, fantasy) and ALL period types (matchdays, calendar)
  */
 
 import { parseISO, isValid } from 'date-fns';
-import type { SportimeGame, UserChallengeEntry, SwipeMatch } from '../types';
+import type { SportimeGame, UserChallengeEntry, SwipeMatch, UserFantasyTeam } from '../types';
 
 // ============================================================================
 // Types
@@ -12,6 +13,23 @@ import type { SportimeGame, UserChallengeEntry, SwipeMatch } from '../types';
 
 export type BettingGameCategory = 'active' | 'awaiting' | 'finished';
 export type BettingGameCTA = 'PLACE_BETS' | 'EDIT_BETS' | 'VIEW_GAME' | 'VIEW_RESULTS';
+
+// New unified types for ALL game types
+export type GameCategory = 'active' | 'awaiting' | 'finished';
+export type GameCTA = 'PLACE_BETS' | 'EDIT_BETS' | 'MAKE_PREDICTIONS' | 'SELECT_TEAM' | 'COMPLETE_TEAM' | 'VIEW_GAME' | 'VIEW_RESULTS';
+
+export interface GameState {
+  /** Which section to display the game in */
+  category: GameCategory;
+  /** Call-to-action button text */
+  cta: GameCTA;
+  /** Deadline for placing bets/predictions (first kickoff of current group) */
+  deadline: Date | null;
+  /** Current group key ("3" for matchdays, "2025-12-05" for calendar) */
+  currentGroupKey: string | null;
+  /** Whether there's a next group after the current one */
+  hasNextGroup: boolean;
+}
 
 export interface MatchdayInfo {
   day: number;
@@ -355,5 +373,251 @@ export function getBettingGameDeadline(
   now: Date = new Date()
 ): Date | null {
   const state = calculateBettingGameState(game, userEntry, now, game.end_date);
+  return state.deadline;
+}
+
+// ============================================================================
+// UNIFIED GAME STATE CALCULATOR
+// Supports ALL game types (betting, prediction, fantasy) and ALL period types
+// ============================================================================
+
+/**
+ * Group matches by period_type
+ * - For 'calendar': Group by date (YYYY-MM-DD)
+ * - For 'matchdays': Group by day/matchday number
+ */
+function groupMatchesByPeriodType(
+  matches: SwipeMatch[],
+  periodType: string
+): Map<string, SwipeMatch[]> {
+  const groups = new Map<string, SwipeMatch[]>();
+
+  for (const match of matches) {
+    let key: string;
+
+    if (periodType === 'calendar') {
+      // Group by date (YYYY-MM-DD)
+      key = match.kickoffTime?.split('T')[0] ?? 'unknown';
+    } else {
+      // Group by matchday number
+      key = String((match as any).day ?? 1);
+    }
+
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(match);
+  }
+
+  return groups;
+}
+
+/**
+ * Get the default CTA based on game type
+ */
+function getDefaultCTA(
+  gameType: string,
+  userEntry?: UserChallengeEntry,
+  userFantasyTeam?: UserFantasyTeam
+): GameCTA {
+  switch (gameType?.toLowerCase()) {
+    case 'betting':
+      // Check if user has bets
+      const hasBets = userEntry?.dailyEntries?.some(d => (d.bets?.length || 0) > 0);
+      return hasBets ? 'EDIT_BETS' : 'PLACE_BETS';
+    case 'prediction':
+      return 'MAKE_PREDICTIONS';
+    case 'fantasy':
+    case 'fantasy-live':
+      // Check if user has a team
+      if (!userFantasyTeam) return 'SELECT_TEAM';
+      // Check if team is complete (11 starters)
+      const hasCompleteTeam = userFantasyTeam.starters?.length === 11;
+      return hasCompleteTeam ? 'VIEW_GAME' : 'COMPLETE_TEAM';
+    default:
+      return 'VIEW_GAME';
+  }
+}
+
+/**
+ * Calculate the complete state of ANY game type (betting, prediction, fantasy)
+ * Works with BOTH period types (matchdays and calendar)
+ *
+ * Logic:
+ * 1. Group matches by period_type (calendar = by date, matchdays = by day number)
+ * 2. Find the next playable group (first group not fully finished)
+ * 3. Determine category and CTA based on:
+ *    - First match not started → Play Now (Place bets / Make predictions / Select team)
+ *    - First match started but not all finished → Awaiting Results (View Game)
+ *    - All finished + next group exists → Play Now (for next group)
+ *    - All finished + no next group → Finished (View Results)
+ */
+export function calculateGameState(
+  game: SportimeGame,
+  userEntry: UserChallengeEntry | undefined,
+  userFantasyTeam: UserFantasyTeam | undefined,
+  now: Date = new Date()
+): GameState {
+  const periodType = game.period_type ?? 'matchdays';
+  const gameType = game.game_type ?? 'betting';
+  const matches = game.matches || [];
+  const endDate = safeParseISO(game.end_date);
+
+  // end_date passed → finished
+  if (endDate && endDate < now) {
+    return {
+      category: 'finished',
+      cta: 'VIEW_RESULTS',
+      deadline: null,
+      currentGroupKey: null,
+      hasNextGroup: false,
+    };
+  }
+
+  // No matches → active (waiting for config or just joined)
+  if (matches.length === 0) {
+    return {
+      category: 'active',
+      cta: getDefaultCTA(gameType, userEntry, userFantasyTeam),
+      deadline: null,
+      currentGroupKey: null,
+      hasNextGroup: false,
+    };
+  }
+
+  // Group matches by period_type
+  const groups = groupMatchesByPeriodType(matches, periodType);
+
+  // Sort group keys properly:
+  // - For matchdays: sort numerically (1, 2, 3...)
+  // - For calendar: sort alphabetically (2025-12-04, 2025-12-05...)
+  const sortedGroupKeys = Array.from(groups.keys()).sort((a, b) => {
+    if (periodType === 'calendar') {
+      return a.localeCompare(b);
+    }
+    return parseInt(a) - parseInt(b);
+  });
+
+  // Find the next playable group (first group not fully finished)
+  let currentGroupKey: string | null = null;
+  let nextGroupKey: string | null = null;
+
+  for (let i = 0; i < sortedGroupKeys.length; i++) {
+    const key = sortedGroupKeys[i];
+    const groupMatches = groups.get(key)!;
+    const allFinished = groupMatches.every(m => m.result !== undefined);
+
+    if (!allFinished) {
+      currentGroupKey = key;
+      nextGroupKey = sortedGroupKeys[i + 1] ?? null;
+      break;
+    }
+  }
+
+  // If all groups are finished, use the last one
+  if (!currentGroupKey) {
+    currentGroupKey = sortedGroupKeys[sortedGroupKeys.length - 1];
+  }
+
+  const currentMatches = groups.get(currentGroupKey!)!;
+  const kickoffTimes = currentMatches
+    .map(m => m.kickoffTime ? new Date(m.kickoffTime).getTime() : null)
+    .filter((t): t is number => t !== null);
+
+  const firstKickoff = kickoffTimes.length > 0 ? Math.min(...kickoffTimes) : null;
+  const hasStarted = firstKickoff ? firstKickoff <= now.getTime() : false;
+  const allFinished = currentMatches.every(m => m.result !== undefined);
+
+  // State 1: First match not started → active
+  if (!hasStarted) {
+    return {
+      category: 'active',
+      cta: getDefaultCTA(gameType, userEntry, userFantasyTeam),
+      deadline: firstKickoff ? new Date(firstKickoff) : null,
+      currentGroupKey,
+      hasNextGroup: !!nextGroupKey,
+    };
+  }
+
+  // State 2: Matches in progress (started but not all finished) → awaiting
+  if (hasStarted && !allFinished) {
+    return {
+      category: 'awaiting',
+      cta: 'VIEW_GAME',
+      deadline: null,
+      currentGroupKey,
+      hasNextGroup: !!nextGroupKey,
+    };
+  }
+
+  // State 3: All finished - check if there's a next group
+  if (hasStarted && allFinished && nextGroupKey) {
+    const nextMatches = groups.get(nextGroupKey)!;
+    const nextKickoffTimes = nextMatches
+      .map(m => m.kickoffTime ? new Date(m.kickoffTime).getTime() : null)
+      .filter((t): t is number => t !== null);
+    const nextFirstKickoff = nextKickoffTimes.length > 0 ? Math.min(...nextKickoffTimes) : null;
+
+    // Check if next group has started
+    const nextHasStarted = nextFirstKickoff ? nextFirstKickoff <= now.getTime() : false;
+
+    if (nextHasStarted) {
+      // Next group has started - check if it's finished
+      const nextAllFinished = nextMatches.every(m => m.result !== undefined);
+      if (!nextAllFinished) {
+        // Next group is in progress
+        return {
+          category: 'awaiting',
+          cta: 'VIEW_GAME',
+          deadline: null,
+          currentGroupKey: nextGroupKey,
+          hasNextGroup: sortedGroupKeys.indexOf(nextGroupKey) < sortedGroupKeys.length - 1,
+        };
+      }
+      // If next group is also finished, continue looking for a playable group
+      // This is handled by the loop above
+    }
+
+    // Next group hasn't started yet → active (for next group)
+    return {
+      category: 'active',
+      cta: getDefaultCTA(gameType, userEntry, userFantasyTeam),
+      deadline: nextFirstKickoff ? new Date(nextFirstKickoff) : null,
+      currentGroupKey: nextGroupKey,
+      hasNextGroup: sortedGroupKeys.indexOf(nextGroupKey) < sortedGroupKeys.length - 1,
+    };
+  }
+
+  // All finished, no next group → check end_date
+  // If end_date not passed, stay in awaiting (game still technically active)
+  if (!endDate || endDate >= now) {
+    return {
+      category: 'awaiting',
+      cta: 'VIEW_GAME',
+      deadline: null,
+      currentGroupKey,
+      hasNextGroup: false,
+    };
+  }
+
+  // All finished + end_date passed → finished
+  return {
+    category: 'finished',
+    cta: 'VIEW_RESULTS',
+    deadline: null,
+    currentGroupKey,
+    hasNextGroup: false,
+  };
+}
+
+/**
+ * Get deadline for ANY game type (betting, prediction, fantasy)
+ * Uses the unified calculateGameState function
+ */
+export function getGameDeadline(
+  game: SportimeGame,
+  userEntry: UserChallengeEntry | undefined,
+  userFantasyTeam: UserFantasyTeam | undefined,
+  now: Date = new Date()
+): Date | null {
+  const state = calculateGameState(game, userEntry, userFantasyTeam, now);
   return state.deadline;
 }

@@ -64,11 +64,6 @@ const getGroupKeyForMatch = (match: ChallengeMatch, periodType: 'matchdays' | 'c
 const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   const { challenge, matches, userEntry, onUpdateDailyBets, onSetDailyBooster, onBack, onViewLeaderboard, boosterInfoPreferences, onUpdateBoosterPreferences, onLinkGame, profile, userLeagues, leagueMembers, leagueGames, onRefreshMatches } = props;
 
-  // Debug logging - using warn for visibility
-  console.warn('[ChallengeRoomPage] RENDER - matches:', matches.length, 'period_type:', challenge.period_type);
-  console.warn('[ChallengeRoomPage] match days:', [...new Set(matches.map(m => m.day))]);
-  console.warn('[ChallengeRoomPage] match dates:', matches.map(m => ({ day: m.day, kickoff: m.kickoffTime, status: m.status })));
-
   // Auto-refresh match scores every 20 seconds while there are live matches
   useEffect(() => {
     if (!onRefreshMatches) return;
@@ -147,20 +142,11 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
     // 1. Filter out empty groups (days without matches)
     const nonEmptyGroups = allMatchGroups.filter(g => g.matches.length > 0);
 
-    console.warn('[ChallengeRoomPage] allMatchGroups:', allMatchGroups.map(g => ({
-      key: g.key,
-      displayName: g.displayName,
-      matchCount: g.matches.length,
-      statuses: g.matches.map(m => m.status)
-    })));
-
     // 2. Find the first group that is not finished (= next playable day)
     let nextPlayableIdx = -1;
     for (let i = 0; i < nonEmptyGroups.length; i++) {
       const group = nonEmptyGroups[i];
       const allFinished = group.matches.every(m => m.status === 'played');
-
-      console.warn(`[ChallengeRoomPage] Group ${group.displayName}: allFinished=${allFinished}, statuses=${group.matches.map(m => m.status).join(',')}`);
 
       if (!allFinished) {
         nextPlayableIdx = i;
@@ -175,8 +161,6 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
 
     // 3. Show history + next playable day (not beyond)
     const visibleGroups = nonEmptyGroups.slice(0, nextPlayableIdx + 1);
-
-    console.warn('[ChallengeRoomPage] visibleGroups:', visibleGroups.map(g => g.displayName), 'nextPlayableIdx:', nextPlayableIdx);
 
     return {
       matchGroups: visibleGroups,
@@ -198,9 +182,7 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
 
   // Initialize selectedGroupKey to the last visible group (= next playable day)
   const [selectedGroupKey, setSelectedGroupKey] = useState<string>(() => {
-    const initialKey = matchGroups[matchGroups.length - 1]?.key || '1';
-    console.warn('[ChallengeRoomPage] Initial selectedGroupKey:', initialKey);
-    return initialKey;
+    return matchGroups[matchGroups.length - 1]?.key || '1';
   });
 
   // Track if user has manually selected a day
@@ -212,11 +194,8 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
       const lastGroupKey = matchGroups[matchGroups.length - 1]?.key;
       const selectedExists = matchGroups.find(g => g.key === selectedGroupKey);
 
-      console.warn('[ChallengeRoomPage] Sync effect - lastGroupKey:', lastGroupKey, 'selectedGroupKey:', selectedGroupKey, 'exists:', !!selectedExists, 'userManual:', userHasManuallySelected);
-
       // Auto-select last group if: selection doesn't exist OR user hasn't manually selected
       if (lastGroupKey && (!selectedExists || !userHasManuallySelected)) {
-        console.warn('[ChallengeRoomPage] Auto-selecting:', lastGroupKey);
         setSelectedGroupKey(lastGroupKey);
       }
     }
@@ -487,11 +466,6 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
             <span className="text-xs font-bold">{formatNumberShort(rank)}/{formatNumberShort(totalPlayers)}</span>
           </button>
         </div>
-      </div>
-
-      {/* DEBUG BANNER - Remove after testing */}
-      <div className="bg-hot-red text-white text-center py-2 font-bold text-sm -mx-4">
-        🔴 DEBUG v5 | matches: {matches.length} | groups: {matchGroups.length} | selected: {selectedGroupKey}
       </div>
 
       <div className="-mx-4">
