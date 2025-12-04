@@ -31,6 +31,7 @@ interface Challenge {
   start_date: string;
   end_date: string;
   status: string;
+  period_type?: 'matchdays' | 'calendar';
 }
 
 interface SwipeRecapViewProps {
@@ -168,9 +169,16 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
     : null;
 
   // Convert matchdays to switcher format
-  const matchDaysForSwitcher = matchdays.map(md => ({
+  // Sort matchdays by date first to ensure correct numbering
+  const sortedMatchdays = [...matchdays].sort((a, b) =>
+    new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
+
+  const matchDaysForSwitcher = sortedMatchdays.map((md, index) => ({
     id: md.id,
-    name: format(new Date(md.date), 'MMM d, yyyy'),
+    name: challenge?.period_type === 'matchdays'
+      ? `Matchday ${index + 1}`
+      : format(new Date(md.date), 'MMM d, yyyy'),
     startDate: md.date,
     endDate: md.date,
     leagues: EMPTY_LEAGUES,

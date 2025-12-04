@@ -51,6 +51,7 @@ interface Challenge {
   start_date: string;
   end_date: string;
   status: string;
+  period_type?: 'matchdays' | 'calendar';
 }
 
 interface SwipeState {
@@ -192,6 +193,7 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
               start_date: challenge.start_date,
               end_date: challenge.end_date,
               status: challenge.status,
+              period_type: challenge.period_type,
             },
           }));
           return;
@@ -232,6 +234,7 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
             start_date: challenge.start_date,
             end_date: challenge.end_date,
             status: challenge.status,
+            period_type: challenge.period_type,
           },
           matchdays,
           currentMatchday,
@@ -242,6 +245,7 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
           userPosition: null,
           error: null,
           isSaving: false,
+          editMode: false,
         });
       } catch (err: any) {
         if (!isMounted) return;
