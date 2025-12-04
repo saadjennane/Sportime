@@ -600,23 +600,35 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
         const finishedStatuses = ['FT', 'AET', 'PEN', 'AWARDED', 'W.O', 'CANC', 'ABD', 'POST']
 
         let lastMatchFinished = false
+        let firstKickoffTime: string | undefined = undefined
+
         if (matchdayFixtures.length > 0) {
+          // Sort by date (kickoff) ascending to find the first kickoff
+          const sortedByDateAsc = [...matchdayFixtures]
+            .filter(f => f.date)
+            .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime())
+
+          if (sortedByDateAsc.length > 0) {
+            firstKickoffTime = sortedByDateAsc[0].date!
+          }
+
           // Sort by date (kickoff) descending to find the last match
-          const sortedFixtures = [...matchdayFixtures].sort((a, b) => {
+          const sortedByDateDesc = [...matchdayFixtures].sort((a, b) => {
             const dateA = a.date ? new Date(a.date).getTime() : 0
             const dateB = b.date ? new Date(b.date).getTime() : 0
             return dateB - dateA  // Descending: last match first
           })
-          const lastMatch = sortedFixtures[0]
+          const lastMatch = sortedByDateDesc[0]
           lastMatchFinished = finishedStatuses.includes((lastMatch.status ?? 'NS').toUpperCase())
         }
 
         // Add placeholder match for this matchday
-        // kickoffTime = date or deadline, result = 'draw' if last match finished
+        // kickoffTime = first fixture kickoff (real deadline), fallback to deadline field
+        // result = 'draw' if last match finished
         matchesByChallenge.get(challengeId)!.push({
           id: row.id,
           day: dayNumber,
-          kickoffTime: row.date ?? row.deadline ?? undefined,
+          kickoffTime: firstKickoffTime ?? row.deadline ?? undefined,
           result: lastMatchFinished ? 'draw' : undefined, // Mark as finished if LAST match is done
         })
       })
