@@ -87,6 +87,11 @@ const gameTypeDetails: Record<GameType, { tag: string; color: string }> = {
   'fantasy-live': { tag: 'Fantasy Live', color: 'bg-purple-600/20 text-purple-400' },
 };
 
+const periodTypeDetails: Record<'matchdays' | 'calendar', { tag: string; color: string }> = {
+  matchdays: { tag: 'Matchdays', color: 'bg-orange-500/20 text-orange-400' },
+  calendar: { tag: 'Calendar', color: 'bg-indigo-500/20 text-indigo-400' },
+};
+
 const tournamentTierDetails: Record<TournamentType, { label: string; color: string }> = {
   amateur: { label: 'Amateur', color: 'bg-lime-glow/20 text-lime-glow' },
   master: { label: 'Master', color: 'bg-warm-yellow/20 text-warm-yellow' },
@@ -97,6 +102,7 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
   const details = gameTypeDetails[game.game_type as keyof typeof gameTypeDetails];
   const normalizedTier = normalizeTournamentTier(game.tier);
   const tierDetails = normalizedTier ? tournamentTierDetails[normalizedTier] : null;
+  const periodDetails = game.period_type ? periodTypeDetails[game.period_type] : null;
 
 
   // Check if first match has started (for showing leaderboard to non-participants)
@@ -194,6 +200,11 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
             {tierDetails && (
               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${tierDetails.color}`}>
                 {tierDetails.label}
+              </span>
+            )}
+            {periodDetails && (
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${periodDetails.color}`}>
+                {periodDetails.tag}
               </span>
             )}
             {accessConditionIcons.length > 0 && (

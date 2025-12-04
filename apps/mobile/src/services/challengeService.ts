@@ -445,6 +445,17 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
     console.warn('[challengeService] Failed to fetch matchday details for categorization', matchdayDetailsError)
   }
 
+  // 2c. Fetch ALL matchdays from challenge_matchdays (including future ones without assigned matches)
+  // This is critical for betting games to show "Place Bets" instead of "View Results"
+  const { data: allMatchdaysRows, error: allMatchdaysError } = await supabase
+    .from('challenge_matchdays')
+    .select('id, challenge_id, day_number, deadline')
+    .in('challenge_id', challengeIds)
+
+  if (allMatchdaysError) {
+    console.warn('[challengeService] Failed to fetch all matchdays', allMatchdaysError)
+  }
+
   // Build matches array per challenge for betting game categorization
   const matchesByChallenge = new Map<string, Array<{
     id: string
@@ -452,6 +463,9 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
     kickoffTime: string | undefined
     result: 'teamA' | 'draw' | 'teamB' | undefined
   }>>()
+
+  // Track which (challenge_id, day_number) pairs have been added from challenge_matches
+  const existingDays = new Set<string>()
 
   if (matchdayDetailsRows) {
     for (const row of matchdayDetailsRows as Array<{
@@ -465,6 +479,9 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
 
       const match = row.match
       if (!match) continue
+
+      // Track this day as having real match data
+      existingDays.add(`${row.challenge_id}-${row.day_number}`)
 
       // Determine result from status and score
       const status = (match.status ?? 'NS').toUpperCase()
@@ -494,6 +511,38 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
         day: row.day_number ?? 1,
         kickoffTime: match.kickoff_time ?? undefined,
         result,
+      })
+    }
+  }
+
+  // Add future matchdays from challenge_matchdays that don't have assigned matches yet
+  // These are matchdays with deadline set but no matches in challenge_matches
+  if (allMatchdaysRows) {
+    for (const row of allMatchdaysRows as Array<{
+      id: string
+      challenge_id: string
+      day_number: number | null
+      deadline: string | null
+    }>) {
+      const dayKey = `${row.challenge_id}-${row.day_number}`
+
+      // Skip if we already have match data for this day
+      if (existingDays.has(dayKey)) continue
+
+      // Only add if deadline exists (future matchday)
+      if (!row.deadline) continue
+
+      if (!matchesByChallenge.has(row.challenge_id)) {
+        matchesByChallenge.set(row.challenge_id, [])
+      }
+
+      // Add placeholder match for this future matchday
+      // kickoffTime = deadline, result = undefined (not played yet)
+      matchesByChallenge.get(row.challenge_id)!.push({
+        id: row.id,
+        day: row.day_number ?? 1,
+        kickoffTime: row.deadline,
+        result: undefined, // No result yet - this is a future matchday
       })
     }
   }
