@@ -453,6 +453,11 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
 
   return (
     <div className="space-y-4">
+      {/* DEBUG BANNER - Remove after testing */}
+      <div className="bg-hot-red text-white text-center py-3 font-bold text-sm rounded-lg">
+        🔴 DEBUG v6 - GamesListPage | {processedGames.length} games | {new Date().toLocaleTimeString()}
+      </div>
+
       {/* Tab Switcher */}
       <div className="flex bg-navy-accent rounded-xl p-1">
         <button

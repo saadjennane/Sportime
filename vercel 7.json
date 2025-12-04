@@ -1,0 +1,21 @@
+{
+  "buildCommand": "bash build-all.sh",
+  "outputDirectory": "apps/landing/dist",
+  "devCommand": "npm run dev:landing",
+  "installCommand": "npm install",
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/mobile/:path*",
+      "destination": "/mobile/index.html"
+    },
+    {
+      "source": "/admin/:path*",
+      "destination": "/admin/index.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
