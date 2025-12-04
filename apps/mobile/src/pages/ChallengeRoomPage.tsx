@@ -201,6 +201,17 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
     return matchGroups[matchGroups.length - 1]?.key || '1';
   });
 
+  // Sync selectedGroupKey when matchGroups changes (e.g., after data loads)
+  useEffect(() => {
+    if (matchGroups.length > 0) {
+      const lastGroupKey = matchGroups[matchGroups.length - 1]?.key;
+      if (lastGroupKey && !matchGroups.find(g => g.key === selectedGroupKey)) {
+        // Current selection is not in visible groups, reset to last visible
+        setSelectedGroupKey(lastGroupKey);
+      }
+    }
+  }, [matchGroups, selectedGroupKey]);
+
   const [armingBooster, setArmingBooster] = useState<{ groupKey: string, type: 'x2' | 'x3' } | null>(null);
   const [modalState, setModalState] = useState<{ groupKey: string, type: 'x2' | 'x3' } | null>(null);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
