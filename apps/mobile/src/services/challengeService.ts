@@ -518,10 +518,11 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
 
   // Fetch fixture statuses for matchdays via matchday_fixtures
   // This is needed to determine if a matchday is finished even if no challenge_matches exist
-  const matchdayFixturesMap = new Map<string, Array<{ status: string }>>()
+  // Include date to identify the LAST match (by kickoff time)
+  const matchdayFixturesMap = new Map<string, Array<{ status: string, date: string | null }>>()
   const { data: matchdayFixturesData, error: matchdayFixturesError } = await supabase
     .from('matchday_fixtures')
-    .select('matchday_id, fixture:fb_fixtures(status)')
+    .select('matchday_id, fixture:fb_fixtures(status, date)')
 
   if (matchdayFixturesError) {
     console.warn('[challengeService] Failed to fetch matchday fixtures for status check', matchdayFixturesError)
@@ -530,15 +531,16 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
   if (matchdayFixturesData) {
     for (const row of matchdayFixturesData as Array<{
       matchday_id: string
-      fixture: { status: string | null } | null
+      fixture: { status: string | null, date: string | null } | null
     }>) {
       const matchdayId = row.matchday_id
       const fixtureStatus = row.fixture?.status
+      const fixtureDate = row.fixture?.date
       if (matchdayId && fixtureStatus) {
         if (!matchdayFixturesMap.has(matchdayId)) {
           matchdayFixturesMap.set(matchdayId, [])
         }
-        matchdayFixturesMap.get(matchdayId)!.push({ status: fixtureStatus })
+        matchdayFixturesMap.get(matchdayId)!.push({ status: fixtureStatus, date: fixtureDate ?? null })
       }
     }
   }
@@ -592,19 +594,30 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
           matchesByChallenge.set(challengeId, [])
         }
 
-        // Check if all fixtures for this matchday are finished
+        // Check if the LAST fixture (by kickoff time) for this matchday is finished
+        // Rule: When the last match has status 'FT', move to next matchday (Play Now)
         const matchdayFixtures = matchdayFixturesMap.get(row.id) ?? []
         const finishedStatuses = ['FT', 'AET', 'PEN', 'AWARDED', 'W.O', 'CANC', 'ABD', 'POST']
-        const allFixturesFinished = matchdayFixtures.length > 0 &&
-          matchdayFixtures.every(f => finishedStatuses.includes((f.status ?? 'NS').toUpperCase()))
+
+        let lastMatchFinished = false
+        if (matchdayFixtures.length > 0) {
+          // Sort by date (kickoff) descending to find the last match
+          const sortedFixtures = [...matchdayFixtures].sort((a, b) => {
+            const dateA = a.date ? new Date(a.date).getTime() : 0
+            const dateB = b.date ? new Date(b.date).getTime() : 0
+            return dateB - dateA  // Descending: last match first
+          })
+          const lastMatch = sortedFixtures[0]
+          lastMatchFinished = finishedStatuses.includes((lastMatch.status ?? 'NS').toUpperCase())
+        }
 
         // Add placeholder match for this matchday
-        // kickoffTime = date or deadline, result = 'draw' if all fixtures finished (placeholder)
+        // kickoffTime = date or deadline, result = 'draw' if last match finished
         matchesByChallenge.get(challengeId)!.push({
           id: row.id,
           day: dayNumber,
           kickoffTime: row.date ?? row.deadline ?? undefined,
-          result: allFixturesFinished ? 'draw' : undefined, // Mark as finished if all fixtures are done
+          result: lastMatchFinished ? 'draw' : undefined, // Mark as finished if LAST match is done
         })
       })
     }
@@ -701,16 +714,25 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
             const dayNumber = index + 1
             const finishedStatuses = ['FT', 'AET', 'PEN', 'AWARDED', 'W.O', 'CANC', 'ABD', 'POST']
 
-            // Check if ALL fixtures in this matchday are finished
-            const allFixturesFinished = matchday.fixtures.every(f =>
-              finishedStatuses.includes((f.status ?? 'NS').toUpperCase())
-            )
+            // Check if the LAST fixture (by kickoff time) in this matchday is finished
+            // Rule: When the last match has status 'FT', move to next matchday (Play Now)
+            let lastMatchFinished = false
+            if (matchday.fixtures.length > 0) {
+              // Sort by date (kickoff) descending to find the last match
+              const sortedFixtures = [...matchday.fixtures].sort((a, b) => {
+                const dateA = a.date ? new Date(a.date).getTime() : 0
+                const dateB = b.date ? new Date(b.date).getTime() : 0
+                return dateB - dateA  // Descending: last match first
+              })
+              const lastMatch = sortedFixtures[0]
+              lastMatchFinished = finishedStatuses.includes((lastMatch.status ?? 'NS').toUpperCase())
+            }
 
             matchesByChallenge.get(ch.id)!.push({
               id: `${ch.id}-auto-${dayNumber}`,
               day: dayNumber,
               kickoffTime: matchday.earliestDate,
-              result: allFixturesFinished ? 'draw' : undefined, // Mark as finished if all fixtures are done
+              result: lastMatchFinished ? 'draw' : undefined, // Mark as finished if LAST match is done
             })
           })
         }
