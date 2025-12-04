@@ -516,6 +516,33 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
     }
   }
 
+  // Fetch fixture statuses for matchdays via matchday_fixtures
+  // This is needed to determine if a matchday is finished even if no challenge_matches exist
+  const matchdayFixturesMap = new Map<string, Array<{ status: string }>>()
+  const { data: matchdayFixturesData, error: matchdayFixturesError } = await supabase
+    .from('matchday_fixtures')
+    .select('matchday_id, fixture:fb_fixtures(status)')
+
+  if (matchdayFixturesError) {
+    console.warn('[challengeService] Failed to fetch matchday fixtures for status check', matchdayFixturesError)
+  }
+
+  if (matchdayFixturesData) {
+    for (const row of matchdayFixturesData as Array<{
+      matchday_id: string
+      fixture: { status: string | null } | null
+    }>) {
+      const matchdayId = row.matchday_id
+      const fixtureStatus = row.fixture?.status
+      if (matchdayId && fixtureStatus) {
+        if (!matchdayFixturesMap.has(matchdayId)) {
+          matchdayFixturesMap.set(matchdayId, [])
+        }
+        matchdayFixturesMap.get(matchdayId)!.push({ status: fixtureStatus })
+      }
+    }
+  }
+
   // Add future matchdays from challenge_matchdays that don't have assigned matches yet
   // These are matchdays with deadline set but no matches in challenge_matches
   if (allMatchdaysRows) {
@@ -565,13 +592,19 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
           matchesByChallenge.set(challengeId, [])
         }
 
+        // Check if all fixtures for this matchday are finished
+        const matchdayFixtures = matchdayFixturesMap.get(row.id) ?? []
+        const finishedStatuses = ['FT', 'AET', 'PEN', 'AWARDED', 'W.O', 'CANC', 'ABD', 'POST']
+        const allFixturesFinished = matchdayFixtures.length > 0 &&
+          matchdayFixtures.every(f => finishedStatuses.includes((f.status ?? 'NS').toUpperCase()))
+
         // Add placeholder match for this matchday
-        // kickoffTime = date or deadline, result = undefined (not played yet)
+        // kickoffTime = date or deadline, result = 'draw' if all fixtures finished (placeholder)
         matchesByChallenge.get(challengeId)!.push({
           id: row.id,
           day: dayNumber,
           kickoffTime: row.date ?? row.deadline ?? undefined,
-          result: undefined, // No result yet - this is a future matchday
+          result: allFixturesFinished ? 'draw' : undefined, // Mark as finished if all fixtures are done
         })
       })
     }
