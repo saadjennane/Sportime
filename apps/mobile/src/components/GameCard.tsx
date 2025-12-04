@@ -12,9 +12,10 @@ import { getBettingGameDeadline } from '../services/gameStateService';
 
 interface EntryDeadlineProps {
   deadline: Date;
+  label?: 'registration' | 'deadline';
 }
 
-const EntryDeadlineCountdown: React.FC<EntryDeadlineProps> = ({ deadline }) => {
+const EntryDeadlineCountdown: React.FC<EntryDeadlineProps> = ({ deadline, label = 'registration' }) => {
   const [timeLeft, setTimeLeft] = useState<string>('')
   const [isUrgent, setIsUrgent] = useState(false)
   const [isPast, setIsPast] = useState(false)
@@ -44,10 +45,10 @@ const EntryDeadlineCountdown: React.FC<EntryDeadlineProps> = ({ deadline }) => {
         }))
       } else if (hours >= 1) {
         // 1-24h: Show countdown
-        setTimeLeft(`${hours}h ${minutes}min left`)
+        setTimeLeft(`${hours}h ${minutes}min`)
       } else {
         // < 1h: Show minutes only
-        setTimeLeft(`${minutes}min left`)
+        setTimeLeft(`${minutes}min`)
       }
     }
 
@@ -60,10 +61,12 @@ const EntryDeadlineCountdown: React.FC<EntryDeadlineProps> = ({ deadline }) => {
     return null // Will show "Registration closed" on the button instead
   }
 
+  const labelText = label === 'registration' ? 'Registration closes' : 'Deadline'
+
   return (
     <div className={`text-xs flex items-center gap-1 ${isUrgent ? 'text-hot-red font-semibold' : 'text-text-secondary'}`}>
       {isCountdownMode && <Clock size={12} />}
-      {isCountdownMode ? timeLeft : `Registration until ${timeLeft}`}
+      {isCountdownMode ? `${labelText} in ${timeLeft}` : `${labelText} ${timeLeft}`}
     </div>
   )
 }
@@ -149,12 +152,9 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
   // Calculate entry deadline for countdown display
   const entryDeadline = useMemo(() => calculateEntryDeadline(game), [game]);
 
-  // For betting games, get the matchday-specific deadline
-  const bettingDeadline = useMemo(() => {
-    if (game.game_type === 'betting') {
-      return getBettingGameDeadline(game, undefined, new Date());
-    }
-    return null;
+  // Get the matchday-specific deadline for all game types (betting, prediction, fantasy)
+  const gameDeadline = useMemo(() => {
+    return getBettingGameDeadline(game, undefined, new Date());
   }, [game]);
 
   const ctaConfig = {
@@ -258,12 +258,13 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
         </div>
 
         <div className="flex-1 flex flex-col items-end gap-1">
-          {/* Entry Deadline Countdown - for JOIN and betting PLACE_BETS states */}
+          {/* Entry Deadline Countdown - for JOIN state (Browse) */}
           {ctaState === 'JOIN' && (
-            <EntryDeadlineCountdown deadline={entryDeadline} />
+            <EntryDeadlineCountdown deadline={entryDeadline} label="registration" />
           )}
-          {ctaState === 'PLACE_BETS' && game.game_type === 'betting' && bettingDeadline && (
-            <EntryDeadlineCountdown deadline={bettingDeadline} />
+          {/* Deadline Countdown - for My Games (all active states) */}
+          {['PLACE_BETS', 'MAKE_PREDICTIONS', 'SELECT_TEAM', 'COMPLETE_TEAM'].includes(ctaState) && gameDeadline && (
+            <EntryDeadlineCountdown deadline={gameDeadline} label="deadline" />
           )}
 
           {/* Registration closed message for LOCKED state */}
