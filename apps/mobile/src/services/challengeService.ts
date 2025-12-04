@@ -449,8 +449,9 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
   // This is critical for betting games to show "Place Bets" instead of "View Results"
   const { data: allMatchdaysRows, error: allMatchdaysError } = await supabase
     .from('challenge_matchdays')
-    .select('id, challenge_id, day_number, deadline')
+    .select('id, challenge_id, date, deadline')
     .in('challenge_id', challengeIds)
+    .order('date', { ascending: true })
 
   if (allMatchdaysError) {
     console.warn('[challengeService] Failed to fetch all matchdays', allMatchdaysError)
@@ -518,31 +519,60 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
   // Add future matchdays from challenge_matchdays that don't have assigned matches yet
   // These are matchdays with deadline set but no matches in challenge_matches
   if (allMatchdaysRows) {
+    // Group by challenge_id to calculate day numbers based on date order
+    const matchdaysByChallenge = new Map<string, Array<{
+      id: string
+      date: string | null
+      deadline: string | null
+    }>>()
+
     for (const row of allMatchdaysRows as Array<{
       id: string
       challenge_id: string
-      day_number: number | null
+      date: string | null
       deadline: string | null
     }>) {
-      const dayKey = `${row.challenge_id}-${row.day_number}`
-
-      // Skip if we already have match data for this day
-      if (existingDays.has(dayKey)) continue
-
-      // Only add if deadline exists (future matchday)
-      if (!row.deadline) continue
-
-      if (!matchesByChallenge.has(row.challenge_id)) {
-        matchesByChallenge.set(row.challenge_id, [])
+      if (!matchdaysByChallenge.has(row.challenge_id)) {
+        matchdaysByChallenge.set(row.challenge_id, [])
       }
-
-      // Add placeholder match for this future matchday
-      // kickoffTime = deadline, result = undefined (not played yet)
-      matchesByChallenge.get(row.challenge_id)!.push({
+      matchdaysByChallenge.get(row.challenge_id)!.push({
         id: row.id,
-        day: row.day_number ?? 1,
-        kickoffTime: row.deadline,
-        result: undefined, // No result yet - this is a future matchday
+        date: row.date,
+        deadline: row.deadline,
+      })
+    }
+
+    // Process each challenge's matchdays
+    for (const [challengeId, matchdays] of matchdaysByChallenge) {
+      // Sort by date to assign day numbers
+      const sortedMatchdays = matchdays.sort((a, b) => {
+        const dateA = a.date ?? a.deadline ?? ''
+        const dateB = b.date ?? b.deadline ?? ''
+        return dateA.localeCompare(dateB)
+      })
+
+      sortedMatchdays.forEach((row, index) => {
+        const dayNumber = index + 1
+        const dayKey = `${challengeId}-${row.date ?? dayNumber}`
+
+        // Skip if we already have match data for this day
+        if (existingDays.has(dayKey)) return
+
+        // Only add if we have a date or deadline
+        if (!row.date && !row.deadline) return
+
+        if (!matchesByChallenge.has(challengeId)) {
+          matchesByChallenge.set(challengeId, [])
+        }
+
+        // Add placeholder match for this matchday
+        // kickoffTime = date or deadline, result = undefined (not played yet)
+        matchesByChallenge.get(challengeId)!.push({
+          id: row.id,
+          day: dayNumber,
+          kickoffTime: row.date ?? row.deadline ?? undefined,
+          result: undefined, // No result yet - this is a future matchday
+        })
       })
     }
   }
