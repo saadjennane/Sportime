@@ -668,11 +668,16 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
             const dayNumber = index + 1
             const finishedStatuses = ['FT', 'AET', 'PEN', 'AWARDED', 'W.O', 'CANC', 'ABD', 'POST']
 
+            // Check if ALL fixtures in this matchday are finished
+            const allFixturesFinished = matchday.fixtures.every(f =>
+              finishedStatuses.includes((f.status ?? 'NS').toUpperCase())
+            )
+
             matchesByChallenge.get(ch.id)!.push({
               id: `${ch.id}-auto-${dayNumber}`,
               day: dayNumber,
               kickoffTime: matchday.earliestDate,
-              // Don't assign placeholder result - let the actual game logic determine status
+              result: allFixturesFinished ? 'draw' : undefined, // Mark as finished if all fixtures are done
             })
           })
         }

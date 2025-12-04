@@ -169,16 +169,22 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
         if (!isMounted) return;
 
         // Determine current matchday
+        // Logic: Open on the LAST playable matchday (first non-finished)
+        // Sort by date first
+        const sortedMatchdays = [...matchdays].sort((a, b) =>
+          new Date(a.date).getTime() - new Date(b.date).getTime()
+        );
+
         let currentMatchday: ChallengeMatchday | null = null;
         if (initialMatchdayId) {
-          currentMatchday = matchdays.find(md => md.id === initialMatchdayId) || null;
+          currentMatchday = sortedMatchdays.find(md => md.id === initialMatchdayId) || null;
         }
-        if (!currentMatchday && matchdays.length > 0) {
-          // Find first upcoming or most recent
+        if (!currentMatchday && sortedMatchdays.length > 0) {
+          // Find the first matchday that is NOT finished (= next playable)
+          // This ensures we open on the most recent playable day
           currentMatchday =
-            matchdays.find(md => md.status === 'upcoming') ||
-            matchdays.find(md => md.status === 'active') ||
-            matchdays[matchdays.length - 1];
+            sortedMatchdays.find(md => md.status !== 'finished') ||
+            sortedMatchdays[sortedMatchdays.length - 1]; // All finished -> show last
         }
 
         if (!currentMatchday) {
@@ -236,7 +242,7 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
             status: challenge.status,
             period_type: challenge.period_type,
           },
-          matchdays,
+          matchdays: sortedMatchdays,
           currentMatchday,
           matches,
           predictions,

@@ -174,11 +174,21 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
     new Date(a.date).getTime() - new Date(b.date).getTime()
   );
 
-  const matchDaysForSwitcher = sortedMatchdays.map((md, index) => ({
+  // Filter matchdays: show history + next playable day (hide future days)
+  // Find the first matchday that is not finished (= next playable)
+  let nextPlayableIdx = sortedMatchdays.findIndex(md => md.status !== 'finished');
+  if (nextPlayableIdx === -1) {
+    // All finished, show all
+    nextPlayableIdx = sortedMatchdays.length - 1;
+  }
+  // Show only up to the next playable matchday (not beyond)
+  const visibleMatchdays = sortedMatchdays.slice(0, nextPlayableIdx + 1);
+
+  const matchDaysForSwitcher = visibleMatchdays.map((md, index) => ({
     id: md.id,
     name: challenge?.period_type === 'matchdays'
       ? `Matchday ${index + 1}`
-      : format(new Date(md.date), 'MMM d, yyyy'),
+      : format(new Date(md.date), 'MMM d'),
     startDate: md.date,
     endDate: md.date,
     leagues: EMPTY_LEAGUES,
