@@ -451,11 +451,25 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
     );
   };
 
+  // Debug: find Liga Calendar test game
+  const ligaCalendarGame = processedGames.find(g => g.name.toLowerCase().includes('liga calendar'));
+  const debugInfo = ligaCalendarGame ? {
+    name: ligaCalendarGame.name,
+    matches: ligaCalendarGame.matches?.length ?? 0,
+    period_type: ligaCalendarGame.period_type,
+    first_kickoff: ligaCalendarGame.first_kickoff_time,
+  } : null;
+
   return (
     <div className="space-y-4">
       {/* DEBUG BANNER - Remove after testing */}
-      <div className="bg-hot-red text-white text-center py-3 font-bold text-sm rounded-lg">
-        🔴 DEBUG v6 - GamesListPage | {processedGames.length} games | {new Date().toLocaleTimeString()}
+      <div className="bg-hot-red text-white text-center py-2 font-bold text-xs rounded-lg space-y-1">
+        <div>🔴 DEBUG v7 | {processedGames.length} games</div>
+        {debugInfo && (
+          <div className="text-[10px] opacity-90">
+            {debugInfo.name}: {debugInfo.matches} matches | {debugInfo.period_type} | kickoff: {debugInfo.first_kickoff?.slice(0, 16) ?? 'none'}
+          </div>
+        )}
       </div>
 
       {/* Tab Switcher */}
