@@ -547,18 +547,19 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
     }
   }
 
-  // 2d. For betting games without matchdays in challenge_matchdays or challenge_matches,
+  // 2d. For betting/prediction games without matchdays in challenge_matchdays or challenge_matches,
   // auto-generate matchdays from fb_fixtures based on period_type
-  const bettingChallengesWithoutMatchdays = challenges.filter(ch => {
-    const isBetting = ch.game_type?.toLowerCase() === 'betting'
+  const challengesNeedingAutoMatchdays = challenges.filter(ch => {
+    const gameType = ch.game_type?.toLowerCase()
+    const needsMatches = gameType === 'betting' || gameType === 'prediction'
     const hasMatches = matchesByChallenge.has(ch.id) && matchesByChallenge.get(ch.id)!.length > 0
-    return isBetting && !hasMatches
+    return needsMatches && !hasMatches
   })
 
-  if (bettingChallengesWithoutMatchdays.length > 0) {
+  if (challengesNeedingAutoMatchdays.length > 0) {
     // Get league IDs for these challenges
     const challengeLeagueMap = new Map<string, string>()
-    for (const ch of bettingChallengesWithoutMatchdays) {
+    for (const ch of challengesNeedingAutoMatchdays) {
       const leagueId = ch.challenge_leagues?.[0]?.league_id
       if (leagueId) {
         challengeLeagueMap.set(ch.id, leagueId)
@@ -581,7 +582,7 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
 
       if (fixturesData) {
         // Group fixtures by challenge based on date range and period_type
-        for (const ch of bettingChallengesWithoutMatchdays) {
+        for (const ch of challengesNeedingAutoMatchdays) {
           const leagueId = challengeLeagueMap.get(ch.id)
           if (!leagueId) continue
 
