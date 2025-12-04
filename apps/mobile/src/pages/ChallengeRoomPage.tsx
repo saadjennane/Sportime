@@ -142,44 +142,35 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
     return Array.from(groups.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
   }, [matches, challenge.period_type, challenge.start_date]);
 
-  // Filter to show only current and past matchdays (hide future ones)
+  // Filter to show only history + next playable day (hide future days and empty days)
   const { matchGroups, currentMatchdayIndex, hasNextMatchday } = useMemo(() => {
-    const now = new Date();
-    let currentIdx = -1;
+    // 1. Filter out empty groups (days without matches)
+    const nonEmptyGroups = allMatchGroups.filter(g => g.matches.length > 0);
 
-    // Find current matchday:
-    // - First group where matches haven't all started, OR
-    // - First group with live matches (started but not all finished)
-    for (let i = 0; i < allMatchGroups.length; i++) {
-      const group = allMatchGroups[i];
+    // 2. Find the first group that is not finished (= next playable day)
+    let nextPlayableIdx = -1;
+    for (let i = 0; i < nonEmptyGroups.length; i++) {
+      const group = nonEmptyGroups[i];
       const allFinished = group.matches.every(m => m.status === 'played');
-      const hasStarted = group.matches.some(m => m.kickoffTime && new Date(m.kickoffTime) <= now);
 
-      if (!hasStarted) {
-        // Found upcoming matchday
-        currentIdx = i;
-        break;
-      }
-
-      if (hasStarted && !allFinished) {
-        // Found live matchday
-        currentIdx = i;
+      if (!allFinished) {
+        nextPlayableIdx = i;
         break;
       }
     }
 
-    // If all matchdays are finished, show the last one
-    if (currentIdx === -1) {
-      currentIdx = allMatchGroups.length - 1;
+    // If all days are finished, show the last one
+    if (nextPlayableIdx === -1) {
+      nextPlayableIdx = nonEmptyGroups.length - 1;
     }
 
-    // Only show matchdays up to and including the current one
-    const visibleGroups = allMatchGroups.slice(0, currentIdx + 1);
+    // 3. Show history + next playable day (not beyond)
+    const visibleGroups = nonEmptyGroups.slice(0, nextPlayableIdx + 1);
 
     return {
       matchGroups: visibleGroups,
-      currentMatchdayIndex: currentIdx,
-      hasNextMatchday: currentIdx < allMatchGroups.length - 1
+      currentMatchdayIndex: nextPlayableIdx,
+      hasNextMatchday: nextPlayableIdx < nonEmptyGroups.length - 1
     };
   }, [allMatchGroups]);
 
@@ -194,20 +185,8 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
     }));
   }, [matchGroups, challenge.status]);
 
-  // Initialize selectedGroupKey based on current date
+  // Initialize selectedGroupKey to the last visible group (= next playable day)
   const [selectedGroupKey, setSelectedGroupKey] = useState<string>(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Find the first group that is today or in the future
-    for (const group of matchGroups) {
-      const groupDate = new Date(group.date);
-      groupDate.setHours(0, 0, 0, 0);
-      if (groupDate >= today) {
-        return group.key;
-      }
-    }
-    // Default to last group
     return matchGroups[matchGroups.length - 1]?.key || '1';
   });
 
