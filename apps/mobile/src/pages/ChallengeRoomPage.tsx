@@ -64,10 +64,10 @@ const getGroupKeyForMatch = (match: ChallengeMatch, periodType: 'matchdays' | 'c
 const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   const { challenge, matches, userEntry, onUpdateDailyBets, onSetDailyBooster, onBack, onViewLeaderboard, boosterInfoPreferences, onUpdateBoosterPreferences, onLinkGame, profile, userLeagues, leagueMembers, leagueGames, onRefreshMatches } = props;
 
-  // Debug logging
-  console.log('[ChallengeRoomPage] matches:', matches.length, 'days:', [...new Set(matches.map(m => m.day))]);
-  console.log('[ChallengeRoomPage] userEntry.dailyEntries:', userEntry.dailyEntries);
-  console.log('[ChallengeRoomPage] period_type:', challenge.period_type);
+  // Debug logging - using warn for visibility
+  console.warn('[ChallengeRoomPage] RENDER - matches:', matches.length, 'period_type:', challenge.period_type);
+  console.warn('[ChallengeRoomPage] match days:', [...new Set(matches.map(m => m.day))]);
+  console.warn('[ChallengeRoomPage] match dates:', matches.map(m => ({ day: m.day, kickoff: m.kickoffTime, status: m.status })));
 
   // Auto-refresh match scores every 20 seconds while there are live matches
   useEffect(() => {
@@ -147,7 +147,7 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
     // 1. Filter out empty groups (days without matches)
     const nonEmptyGroups = allMatchGroups.filter(g => g.matches.length > 0);
 
-    console.log('[ChallengeRoomPage] allMatchGroups:', allMatchGroups.map(g => ({
+    console.warn('[ChallengeRoomPage] allMatchGroups:', allMatchGroups.map(g => ({
       key: g.key,
       displayName: g.displayName,
       matchCount: g.matches.length,
@@ -160,7 +160,7 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
       const group = nonEmptyGroups[i];
       const allFinished = group.matches.every(m => m.status === 'played');
 
-      console.log(`[ChallengeRoomPage] Group ${group.displayName}: allFinished=${allFinished}, statuses=${group.matches.map(m => m.status).join(',')}`);
+      console.warn(`[ChallengeRoomPage] Group ${group.displayName}: allFinished=${allFinished}, statuses=${group.matches.map(m => m.status).join(',')}`);
 
       if (!allFinished) {
         nextPlayableIdx = i;
@@ -176,7 +176,7 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
     // 3. Show history + next playable day (not beyond)
     const visibleGroups = nonEmptyGroups.slice(0, nextPlayableIdx + 1);
 
-    console.log('[ChallengeRoomPage] visibleGroups:', visibleGroups.map(g => g.displayName), 'nextPlayableIdx:', nextPlayableIdx);
+    console.warn('[ChallengeRoomPage] visibleGroups:', visibleGroups.map(g => g.displayName), 'nextPlayableIdx:', nextPlayableIdx);
 
     return {
       matchGroups: visibleGroups,
@@ -198,19 +198,29 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
 
   // Initialize selectedGroupKey to the last visible group (= next playable day)
   const [selectedGroupKey, setSelectedGroupKey] = useState<string>(() => {
-    return matchGroups[matchGroups.length - 1]?.key || '1';
+    const initialKey = matchGroups[matchGroups.length - 1]?.key || '1';
+    console.warn('[ChallengeRoomPage] Initial selectedGroupKey:', initialKey);
+    return initialKey;
   });
+
+  // Track if user has manually selected a day
+  const [userHasManuallySelected, setUserHasManuallySelected] = useState(false);
 
   // Sync selectedGroupKey when matchGroups changes (e.g., after data loads)
   useEffect(() => {
     if (matchGroups.length > 0) {
       const lastGroupKey = matchGroups[matchGroups.length - 1]?.key;
-      if (lastGroupKey && !matchGroups.find(g => g.key === selectedGroupKey)) {
-        // Current selection is not in visible groups, reset to last visible
+      const selectedExists = matchGroups.find(g => g.key === selectedGroupKey);
+
+      console.warn('[ChallengeRoomPage] Sync effect - lastGroupKey:', lastGroupKey, 'selectedGroupKey:', selectedGroupKey, 'exists:', !!selectedExists, 'userManual:', userHasManuallySelected);
+
+      // Auto-select last group if: selection doesn't exist OR user hasn't manually selected
+      if (lastGroupKey && (!selectedExists || !userHasManuallySelected)) {
+        console.warn('[ChallengeRoomPage] Auto-selecting:', lastGroupKey);
         setSelectedGroupKey(lastGroupKey);
       }
     }
-  }, [matchGroups, selectedGroupKey]);
+  }, [matchGroups]);
 
   const [armingBooster, setArmingBooster] = useState<{ groupKey: string, type: 'x2' | 'x3' } | null>(null);
   const [modalState, setModalState] = useState<{ groupKey: string, type: 'x2' | 'x3' } | null>(null);
@@ -479,11 +489,19 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
         </div>
       </div>
 
+      {/* DEBUG BANNER - Remove after testing */}
+      <div className="bg-hot-red text-white text-center py-2 font-bold text-sm -mx-4">
+        🔴 DEBUG v5 | matches: {matches.length} | groups: {matchGroups.length} | selected: {selectedGroupKey}
+      </div>
+
       <div className="-mx-4">
         <MatchDaySwitcher
           gameWeeks={matchDaysForSwitcher}
           selectedGameWeekId={selectedGroupKey}
-          onSelect={(id) => setSelectedGroupKey(id)}
+          onSelect={(id) => {
+            setUserHasManuallySelected(true);
+            setSelectedGroupKey(id);
+          }}
         />
       </div>
 
