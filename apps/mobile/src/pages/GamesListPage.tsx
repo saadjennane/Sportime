@@ -207,6 +207,37 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
 
       // PREDICTION GAMES
       if (game.game_type === 'prediction') {
+        // Pour period_type = 'calendar': logique par jour calendaire
+        // Awaiting: quand le premier match du jour a commencé mais pas tous terminés
+        // Play Now: quand tous les matchs du jour sont terminés (ou pas de matchs aujourd'hui)
+        if (game.period_type === 'calendar' && game.matches && game.matches.length > 0) {
+          const today = now.toISOString().split('T')[0]; // YYYY-MM-DD
+
+          // Trouver les matchs du jour actuel
+          const todayMatches = game.matches.filter(m =>
+            m.kickoffTime?.startsWith(today)
+          );
+
+          if (todayMatches.length > 0) {
+            const firstKickoffToday = todayMatches
+              .map(m => new Date(m.kickoffTime!))
+              .sort((a, b) => a.getTime() - b.getTime())[0];
+
+            const allTodayMatchesFinished = todayMatches.every(m => m.result !== undefined);
+
+            // Premier match du jour a commencé mais pas tous terminés → Awaiting
+            if (firstKickoffToday <= now && !allTodayMatchesFinished) {
+              awaiting.push(game);
+              continue;
+            }
+          }
+
+          // Pas de matchs aujourd'hui OU tous les matchs du jour sont terminés → Play Now
+          playNow.push(game);
+          continue;
+        }
+
+        // Pour matchdays ou autres: logique existante (basée sur first_kickoff_time global)
         const firstKickoff = game.first_kickoff_time ? new Date(game.first_kickoff_time) : null;
         const hasFirstMatchStarted = firstKickoff ? firstKickoff <= now : false;
 
