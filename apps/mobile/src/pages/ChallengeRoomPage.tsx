@@ -147,11 +147,20 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
     // 1. Filter out empty groups (days without matches)
     const nonEmptyGroups = allMatchGroups.filter(g => g.matches.length > 0);
 
+    console.log('[ChallengeRoomPage] allMatchGroups:', allMatchGroups.map(g => ({
+      key: g.key,
+      displayName: g.displayName,
+      matchCount: g.matches.length,
+      statuses: g.matches.map(m => m.status)
+    })));
+
     // 2. Find the first group that is not finished (= next playable day)
     let nextPlayableIdx = -1;
     for (let i = 0; i < nonEmptyGroups.length; i++) {
       const group = nonEmptyGroups[i];
       const allFinished = group.matches.every(m => m.status === 'played');
+
+      console.log(`[ChallengeRoomPage] Group ${group.displayName}: allFinished=${allFinished}, statuses=${group.matches.map(m => m.status).join(',')}`);
 
       if (!allFinished) {
         nextPlayableIdx = i;
@@ -166,6 +175,8 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
 
     // 3. Show history + next playable day (not beyond)
     const visibleGroups = nonEmptyGroups.slice(0, nextPlayableIdx + 1);
+
+    console.log('[ChallengeRoomPage] visibleGroups:', visibleGroups.map(g => g.displayName), 'nextPlayableIdx:', nextPlayableIdx);
 
     return {
       matchGroups: visibleGroups,
