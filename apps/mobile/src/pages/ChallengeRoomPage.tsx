@@ -83,7 +83,7 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   const isMatchLocked = (match: ChallengeMatch): boolean => {
     if (challenge.status === 'Finished') return true;
     if (!match.kickoffTime) return false;
-    return new Date(match.kickoffTime).getTime() <= Date.now();
+    return new Date(match.kickoffTime).getTime() < Date.now();
   };
 
   // Check if ALL bets should be locked (for UI elements like booster selector)

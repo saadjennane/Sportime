@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { ChallengeMatch, ChallengeBet, Profile } from '../types';
 import { TrendingUp, Zap } from 'lucide-react';
+import { format } from 'date-fns';
 
 interface ChallengeBetControllerProps {
   match: ChallengeMatch;
@@ -98,11 +99,18 @@ export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ 
       )}
       <div className="flex justify-between items-center">
         <p className="text-sm font-bold text-text-primary pr-10">{teamA.emoji} {teamA.name} vs {teamB.emoji} {teamB.name}</p>
-        {match.status === 'played' && (
-          <span className="text-xs font-bold px-2 py-1 rounded-full bg-disabled text-text-disabled">
-            Played
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {match.kickoffTime && (
+            <span className="text-xs text-text-secondary">
+              {format(new Date(match.kickoffTime), 'HH:mm')}
+            </span>
+          )}
+          {match.status === 'played' && (
+            <span className="text-xs font-bold px-2 py-1 rounded-full bg-disabled text-text-disabled">
+              Played
+            </span>
+          )}
+        </div>
       </div>
       <div className="flex gap-2">
         <BetOption label={teamA.name} odd={odds.teamA} prediction="teamA" />
