@@ -534,24 +534,63 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
             )}
 
             <div className="space-y-3">
-              {currentGroup.matches.map(match => {
-                const bet = groupBets.find(b => b.challengeMatchId === match.id);
-                return (
-                  <ChallengeBetController
-                    key={match.id}
-                    match={match}
-                    bet={bet}
-                    onBetChange={(pred, amount) => handleBetChange(match.id, pred, amount)}
-                    disabled={isMatchLocked(match)}
-                    maxAmount={remainingGroupBalance + (bet?.amount || 0)}
-                    isBoosterArmed={armingBooster?.groupKey === selectedGroupKey && !groupBooster}
-                    onApplyBooster={() => handleApplyBooster(match.id)}
-                    isBoosted={groupBooster?.matchId === match.id}
-                    boosterType={groupBooster?.matchId === match.id ? groupBooster.type : undefined}
-                    profile={profile}
-                  />
-                );
-              })}
+              {(() => {
+                // Group matches by kickoff date for visual separators (Matchday mode only)
+                const matchesByDate = new Map<string, ChallengeMatch[]>();
+                currentGroup.matches.forEach(match => {
+                  const dateKey = match.kickoffTime
+                    ? format(new Date(match.kickoffTime), 'yyyy-MM-dd')
+                    : 'unknown';
+                  if (!matchesByDate.has(dateKey)) {
+                    matchesByDate.set(dateKey, []);
+                  }
+                  matchesByDate.get(dateKey)!.push(match);
+                });
+
+                // Sort dates and render with separators
+                const sortedDates = Array.from(matchesByDate.keys()).sort();
+                const showDateSeparators = challenge.period_type !== 'calendar' && sortedDates.length > 1;
+
+                return sortedDates.flatMap((dateKey) => {
+                  const dateMatches = matchesByDate.get(dateKey)!;
+                  const elements: React.ReactNode[] = [];
+
+                  // Add date separator for Matchday mode (when multiple dates exist)
+                  if (showDateSeparators && dateKey !== 'unknown') {
+                    elements.push(
+                      <div key={`sep-${dateKey}`} className="flex items-center gap-2 py-2">
+                        <div className="flex-1 h-px bg-white/10" />
+                        <span className="text-xs text-text-secondary font-medium">
+                          {format(new Date(dateKey), 'EEE, MMM d')}
+                        </span>
+                        <div className="flex-1 h-px bg-white/10" />
+                      </div>
+                    );
+                  }
+
+                  // Add match cards
+                  dateMatches.forEach(match => {
+                    const bet = groupBets.find(b => b.challengeMatchId === match.id);
+                    elements.push(
+                      <ChallengeBetController
+                        key={match.id}
+                        match={match}
+                        bet={bet}
+                        onBetChange={(pred, amount) => handleBetChange(match.id, pred, amount)}
+                        disabled={isMatchLocked(match)}
+                        maxAmount={remainingGroupBalance + (bet?.amount || 0)}
+                        isBoosterArmed={armingBooster?.groupKey === selectedGroupKey && !groupBooster}
+                        onApplyBooster={() => handleApplyBooster(match.id)}
+                        isBoosted={groupBooster?.matchId === match.id}
+                        boosterType={groupBooster?.matchId === match.id ? groupBooster.type : undefined}
+                        profile={profile}
+                      />
+                    );
+                  });
+
+                  return elements;
+                });
+              })()}
             </div>
           </div>
         </div>

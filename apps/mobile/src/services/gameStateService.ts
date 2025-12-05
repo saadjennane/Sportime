@@ -229,8 +229,8 @@ export function calculateBettingGameState(
 
         if (!nextHasStarted) {
           // Current matchday finished, next is upcoming
-          // Show "View Results" for current, then user can proceed to next
-          currentMatchdayIndex = i;
+          // Use the NEXT matchday so deadline shows the correct upcoming date
+          currentMatchdayIndex = i + 1;
           break;
         }
         // Otherwise continue to next matchday
