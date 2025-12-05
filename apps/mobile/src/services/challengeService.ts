@@ -676,15 +676,18 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
 
           const rules = ch.rules ?? {}
           const periodType = (rules?.period_type as 'matchdays' | 'calendar') ?? 'matchdays'
-          const startDate = new Date(ch.start_date)
-          const endDate = new Date(ch.end_date)
-          endDate.setHours(23, 59, 59, 999) // Include the entire end_date day
+
+          // Use date-only string comparison to avoid timezone issues
+          // new Date("2025-12-06") creates UTC midnight, but setHours() uses local time
+          // This caused dates to shift by timezone offset
+          const startDateStr = ch.start_date.split('T')[0]  // "2025-12-01"
+          const endDateStr = ch.end_date.split('T')[0]      // "2025-12-06"
 
           // Filter fixtures for this challenge's league and date range
           const challengeFixtures = fixturesData.filter(f => {
             if (f.league_id !== leagueId) return false
-            const fixtureDate = new Date(f.date)
-            return fixtureDate >= startDate && fixtureDate <= endDate
+            const fixtureDateStr = f.date.split('T')[0]     // "2025-12-06"
+            return fixtureDateStr >= startDateStr && fixtureDateStr <= endDateStr
           })
 
           if (challengeFixtures.length === 0) continue
@@ -1537,14 +1540,16 @@ export async function fetchChallengeMatches(challengeId: string) {
   let matches = buildChallengeMatches(challengeId, challengeRow.challenge_matchdays as RawMatchday[])
   console.log('[fetchChallengeMatches] Built matches from matchdays:', matches.length)
 
-  // Filter matches by end_date - only include matches up to end of end_date day
+  // Filter matches by end_date using date-only string comparison to avoid timezone issues
+  // new Date("2025-12-06") creates UTC midnight, but setHours() uses local time
+  // This caused dates to shift by timezone offset
   if (challengeRow.end_date && matches.length > 0) {
-    const endDate = new Date(challengeRow.end_date)
-    endDate.setHours(23, 59, 59, 999) // Include the entire end_date day
+    const endDateStr = challengeRow.end_date.split('T')[0]  // "2025-12-06"
     const beforeFilter = matches.length
     matches = matches.filter(m => {
       if (!m.kickoffTime) return true
-      return new Date(m.kickoffTime) <= endDate
+      const matchDateStr = m.kickoffTime.split('T')[0]      // "2025-12-06"
+      return matchDateStr <= endDateStr
     })
     if (matches.length < beforeFilter) {
       console.log(`[fetchChallengeMatches] Filtered out ${beforeFilter - matches.length} matches after end_date (${challengeRow.end_date})`)

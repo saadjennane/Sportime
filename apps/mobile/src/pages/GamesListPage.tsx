@@ -43,7 +43,10 @@ export function calculateEntryDeadline(game: SportimeGame): Date {
 
   // Fallback to end_date to avoid premature locking
   // Games without matches remain open until end_date
-  const endDate = parseISO(game.end_date);
+  // Parse end_date and set to end of day in LOCAL time to avoid timezone issues
+  // parseISO("2025-12-06") creates UTC midnight, which shifts the date in local timezones
+  const [year, month, day] = game.end_date.split('T')[0].split('-').map(Number);
+  const endDate = new Date(year, month - 1, day, 23, 59, 59, 999);
   return endDate;
 }
 
