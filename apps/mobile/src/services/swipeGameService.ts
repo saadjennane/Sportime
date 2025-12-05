@@ -29,6 +29,7 @@ export interface ChallengeMatchday {
   deadline: string | null;
   created_at: string;
   updated_at: string;
+  fixtures_count?: number; // Number of fixtures linked to this matchday
 }
 
 export interface MatchdayFixture {
@@ -249,17 +250,26 @@ export async function getOrCreateMatchday(
 }
 
 /**
- * Get all matchdays for a challenge
+ * Get all matchdays for a challenge with fixtures count
  */
 export async function getChallengeMatchdays(challengeId: string): Promise<ChallengeMatchday[]> {
   const { data, error } = await supabase
     .from('challenge_matchdays')
-    .select('*')
+    .select(`
+      *,
+      matchday_fixtures(count)
+    `)
     .eq('challenge_id', challengeId)
     .order('date', { ascending: true });
 
   if (error) throw error;
-  return data || [];
+
+  // Transform the data to include fixtures_count
+  return (data || []).map(md => ({
+    ...md,
+    fixtures_count: md.matchday_fixtures?.[0]?.count || 0,
+    matchday_fixtures: undefined, // Remove the nested object
+  }));
 }
 
 /**

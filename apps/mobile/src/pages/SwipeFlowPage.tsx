@@ -175,16 +175,21 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
           new Date(a.date).getTime() - new Date(b.date).getTime()
         );
 
+        // Filter out matchdays without fixtures (empty days)
+        const matchdaysWithFixtures = sortedMatchdays.filter(md =>
+          md.fixtures_count === undefined || md.fixtures_count > 0
+        );
+
         let currentMatchday: ChallengeMatchday | null = null;
         if (initialMatchdayId) {
-          currentMatchday = sortedMatchdays.find(md => md.id === initialMatchdayId) || null;
+          currentMatchday = matchdaysWithFixtures.find(md => md.id === initialMatchdayId) || null;
         }
-        if (!currentMatchday && sortedMatchdays.length > 0) {
+        if (!currentMatchday && matchdaysWithFixtures.length > 0) {
           // Find the first matchday that is NOT finished (= next playable)
           // This ensures we open on the most recent playable day
           currentMatchday =
-            sortedMatchdays.find(md => md.status !== 'finished') ||
-            sortedMatchdays[sortedMatchdays.length - 1]; // All finished -> show last
+            matchdaysWithFixtures.find(md => md.status !== 'finished') ||
+            matchdaysWithFixtures[matchdaysWithFixtures.length - 1]; // All finished -> show last
         }
 
         if (!currentMatchday) {

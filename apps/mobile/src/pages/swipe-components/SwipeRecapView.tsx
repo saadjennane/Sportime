@@ -169,20 +169,25 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
     : null;
 
   // Convert matchdays to switcher format
-  // Sort matchdays by date first to ensure correct numbering
+  // Sort matchdays by date first to ensure correct ordering
   const sortedMatchdays = [...matchdays].sort((a, b) =>
     new Date(a.date).getTime() - new Date(b.date).getTime()
   );
 
+  // Filter out matchdays without fixtures (empty days)
+  const matchdaysWithFixtures = sortedMatchdays.filter(md =>
+    md.fixtures_count === undefined || md.fixtures_count > 0
+  );
+
   // Filter matchdays: show history + next playable day (hide future days)
   // Find the first matchday that is not finished (= next playable)
-  let nextPlayableIdx = sortedMatchdays.findIndex(md => md.status !== 'finished');
+  let nextPlayableIdx = matchdaysWithFixtures.findIndex(md => md.status !== 'finished');
   if (nextPlayableIdx === -1) {
     // All finished, show all
-    nextPlayableIdx = sortedMatchdays.length - 1;
+    nextPlayableIdx = matchdaysWithFixtures.length - 1;
   }
   // Show only up to the next playable matchday (not beyond)
-  const visibleMatchdays = sortedMatchdays.slice(0, nextPlayableIdx + 1);
+  const visibleMatchdays = matchdaysWithFixtures.slice(0, nextPlayableIdx + 1);
 
   // Get the matchday number from current matches' round field (if available)
   // For current matchday, use the first match's round
