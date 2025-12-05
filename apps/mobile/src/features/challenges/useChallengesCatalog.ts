@@ -72,13 +72,27 @@ export function useChallengesCatalog(userId: string | null, enabled: boolean) {
       ...prev,
       userChallengeEntries: prev.userChallengeEntries.map(entry => {
         if (entry.challengeId !== challengeId) return entry;
-        return {
-          ...entry,
-          dailyEntries: entry.dailyEntries.map(d => {
-            if (d.day !== day) return d;
-            return { ...d, bets: newBets };
-          }),
-        };
+
+        // Check if dailyEntry for this day exists
+        const dayExists = entry.dailyEntries.some(d => d.day === day);
+
+        if (dayExists) {
+          // Update existing day
+          return {
+            ...entry,
+            dailyEntries: entry.dailyEntries.map(d => {
+              if (d.day !== day) return d;
+              return { ...d, bets: newBets };
+            }),
+          };
+        } else {
+          // Create new daily entry for this day
+          console.log('[updateUserEntryBets] Creating new dailyEntry for day:', day);
+          return {
+            ...entry,
+            dailyEntries: [...entry.dailyEntries, { day, bets: newBets }],
+          };
+        }
       }),
     }));
   }, []);

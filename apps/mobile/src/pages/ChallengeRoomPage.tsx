@@ -303,10 +303,20 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   const handleBetChange = (matchId: string, prediction: 'teamA' | 'draw' | 'teamB' | null, amount: number) => {
     // Find which matchday this match belongs to
     const match = matches.find(m => m.id === matchId);
-    if (!match) return;
+    if (!match) {
+      console.log('[handleBetChange] Match not found:', matchId);
+      return;
+    }
 
-    const dailyEntry = userEntry.dailyEntries.find(d => d.day === match.day);
-    if (!dailyEntry) return;
+    console.log('[handleBetChange] Processing bet for match day:', match.day, 'Available dailyEntries:', userEntry.dailyEntries.map(d => d.day));
+
+    let dailyEntry = userEntry.dailyEntries.find(d => d.day === match.day);
+    if (!dailyEntry) {
+      // Create a new daily entry for this day if it doesn't exist
+      console.log('[handleBetChange] Creating new dailyEntry for day:', match.day);
+      dailyEntry = { day: match.day, bets: [] };
+      // We'll pass the new bets directly since we're updating anyway
+    }
 
     const otherBets = dailyEntry.bets.filter(b => b.challengeMatchId !== matchId);
     let newBets: ChallengeBet[];
