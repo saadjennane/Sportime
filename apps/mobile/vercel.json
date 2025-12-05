@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "cd ../.. && npm install && cd apps/mobile && npx vite build",
-  "outputDirectory": "../../apps/mobile/dist",
+  "buildCommand": "npm install && npx vite build",
+  "outputDirectory": "dist",
   "installCommand": "echo 'skip'",
   "framework": null,
   "rewrites": [
