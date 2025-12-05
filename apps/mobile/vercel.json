@@ -3,8 +3,5 @@
   "buildCommand": "npm install && npx vite build",
   "outputDirectory": "dist",
   "installCommand": "echo 'skip'",
-  "framework": null,
-  "rewrites": [
-    { "source": "/((?!assets/).*)", "destination": "/index.html" }
-  ]
+  "framework": null
 }
