@@ -989,6 +989,7 @@ type RawMatchday = {
       api_id: number | null
       date: string | null
       status: string | null
+      round: string | null
       goals_home: number | null
       goals_away: number | null
       odds: Array<{
@@ -1132,8 +1133,11 @@ function buildChallengeMatches(challengeId: string, matchdays: RawMatchday[] | n
   const matches: ChallengeMatch[] = []
 
   sorted.forEach((matchday, index) => {
-    const day = index + 1
     const fixtures = matchday.matchday_fixtures ?? []
+    // Try to extract real matchday number from the first fixture's round
+    const firstFixtureRound = fixtures[0]?.fixture?.round
+    const day = firstFixtureRound ? extractMatchdayNumber(firstFixtureRound) : index + 1
+
     fixtures.forEach(entry => {
       const fixture = entry?.fixture
       if (!fixture) return
@@ -1165,6 +1169,7 @@ function buildChallengeMatches(challengeId: string, matchdays: RawMatchday[] | n
         odds,
         status,
         result,
+        kickoffTime: fixture.date ?? undefined,
       })
     })
   })
@@ -1478,6 +1483,7 @@ export async function fetchChallengeMatches(challengeId: string) {
             id,
             date,
             status,
+            round,
             goals_home,
             goals_away,
             odds:fb_odds (
