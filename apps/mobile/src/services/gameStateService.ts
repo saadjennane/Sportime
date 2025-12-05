@@ -411,6 +411,27 @@ function groupMatchesByPeriodType(
 }
 
 /**
+ * Check if a group is "play complete" (no more actions possible)
+ * - For prediction games: complete when all matches have STARTED (can't predict anymore)
+ * - For betting/fantasy: complete when all matches have RESULTS (FT)
+ */
+function isGroupPlayComplete(
+  matches: SwipeMatch[],
+  gameType: string,
+  now: Date
+): boolean {
+  if (gameType === 'prediction') {
+    // For prediction: complete = all matches have started (kickoff <= now)
+    return matches.every(m => {
+      const kickoff = m.kickoffTime ? new Date(m.kickoffTime) : null;
+      return kickoff && kickoff <= now;
+    });
+  }
+  // For betting/fantasy: complete = all matches have a result
+  return matches.every(m => m.result !== undefined);
+}
+
+/**
  * Get the default CTA based on game type
  */
 function getDefaultCTA(
@@ -503,7 +524,7 @@ export function calculateGameState(
   for (let i = 0; i < sortedGroupKeys.length; i++) {
     const key = sortedGroupKeys[i];
     const groupMatches = groups.get(key)!;
-    const allFinished = groupMatches.every(m => m.result !== undefined);
+    const allFinished = isGroupPlayComplete(groupMatches, gameType, now);
 
     if (!allFinished) {
       currentGroupKey = key;
@@ -524,7 +545,7 @@ export function calculateGameState(
 
   const firstKickoff = kickoffTimes.length > 0 ? Math.min(...kickoffTimes) : null;
   const hasStarted = firstKickoff ? firstKickoff <= now.getTime() : false;
-  const allFinished = currentMatches.every(m => m.result !== undefined);
+  const allFinished = isGroupPlayComplete(currentMatches, gameType, now);
 
   // State 1: First match not started → active
   if (!hasStarted) {
@@ -561,7 +582,7 @@ export function calculateGameState(
 
     if (nextHasStarted) {
       // Next group has started - check if it's finished
-      const nextAllFinished = nextMatches.every(m => m.result !== undefined);
+      const nextAllFinished = isGroupPlayComplete(nextMatches, gameType, now);
       if (!nextAllFinished) {
         // Next group is in progress
         return {
