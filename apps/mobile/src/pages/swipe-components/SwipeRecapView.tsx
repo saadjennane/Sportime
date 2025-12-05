@@ -22,7 +22,7 @@ import type { ChallengeMatchday, SwipePredictionRecord } from '../../services/sw
 import { MatchDaySwitcher } from '../../components/fantasy/MatchDaySwitcher';
 import { SwipeRulesModal } from '../../components/SwipeRulesModal';
 import { LinkGameButton } from '../../components/leagues/LinkGameButton';
-import { mapPredictionToOutcome } from '../../features/swipe/swipeMappers';
+import { mapPredictionToOutcome, extractMatchdayNumber } from '../../features/swipe/swipeMappers';
 
 interface Challenge {
   id: string;
@@ -184,16 +184,38 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
   // Show only up to the next playable matchday (not beyond)
   const visibleMatchdays = sortedMatchdays.slice(0, nextPlayableIdx + 1);
 
-  const matchDaysForSwitcher = visibleMatchdays.map((md, index) => ({
-    id: md.id,
-    name: challenge?.period_type === 'matchdays'
-      ? `Matchday ${index + 1}`
-      : format(new Date(md.date), 'MMM d'),
-    startDate: md.date,
-    endDate: md.date,
-    leagues: EMPTY_LEAGUES,
-    status: md.status === 'upcoming' ? 'Upcoming' : md.status === 'active' ? 'Ongoing' : 'Finished',
-  }));
+  // Get the matchday number from current matches' round field (if available)
+  // For current matchday, use the first match's round
+  const currentMatchdayNumber = matches.length > 0 && matches[0].round
+    ? extractMatchdayNumber(matches[0].round)
+    : null;
+
+  const matchDaysForSwitcher = visibleMatchdays.map((md, index) => {
+    // For the currently selected matchday, use the real round number if available
+    const isCurrentMatchday = md.id === currentMatchday?.id;
+    let displayName: string;
+
+    if (challenge?.period_type === 'matchdays') {
+      if (isCurrentMatchday && currentMatchdayNumber !== null) {
+        displayName = `Matchday ${currentMatchdayNumber}`;
+      } else {
+        // Fallback to index-based numbering for non-current matchdays
+        // (we don't have their fixtures loaded)
+        displayName = `Matchday ${index + 1}`;
+      }
+    } else {
+      displayName = format(new Date(md.date), 'MMM d');
+    }
+
+    return {
+      id: md.id,
+      name: displayName,
+      startDate: md.date,
+      endDate: md.date,
+      leagues: EMPTY_LEAGUES,
+      status: md.status === 'upcoming' ? 'Upcoming' : md.status === 'active' ? 'Ongoing' : 'Finished',
+    };
+  });
 
   // Get button class for prediction buttons
   function getButtonClass(
@@ -330,16 +352,23 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
                     <p className="font-bold text-text-primary">
                       {match.teamA.name} vs {match.teamB.name}
                     </p>
-                    {!isEditable && predictionRecord && (
-                      <div
-                        className={`flex items-center gap-1 font-bold ${
-                          isCorrect ? 'text-lime-glow' : 'text-hot-red'
-                        }`}
-                      >
-                        {isCorrect ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
-                        <span>{isCorrect ? `+${points} pts` : '0 pts'}</span>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {match.kickoffTime && (
+                        <span className="text-xs text-text-secondary">
+                          {format(new Date(match.kickoffTime), 'HH:mm')}
+                        </span>
+                      )}
+                      {!isEditable && predictionRecord && (
+                        <div
+                          className={`flex items-center gap-1 font-bold ${
+                            isCorrect ? 'text-lime-glow' : 'text-hot-red'
+                          }`}
+                        >
+                          {isCorrect ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
+                          <span>{isCorrect ? `+${points} pts` : '0 pts'}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     <button

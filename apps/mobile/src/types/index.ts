@@ -275,6 +275,7 @@ export interface SwipeMatch {
   kickoffTime: string;
   odds: { teamA: number; draw: number; teamB: number };
   result?: SwipePredictionOutcome;
+  round?: string; // e.g., "Regular Season - 15"
 }
 
 export type SwipePredictionOutcome = 'teamA' | 'draw' | 'teamB';

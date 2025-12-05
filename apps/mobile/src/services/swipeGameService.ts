@@ -277,6 +277,7 @@ export async function getMatchdayWithFixtures(matchdayId: string) {
           api_id,
           date,
           status,
+          round,
           goals_home,
           goals_away,
           league:fb_leagues(id, name, logo),

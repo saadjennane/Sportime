@@ -105,6 +105,7 @@ export interface FixtureData {
   api_id?: number;
   date: string;
   status: string;
+  round?: string; // e.g., "Regular Season - 15"
   goals_home: number | null;
   goals_away: number | null;
   home: {
@@ -123,6 +124,16 @@ export interface FixtureData {
     away_win: number;
     bookmaker_name?: string;
   }[];
+}
+
+/**
+ * Extract matchday number from round string
+ * e.g., "Regular Season - 15" -> 15
+ */
+export function extractMatchdayNumber(round?: string): number | null {
+  if (!round) return null;
+  const match = round.match(/(\d+)/);
+  return match ? parseInt(match[1], 10) : null;
 }
 
 /**
@@ -219,6 +230,7 @@ export function fixtureToSwipeMatch(
       teamB: odds.away,
     },
     result,
+    round: fixture.round,
   };
 }
 
@@ -423,6 +435,7 @@ export default {
   fixtureToSwipeMatch,
   fixturesToSwipeMatches,
   determineResult,
+  extractMatchdayNumber,
 
   // Prediction conversions
   mapPredictionToOutcome,
