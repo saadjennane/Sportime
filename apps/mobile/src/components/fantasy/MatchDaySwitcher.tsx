@@ -7,9 +7,10 @@ interface MatchDaySwitcherProps {
   gameWeeks: FantasyGameWeek[];
   selectedGameWeekId: string;
   onSelect: (gameWeekId: string) => void;
+  hideDate?: boolean;
 }
 
-export const MatchDaySwitcher: React.FC<MatchDaySwitcherProps> = ({ gameWeeks, selectedGameWeekId, onSelect }) => {
+export const MatchDaySwitcher: React.FC<MatchDaySwitcherProps> = ({ gameWeeks, selectedGameWeekId, onSelect, hideDate = false }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -92,9 +93,11 @@ export const MatchDaySwitcher: React.FC<MatchDaySwitcherProps> = ({ gameWeeks, s
               }`}
             >
               <p className={`font-bold text-sm ${isActive ? 'text-purple-700' : 'text-gray-800'}`}>{gw.name}</p>
-              <p className={`text-xs ${isActive ? 'text-purple-500' : 'text-gray-500'}`}>
-                {format(parseISO(gw.startDate), 'd MMM')}
-              </p>
+              {!hideDate && (
+                <p className={`text-xs ${isActive ? 'text-purple-500' : 'text-gray-500'}`}>
+                  {format(parseISO(gw.startDate), 'd MMM')}
+                </p>
+              )}
               {isActive && (
                 <div className="w-1/2 h-0.5 bg-purple-500 rounded-full mx-auto mt-1.5"></div>
               )}
