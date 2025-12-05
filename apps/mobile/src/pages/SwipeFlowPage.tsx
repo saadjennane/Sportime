@@ -185,11 +185,10 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
           currentMatchday = matchdaysWithFixtures.find(md => md.id === initialMatchdayId) || null;
         }
         if (!currentMatchday && matchdaysWithFixtures.length > 0) {
-          // Find the first matchday that is NOT finished (= next playable)
-          // This ensures we open on the most recent playable day
-          currentMatchday =
-            matchdaysWithFixtures.find(md => md.status !== 'finished') ||
-            matchdaysWithFixtures[matchdaysWithFixtures.length - 1]; // All finished -> show last
+          // Find the LAST matchday that is NOT finished (= most recent playable)
+          // Reverse search to get the latest non-finished matchday
+          const playable = [...matchdaysWithFixtures].reverse().find(md => md.status !== 'finished');
+          currentMatchday = playable || matchdaysWithFixtures[matchdaysWithFixtures.length - 1]; // All finished -> show last
         }
 
         if (!currentMatchday) {
