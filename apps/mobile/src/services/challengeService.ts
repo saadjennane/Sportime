@@ -678,6 +678,7 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
           const periodType = (rules?.period_type as 'matchdays' | 'calendar') ?? 'matchdays'
           const startDate = new Date(ch.start_date)
           const endDate = new Date(ch.end_date)
+          endDate.setHours(23, 59, 59, 999) // Include the entire end_date day
 
           // Filter fixtures for this challenge's league and date range
           const challengeFixtures = fixturesData.filter(f => {
@@ -1535,6 +1536,20 @@ export async function fetchChallengeMatches(challengeId: string) {
   console.log('[fetchChallengeMatches] challengeRow.challenge_matchdays:', challengeRow.challenge_matchdays)
   let matches = buildChallengeMatches(challengeId, challengeRow.challenge_matchdays as RawMatchday[])
   console.log('[fetchChallengeMatches] Built matches from matchdays:', matches.length)
+
+  // Filter matches by end_date - only include matches up to end of end_date day
+  if (challengeRow.end_date && matches.length > 0) {
+    const endDate = new Date(challengeRow.end_date)
+    endDate.setHours(23, 59, 59, 999) // Include the entire end_date day
+    const beforeFilter = matches.length
+    matches = matches.filter(m => {
+      if (!m.kickoffTime) return true
+      return new Date(m.kickoffTime) <= endDate
+    })
+    if (matches.length < beforeFilter) {
+      console.log(`[fetchChallengeMatches] Filtered out ${beforeFilter - matches.length} matches after end_date (${challengeRow.end_date})`)
+    }
+  }
 
   if (matches.length === 0) {
     console.log('[fetchChallengeMatches] No matches from matchdays, trying challenge_matches fallback...')
