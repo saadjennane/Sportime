@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd ../.. && npm install && npm run build:admin",
+  "buildCommand": "cd ../.. && npm install && npm run build:mobile",
   "outputDirectory": "dist",
   "installCommand": "echo 'Install handled in buildCommand'",
   "framework": "vite",
