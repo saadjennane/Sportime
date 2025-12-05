@@ -68,10 +68,10 @@ export const MatchDaySwitcher: React.FC<MatchDaySwitcherProps> = ({ gameWeeks, s
       {canScrollLeft && (
         <button
           onClick={() => handleScroll('left')}
-          className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white/80 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md border border-gray-200 hover:bg-white opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+          className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-navy-accent/80 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md border border-white/10 hover:bg-navy-accent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
           aria-label="Scroll left"
         >
-          <ChevronLeft size={20} className="text-gray-600" />
+          <ChevronLeft size={20} className="text-text-primary" />
         </button>
       )}
       
@@ -88,18 +88,18 @@ export const MatchDaySwitcher: React.FC<MatchDaySwitcherProps> = ({ gameWeeks, s
               onClick={() => onSelect(gw.id)}
               className={`flex-shrink-0 px-4 py-2 rounded-xl transition-all duration-300 w-auto text-center border-2 ${
                 isActive
-                  ? 'bg-white border-purple-500 shadow-md'
-                  : 'bg-white/70 border-transparent hover:bg-white'
+                  ? 'bg-navy-accent border-neon-cyan shadow-md'
+                  : 'bg-navy-accent/50 border-transparent hover:bg-navy-accent'
               }`}
             >
-              <p className={`font-bold text-sm ${isActive ? 'text-purple-700' : 'text-gray-800'}`}>{gw.name}</p>
+              <p className={`font-bold text-sm ${isActive ? 'text-neon-cyan' : 'text-text-primary'}`}>{gw.name}</p>
               {!hideDate && (
-                <p className={`text-xs ${isActive ? 'text-purple-500' : 'text-gray-500'}`}>
+                <p className={`text-xs ${isActive ? 'text-neon-cyan/70' : 'text-text-secondary'}`}>
                   {format(parseISO(gw.startDate), 'd MMM')}
                 </p>
               )}
               {isActive && (
-                <div className="w-1/2 h-0.5 bg-purple-500 rounded-full mx-auto mt-1.5"></div>
+                <div className="w-1/2 h-0.5 bg-neon-cyan rounded-full mx-auto mt-1.5"></div>
               )}
             </button>
           );
@@ -109,10 +109,10 @@ export const MatchDaySwitcher: React.FC<MatchDaySwitcherProps> = ({ gameWeeks, s
       {canScrollRight && (
         <button
           onClick={() => handleScroll('right')}
-          className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white/80 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md border border-gray-200 hover:bg-white opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+          className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-navy-accent/80 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md border border-white/10 hover:bg-navy-accent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
           aria-label="Scroll right"
         >
-          <ChevronRight size={20} className="text-gray-600" />
+          <ChevronRight size={20} className="text-text-primary" />
         </button>
       )}
     </div>

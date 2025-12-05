@@ -1057,6 +1057,19 @@ function normalizeFixtureStatus(status: string | null | undefined, kickoffISO: s
   return kickoff <= Date.now() && upper !== 'NS' ? 'played' : 'upcoming'
 }
 
+/**
+ * Extract the matchday number from a round string.
+ * Examples:
+ *   "Regular Season - 15" → 15
+ *   "Matchday 3" → 3
+ *   "Round 7" → 7
+ * Falls back to 1 if no number is found.
+ */
+function extractMatchdayNumber(round: string): number {
+  const match = round.match(/(\d+)$/);
+  return match ? parseInt(match[1], 10) : 1;
+}
+
 function preferOdds(raw: RawMatchday['matchday_fixtures'][number]['fixture']['odds']): { teamA: number; draw: number; teamB: number } {
   const defaultOdds = { teamA: 1, draw: 1, teamB: 1 }
   if (!raw) return defaultOdds
@@ -1627,8 +1640,8 @@ export async function fetchChallengeMatches(challengeId: string) {
           .sort((a, b) => a.earliestDate.localeCompare(b.earliestDate))
 
         // Build ChallengeMatch array
-        sortedMatchdays.forEach((matchday, dayIndex) => {
-          const day = dayIndex + 1
+        sortedMatchdays.forEach((matchday) => {
+          const day = extractMatchdayNumber(matchday.key)
 
           for (const fixture of matchday.fixtures) {
             const status = normalizeFixtureStatus(fixture.status, fixture.date)
