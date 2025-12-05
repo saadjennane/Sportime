@@ -577,13 +577,15 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
                   // Add match cards
                   dateMatches.forEach(match => {
                     const bet = groupBets.find(b => b.challengeMatchId === match.id);
+                    const locked = isMatchLocked(match);
+                    console.log('[BET DEBUG]', match.teamA.name, 'vs', match.teamB.name, { kickoffTime: match.kickoffTime, locked, challengeStatus: challenge.status, now: Date.now(), kickoffMs: match.kickoffTime ? new Date(match.kickoffTime).getTime() : null });
                     elements.push(
                       <ChallengeBetController
                         key={match.id}
                         match={match}
                         bet={bet}
                         onBetChange={(pred, amount) => handleBetChange(match.id, pred, amount)}
-                        disabled={isMatchLocked(match)}
+                        disabled={locked}
                         maxAmount={remainingGroupBalance + (bet?.amount || 0)}
                         isBoosterArmed={armingBooster?.groupKey === selectedGroupKey && !groupBooster}
                         onApplyBooster={() => handleApplyBooster(match.id)}
