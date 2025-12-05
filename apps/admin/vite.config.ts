@@ -5,7 +5,7 @@ const buildDate = new Date().toISOString().slice(0, 16).replace('T', ' ');
 
 export default defineConfig({
   plugins: [react()],
-  base: '/admin/',
+  base: '/',
   define: {
     __BUILD_DATE__: JSON.stringify(buildDate),
   },
