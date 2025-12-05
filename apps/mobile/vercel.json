@@ -3,5 +3,5 @@
   "buildCommand": "npm install && npx vite build",
   "outputDirectory": "dist",
   "installCommand": "echo 'skip'",
-  "framework": null
+  "framework": "vite"
 }
