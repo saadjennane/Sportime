@@ -207,8 +207,14 @@ export function fixtureToSwipeMatch(
 
   // Determine if match is finished and get result
   const isFinished = fixture.status === 'FT' || fixture.status === 'finished';
+  const isLive = ['1H', '2H', 'HT', 'ET', 'P', 'LIVE', 'BT'].includes(fixture.status);
   const result = isFinished
     ? determineResult(fixture.goals_home, fixture.goals_away)
+    : undefined;
+
+  // Build score if available
+  const score = (fixture.goals_home !== null && fixture.goals_away !== null)
+    ? { teamA: fixture.goals_home, teamB: fixture.goals_away }
     : undefined;
 
   return {
@@ -231,6 +237,9 @@ export function fixtureToSwipeMatch(
     },
     result,
     round: fixture.round,
+    score,
+    isLive,
+    status: fixture.status,
   };
 }
 

@@ -146,6 +146,7 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
   // Calculate points - simple iteration, no useMemo needed for small arrays
   let totalPoints = 0;
   let potentialPoints = 0;
+  let successfulPicks = 0;
   const predictionValues = Object.values(predictions);
 
   for (const pred of predictionValues) {
@@ -157,6 +158,7 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
 
     if (pred.is_correct === true) {
       totalPoints += pred.points_earned;
+      successfulPicks++;
     }
   }
 
@@ -293,6 +295,7 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
           gameWeeks={matchDaysForSwitcher}
           selectedGameWeekId={currentMatchday.id}
           onSelect={onSelectMatchday}
+          hideDate
         />
       </div>
 
@@ -330,18 +333,26 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
             )}
           </div>
           {isEditable ? (
-            <div className="text-center mt-3">
-              <p className="text-xs font-semibold text-text-secondary flex items-center justify-center gap-1">
-                Potential Points
-              </p>
-              <p className="text-2xl font-bold text-electric-blue">{potentialPoints}</p>
+            <div className="flex justify-around items-center mt-3 pt-3 border-t border-white/10">
+              <div className="text-center">
+                <p className="text-xs font-semibold text-text-secondary">Predictions</p>
+                <p className="text-xl font-bold text-text-primary">{Object.keys(predictions).length}/{matches.length}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs font-semibold text-text-secondary">Potential Points</p>
+                <p className="text-xl font-bold text-electric-blue">{potentialPoints}</p>
+              </div>
             </div>
           ) : (
-            <div className="text-center mt-3">
-              <p className="text-xs font-semibold text-text-secondary flex items-center justify-center gap-1">
-                Final Points
-              </p>
-              <p className="text-2xl font-bold text-lime-glow">{totalPoints}</p>
+            <div className="flex justify-around items-center mt-3 pt-3 border-t border-white/10">
+              <div className="text-center">
+                <p className="text-xs font-semibold text-text-secondary">Successful Picks</p>
+                <p className="text-xl font-bold text-lime-glow">{successfulPicks}/{matches.length}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs font-semibold text-text-secondary">Points</p>
+                <p className="text-xl font-bold text-lime-glow">{totalPoints}/{potentialPoints}</p>
+              </div>
             </div>
           )}
         </div>
@@ -359,27 +370,36 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
 
               return (
                 <div key={match.id} className="bg-deep-navy rounded-xl p-3 space-y-3">
-                  <div className="flex justify-between items-center text-sm">
-                    <p className="font-bold text-text-primary">
-                      {match.teamA.name} vs {match.teamB.name}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      {match.kickoffTime && (
-                        <span className="text-xs text-text-secondary">
-                          {format(new Date(match.kickoffTime), 'HH:mm')}
-                        </span>
-                      )}
-                      {!isEditable && predictionRecord && (
-                        <div
-                          className={`flex items-center gap-1 font-bold ${
-                            isCorrect ? 'text-lime-glow' : 'text-hot-red'
-                          }`}
-                        >
-                          {isCorrect ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
-                          <span>{isCorrect ? `+${points} pts` : '0 pts'}</span>
-                        </div>
-                      )}
-                    </div>
+                  <div className="flex justify-end items-center gap-2 text-sm">
+                    {/* Kickoff time */}
+                    {match.kickoffTime && (
+                      <span className="text-xs text-text-secondary">
+                        {format(new Date(match.kickoffTime), 'HH:mm')}
+                      </span>
+                    )}
+                    {/* Live score */}
+                    {match.isLive && match.score && (
+                      <span className="text-xs font-bold text-warm-yellow">
+                        {match.score.teamA} - {match.score.teamB}
+                      </span>
+                    )}
+                    {/* Final score for finished matches */}
+                    {!isEditable && match.result && match.score && !match.isLive && (
+                      <span className="text-xs font-bold text-text-secondary">
+                        {match.score.teamA} - {match.score.teamB}
+                      </span>
+                    )}
+                    {/* Prediction result */}
+                    {!isEditable && predictionRecord && (
+                      <div
+                        className={`flex items-center gap-1 font-bold ${
+                          isCorrect ? 'text-lime-glow' : 'text-hot-red'
+                        }`}
+                      >
+                        {isCorrect ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
+                        <span>{isCorrect ? `+${points} pts` : '0 pts'}</span>
+                      </div>
+                    )}
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     <button

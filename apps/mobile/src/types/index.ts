@@ -276,6 +276,9 @@ export interface SwipeMatch {
   odds: { teamA: number; draw: number; teamB: number };
   result?: SwipePredictionOutcome;
   round?: string; // e.g., "Regular Season - 15"
+  score?: { teamA: number; teamB: number };
+  isLive?: boolean;
+  status?: string; // FT, 1H, 2H, HT, etc.
 }
 
 export type SwipePredictionOutcome = 'teamA' | 'draw' | 'teamB';
