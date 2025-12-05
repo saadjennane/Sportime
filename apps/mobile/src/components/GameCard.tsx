@@ -4,7 +4,7 @@ import { format, parseISO, isBefore } from 'date-fns';
 import { Calendar, Coins, Gift, ArrowRight, Clock, Users, Ticket, Star, Trophy, Award, ScrollText, Flame, Lock } from 'lucide-react';
 import { CtaState, calculateEntryDeadline } from '../pages/GamesListPage';
 import { normalizeTournamentTier } from '../config/constants';
-import { getBettingGameDeadline } from '../services/gameStateService';
+import { getGameDeadline } from '../services/gameStateService';
 
 // =============================================================================
 // ENTRY DEADLINE COUNTDOWN COMPONENT
@@ -154,7 +154,7 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
 
   // Get the matchday-specific deadline for all game types (betting, prediction, fantasy)
   const gameDeadline = useMemo(() => {
-    return getBettingGameDeadline(game, undefined, new Date());
+    return getGameDeadline(game, undefined, undefined, new Date());
   }, [game]);
 
   const ctaConfig = {
