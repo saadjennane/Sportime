@@ -83,17 +83,15 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   const isMatchLocked = (match: ChallengeMatch): boolean => {
     if (challenge.status === 'Finished') return true;
     if (!match.kickoffTime) return false;
-    const kickoffTs = new Date(match.kickoffTime).getTime();
-    const nowTs = Date.now();
-    const isLocked = kickoffTs < nowTs;
-    console.log('[isMatchLocked]', match.teamA.name, 'vs', match.teamB.name, '| kickoff:', match.kickoffTime, '| kickoffTs:', kickoffTs, '| nowTs:', nowTs, '| locked:', isLocked);
-    return isLocked;
+    return new Date(match.kickoffTime).getTime() < Date.now();
   };
 
-  // Check if ALL bets should be locked (for UI elements like booster selector)
-  const hasFirstMatchStarted = (): boolean => {
-    // Find earliest kickoff time from matches
-    const kickoffTimes = matches
+  // Check if ALL bets should be locked for a specific group of matches
+  const hasFirstMatchStartedInGroup = (groupMatches: ChallengeMatch[]): boolean => {
+    if (challenge.status === 'Finished') return true;
+
+    // Find earliest kickoff time from the group's matches
+    const kickoffTimes = groupMatches
       .map(m => m.kickoffTime ? new Date(m.kickoffTime).getTime() : null)
       .filter((t): t is number => t !== null);
 
@@ -102,11 +100,8 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
       return Date.now() >= firstKickoff;
     }
 
-    // Fallback: if no kickoff times, check if status is Finished
-    return challenge.status === 'Finished';
+    return false;
   };
-
-  const betsLocked = hasFirstMatchStarted();
 
   // Get unique groups based on period_type
   const allMatchGroups = useMemo(() => {
@@ -268,6 +263,12 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   const currentGroup = useMemo(() => {
     return matchGroups.find(g => g.key === selectedGroupKey) || matchGroups[0];
   }, [matchGroups, selectedGroupKey]);
+
+  // Check if bets are locked for the CURRENT matchday only
+  const betsLocked = useMemo(() => {
+    if (!currentGroup) return false;
+    return hasFirstMatchStartedInGroup(currentGroup.matches);
+  }, [currentGroup]);
 
   // Get bets and calculate remaining balance for current group
   // For calendar mode, we need to aggregate bets across all matchdays in the group
