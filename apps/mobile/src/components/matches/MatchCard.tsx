@@ -125,11 +125,24 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
     return 'FT'; // Default to FT for finished matches
   };
 
+  // Get display label for live match status (1H, HT, 2H, ET, PEN)
+  const getLiveStatusLabel = () => {
+    const raw = match.rawStatus?.toUpperCase();
+    if (!raw) return 'Live';
+    if (raw === '1H') return '1H';
+    if (raw === 'HT') return 'HT';
+    if (raw === '2H') return '2H';
+    if (raw === 'ET') return 'ET';
+    if (raw === 'P' || raw === 'PEN') return 'PEN';
+    if (raw === 'BT') return 'BT'; // Break Time
+    return 'Live'; // Fallback
+  };
+
   const badgeContent = (() => {
     if (isLive) {
       return (
         <span className="text-white text-xs px-3 py-1 rounded-full font-semibold bg-gradient-to-r from-hot-red to-electric-blue animate-pulse">
-          Live
+          {getLiveStatusLabel()}
         </span>
       );
     }
@@ -194,9 +207,9 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
               <div className={`text-2xl font-bold ${isLive ? 'text-hot-red' : 'text-text-primary'}`}>
                 {match.score?.teamA ?? 0} - {match.score?.teamB ?? 0}
               </div>
-              {isLive && (
+              {isLive && match.elapsedMinutes && (
                 <span className="text-[10px] font-semibold uppercase tracking-wide text-hot-red/80">
-                  {match.elapsedMinutes ? `${match.elapsedMinutes}'` : 'Live'}
+                  {match.elapsedMinutes}'
                 </span>
               )}
             </div>
