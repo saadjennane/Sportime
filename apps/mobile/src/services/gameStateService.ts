@@ -177,10 +177,8 @@ export function calculateBettingGameState(
   now: Date = new Date(),
   endDate?: string | null
 ): BettingGameState {
-  // Parse end_date to check if game is truly finished
-  // Use parseEndDateLocal to avoid timezone issues (end of day in local time)
-  const gameEndDate = parseEndDateLocal(endDate);
-  const isEndDatePassed = gameEndDate ? gameEndDate < now : false;
+  // Check if ALL matches in the game are finished (have results)
+  const allGameMatchesFinished = areAllMatchesFinished(game);
   const matches = (game.matches || []) as MatchWithDay[];
 
   // No matches - game is finished or not set up
@@ -335,9 +333,9 @@ export function calculateBettingGameState(
       };
     }
 
-    // No next matchday available - check if end_date passed
-    if (isEndDatePassed) {
-      // end_date passée → View Results (will go to Past Games after viewing)
+    // No next matchday available - check if ALL matches in the game are finished
+    if (allGameMatchesFinished) {
+      // All matches finished → View Results (will go to Past Games after viewing)
       return {
         currentMatchday,
         nextMatchday,
@@ -349,7 +347,7 @@ export function calculateBettingGameState(
       };
     }
 
-    // end_date NOT passed → stay in Awaiting Results with View Game
+    // Not all matches finished yet → stay in Awaiting Results with View Game
     return {
       currentMatchday,
       nextMatchday,
@@ -502,11 +500,9 @@ export function calculateGameState(
   const periodType = game.period_type ?? 'matchdays';
   const gameType = game.game_type ?? 'betting';
   const matches = game.matches || [];
-  // Use parseEndDateLocal to avoid timezone issues (end of day in local time)
-  const endDate = parseEndDateLocal(game.end_date);
 
-  // end_date passed → finished
-  if (endDate && endDate < now) {
+  // Game is finished when ALL matches have results (completed)
+  if (areAllMatchesFinished(game) && matches.length > 0) {
     return {
       category: 'finished',
       cta: 'VIEW_RESULTS',

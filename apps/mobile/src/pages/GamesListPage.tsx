@@ -8,7 +8,7 @@ import { checkEligibility } from '../lib/eligibility';
 import { GameSection } from '../components/GameSection';
 import { parseISO } from 'date-fns';
 import { Zap, Clock, Flag, Trophy } from 'lucide-react';
-import { calculateBettingGameState, safeParseISO, parseEndDateLocal, getBettingGameDeadline, calculateGameState, getGameDeadline } from '../services/gameStateService';
+import { calculateBettingGameState, safeParseISO, parseEndDateLocal, getBettingGameDeadline, calculateGameState, getGameDeadline, areAllMatchesFinished } from '../services/gameStateService';
 import { hasViewedResults, markResultsViewed } from '../services/resultsViewedService';
 
 export type CtaState = 'JOIN' | 'PLACE_BETS' | 'MAKE_PREDICTIONS' | 'SELECT_TEAM' | 'COMPLETE_TEAM' | 'AWAITING' | 'RESULTS' | 'IN_PROGRESS' | 'LOCKED';
@@ -72,10 +72,10 @@ function hasFirstMatchStarted(game: SportimeGame): boolean {
 }
 
 /**
- * Determines the real status of a game based on end_date and user viewing state.
+ * Determines the real status of a game based on match completion.
  *
  * A game is only "Finished" (Past Games) when:
- * 1. The end_date has passed
+ * 1. ALL matches are completed (have results)
  * 2. AND the user has clicked "View Results" (stored in localStorage)
  *
  * This applies to betting, prediction, and fantasy games.
@@ -87,16 +87,12 @@ function getRealGameStatus(game: SportimeGame, now: Date): 'Upcoming' | 'Ongoing
   }
 
   const startDate = safeParseISO(game.start_date);
-  // Use parseEndDateLocal to avoid timezone issues - end_date should be compared as end of day local time
-  const endDate = parseEndDateLocal(game.end_date);
-
-  // Check if end_date has passed (now > end of end_date day in local time)
-  const isEndDatePassed = endDate ? endDate < now : false;
 
   // Game is "Finished" only when:
-  // 1. end_date is passed
+  // 1. ALL matches are completed (have results)
   // 2. AND user has viewed results
-  if (isEndDatePassed && hasViewedResults(game.id)) {
+  const allMatchesFinished = areAllMatchesFinished(game);
+  if (allMatchesFinished && hasViewedResults(game.id)) {
     return 'Finished';
   }
 
@@ -105,7 +101,7 @@ function getRealGameStatus(game: SportimeGame, now: Date): 'Upcoming' | 'Ongoing
     return 'Upcoming';
   }
 
-  // Game is ongoing (started but end_date not passed, or not viewed results yet)
+  // Game is ongoing (started but not all matches finished, or not viewed results yet)
   return 'Ongoing';
 }
 
@@ -177,12 +173,13 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       const hasJoined = myGameIds.has(game.id);
       if (!hasJoined) continue; // My Games = only joined games
 
-      const endDate = safeParseISO(game.end_date);
-      const isEndDatePassed = endDate ? endDate < now : false;
-
-      // RULE: end_date passed → Recently Finished (< 7 days) or Past Games (≥ 7 days)
-      if (isEndDatePassed && endDate) {
-        if (endDate > sevenDaysAgo) {
+      // RULE: Game is finished when ALL matches are completed (have results)
+      const allMatchesFinished = areAllMatchesFinished(game);
+      if (allMatchesFinished && game.matches && game.matches.length > 0) {
+        // Use last match kickoff time to determine if "recently" finished (< 7 days)
+        const lastMatchKickoff = Math.max(...game.matches.map(m => new Date(m.kickoffTime).getTime()));
+        const lastMatchDate = new Date(lastMatchKickoff);
+        if (lastMatchDate > sevenDaysAgo) {
           recentlyFinished.push(game);
         } else {
           past.push(game);
@@ -222,12 +219,17 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
     };
 
     const sortByDeadline = (a: SportimeGame, b: SportimeGame) => getDeadlineForSort(a) - getDeadlineForSort(b);
-    const sortByEndDateDesc = (a: SportimeGame, b: SportimeGame) => parseISO(b.end_date).getTime() - parseISO(a.end_date).getTime();
+    // Sort finished games by last match kickoff (most recent first)
+    const getLastMatchKickoff = (game: SportimeGame): number => {
+      if (!game.matches || game.matches.length === 0) return 0;
+      return Math.max(...game.matches.map(m => new Date(m.kickoffTime).getTime()));
+    };
+    const sortByLastMatchDesc = (a: SportimeGame, b: SportimeGame) => getLastMatchKickoff(b) - getLastMatchKickoff(a);
 
     playNow.sort(sortByDeadline);
     awaiting.sort(sortByDeadline);
-    recentlyFinished.sort(sortByEndDateDesc);
-    past.sort(sortByEndDateDesc);
+    recentlyFinished.sort(sortByLastMatchDesc);
+    past.sort(sortByLastMatchDesc);
 
     return { playNowGames: playNow, awaitingGames: awaiting, recentlyFinishedGames: recentlyFinished, pastGamesSection: past };
   }, [processedGames, myGameIds, userChallengeEntries, userSwipeEntries, userFantasyTeams]);
