@@ -540,12 +540,17 @@ export function calculateGameState(
   let currentGroupKey: string | null = null;
   let nextGroupKey: string | null = null;
 
+  // For prediction games, isGroupPlayComplete returns true when matches have STARTED
+  // but we should consider a group as "current" until it has RESULTS
   for (let i = 0; i < sortedGroupKeys.length; i++) {
     const key = sortedGroupKeys[i];
     const groupMatches = groups.get(key)!;
     const allFinished = isGroupPlayComplete(groupMatches, gameType, now);
+    const hasResults = groupMatches.every(m => m.result !== undefined);
 
-    if (!allFinished) {
+    // For prediction games: group is truly "done" only when it has results
+    // isGroupPlayComplete just means "locked" (can't predict anymore)
+    if (!allFinished || (gameType === 'prediction' && !hasResults)) {
       currentGroupKey = key;
       nextGroupKey = sortedGroupKeys[i + 1] ?? null;
       break;
