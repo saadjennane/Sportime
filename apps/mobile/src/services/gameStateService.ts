@@ -73,6 +73,27 @@ export function safeParseISO(dateString?: string | null): Date | null {
 }
 
 /**
+ * Parse a date-only string (YYYY-MM-DD) as end of day in LOCAL time.
+ * This avoids timezone issues where "2025-12-06" parsed as UTC midnight
+ * becomes Dec 5 in western timezones.
+ *
+ * Use this when comparing end_date to determine if a game has finished.
+ */
+export function parseEndDateLocal(dateString?: string | null): Date | null {
+  if (!dateString) return null;
+  try {
+    // Extract YYYY-MM-DD part (handles both "2025-12-06" and "2025-12-06T00:00:00Z")
+    const datePart = dateString.split('T')[0];
+    const [year, month, day] = datePart.split('-').map(Number);
+    if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
+    // Create date at end of day in LOCAL time
+    return new Date(year, month - 1, day, 23, 59, 59, 999);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Safely create a Date from a string, returning null if invalid
  */
 export function safeNewDate(dateString?: string | null): Date | null {
@@ -157,7 +178,8 @@ export function calculateBettingGameState(
   endDate?: string | null
 ): BettingGameState {
   // Parse end_date to check if game is truly finished
-  const gameEndDate = safeParseISO(endDate);
+  // Use parseEndDateLocal to avoid timezone issues (end of day in local time)
+  const gameEndDate = parseEndDateLocal(endDate);
   const isEndDatePassed = gameEndDate ? gameEndDate < now : false;
   const matches = (game.matches || []) as MatchWithDay[];
 
@@ -480,7 +502,8 @@ export function calculateGameState(
   const periodType = game.period_type ?? 'matchdays';
   const gameType = game.game_type ?? 'betting';
   const matches = game.matches || [];
-  const endDate = safeParseISO(game.end_date);
+  // Use parseEndDateLocal to avoid timezone issues (end of day in local time)
+  const endDate = parseEndDateLocal(game.end_date);
 
   // end_date passed → finished
   if (endDate && endDate < now) {

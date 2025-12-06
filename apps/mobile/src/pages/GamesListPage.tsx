@@ -8,7 +8,7 @@ import { checkEligibility } from '../lib/eligibility';
 import { GameSection } from '../components/GameSection';
 import { parseISO } from 'date-fns';
 import { Zap, Clock, Flag, Trophy } from 'lucide-react';
-import { calculateBettingGameState, safeParseISO, getBettingGameDeadline, calculateGameState, getGameDeadline } from '../services/gameStateService';
+import { calculateBettingGameState, safeParseISO, parseEndDateLocal, getBettingGameDeadline, calculateGameState, getGameDeadline } from '../services/gameStateService';
 import { hasViewedResults, markResultsViewed } from '../services/resultsViewedService';
 
 export type CtaState = 'JOIN' | 'PLACE_BETS' | 'MAKE_PREDICTIONS' | 'SELECT_TEAM' | 'COMPLETE_TEAM' | 'AWAITING' | 'RESULTS' | 'IN_PROGRESS' | 'LOCKED';
@@ -87,9 +87,10 @@ function getRealGameStatus(game: SportimeGame, now: Date): 'Upcoming' | 'Ongoing
   }
 
   const startDate = safeParseISO(game.start_date);
-  const endDate = safeParseISO(game.end_date);
+  // Use parseEndDateLocal to avoid timezone issues - end_date should be compared as end of day local time
+  const endDate = parseEndDateLocal(game.end_date);
 
-  // Check if end_date has passed
+  // Check if end_date has passed (now > end of end_date day in local time)
   const isEndDatePassed = endDate ? endDate < now : false;
 
   // Game is "Finished" only when:
