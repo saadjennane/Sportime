@@ -565,6 +565,10 @@ export function calculateGameState(
   const firstKickoff = kickoffTimes.length > 0 ? Math.min(...kickoffTimes) : null;
   const hasStarted = firstKickoff ? firstKickoff <= now.getTime() : false;
   const allFinished = isGroupPlayComplete(currentMatches, gameType, now);
+  // Check if current matches have actual RESULTS (not just started)
+  // This is important for prediction games where isGroupPlayComplete returns true
+  // when matches have started, but we shouldn't move to next group until they're finished
+  const currentMatchesHaveResults = currentMatches.every(m => m.result !== undefined);
 
   // State 1: First match not started → active
   if (!hasStarted) {
@@ -588,8 +592,22 @@ export function calculateGameState(
     };
   }
 
-  // State 3: All finished - check if there's a next group
+  // State 3: All "play complete" (locked) - check if there's a next group
+  // For prediction games, isGroupPlayComplete returns true when matches have started,
+  // but we should only move to next group when current matches have actual RESULTS
   if (hasStarted && allFinished && nextGroupKey) {
+    // Only move to next group if current matches actually have results
+    if (!currentMatchesHaveResults) {
+      // Current matches started but no results yet → awaiting
+      return {
+        category: 'awaiting',
+        cta: 'VIEW_GAME',
+        deadline: null,
+        currentGroupKey,
+        hasNextGroup: true,
+      };
+    }
+
     const nextMatches = groups.get(nextGroupKey)!;
     const nextKickoffTimes = nextMatches
       .map(m => m.kickoffTime ? new Date(m.kickoffTime).getTime() : null)
@@ -626,9 +644,10 @@ export function calculateGameState(
     };
   }
 
-  // All finished, no next group → check end_date
-  // If end_date not passed, stay in awaiting (game still technically active)
-  if (!endDate || endDate >= now) {
+  // All groups are play-complete, no next group
+  // Check if current matches have actual results
+  if (!currentMatchesHaveResults) {
+    // Matches started but no results yet → awaiting
     return {
       category: 'awaiting',
       cta: 'VIEW_GAME',
@@ -638,7 +657,7 @@ export function calculateGameState(
     };
   }
 
-  // All finished + end_date passed → finished
+  // All matches have results → finished
   return {
     category: 'finished',
     cta: 'VIEW_RESULTS',
