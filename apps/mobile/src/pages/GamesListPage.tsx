@@ -7,7 +7,7 @@ import { GamesFilterPanel } from '../components/filters/GamesFilterPanel';
 import { checkEligibility } from '../lib/eligibility';
 import { GameSection } from '../components/GameSection';
 import { parseISO } from 'date-fns';
-import { Zap, Clock, Flag, Trophy } from 'lucide-react';
+import { Zap, Clock, Flag, Trophy, Flame } from 'lucide-react';
 import { calculateBettingGameState, safeParseISO, parseEndDateLocal, getBettingGameDeadline, calculateGameState, getGameDeadline, areAllMatchesFinished } from '../services/gameStateService';
 import { hasViewedResults, markResultsViewed } from '../services/resultsViewedService';
 
@@ -234,12 +234,15 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
     return { playNowGames: playNow, awaitingGames: awaiting, recentlyFinishedGames: recentlyFinished, pastGamesSection: past };
   }, [processedGames, myGameIds, userChallengeEntries, userSwipeEntries, userFantasyTeams]);
 
-  // Separate upcoming/ongoing games from past games for Browse tab
-  // Hide games that user has already joined
-  const { browseGames, pastGames } = useMemo(() => {
+  // Separate games into 3 categories for Browse tab:
+  // 1. availableGames: can still join (entry open)
+  // 2. inProgressGames: started but can't join anymore (locked)
+  // 3. pastGames: finished or cancelled
+  const { availableGames, inProgressGames, pastGames } = useMemo(() => {
     const now = new Date();
 
-    const upcoming: (SportimeGame & { isEligible: boolean })[] = [];
+    const available: (SportimeGame & { isEligible: boolean })[] = [];
+    const inProgress: (SportimeGame & { isEligible: boolean })[] = [];
     const past: (SportimeGame & { isEligible: boolean })[] = [];
 
     for (const game of processedGames) {
@@ -252,8 +255,14 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       if (realStatus === 'Finished' || realStatus === 'Cancelled') {
         past.push(game);
       } else {
-        // Upcoming or Ongoing games
-        upcoming.push(game);
+        // Check if entry is still open
+        const entryOpen = isEntryOpen(game);
+        if (entryOpen) {
+          available.push(game);
+        } else {
+          // Registration closed but game not finished yet
+          inProgress.push(game);
+        }
       }
     }
 
@@ -261,7 +270,8 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
     const sortByEndDateDesc = (a: SportimeGame, b: SportimeGame) => parseISO(b.end_date).getTime() - parseISO(a.end_date).getTime();
 
     return {
-      browseGames: upcoming.sort(sortByStartDate),
+      availableGames: available.sort(sortByStartDate),
+      inProgressGames: inProgress.sort(sortByStartDate),
       pastGames: past.sort(sortByEndDateDesc)
     };
   }, [processedGames, myGameIds]);
@@ -437,22 +447,34 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
         <>
           <GamesFilterPanel filters={filters} onFilterChange={setFilters} />
 
+          {/* Available Games - displayed directly */}
           <div className="space-y-4">
-            {browseGames.length > 0 ? (
-              browseGames.map(game => renderGameCard(game, false))
+            {availableGames.length > 0 ? (
+              availableGames.map(game => renderGameCard(game, false))
             ) : (
               <div className="card-base p-8 text-center">
-                <p className="text-text-secondary text-sm">No games match your filters.</p>
-                <p className="text-text-secondary text-xs mt-2">Try adjusting your filter settings.</p>
+                <p className="text-text-secondary text-sm">No games available to join.</p>
+                <p className="text-text-secondary text-xs mt-2">Check back later or adjust your filters.</p>
               </div>
             )}
           </div>
 
-          {/* Past Games Section (Lazy Loaded) */}
+          {/* In Progress Games Section - collapsed by default */}
+          <GameSection
+            title="In Progress"
+            count={inProgressGames.length}
+            icon={<Flame size={18} />}
+            colorClass="text-gray-400"
+            defaultOpen={false}
+          >
+            {inProgressGames.map(game => renderGameCard(game, false))}
+          </GameSection>
+
+          {/* Past Games Section */}
           <GameSection
             title="Past Games"
             count={pastGames.length}
-            icon={<Flag />}
+            icon={<Flag size={18} />}
             colorClass="text-text-disabled"
             defaultOpen={false}
           >
