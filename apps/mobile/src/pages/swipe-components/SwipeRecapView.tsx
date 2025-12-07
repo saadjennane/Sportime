@@ -204,19 +204,22 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
       visibleMatchdays = [matchdaysWithFixtures[0]];
     }
   } else {
-    // Matchdays: Show all up to last non-finished (existing behavior)
-    let lastPlayableIdx = -1;
-    for (let i = matchdaysWithFixtures.length - 1; i >= 0; i--) {
+    // Matchdays: Show ONLY the first non-finished matchday (+ history of finished ones)
+    // As each matchday finishes, the next one becomes visible
+    let firstNonFinishedIdx = -1;
+    for (let i = 0; i < matchdaysWithFixtures.length; i++) {
       if (matchdaysWithFixtures[i].status !== 'finished') {
-        lastPlayableIdx = i;
+        firstNonFinishedIdx = i;
         break;
       }
     }
-    if (lastPlayableIdx === -1) {
+    if (firstNonFinishedIdx === -1) {
       // All finished, show all
-      lastPlayableIdx = matchdaysWithFixtures.length - 1;
+      visibleMatchdays = matchdaysWithFixtures;
+    } else {
+      // Show all finished + the first non-finished
+      visibleMatchdays = matchdaysWithFixtures.slice(0, firstNonFinishedIdx + 1);
     }
-    visibleMatchdays = matchdaysWithFixtures.slice(0, lastPlayableIdx + 1);
   }
 
   // Get the matchday number from current matches' round field (if available)

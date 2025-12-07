@@ -205,9 +205,10 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
             });
             currentMatchday = upcoming || matchdaysWithFixtures[0]; // Fallback to first
           } else {
-            // Matchdays: Find the LAST matchday that is NOT finished (existing behavior)
-            const playable = [...matchdaysWithFixtures].reverse().find(md => md.status !== 'finished');
-            currentMatchday = playable || matchdaysWithFixtures[matchdaysWithFixtures.length - 1]; // All finished -> show last
+            // Matchdays: Find the FIRST matchday that is NOT finished
+            // Users progress through matchdays one at a time
+            const firstNonFinished = matchdaysWithFixtures.find(md => md.status !== 'finished');
+            currentMatchday = firstNonFinished || matchdaysWithFixtures[matchdaysWithFixtures.length - 1]; // All finished -> show last
           }
         }
 

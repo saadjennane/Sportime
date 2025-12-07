@@ -769,7 +769,9 @@ function App() {
     setActiveSwipeGameId(null);
     setViewingSwipeLeaderboardFor(null);
     setSwipeGameViewMode(null);
-  }, []);
+    // Refresh catalog to update joined state (userSwipeEntries)
+    refreshChallenges();
+  }, [refreshChallenges]);
 
   const handleDismissSwipeTutorial = useCallback((dontShowAgain: boolean) => {
     if (dontShowAgain) {
