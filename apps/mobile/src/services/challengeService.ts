@@ -13,6 +13,7 @@ import type {
 } from '../types'
 import type { Challenge, ChallengeMatch } from '../types'
 import { normalizeTournamentTier, normalizeDurationType } from '../config/constants'
+import { detectAndSyncMissingOdds, type FixtureForOddsCheck } from './oddsSyncService'
 
 type ChallengeConfigRow = {
   config_type: string
@@ -1714,6 +1715,32 @@ export async function fetchChallengeMatches(challengeId: string) {
   }
 
   const challenge = mapChallengeRowToChallenge(challengeRow as ChallengeRow, participantCount ?? 0)
+
+  // Detect matches with missing/default odds and trigger sync if needed
+  // Default odds are { teamA: 1, draw: 1, teamB: 1 } from preferOdds()
+  const matchesWithDefaultOdds = matches.filter(m =>
+    m.odds.teamA === 1 && m.odds.draw === 1 && m.odds.teamB === 1
+  )
+
+  if (matchesWithDefaultOdds.length > 0) {
+    console.log(`[fetchChallengeMatches] ${matchesWithDefaultOdds.length} matches have default odds, triggering sync...`)
+
+    // Get league_id from challenge_leagues
+    const leagueId = (challengeRow.challenge_leagues as Array<{ league_id: string }> | null)?.[0]?.league_id
+
+    if (leagueId) {
+      // Build fixtures for odds check (fire and forget)
+      const fixturesForSync: FixtureForOddsCheck[] = matchesWithDefaultOdds.map(m => ({
+        id: m.id,
+        league_id: leagueId,
+        odds: [], // Empty = no odds
+      }))
+
+      detectAndSyncMissingOdds(fixturesForSync).catch(err => {
+        console.error('[fetchChallengeMatches] Error triggering odds sync:', err)
+      })
+    }
+  }
 
   return {
     challenge,

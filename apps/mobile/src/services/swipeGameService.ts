@@ -16,6 +16,7 @@ import type {
   SwipePredictionOutcome,
   SwipeLeaderboardEntry
 } from '../types';
+import { detectAndSyncMissingOdds } from './oddsSyncService';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -308,6 +309,19 @@ export async function getMatchdayWithFixtures(matchdayId: string) {
   // Debug logging
   console.log('Matchday data:', data);
   console.log('Fixtures count:', data?.matchday_fixtures?.length || 0);
+
+  // Detect and sync missing odds (fire and forget)
+  const fixtures = data?.matchday_fixtures?.map((mf: any) => ({
+    id: mf.fixture?.id,
+    league_id: mf.fixture?.league?.id,
+    odds: mf.fixture?.odds,
+  })).filter((f: any) => f.id) || [];
+
+  if (fixtures.length > 0) {
+    detectAndSyncMissingOdds(fixtures).catch(err => {
+      console.error('[swipeGameService] Error detecting missing odds:', err);
+    });
+  }
 
   return data;
 }

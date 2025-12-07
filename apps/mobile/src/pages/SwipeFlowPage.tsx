@@ -11,7 +11,7 @@
  * - Single state object pattern
  */
 
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, useRef, memo } from 'react';
 import { Loader2 } from 'lucide-react';
 import type {
   SwipeMatch,
@@ -32,6 +32,7 @@ import {
   mapPredictionToOutcome,
   predictionRecordsToSwipePredictions,
 } from '../features/swipe/swipeMappers';
+import { hasMatchesWithMissingOdds } from '../services/oddsSyncService';
 
 // Import child components
 import { SwipeCardStack } from './swipe-components/SwipeCardStack';
@@ -140,6 +141,8 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
   onLinkGame,
 }) => {
   const [state, setState] = useState<SwipeState>(INITIAL_STATE);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // =========================================================================
   // DATA LOADING
@@ -275,6 +278,16 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
           isSaving: false,
           editMode: false,
         });
+
+        // Check if any matches have missing/default odds and schedule a refresh
+        // This happens after the sync-odds edge function is triggered by swipeGameService
+        if (hasMatchesWithMissingOdds(matches) && refreshKey === 0) {
+          console.log('[SwipeFlowPage] Detected matches with missing odds, scheduling refresh in 10s...');
+          refreshTimeoutRef.current = setTimeout(() => {
+            console.log('[SwipeFlowPage] Refreshing data after odds sync...');
+            setRefreshKey(prev => prev + 1);
+          }, 10000);
+        }
       } catch (err: any) {
         if (!isMounted) return;
         console.error('[SwipeFlowPage] Error loading data:', err);
@@ -290,8 +303,12 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
 
     return () => {
       isMounted = false;
+      // Cleanup refresh timeout
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
     };
-  }, [challengeId, initialMatchdayId, userId]);
+  }, [challengeId, initialMatchdayId, userId, refreshKey]);
 
   // =========================================================================
   // HANDLERS (plain functions, not useCallback - memo on children handles it)
