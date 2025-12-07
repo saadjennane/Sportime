@@ -17,7 +17,7 @@ export function useChallengeMatches(challengeId: string | null, enabled: boolean
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (isBackgroundRefresh = false) => {
     if (!enabled || !challengeId) {
       setState(EMPTY_STATE)
       setError(null)
@@ -25,7 +25,10 @@ export function useChallengeMatches(challengeId: string | null, enabled: boolean
       return
     }
 
-    setIsLoading(true)
+    // Don't show loading spinner during background refresh (avoids flash)
+    if (!isBackgroundRefresh) {
+      setIsLoading(true)
+    }
     setError(null)
 
     try {
@@ -36,15 +39,21 @@ export function useChallengeMatches(challengeId: string | null, enabled: boolean
       })
     } catch (err: any) {
       console.error('[useChallengeMatches] Failed to load challenge matches', err)
-      setState(EMPTY_STATE)
+      // Keep old data during background refresh errors
+      if (!isBackgroundRefresh) {
+        setState(EMPTY_STATE)
+      }
       setError(err?.message ?? 'Unable to load challenge data')
     } finally {
       setIsLoading(false)
     }
   }, [challengeId, enabled])
 
+  // Background refresh function (silent, no loading state)
+  const refresh = useCallback(() => load(true), [load])
+
   useEffect(() => {
-    load()
+    load(false)
   }, [load])
 
   return {
@@ -52,6 +61,6 @@ export function useChallengeMatches(challengeId: string | null, enabled: boolean
     matches: state.matches,
     isLoading,
     error,
-    refresh: load,
+    refresh,
   }
 }

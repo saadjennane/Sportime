@@ -68,7 +68,11 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   useEffect(() => {
     if (!onRefreshMatches) return;
 
-    const hasLiveMatches = matches.some(m => m.status !== 'played');
+    // Only poll when matches are actually LIVE (not for upcoming/scheduled)
+    const LIVE_STATUSES = ['1H', 'HT', '2H', 'ET', 'P', 'BT', 'SUSP', 'INT', 'LIVE'];
+    const hasLiveMatches = matches.some(m =>
+      m.status && LIVE_STATUSES.includes(m.status.toUpperCase())
+    );
     if (!hasLiveMatches) return;
 
     const interval = setInterval(() => {
