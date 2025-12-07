@@ -40,6 +40,8 @@ interface SwipeRecapViewProps {
   currentMatchday: ChallengeMatchday | null;
   matches: SwipeMatch[];
   predictions: Record<string, SwipePredictionRecord>;
+  /** Total points across all matchdays in the challenge */
+  totalPoints?: number;
   onBack: () => void;
   onEditPicks: () => void;
   onViewLeaderboard: () => void;
@@ -108,6 +110,7 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
   currentMatchday,
   matches,
   predictions,
+  totalPoints: challengeTotalPoints,
   onBack,
   onEditPicks,
   onViewLeaderboard,
@@ -265,6 +268,15 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
         >
           <ArrowLeft size={20} /> Back
         </button>
+
+        {/* Total Points - Centered */}
+        {challengeTotalPoints !== undefined && (
+          <div className="flex items-center gap-1.5 text-lime-glow font-bold">
+            <Trophy size={18} />
+            <span>{challengeTotalPoints.toLocaleString()} pts</span>
+          </div>
+        )}
+
         <div className="flex items-center gap-2">
           <LinkGameButton
             game={challenge as any}

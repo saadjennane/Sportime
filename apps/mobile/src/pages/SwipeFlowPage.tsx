@@ -231,6 +231,13 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
           predictions = arrayToRecord(predictionRecords);
         }
 
+        // Load user stats for total points display
+        let userStats = null;
+        if (userId) {
+          userStats = await swipeService.getUserChallengeStats(challengeId, userId);
+          if (!isMounted) return;
+        }
+
         // Determine initial view based on matchday state and predictions
         const hasPredictions = Object.keys(predictions).length > 0;
 
@@ -262,7 +269,7 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
           matches,
           predictions,
           leaderboard: [],
-          userStats: null,
+          userStats,
           userPosition: null,
           error: null,
           isSaving: false,
@@ -493,6 +500,7 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
         currentMatchday={state.currentMatchday}
         matches={state.matches}
         predictions={state.predictions}
+        totalPoints={state.userStats?.totalPoints}
         onBack={onExit}
         onEditPicks={handleGoToCards}
         onViewLeaderboard={handleGoToLeaderboard}

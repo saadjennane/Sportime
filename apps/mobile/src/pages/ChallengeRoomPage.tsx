@@ -447,22 +447,23 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   }, [currentGroup, groupBets, groupBooster]);
 
 
+  // Calculate total challenge points for header display
+  const challengeTotalPoints = calculateChallengePoints(userEntry, matches);
+
   return (
     <div className="space-y-6">
-      <button onClick={onBack} className="flex items-center gap-2 text-text-secondary font-semibold hover:text-electric-blue">
-        <ArrowLeft size={20} /> Back to Games
-      </button>
+      {/* Header with Back, Total Points (centered), and Actions */}
+      <header className="flex items-center justify-between">
+        <button onClick={onBack} className="flex items-center gap-2 text-text-secondary font-semibold hover:text-electric-blue">
+          <ArrowLeft size={20} /> Back
+        </button>
 
-      <div className="flex justify-between items-start">
-        <div>
-            <h2 className="text-2xl font-bold text-text-primary">{challenge.name}</h2>
-            {countdownText && !deadlinePassed && (
-              <div className={`flex items-center gap-1.5 mt-1 ${isUrgent ? 'text-hot-red font-semibold' : 'text-text-secondary'}`}>
-                <Clock size={14} />
-                <span className="text-sm">{countdownText}</span>
-              </div>
-            )}
+        {/* Total Points - Centered */}
+        <div className="flex items-center gap-1.5 text-lime-glow font-bold">
+          <Trophy size={18} />
+          <span>{challengeTotalPoints.toLocaleString()} pts</span>
         </div>
+
         <div className="flex items-center gap-2">
           <LinkGameButton
             game={challenge}
@@ -476,11 +477,21 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
           <button onClick={() => setIsRulesModalOpen(true)} className="p-2 bg-navy-accent rounded-lg shadow-sm text-text-secondary hover:text-electric-blue">
             <ScrollText size={20} />
           </button>
-          <button onClick={() => onViewLeaderboard(challenge.id)} className="flex items-center gap-1.5 p-2 bg-navy-accent rounded-lg shadow-sm text-text-secondary hover:text-electric-blue">
+          <button onClick={() => onViewLeaderboard(challenge.id)} className="p-2 bg-navy-accent rounded-lg shadow-sm text-text-secondary hover:text-electric-blue">
             <Trophy size={20} />
-            <span className="text-xs font-bold">{formatNumberShort(rank)}/{formatNumberShort(totalPlayers)}</span>
           </button>
         </div>
+      </header>
+
+      {/* Challenge Title and Countdown */}
+      <div>
+        <h2 className="text-2xl font-bold text-text-primary">{challenge.name}</h2>
+        {countdownText && !deadlinePassed && (
+          <div className={`flex items-center gap-1.5 mt-1 ${isUrgent ? 'text-hot-red font-semibold' : 'text-text-secondary'}`}>
+            <Clock size={14} />
+            <span className="text-sm">{countdownText}</span>
+          </div>
+        )}
       </div>
 
       <div className="-mx-4">
