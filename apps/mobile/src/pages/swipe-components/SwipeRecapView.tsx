@@ -393,20 +393,39 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
 
         {isPicksVisible && (
           <div className="space-y-3 border-t border-white/10 pt-4 animate-scale-in">
-            {/* Sort matches by kickoff time (earliest first) */}
-            {[...matches].sort((a, b) =>
-              new Date(a.kickoffTime).getTime() - new Date(b.kickoffTime).getTime()
-            ).map(match => {
-              const predictionRecord = predictions[match.id];
-              const prediction = predictionRecord
-                ? mapPredictionToOutcome(predictionRecord.prediction)
-                : undefined;
+            {/* Sort matches by kickoff time (earliest first) and group by date */}
+            {(() => {
+              const sortedMatches = [...matches].sort((a, b) =>
+                new Date(a.kickoffTime).getTime() - new Date(b.kickoffTime).getTime()
+              );
+              let lastDate: string | null = null;
 
-              const isCorrect = predictionRecord?.is_correct === true;
-              const points = predictionRecord?.points_earned || 0;
+              return sortedMatches.map(match => {
+                const predictionRecord = predictions[match.id];
+                const prediction = predictionRecord
+                  ? mapPredictionToOutcome(predictionRecord.prediction)
+                  : undefined;
 
-              return (
-                <div key={match.id} className="bg-deep-navy rounded-xl p-3 space-y-3">
+                const isCorrect = predictionRecord?.is_correct === true;
+                const points = predictionRecord?.points_earned || 0;
+
+                // Check if we need a date separator
+                const matchDate = format(new Date(match.kickoffTime), 'yyyy-MM-dd');
+                const showDateSeparator = matchDate !== lastDate;
+                lastDate = matchDate;
+
+                return (
+                  <React.Fragment key={match.id}>
+                    {showDateSeparator && (
+                      <div className="flex items-center gap-3 py-2">
+                        <div className="flex-1 h-px bg-white/10"></div>
+                        <span className="text-xs font-semibold text-text-secondary uppercase">
+                          {format(new Date(match.kickoffTime), 'EEEE, MMM d')}
+                        </span>
+                        <div className="flex-1 h-px bg-white/10"></div>
+                      </div>
+                    )}
+                    <div className="bg-deep-navy rounded-xl p-3 space-y-3">
                   <div className="flex justify-end items-center gap-2 text-sm">
                     {/* Kickoff time */}
                     {match.kickoffTime && (
@@ -507,8 +526,10 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
                     </button>
                   </div>
                 </div>
-              );
-            })}
+                  </React.Fragment>
+                );
+              });
+            })()}
           </div>
         )}
       </div>
