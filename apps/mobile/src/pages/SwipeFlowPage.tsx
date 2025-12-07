@@ -183,15 +183,32 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
           md.fixtures_count === undefined || md.fixtures_count > 0
         );
 
+        // Extract period_type from rules JSONB field (stored in challenges.rules)
+        const rules = challenge.rules as { period_type?: 'matchdays' | 'calendar' } | null;
+        const periodType = rules?.period_type || 'matchdays';
+
         let currentMatchday: ChallengeMatchday | null = null;
         if (initialMatchdayId) {
           currentMatchday = matchdaysWithFixtures.find(md => md.id === initialMatchdayId) || null;
         }
         if (!currentMatchday && matchdaysWithFixtures.length > 0) {
-          // Find the LAST matchday that is NOT finished (= most recent playable)
-          // Reverse search to get the latest non-finished matchday
-          const playable = [...matchdaysWithFixtures].reverse().find(md => md.status !== 'finished');
-          currentMatchday = playable || matchdaysWithFixtures[matchdaysWithFixtures.length - 1]; // All finished -> show last
+          // Different behavior based on period_type:
+          // - calendar: Show FIRST upcoming day (today or next with fixtures)
+          // - matchdays: Show LAST non-finished matchday (existing behavior)
+
+          if (periodType === 'calendar') {
+            // Calendar: Find the FIRST matchday that is upcoming or today
+            const today = new Date().toISOString().split('T')[0];
+            const upcoming = matchdaysWithFixtures.find(md => {
+              const mdDate = md.date?.split('T')[0];
+              return mdDate && mdDate >= today && md.status !== 'finished';
+            });
+            currentMatchday = upcoming || matchdaysWithFixtures[0]; // Fallback to first
+          } else {
+            // Matchdays: Find the LAST matchday that is NOT finished (existing behavior)
+            const playable = [...matchdaysWithFixtures].reverse().find(md => md.status !== 'finished');
+            currentMatchday = playable || matchdaysWithFixtures[matchdaysWithFixtures.length - 1]; // All finished -> show last
+          }
         }
 
         if (!currentMatchday) {
@@ -206,7 +223,7 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
               start_date: challenge.start_date,
               end_date: challenge.end_date,
               status: challenge.status,
-              period_type: challenge.period_type,
+              period_type: periodType,
             },
           }));
           return;
@@ -265,7 +282,7 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
             start_date: challenge.start_date,
             end_date: challenge.end_date,
             status: challenge.status,
-            period_type: challenge.period_type,
+            period_type: periodType,
           },
           matchdays: matchdaysWithFixtures, // Only include matchdays that have fixtures
           currentMatchday,

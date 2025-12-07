@@ -184,21 +184,40 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
     md.fixtures_count === undefined || md.fixtures_count > 0
   );
 
-  // Filter matchdays: show history + all playable days up to the LAST non-finished
-  // Find the LAST matchday that is not finished (reverse search)
-  let lastPlayableIdx = -1;
-  for (let i = matchdaysWithFixtures.length - 1; i >= 0; i--) {
-    if (matchdaysWithFixtures[i].status !== 'finished') {
-      lastPlayableIdx = i;
-      break;
+  // Filter matchdays based on period_type:
+  // - calendar: Show only finished + today (one day at a time progression)
+  // - matchdays: Show all up to last non-finished (existing behavior)
+  const periodType = challenge?.period_type || 'matchdays';
+
+  let visibleMatchdays: typeof matchdaysWithFixtures;
+
+  if (periodType === 'calendar') {
+    // Calendar: Show finished matchdays + current day (today or first upcoming)
+    const today = new Date().toISOString().split('T')[0];
+    visibleMatchdays = matchdaysWithFixtures.filter(md => {
+      const mdDate = md.date?.split('T')[0];
+      // Show if finished OR if it's today or earlier (for history)
+      return md.status === 'finished' || (mdDate && mdDate <= today);
+    });
+    // If nothing visible yet (all future), show at least the first upcoming
+    if (visibleMatchdays.length === 0 && matchdaysWithFixtures.length > 0) {
+      visibleMatchdays = [matchdaysWithFixtures[0]];
     }
+  } else {
+    // Matchdays: Show all up to last non-finished (existing behavior)
+    let lastPlayableIdx = -1;
+    for (let i = matchdaysWithFixtures.length - 1; i >= 0; i--) {
+      if (matchdaysWithFixtures[i].status !== 'finished') {
+        lastPlayableIdx = i;
+        break;
+      }
+    }
+    if (lastPlayableIdx === -1) {
+      // All finished, show all
+      lastPlayableIdx = matchdaysWithFixtures.length - 1;
+    }
+    visibleMatchdays = matchdaysWithFixtures.slice(0, lastPlayableIdx + 1);
   }
-  if (lastPlayableIdx === -1) {
-    // All finished, show all
-    lastPlayableIdx = matchdaysWithFixtures.length - 1;
-  }
-  // Show all matchdays up to and including the last playable
-  const visibleMatchdays = matchdaysWithFixtures.slice(0, lastPlayableIdx + 1);
 
   // Get the matchday number from current matches' round field (if available)
   // For current matchday, use the first match's round
