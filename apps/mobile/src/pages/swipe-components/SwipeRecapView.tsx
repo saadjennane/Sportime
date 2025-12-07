@@ -165,9 +165,9 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
   totalPoints = Math.round(totalPoints);
   potentialPoints = Math.round(potentialPoints);
 
-  // Format deadline
-  const deadline = currentMatchday.deadline
-    ? format(new Date(currentMatchday.deadline), "MMM d, yyyy 'at' h:mm a")
+  // Calculate deadline from first match kickoff (more reliable than DB value)
+  const deadline = firstMatchKickoff
+    ? format(new Date(firstMatchKickoff), "MMM d, yyyy 'at' h:mm a")
     : null;
 
   // Convert matchdays to switcher format
@@ -359,7 +359,10 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
 
         {isPicksVisible && (
           <div className="space-y-3 border-t border-white/10 pt-4 animate-scale-in">
-            {matches.map(match => {
+            {/* Sort matches by kickoff time (earliest first) */}
+            {[...matches].sort((a, b) =>
+              new Date(a.kickoffTime).getTime() - new Date(b.kickoffTime).getTime()
+            ).map(match => {
               const predictionRecord = predictions[match.id];
               const prediction = predictionRecord
                 ? mapPredictionToOutcome(predictionRecord.prediction)
