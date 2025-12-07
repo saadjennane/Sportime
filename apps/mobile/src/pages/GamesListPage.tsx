@@ -250,8 +250,10 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       const hasJoined = myGameIds.has(game.id);
       if (hasJoined) continue;
 
-      // Hide games with 0 players - no point showing empty games
-      if (game.totalPlayers === 0) continue;
+      // Allow games with 0 players if entry is still open (new games need to be visible!)
+      // Only hide empty games that are already past/finished
+      const entryStillOpen = isEntryOpen(game);
+      if (game.totalPlayers === 0 && !entryStillOpen) continue;
 
       const realStatus = getRealGameStatus(game, now);
       // Also check if end_date has passed (game is definitely finished)
