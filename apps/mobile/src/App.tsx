@@ -77,6 +77,7 @@ import { joinChallenge as joinChallengeOnSupabase } from './services/challengeSe
 import { saveDailyEntry, ensureChallengeEntry } from './services/challengeEntryService';
 import { initializeOneSignal, setupOneSignalForUser } from './services/oneSignalService';
 import { useNotifications } from './hooks/useNotifications';
+import { useTicket } from './services/ticketService';
 
 function createEmptyChallengeEntry(challengeId: string, userId: string, matches: ChallengeMatch[]): UserChallengeEntry {
   const uniqueDays = Array.from(new Set(matches.map(match => match.day))).sort((a, b) => a - b);
