@@ -231,9 +231,20 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
           predictions = arrayToRecord(predictionRecords);
         }
 
-        // Determine initial view - if has predictions, show recap; otherwise cards
+        // Determine initial view based on matchday state and predictions
         const hasPredictions = Object.keys(predictions).length > 0;
-        const initialView: ViewMode = hasPredictions ? 'recap' : 'cards';
+
+        // Check if matchday is finished or first match has started
+        const now = Date.now();
+        const firstMatchKickoff = matches.length > 0
+          ? Math.min(...matches.map(m => new Date(m.kickoffTime).getTime()))
+          : null;
+        const hasFirstMatchStarted = firstMatchKickoff !== null && firstMatchKickoff <= now;
+        const isMatchdayLocked = currentMatchday.status === 'finished' || hasFirstMatchStarted;
+
+        // If matchday is locked (finished or started), always show recap (read-only)
+        // Otherwise, show cards if no predictions yet
+        const initialView: ViewMode = isMatchdayLocked || hasPredictions ? 'recap' : 'cards';
 
         setState({
           view: initialView,
