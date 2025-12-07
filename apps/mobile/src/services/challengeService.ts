@@ -622,6 +622,12 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
           lastMatchFinished = finishedStatuses.includes((lastMatch.status ?? 'NS').toUpperCase())
         }
 
+        // Skip matchdays without fixtures (empty days with no matches)
+        // This prevents empty matchdays from blocking game status transitions
+        if (matchdayFixtures.length === 0) {
+          return // Skip this matchday entirely
+        }
+
         // Add placeholder match for this matchday
         // kickoffTime = first fixture kickoff (real deadline), fallback to deadline field
         // result = 'draw' if last match finished

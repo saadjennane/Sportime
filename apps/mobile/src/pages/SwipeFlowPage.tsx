@@ -246,7 +246,7 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
             status: challenge.status,
             period_type: challenge.period_type,
           },
-          matchdays: sortedMatchdays,
+          matchdays: matchdaysWithFixtures, // Only include matchdays that have fixtures
           currentMatchday,
           matches,
           predictions,
