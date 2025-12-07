@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { SportimeGame, TournamentType, Profile, UserTicket, GameType } from '../types';
+import { SportimeGame, TournamentType, Profile, UserTicket, GameType, UserChallengeEntry, UserSwipeEntry } from '../types';
 import { format, parseISO, isBefore } from 'date-fns';
-import { Calendar, Coins, Gift, ArrowRight, Clock, Users, Ticket, Star, Trophy, Award, ScrollText, Flame, Lock } from 'lucide-react';
+import { Calendar, Coins, Gift, ArrowRight, Clock, Users, Ticket, Star, Trophy, Award, ScrollText, Flame, Lock, CheckCircle2, CircleDot } from 'lucide-react';
 import { CtaState, calculateEntryDeadline } from '../pages/GamesListPage';
 import { normalizeTournamentTier } from '../config/constants';
 import { getGameDeadline } from '../services/gameStateService';
@@ -81,6 +81,46 @@ interface GameCardProps {
   onViewLeaderboard?: () => void;
   profile: Profile | null;
   userTickets: UserTicket[];
+  userEntry?: UserChallengeEntry;   // For betting/prediction games
+  userSwipeEntry?: UserSwipeEntry;  // For swipe games
+}
+
+// =============================================================================
+// PROGRESS STATUS CALCULATION
+// =============================================================================
+
+type ProgressStatus = 'none' | 'partial' | 'complete';
+
+function getProgressStatus(
+  game: SportimeGame,
+  userEntry?: UserChallengeEntry,
+  userSwipeEntry?: UserSwipeEntry
+): ProgressStatus {
+  // Betting/Prediction games - check if 1000 coins are bet for current matchday
+  if (game.game_type === 'betting' || game.game_type === 'prediction') {
+    if (!userEntry || userEntry.dailyEntries.length === 0) return 'none';
+
+    // Check current matchday's bets (last entry = current day)
+    const currentDayEntry = userEntry.dailyEntries[userEntry.dailyEntries.length - 1];
+    if (!currentDayEntry || currentDayEntry.bets.length === 0) return 'none';
+
+    const totalBet = currentDayEntry.bets.reduce((sum, b) => sum + b.amount, 0);
+    if (totalBet >= 1000) return 'complete';
+    return 'partial';
+  }
+
+  // Swipe games - check if all predictions are made
+  if (game.game_type === 'swipe') {
+    if (!userSwipeEntry || userSwipeEntry.predictions.length === 0) return 'none';
+
+    const totalMatches = game.matches?.length || 0;
+    if (totalMatches === 0) return 'none';
+
+    if (userSwipeEntry.predictions.length >= totalMatches) return 'complete';
+    return 'partial';
+  }
+
+  return 'none';
 }
 
 const gameTypeDetails: Record<GameType, { tag: string; color: string }> = {
@@ -101,7 +141,9 @@ const tournamentTierDetails: Record<TournamentType, { label: string; color: stri
   apex: { label: 'Apex', color: 'bg-hot-red/20 text-hot-red' },
 };
 
-export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick, onPlay, onShowRewards, onShowRules, onViewLeaderboard, profile, userTickets }) => {
+export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick, onPlay, onShowRewards, onShowRules, onViewLeaderboard, profile, userTickets, userEntry, userSwipeEntry }) => {
+  // Calculate progress status for the badge
+  const progressStatus = useMemo(() => getProgressStatus(game, userEntry, userSwipeEntry), [game, userEntry, userSwipeEntry]);
   const details = gameTypeDetails[game.game_type as keyof typeof gameTypeDetails];
   const normalizedTier = normalizeTournamentTier(game.tier);
   const tierDetails = normalizedTier ? tournamentTierDetails[normalizedTier] : null;
@@ -273,6 +315,19 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
           )}
 
           <div className="flex items-center gap-2">
+            {/* Progress Status Badge - only show for active game states */}
+            {['PLACE_BETS', 'MAKE_PREDICTIONS', 'SELECT_TEAM', 'COMPLETE_TEAM'].includes(ctaState) && progressStatus === 'complete' && (
+              <span className="flex items-center gap-1 text-xs font-medium text-lime-glow bg-lime-glow/10 px-2 py-1 rounded-lg">
+                <CheckCircle2 size={14} />
+                Ready
+              </span>
+            )}
+            {['PLACE_BETS', 'MAKE_PREDICTIONS', 'SELECT_TEAM', 'COMPLETE_TEAM'].includes(ctaState) && progressStatus === 'partial' && (
+              <span className="flex items-center gap-1 text-xs font-medium text-warm-yellow bg-warm-yellow/10 px-2 py-1 rounded-lg">
+                <CircleDot size={14} />
+                In progress
+              </span>
+            )}
 
             {/* View Leaderboard button for games where first match has started and user hasn't joined */}
             {hasFirstMatchStarted && isLocked && onViewLeaderboard && (

@@ -355,6 +355,10 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       if (game.game_type === 'fantasy') onViewFantasyGame(game.id);
     };
 
+    // Find user's entry for this game (for progress indicator)
+    const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);
+    const userSwipeEntry = userSwipeEntries.find(e => e.matchDayId === game.id);
+
     return (
       <GameCard
         key={game.id}
@@ -367,6 +371,8 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
         onViewLeaderboard={handleViewLeaderboard}
         profile={profile}
         userTickets={userTickets}
+        userEntry={userEntry}
+        userSwipeEntry={userSwipeEntry}
       />
     );
   };
