@@ -96,8 +96,8 @@ function getProgressStatus(
   userEntry?: UserChallengeEntry,
   userSwipeEntry?: UserSwipeEntry
 ): ProgressStatus {
-  // Betting/Prediction games - check if 1000 coins are bet for current matchday
-  if (game.game_type === 'betting' || game.game_type === 'prediction') {
+  // Betting games - check if 1000 coins are bet for current matchday
+  if (game.game_type === 'betting') {
     if (!userEntry || userEntry.dailyEntries.length === 0) return 'none';
 
     // Check current matchday's bets (last entry = current day)
@@ -109,8 +109,8 @@ function getProgressStatus(
     return 'partial';
   }
 
-  // Swipe games - check if all predictions are made
-  if (game.game_type === 'swipe') {
+  // Prediction (swipe) games - check if all predictions are made
+  if (game.game_type === 'prediction') {
     if (!userSwipeEntry || userSwipeEntry.predictions.length === 0) return 'none';
 
     const totalMatches = game.matches?.length || 0;
