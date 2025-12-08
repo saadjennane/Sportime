@@ -356,7 +356,7 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
       ),
       challenge_leagues (
         league_id,
-        league:leagues (
+        league:fb_leagues (
           name
         )
       )
