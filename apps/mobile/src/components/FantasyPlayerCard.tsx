@@ -52,7 +52,7 @@ export const FantasyPlayerCard: React.FC<FantasyPlayerCardProps> = ({ player, is
       )}
       <div className="relative w-16 h-16 mb-1">
         <img src={player.photo} alt={player.name} className="w-full h-full rounded-full object-cover bg-gray-200 border-2 border-white shadow-md" />
-        <div className="absolute -bottom-1 -right-0 bg-white p-0.5 rounded-full shadow">
+        <div className="absolute -bottom-1 -right-0 bg-white/10 p-0.5 rounded-full shadow">
           <img src={player.teamLogo} alt={player.teamName} className="w-5 h-5" />
         </div>
       </div>

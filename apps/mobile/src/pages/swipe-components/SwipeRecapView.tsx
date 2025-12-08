@@ -469,12 +469,14 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
                       )}`}
                     >
                       {match.teamA.logo ? (
-                        <img
-                          src={match.teamA.logo}
-                          alt={match.teamA.name}
-                          className="w-6 h-6 object-contain"
-                          onError={(e) => { e.currentTarget.style.display = 'none' }}
-                        />
+                        <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                          <img
+                            src={match.teamA.logo}
+                            alt={match.teamA.name}
+                            className="w-6 h-6 object-contain"
+                            onError={(e) => { e.currentTarget.style.display = 'none' }}
+                          />
+                        </div>
                       ) : (
                         <span className="text-lg">{match.teamA.emoji}</span>
                       )}
@@ -510,12 +512,14 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
                       )}`}
                     >
                       {match.teamB.logo ? (
-                        <img
-                          src={match.teamB.logo}
-                          alt={match.teamB.name}
-                          className="w-6 h-6 object-contain"
-                          onError={(e) => { e.currentTarget.style.display = 'none' }}
-                        />
+                        <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                          <img
+                            src={match.teamB.logo}
+                            alt={match.teamB.name}
+                            className="w-6 h-6 object-contain"
+                            onError={(e) => { e.currentTarget.style.display = 'none' }}
+                          />
+                        </div>
                       ) : (
                         <span className="text-lg">{match.teamB.emoji}</span>
                       )}

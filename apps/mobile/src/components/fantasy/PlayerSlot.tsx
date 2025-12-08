@@ -24,7 +24,9 @@ export const PlayerSlot: React.FC<PlayerSlotProps> = ({ player, position, onClic
             <div className="flex-1 min-w-0">
               <p className="font-bold text-white truncate text-sm">{player.name}</p>
               <div className="flex items-center gap-2 text-xs text-gray-200">
-                <img src={player.teamLogo} alt={player.teamName} className="w-4 h-4" />
+                <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                  <img src={player.teamLogo} alt={player.teamName} className="w-4 h-4" />
+                </div>
                 <CategoryIcon category={player.status} />
                 <span>PGS: {player.pgs.toFixed(1)}</span>
               </div>

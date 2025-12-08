@@ -111,13 +111,17 @@ export const MatchStatsDrawer: React.FC<MatchStatsDrawerProps> = ({ match, onClo
             <div className="flex items-center justify-between p-4 border-b border-disabled flex-shrink-0">
               <div className="flex items-center gap-3">
                 {match.teamA.logo ? (
-                  <img src={match.teamA.logo} alt={match.teamA.name} className="w-8 h-8 object-contain" />
+                  <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                    <img src={match.teamA.logo} alt={match.teamA.name} className="w-8 h-8 object-contain" />
+                  </div>
                 ) : (
                   <span className="text-2xl">{match.teamA.emoji || '⚽'}</span>
                 )}
                 <span className="text-sm font-bold text-text-primary">{match.teamA.name} vs {match.teamB.name}</span>
                 {match.teamB.logo ? (
-                  <img src={match.teamB.logo} alt={match.teamB.name} className="w-8 h-8 object-contain" />
+                  <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                    <img src={match.teamB.logo} alt={match.teamB.name} className="w-8 h-8 object-contain" />
+                  </div>
                 ) : (
                   <span className="text-2xl">{match.teamB.emoji || '⚽'}</span>
                 )}

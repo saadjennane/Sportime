@@ -127,11 +127,15 @@ const TeamFormation: React.FC<TeamFormationProps> = ({
         className={`flex items-center gap-2 px-3 py-1 ${isAway ? 'justify-end' : 'justify-start'}`}
       >
         {!isAway && team.teamLogo && (
-          <img src={team.teamLogo} alt={team.teamName} className="w-5 h-5 object-contain" />
+          <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+            <img src={team.teamLogo} alt={team.teamName} className="w-5 h-5 object-contain" />
+          </div>
         )}
         <span className="text-[10px] font-bold text-white/90">{team.formation}</span>
         {isAway && team.teamLogo && (
-          <img src={team.teamLogo} alt={team.teamName} className="w-5 h-5 object-contain" />
+          <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+            <img src={team.teamLogo} alt={team.teamName} className="w-5 h-5 object-contain" />
+          </div>
         )}
       </div>
 

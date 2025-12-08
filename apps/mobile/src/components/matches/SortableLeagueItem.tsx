@@ -22,7 +22,9 @@ export const SortableLeagueItem: React.FC<SortableLeagueItemProps> = ({ id, name
       <button {...attributes} {...listeners} className="p-2 cursor-grab active:cursor-grabbing text-text-disabled">
         <GripVertical size={20} />
       </button>
-      <img src={logo} alt={name} className="w-6 h-6 mx-2" />
+      <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0 mx-2">
+        <img src={logo} alt={name} className="w-6 h-6 object-contain" />
+      </div>
       <span className="font-semibold text-text-primary">{name}</span>
     </div>
   );

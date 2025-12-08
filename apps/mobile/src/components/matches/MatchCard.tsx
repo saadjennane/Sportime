@@ -95,17 +95,17 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
   const renderTeamAvatar = (team: Match['teamA']) => {
     if (team.logo) {
       return (
-        <div className="mx-auto w-12 h-12 mb-2">
+        <div className="mx-auto w-14 h-14 mb-2 rounded-full bg-white/10 flex items-center justify-center">
           <img
             src={team.logo}
             alt={team.name}
-            className="w-full h-full object-contain"
+            className="w-12 h-12 object-contain"
           />
         </div>
       );
     }
     return (
-      <div className="mx-auto w-12 h-12 mb-2 flex items-center justify-center rounded-full bg-deep-navy text-2xl font-bold text-electric-blue">
+      <div className="mx-auto w-14 h-14 mb-2 flex items-center justify-center rounded-full bg-white/10 text-2xl font-bold text-electric-blue">
         {(team.emoji && team.emoji.length === 1) ? team.emoji : (team.name?.charAt(0).toUpperCase() || '?')}
       </div>
     );

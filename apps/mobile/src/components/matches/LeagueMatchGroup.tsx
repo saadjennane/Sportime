@@ -20,7 +20,9 @@ export const LeagueMatchGroup: React.FC<LeagueMatchGroupProps> = ({ leagueName, 
         className="w-full flex justify-between items-center p-4 text-left"
       >
         <div className="flex items-center gap-3">
-          <img src={leagueLogo} alt={leagueName} className="w-6 h-6" />
+          <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+            <img src={leagueLogo} alt={leagueName} className="w-6 h-6 object-contain" />
+          </div>
           <h3 className="font-bold text-text-primary">{leagueName}</h3>
           <span className="text-xs font-semibold bg-disabled text-text-disabled px-2 py-0.5 rounded-full">{matchesCount}</span>
         </div>

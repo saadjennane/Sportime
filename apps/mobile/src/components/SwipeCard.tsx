@@ -18,12 +18,14 @@ const TeamLogo = memo(({ team }: { team: { name: string; logo?: string; emoji: s
 
   if (team.logo && !imageError) {
     return (
-      <img
-        src={team.logo}
-        alt={team.name}
-        className="w-16 h-16 object-contain"
-        onError={() => setImageError(true)}
-      />
+      <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+        <img
+          src={team.logo}
+          alt={team.name}
+          className="w-16 h-16 object-contain"
+          onError={() => setImageError(true)}
+        />
+      </div>
     );
   }
 

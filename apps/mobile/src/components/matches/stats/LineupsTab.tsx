@@ -77,7 +77,9 @@ const BenchSection: React.FC<{
           <div className="bg-deep-navy/50 rounded-lg p-2">
             <div className="flex items-center gap-2 mb-2 pb-2 border-b border-disabled">
               {homeTeamLogo && (
-                <img src={homeTeamLogo} alt={homeTeamName} className="w-4 h-4 object-contain" />
+                <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                  <img src={homeTeamLogo} alt={homeTeamName} className="w-4 h-4 object-contain" />
+                </div>
               )}
               <span className="text-xs font-semibold text-text-secondary">{homeTeamName}</span>
             </div>
@@ -92,7 +94,9 @@ const BenchSection: React.FC<{
           <div className="bg-deep-navy/50 rounded-lg p-2">
             <div className="flex items-center gap-2 mb-2 pb-2 border-b border-disabled">
               {awayTeamLogo && (
-                <img src={awayTeamLogo} alt={awayTeamName} className="w-4 h-4 object-contain" />
+                <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                  <img src={awayTeamLogo} alt={awayTeamName} className="w-4 h-4 object-contain" />
+                </div>
               )}
               <span className="text-xs font-semibold text-text-secondary">{awayTeamName}</span>
             </div>
@@ -139,11 +143,13 @@ export const LineupsTab: React.FC<LineupsTabProps> = ({ data, loading }) => {
           <div className="bg-deep-navy/50 rounded-lg p-3">
             <div className="flex items-center gap-2 mb-3 pb-2 border-b border-disabled">
               {data.home.teamLogo && (
-                <img
-                  src={data.home.teamLogo}
-                  alt={data.home.teamName}
-                  className="w-6 h-6 object-contain"
-                />
+                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                  <img
+                    src={data.home.teamLogo}
+                    alt={data.home.teamName}
+                    className="w-6 h-6 object-contain"
+                  />
+                </div>
               )}
               <div>
                 <p className="text-sm font-bold text-text-primary">{data.home.teamName}</p>
@@ -161,11 +167,13 @@ export const LineupsTab: React.FC<LineupsTabProps> = ({ data, loading }) => {
           <div className="bg-deep-navy/50 rounded-lg p-3">
             <div className="flex items-center gap-2 mb-3 pb-2 border-b border-disabled">
               {data.away.teamLogo && (
-                <img
-                  src={data.away.teamLogo}
-                  alt={data.away.teamName}
-                  className="w-6 h-6 object-contain"
-                />
+                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                  <img
+                    src={data.away.teamLogo}
+                    alt={data.away.teamName}
+                    className="w-6 h-6 object-contain"
+                  />
+                </div>
               )}
               <div>
                 <p className="text-sm font-bold text-text-primary">{data.away.teamName}</p>

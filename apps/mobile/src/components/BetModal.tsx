@@ -12,7 +12,9 @@ const renderTeamIcon = (
   if (team.logo) {
     return (
       <div className={`${wrapperClass} flex justify-center`}>
-        <img src={team.logo} alt={team.name} className={`${sizeClass} object-contain`} />
+        <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+          <img src={team.logo} alt={team.name} className={`${sizeClass} object-contain`} />
+        </div>
       </div>
     );
   }
