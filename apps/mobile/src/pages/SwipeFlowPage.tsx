@@ -203,7 +203,15 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
               const mdDate = md.date?.split('T')[0];
               return mdDate && mdDate >= today && md.status !== 'finished';
             });
-            currentMatchday = upcoming || matchdaysWithFixtures[0]; // Fallback to first
+            // If no upcoming matchday, check if all are finished (recently finished game)
+            if (!upcoming) {
+              const allFinished = matchdaysWithFixtures.every(md => md.status === 'finished');
+              currentMatchday = allFinished
+                ? matchdaysWithFixtures[matchdaysWithFixtures.length - 1] // Show LAST for finished games
+                : matchdaysWithFixtures[0]; // Show FIRST for upcoming games
+            } else {
+              currentMatchday = upcoming;
+            }
           } else {
             // Matchdays: Find the FIRST matchday that is NOT finished
             // Users progress through matchdays one at a time
