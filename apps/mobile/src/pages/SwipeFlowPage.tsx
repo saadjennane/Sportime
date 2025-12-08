@@ -197,35 +197,21 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
           // - matchdays: Show LAST non-finished matchday (existing behavior)
 
           if (periodType === 'calendar') {
-            // Calendar: Find the FIRST matchday that is upcoming or today
+            // Calendar: Find the FIRST matchday that is today or in the future
             const today = new Date().toISOString().split('T')[0];
 
-            // DEBUG LOGS - to investigate date picker issue
-            console.log('[SwipeFlowPage] Calendar game - matchdays:', matchdaysWithFixtures.map(md => ({
-              id: md.id,
-              date: md.date,
-              status: md.status,
-            })));
-            console.log('[SwipeFlowPage] Today:', today);
-
+            // Find upcoming matchday (date >= today)
             const upcoming = matchdaysWithFixtures.find(md => {
               const mdDate = md.date?.split('T')[0];
-              return mdDate && mdDate >= today && md.status !== 'finished';
+              return mdDate && mdDate >= today;
             });
 
-            console.log('[SwipeFlowPage] Upcoming matchday found:', upcoming?.id, upcoming?.date, upcoming?.status);
-
-            // If no upcoming matchday, check if all are finished (recently finished game)
+            // If no upcoming matchday, ALL dates are in the past = recently finished game
+            // In this case, show the LAST matchday (most recent)
             if (!upcoming) {
-              const allFinished = matchdaysWithFixtures.every(md => md.status === 'finished');
-              console.log('[SwipeFlowPage] No upcoming - allFinished:', allFinished, 'matchdays count:', matchdaysWithFixtures.length);
-              currentMatchday = allFinished
-                ? matchdaysWithFixtures[matchdaysWithFixtures.length - 1] // Show LAST for finished games
-                : matchdaysWithFixtures[0]; // Show FIRST for upcoming games
-              console.log('[SwipeFlowPage] Selected matchday (fallback):', currentMatchday?.id, currentMatchday?.date);
+              currentMatchday = matchdaysWithFixtures[matchdaysWithFixtures.length - 1];
             } else {
               currentMatchday = upcoming;
-              console.log('[SwipeFlowPage] Selected matchday (upcoming):', currentMatchday?.id, currentMatchday?.date);
             }
           } else {
             // Matchdays: Find the FIRST matchday that is NOT finished
