@@ -13,14 +13,14 @@ import {
   Trophy,
   Clock,
   ChevronDown,
-  ScrollText,
+  Info,
   Layers,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { SwipeMatch, SwipePredictionOutcome, Profile, UserLeague, LeagueMember, LeagueGame, Game } from '../../types';
 import type { ChallengeMatchday, SwipePredictionRecord } from '../../services/swipeGameService';
 import { MatchDaySwitcher } from '../../components/fantasy/MatchDaySwitcher';
-import { SwipeRulesModal } from '../../components/SwipeRulesModal';
+import { GameInfoModal } from '../../components/GameInfoModal';
 import { LinkGameButton } from '../../components/leagues/LinkGameButton';
 import { mapPredictionToOutcome, extractMatchdayNumber } from '../../features/swipe/swipeMappers';
 
@@ -123,7 +123,7 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
   leagueGames,
 }) {
   const [isPicksVisible, setIsPicksVisible] = useState(true);
-  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
+  const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
 
   if (!challenge || !currentMatchday) {
     return (
@@ -310,10 +310,10 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
             loading={false}
           />
           <button
-            onClick={() => setIsRulesModalOpen(true)}
+            onClick={() => setIsInfoModalOpen(true)}
             className="p-2 bg-navy-accent rounded-lg shadow-sm text-text-secondary hover:text-electric-blue"
           >
-            <ScrollText size={20} />
+            <Info size={20} />
           </button>
           <button
             onClick={onViewLeaderboard}
@@ -534,7 +534,7 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
         )}
       </div>
 
-      <SwipeRulesModal isOpen={isRulesModalOpen} onClose={() => setIsRulesModalOpen(false)} />
+      <GameInfoModal isOpen={isInfoModalOpen} onClose={() => setIsInfoModalOpen(false)} game={challenge} />
     </div>
   );
 });

@@ -591,6 +591,7 @@ export interface SportimeGame {
   period_type?: 'matchdays' | 'calendar'; // How to group matches: by championship matchday or calendar date
   // Stats for GameInfoModal
   league_name?: string;          // Liga name from leagues table
+  league_logo?: string;          // Liga logo URL from leagues table
   total_fixtures?: number;       // Total fixtures in challenge
   fixtures_played?: number;      // Fixtures with status FT/AET/PEN
   total_matchdays?: number;      // Number of matchdays

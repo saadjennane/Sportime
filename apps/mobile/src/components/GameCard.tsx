@@ -233,7 +233,17 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
       {/* Top Section */}
       <div className="flex justify-between items-start">
         <div className="flex-1">
-          <h3 className="text-md font-bold text-text-primary pr-2">{game.name}</h3>
+          <div className="flex items-center gap-2">
+            {game.league_logo && (
+              <img
+                src={game.league_logo}
+                alt={game.league_name || 'League'}
+                className="w-6 h-6 object-contain flex-shrink-0"
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              />
+            )}
+            <h3 className="text-md font-bold text-text-primary pr-2">{game.name}</h3>
+          </div>
           <div className="flex items-center gap-2 mt-1">
             {details && (
               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${details.color}`}>

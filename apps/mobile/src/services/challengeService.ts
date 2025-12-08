@@ -26,6 +26,7 @@ type ChallengeLeagueRow = {
     id: string
     name: string
     logo: string | null
+    api_league_id: number | null
   } | null
 }
 
@@ -219,6 +220,10 @@ function mapChallengeRow(
     description: row.description ?? undefined,
     league_id: row.challenge_leagues?.[0]?.league_id ?? undefined,
     league_name: row.challenge_leagues?.[0]?.league?.name ?? undefined,
+    league_logo: row.challenge_leagues?.[0]?.league?.logo ??
+      (row.challenge_leagues?.[0]?.league?.api_league_id
+        ? `https://media.api-sports.io/football/leagues/${row.challenge_leagues[0].league.api_league_id}.png`
+        : undefined),
     start_date: row.start_date,
     end_date: row.end_date,
     game_type: mapGameType(row.game_type),
@@ -357,7 +362,9 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
       challenge_leagues (
         league_id,
         league:fb_leagues (
-          name
+          name,
+          logo,
+          api_league_id
         )
       )
     `)

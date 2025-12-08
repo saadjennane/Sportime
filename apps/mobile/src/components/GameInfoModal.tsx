@@ -3,8 +3,19 @@ import { X, Calendar, Users, Coins, Target, Hourglass, ScrollText, CalendarDays,
 import { SportimeGame, GameType, Challenge } from '../types';
 import { format, parseISO, differenceInDays } from 'date-fns';
 
-// Union type for both SportimeGame (catalog) and Challenge (room)
-type GameInfo = SportimeGame | Challenge;
+// Minimal challenge interface for SwipeRecapView (uses snake_case)
+interface SwipeChallenge {
+  id: string;
+  name: string;
+  description?: string;
+  start_date: string;
+  end_date: string;
+  status: string;
+  period_type?: 'matchdays' | 'calendar';
+}
+
+// Union type for SportimeGame (catalog), Challenge (betting room), and SwipeChallenge (swipe room)
+type GameInfo = SportimeGame | Challenge | SwipeChallenge;
 
 interface GameInfoModalProps {
   isOpen: boolean;
@@ -13,6 +24,7 @@ interface GameInfoModalProps {
 }
 
 // Helper to normalize game data (Challenge uses camelCase, SportimeGame uses snake_case)
+// SwipeRecapView passes a minimal challenge object with snake_case dates
 function normalizeGame(game: GameInfo): {
   name: string;
   start_date: string;
@@ -28,9 +40,9 @@ function normalizeGame(game: GameInfo): {
   total_matchdays?: number;
   matchdays_finished?: number;
 } {
-  // Check if it's a Challenge (has startDate) vs SportimeGame (has start_date)
+  // Check if it's a Challenge from ChallengeRoomPage (has startDate in camelCase)
   if ('startDate' in game) {
-    // It's a Challenge
+    // It's a Challenge (betting game)
     return {
       name: game.name,
       start_date: game.startDate,
@@ -39,7 +51,7 @@ function normalizeGame(game: GameInfo): {
       totalPlayers: game.totalPlayers,
       game_type: 'betting', // Challenges in ChallengeRoomPage are always betting
       period_type: game.period_type,
-      tier: undefined, // Challenge doesn't have tier
+      tier: undefined,
       league_name: undefined,
       total_fixtures: undefined,
       fixtures_played: undefined,
@@ -47,21 +59,24 @@ function normalizeGame(game: GameInfo): {
       matchdays_finished: undefined,
     };
   }
-  // It's a SportimeGame
+
+  // It's a SportimeGame or SwipeRecapView challenge (both use snake_case)
+  // SwipeRecapView challenge doesn't have game_type, entry_cost, or totalPlayers
+  const g = game as SportimeGame;
   return {
-    name: game.name,
-    start_date: game.start_date,
-    end_date: game.end_date,
-    entry_cost: game.entry_cost,
-    totalPlayers: game.totalPlayers,
-    game_type: game.game_type,
-    period_type: game.period_type,
-    tier: game.tier,
-    league_name: game.league_name,
-    total_fixtures: game.total_fixtures,
-    fixtures_played: game.fixtures_played,
-    total_matchdays: game.total_matchdays,
-    matchdays_finished: game.matchdays_finished,
+    name: g.name,
+    start_date: g.start_date,
+    end_date: g.end_date,
+    entry_cost: g.entry_cost ?? 0,
+    totalPlayers: g.totalPlayers ?? 0,
+    game_type: g.game_type ?? 'prediction', // SwipeRecapView is always prediction
+    period_type: g.period_type,
+    tier: g.tier,
+    league_name: g.league_name,
+    total_fixtures: g.total_fixtures,
+    fixtures_played: g.fixtures_played,
+    total_matchdays: g.total_matchdays,
+    matchdays_finished: g.matchdays_finished,
   };
 }
 
