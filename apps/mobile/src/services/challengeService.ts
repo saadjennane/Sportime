@@ -990,12 +990,14 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
   }
 
   // 2. Get all fixtures with their status (via matchday_fixtures)
+  // IMPORTANT: Filter by challengeIds to avoid fetching ALL fixtures in the database
   const { data: allFixtureStats, error: fixtureStatsError } = await supabase
     .from('matchday_fixtures')
     .select(`
       matchday:challenge_matchdays!inner(challenge_id),
       fixture:fb_fixtures(status_short)
     `)
+    .in('matchday.challenge_id', challengeIds)
 
   if (!fixtureStatsError && allFixtureStats) {
     for (const row of allFixtureStats as Array<{
