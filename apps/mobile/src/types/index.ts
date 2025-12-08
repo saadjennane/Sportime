@@ -293,6 +293,7 @@ export interface UserSwipeEntry {
   matchDayId: string;
   predictions: SwipePrediction[];
   submitted_at: string | null;
+  currentMatchdayFixtureCount?: number;  // Total fixtures in current matchday for progress badge
 }
 
 export interface SwipeMatchDay extends Game {

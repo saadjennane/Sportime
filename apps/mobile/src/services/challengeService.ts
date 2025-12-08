@@ -870,9 +870,102 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
   // Recompute participation with populated challenge map
   const finalParticipation = mapParticipantEntries(challengesById, participants, userId, existingEntriesByChallenge)
 
+  // Fetch swipe predictions for this user to populate userSwipeEntries
+  // This enables progress indicators on GameCard for prediction games
+  let swipeEntriesWithPredictions = finalParticipation.userSwipeEntries
+  if (userId && finalParticipation.userSwipeEntries.length > 0) {
+    const predictionChallengeIds = finalParticipation.userSwipeEntries.map(e => e.matchDayId)
+    const { data: swipePredictions, error: swipePredError } = await supabase
+      .from('swipe_predictions')
+      .select('challenge_id, fixture_id, prediction')
+      .eq('user_id', userId)
+      .in('challenge_id', predictionChallengeIds)
+
+    if (swipePredError) {
+      console.warn('[challengeService] Failed to fetch swipe predictions', swipePredError)
+    } else if (swipePredictions && swipePredictions.length > 0) {
+      // Group predictions by challenge_id
+      const predictionsByChallenge = new Map<string, Array<{ matchId: string; prediction: string }>>()
+      for (const pred of swipePredictions) {
+        if (!predictionsByChallenge.has(pred.challenge_id)) {
+          predictionsByChallenge.set(pred.challenge_id, [])
+        }
+        predictionsByChallenge.get(pred.challenge_id)!.push({
+          matchId: pred.fixture_id,
+          prediction: pred.prediction,
+        })
+      }
+
+      // Update userSwipeEntries with real predictions
+      swipeEntriesWithPredictions = finalParticipation.userSwipeEntries.map(entry => {
+        const preds = predictionsByChallenge.get(entry.matchDayId)
+        if (preds && preds.length > 0) {
+          return {
+            ...entry,
+            predictions: preds as any, // Cast to SwipePrediction[]
+          }
+        }
+        return entry
+      })
+    }
+  }
+
+  // Fetch current matchday fixture count for each prediction challenge
+  // This enables "Ready" badge when all predictions are made
+  if (userId && swipeEntriesWithPredictions.length > 0) {
+    const predictionChallengeIds = swipeEntriesWithPredictions.map(e => e.matchDayId)
+
+    // Get current matchday (first non-finished) for each challenge with fixture count
+    const { data: currentMatchdays, error: matchdaysError } = await supabase
+      .from('challenge_matchdays')
+      .select(`
+        id,
+        challenge_id,
+        status,
+        matchday_fixtures(count)
+      `)
+      .in('challenge_id', predictionChallengeIds)
+      .order('date', { ascending: true })
+
+    if (matchdaysError) {
+      console.warn('[challengeService] Failed to fetch current matchday fixture counts', matchdaysError)
+    } else if (currentMatchdays && currentMatchdays.length > 0) {
+      // Group by challenge_id and find first non-finished matchday
+      const fixtureCountByChallenge = new Map<string, number>()
+
+      for (const md of currentMatchdays as Array<{
+        id: string
+        challenge_id: string
+        status: string | null
+        matchday_fixtures: Array<{ count: number }> | { count: number } | null
+      }>) {
+        // Skip if we already found a non-finished matchday for this challenge
+        if (fixtureCountByChallenge.has(md.challenge_id)) continue
+
+        // Only use matchdays that are not finished
+        const status = (md.status ?? 'upcoming').toLowerCase()
+        if (status === 'finished') continue
+
+        // Extract fixture count
+        const mf = md.matchday_fixtures
+        const count = Array.isArray(mf)
+          ? (mf[0]?.count ?? 0)
+          : (mf as any)?.count ?? 0
+
+        fixtureCountByChallenge.set(md.challenge_id, count)
+      }
+
+      // Update entries with fixture count
+      swipeEntriesWithPredictions = swipeEntriesWithPredictions.map(entry => ({
+        ...entry,
+        currentMatchdayFixtureCount: fixtureCountByChallenge.get(entry.matchDayId) ?? 0,
+      }))
+    }
+  }
+
   catalog.games = Array.from(challengesById.values())
   catalog.userChallengeEntries = finalParticipation.userChallengeEntries
-  catalog.userSwipeEntries = finalParticipation.userSwipeEntries
+  catalog.userSwipeEntries = swipeEntriesWithPredictions
   catalog.userFantasyTeams = finalParticipation.userFantasyTeams
   catalog.joinedChallengeIds = Array.from(finalParticipation.joinedIds)
 

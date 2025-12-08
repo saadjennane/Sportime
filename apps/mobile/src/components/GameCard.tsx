@@ -109,15 +109,16 @@ function getProgressStatus(
     return 'partial';
   }
 
-  // Prediction (swipe) games - check if all predictions are made
+  // Prediction (swipe) games - check if user has made ALL predictions for current matchday
   if (game.game_type === 'prediction') {
     if (!userSwipeEntry || userSwipeEntry.predictions.length === 0) return 'none';
 
-    const totalMatches = game.matches?.length || 0;
-    if (totalMatches === 0) return 'none';
-
-    if (userSwipeEntry.predictions.length >= totalMatches) return 'complete';
-    return 'partial';
+    // Use currentMatchdayFixtureCount to determine if all predictions are made
+    const totalFixtures = userSwipeEntry.currentMatchdayFixtureCount ?? 0;
+    if (totalFixtures > 0 && userSwipeEntry.predictions.length >= totalFixtures) {
+      return 'complete';  // "Ready" badge - all predictions made
+    }
+    return 'partial';  // "In progress" badge - some predictions made
   }
 
   return 'none';
