@@ -235,12 +235,17 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
         <div className="flex-1">
           <div className="flex items-center gap-2">
             {game.league_logo && (
-              <img
-                src={game.league_logo}
-                alt={game.league_name || 'League'}
-                className="w-6 h-6 object-contain flex-shrink-0"
-                onError={(e) => { e.currentTarget.style.display = 'none'; }}
-              />
+              <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                <img
+                  src={game.league_logo}
+                  alt={game.league_name || 'League'}
+                  className="w-5 h-5 object-contain"
+                  onError={(e) => {
+                    const container = e.currentTarget.parentElement;
+                    if (container) container.style.display = 'none';
+                  }}
+                />
+              </div>
             )}
             <h3 className="text-md font-bold text-text-primary pr-2">{game.name}</h3>
           </div>
