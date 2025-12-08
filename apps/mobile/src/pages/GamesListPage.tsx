@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { SportimeGame, UserChallengeEntry, UserSwipeEntry, UserFantasyTeam, Profile, UserTicket, GameFilters } from '../types';
 import { GameCard } from '../components/GameCard';
 import { RewardsPreviewModal } from '../components/RewardsPreviewModal';
-import { RulesModal } from '../components/RulesModal';
+import { GameInfoModal } from '../components/GameInfoModal';
 import { GamesFilterPanel } from '../components/filters/GamesFilterPanel';
 import { checkEligibility } from '../lib/eligibility';
 import { GameSection } from '../components/GameSection';
@@ -132,7 +132,7 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
     eligibleOnly: false,
   });
   const [viewingRewardsFor, setViewingRewardsFor] = useState<SportimeGame | null>(null);
-  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
+  const [viewingInfoFor, setViewingInfoFor] = useState<SportimeGame | null>(null);
 
   const myGameIds = useMemo(() => {
     if (!profile) return new Set();
@@ -367,7 +367,7 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
         onJoinClick={() => game.game_type === 'betting' ? onJoinChallenge(game) : onJoinSwipeGame(game.id)}
         onPlay={onPlayAction}
         onShowRewards={() => setViewingRewardsFor(game)}
-        onShowRules={() => setIsRulesModalOpen(true)}
+        onShowInfo={(game) => setViewingInfoFor(game)}
         onViewLeaderboard={handleViewLeaderboard}
         profile={profile}
         userTickets={userTickets}
@@ -505,9 +505,10 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
         />
       )}
 
-      <RulesModal
-        isOpen={isRulesModalOpen}
-        onClose={() => setIsRulesModalOpen(false)}
+      <GameInfoModal
+        isOpen={viewingInfoFor !== null}
+        onClose={() => setViewingInfoFor(null)}
+        game={viewingInfoFor}
       />
     </div>
   );

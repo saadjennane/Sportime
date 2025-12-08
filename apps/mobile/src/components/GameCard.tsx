@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { SportimeGame, TournamentType, Profile, UserTicket, GameType, UserChallengeEntry, UserSwipeEntry } from '../types';
 import { format, parseISO, isBefore } from 'date-fns';
-import { Calendar, Coins, Gift, ArrowRight, Clock, Users, Ticket, Star, Trophy, Award, ScrollText, Flame, Lock, CheckCircle2, CircleDot } from 'lucide-react';
+import { Calendar, Coins, Gift, ArrowRight, Clock, Users, Ticket, Star, Trophy, Award, Info, Flame, Lock, CheckCircle2, CircleDot } from 'lucide-react';
 import { CtaState, calculateEntryDeadline } from '../pages/GamesListPage';
 import { normalizeTournamentTier } from '../config/constants';
 import { getGameDeadline } from '../services/gameStateService';
@@ -77,7 +77,7 @@ interface GameCardProps {
   onJoinClick: () => void;
   onPlay: () => void;
   onShowRewards: () => void;
-  onShowRules: () => void;
+  onShowInfo: (game: SportimeGame) => void;  // Opens Game Info modal with rules
   onViewLeaderboard?: () => void;
   profile: Profile | null;
   userTickets: UserTicket[];
@@ -142,7 +142,7 @@ const tournamentTierDetails: Record<TournamentType, { label: string; color: stri
   apex: { label: 'Apex', color: 'bg-hot-red/20 text-hot-red' },
 };
 
-export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick, onPlay, onShowRewards, onShowRules, onViewLeaderboard, profile, userTickets, userEntry, userSwipeEntry }) => {
+export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick, onPlay, onShowRewards, onShowInfo, onViewLeaderboard, profile, userTickets, userEntry, userSwipeEntry }) => {
   // Calculate progress status for the badge
   const progressStatus = useMemo(() => getProgressStatus(game, userEntry, userSwipeEntry), [game, userEntry, userSwipeEntry]);
   const details = gameTypeDetails[game.game_type as keyof typeof gameTypeDetails];
@@ -292,11 +292,11 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
             </button>
           )}
           <button
-            onClick={onShowRules}
+            onClick={() => onShowInfo(game)}
             className="flex items-center justify-center p-2 rounded-lg transition-all bg-navy-accent text-text-secondary hover:bg-white/10"
-            title="View Rules"
+            title="Game Info"
           >
-            <ScrollText size={20} />
+            <Info size={20} />
           </button>
         </div>
 
