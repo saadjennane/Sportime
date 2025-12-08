@@ -1,12 +1,68 @@
 import React from 'react';
 import { X, Calendar, Users, Coins, Target, Hourglass, ScrollText, CalendarDays, Trophy } from 'lucide-react';
-import { SportimeGame, GameType } from '../types';
+import { SportimeGame, GameType, Challenge } from '../types';
 import { format, parseISO, differenceInDays } from 'date-fns';
+
+// Union type for both SportimeGame (catalog) and Challenge (room)
+type GameInfo = SportimeGame | Challenge;
 
 interface GameInfoModalProps {
   isOpen: boolean;
   onClose: () => void;
-  game: SportimeGame | null;
+  game: GameInfo | null;
+}
+
+// Helper to normalize game data (Challenge uses camelCase, SportimeGame uses snake_case)
+function normalizeGame(game: GameInfo): {
+  name: string;
+  start_date: string;
+  end_date: string;
+  entry_cost: number;
+  totalPlayers: number;
+  game_type: GameType;
+  period_type?: 'matchdays' | 'calendar';
+  tier?: string;
+  league_name?: string;
+  total_fixtures?: number;
+  fixtures_played?: number;
+  total_matchdays?: number;
+  matchdays_finished?: number;
+} {
+  // Check if it's a Challenge (has startDate) vs SportimeGame (has start_date)
+  if ('startDate' in game) {
+    // It's a Challenge
+    return {
+      name: game.name,
+      start_date: game.startDate,
+      end_date: game.endDate,
+      entry_cost: game.entryCost,
+      totalPlayers: game.totalPlayers,
+      game_type: 'betting', // Challenges in ChallengeRoomPage are always betting
+      period_type: game.period_type,
+      tier: undefined, // Challenge doesn't have tier
+      league_name: undefined,
+      total_fixtures: undefined,
+      fixtures_played: undefined,
+      total_matchdays: undefined,
+      matchdays_finished: undefined,
+    };
+  }
+  // It's a SportimeGame
+  return {
+    name: game.name,
+    start_date: game.start_date,
+    end_date: game.end_date,
+    entry_cost: game.entry_cost,
+    totalPlayers: game.totalPlayers,
+    game_type: game.game_type,
+    period_type: game.period_type,
+    tier: game.tier,
+    league_name: game.league_name,
+    total_fixtures: game.total_fixtures,
+    fixtures_played: game.fixtures_played,
+    total_matchdays: game.total_matchdays,
+    matchdays_finished: game.matchdays_finished,
+  };
 }
 
 const gameTypeLabels: Record<GameType, string> = {
@@ -68,15 +124,18 @@ const rulesByGameType: Record<GameType, string[]> = {
 export const GameInfoModal: React.FC<GameInfoModalProps> = ({ isOpen, onClose, game }) => {
   if (!isOpen || !game) return null;
 
-  const rules = rulesByGameType[game.game_type] || rulesByGameType.betting;
+  // Normalize game data to handle both SportimeGame and Challenge
+  const normalizedGame = normalizeGame(game);
 
-  // Calculate stats from new fields
-  const totalFixtures = game.total_fixtures ?? 0;
-  const fixturesPlayed = game.fixtures_played ?? 0;
-  const totalMatchdays = game.total_matchdays ?? 0;
-  const matchdaysFinished = game.matchdays_finished ?? 0;
-  const daysRemaining = game.end_date
-    ? Math.max(0, differenceInDays(parseISO(game.end_date), new Date()))
+  const rules = rulesByGameType[normalizedGame.game_type] || rulesByGameType.betting;
+
+  // Calculate stats from normalized fields
+  const totalFixtures = normalizedGame.total_fixtures ?? 0;
+  const fixturesPlayed = normalizedGame.fixtures_played ?? 0;
+  const totalMatchdays = normalizedGame.total_matchdays ?? 0;
+  const matchdaysFinished = normalizedGame.matchdays_finished ?? 0;
+  const daysRemaining = normalizedGame.end_date
+    ? Math.max(0, differenceInDays(parseISO(normalizedGame.end_date), new Date()))
     : null;
 
   return (
@@ -98,25 +157,25 @@ export const GameInfoModal: React.FC<GameInfoModalProps> = ({ isOpen, onClose, g
 
         {/* Header */}
         <div className="p-6 pb-4 text-center border-b border-white/10">
-          <h2 className="text-xl font-bold text-text-primary mb-2 pr-8">{game.name}</h2>
-          {game.league_name && (
+          <h2 className="text-xl font-bold text-text-primary mb-2 pr-8">{normalizedGame.name}</h2>
+          {normalizedGame.league_name && (
             <div className="flex items-center justify-center gap-2 mb-3">
               <Trophy size={14} className="text-warm-yellow" />
-              <span className="text-sm text-text-secondary">{game.league_name}</span>
+              <span className="text-sm text-text-secondary">{normalizedGame.league_name}</span>
             </div>
           )}
           <div className="flex flex-wrap justify-center gap-2">
-            <span className={`text-xs font-bold px-3 py-1 rounded-full ${gameTypeColors[game.game_type]}`}>
-              {gameTypeLabels[game.game_type]}
+            <span className={`text-xs font-bold px-3 py-1 rounded-full ${gameTypeColors[normalizedGame.game_type]}`}>
+              {gameTypeLabels[normalizedGame.game_type]}
             </span>
-            {game.period_type && (
+            {normalizedGame.period_type && (
               <span className="text-xs font-bold px-3 py-1 rounded-full bg-orange-500/20 text-orange-400">
-                {game.period_type === 'matchdays' ? 'Matchdays' : 'Calendar'}
+                {normalizedGame.period_type === 'matchdays' ? 'Matchdays' : 'Calendar'}
               </span>
             )}
-            {game.tier && (
-              <span className={`text-xs font-bold px-3 py-1 rounded-full ${tierColors[game.tier] || tierColors.amateur}`}>
-                {game.tier.charAt(0).toUpperCase() + game.tier.slice(1)}
+            {normalizedGame.tier && (
+              <span className={`text-xs font-bold px-3 py-1 rounded-full ${tierColors[normalizedGame.tier] || tierColors.amateur}`}>
+                {normalizedGame.tier.charAt(0).toUpperCase() + normalizedGame.tier.slice(1)}
               </span>
             )}
           </div>
@@ -129,7 +188,7 @@ export const GameInfoModal: React.FC<GameInfoModalProps> = ({ isOpen, onClose, g
             <div className="flex items-center gap-3 text-text-secondary">
               <Calendar size={18} className="flex-shrink-0" />
               <span>
-                {game.start_date ? format(parseISO(game.start_date), 'MMM d') : 'TBD'} - {game.end_date ? format(parseISO(game.end_date), 'MMM d, yyyy') : 'TBD'}
+                {normalizedGame.start_date ? format(parseISO(normalizedGame.start_date), 'MMM d') : 'TBD'} - {normalizedGame.end_date ? format(parseISO(normalizedGame.end_date), 'MMM d, yyyy') : 'TBD'}
               </span>
             </div>
 
@@ -146,7 +205,7 @@ export const GameInfoModal: React.FC<GameInfoModalProps> = ({ isOpen, onClose, g
               <div className="flex items-center gap-3 text-text-secondary">
                 <CalendarDays size={18} className="flex-shrink-0" />
                 <span>
-                  {matchdaysFinished}/{totalMatchdays} {game.period_type === 'matchdays' ? 'matchdays' : 'days'}
+                  {matchdaysFinished}/{totalMatchdays} {normalizedGame.period_type === 'matchdays' ? 'matchdays' : 'days'}
                 </span>
               </div>
             )}
@@ -160,12 +219,12 @@ export const GameInfoModal: React.FC<GameInfoModalProps> = ({ isOpen, onClose, g
 
             <div className="flex items-center gap-3 text-text-secondary">
               <Users size={18} className="flex-shrink-0" />
-              <span>{game.totalPlayers.toLocaleString()} {game.totalPlayers === 1 ? 'player' : 'players'}</span>
+              <span>{normalizedGame.totalPlayers.toLocaleString()} {normalizedGame.totalPlayers === 1 ? 'player' : 'players'}</span>
             </div>
 
             <div className="flex items-center gap-3 text-text-secondary">
               <Coins size={18} className="flex-shrink-0" />
-              <span>Entry: {game.entry_cost.toLocaleString()} coins</span>
+              <span>Entry: {normalizedGame.entry_cost.toLocaleString()} coins</span>
             </div>
           </div>
 

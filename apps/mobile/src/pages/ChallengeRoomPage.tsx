@@ -1,12 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Challenge, ChallengeMatch, UserChallengeEntry, ChallengeBet, BoosterSelection, DailyChallengeEntry, LeaderboardEntry, Profile, UserLeague, LeagueMember, LeagueGame, Game } from '../types';
-import { ArrowLeft, Coins, ShieldAlert, Trophy, ScrollText, Clock, Lock } from 'lucide-react';
+import { ArrowLeft, Coins, ShieldAlert, Trophy, Info, Clock, Lock } from 'lucide-react';
 import { ChallengeBetController } from '../components/ChallengeBetController';
 import { BoosterSelector } from '../components/BoosterSelector';
 import { BoosterInfoModal } from '../components/BoosterInfoModal';
 import { MatchDaySwitcher } from '../components/fantasy/MatchDaySwitcher';
 import { addDays, parseISO, isBefore, format } from 'date-fns';
-import { RulesModal } from '../components/RulesModal';
+import { GameInfoModal } from '../components/GameInfoModal';
 import { LinkGameButton } from '../components/leagues/LinkGameButton';
 
 interface ChallengeRoomPageProps {
@@ -206,7 +206,7 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
 
   const [armingBooster, setArmingBooster] = useState<{ groupKey: string, type: 'x2' | 'x3' } | null>(null);
   const [modalState, setModalState] = useState<{ groupKey: string, type: 'x2' | 'x3' } | null>(null);
-  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
+  const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
 
   // Countdown calculation for current matchday deadline
   const currentMatchdayDeadline = useMemo(() => {
@@ -478,8 +478,8 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
             onLink={onLinkGame}
             loading={false}
           />
-          <button onClick={() => setIsRulesModalOpen(true)} className="p-2 bg-navy-accent rounded-lg shadow-sm text-text-secondary hover:text-electric-blue">
-            <ScrollText size={20} />
+          <button onClick={() => setIsInfoModalOpen(true)} className="p-2 bg-navy-accent rounded-lg shadow-sm text-text-secondary hover:text-electric-blue">
+            <Info size={20} />
           </button>
           <button onClick={() => onViewLeaderboard(challenge.id)} className="p-2 bg-navy-accent rounded-lg shadow-sm text-text-secondary hover:text-electric-blue">
             <Trophy size={20} />
@@ -638,7 +638,7 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
           onSetDontShowAgain={() => onUpdateBoosterPreferences(modalState.type)}
         />
       )}
-      <RulesModal isOpen={isRulesModalOpen} onClose={() => setIsRulesModalOpen(false)} />
+      <GameInfoModal isOpen={isInfoModalOpen} onClose={() => setIsInfoModalOpen(false)} game={challenge} />
     </div>
   );
 };
