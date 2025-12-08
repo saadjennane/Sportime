@@ -218,6 +218,7 @@ function mapChallengeRow(
     name: row.name,
     description: row.description ?? undefined,
     league_id: row.challenge_leagues?.[0]?.league_id ?? undefined,
+    league_name: row.challenge_leagues?.[0]?.league?.name ?? undefined,
     start_date: row.start_date,
     end_date: row.end_date,
     game_type: mapGameType(row.game_type),
@@ -354,7 +355,10 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
         config_data
       ),
       challenge_leagues (
-        league_id
+        league_id,
+        league:leagues (
+          name
+        )
       )
     `)
     .order('start_date', { ascending: true })
@@ -960,6 +964,67 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
         ...entry,
         currentMatchdayFixtureCount: fixtureCountByChallenge.get(entry.matchDayId) ?? 0,
       }))
+    }
+  }
+
+  // Fetch matchday and fixture stats for all challenges (for GameInfoModal)
+  const FINISHED_STATUSES = ['FT', 'AET', 'PEN', 'AWD', 'WO']
+  const matchdayStatsByChallenge = new Map<string, { total: number; finished: number }>()
+  const fixtureStatsByChallenge = new Map<string, { total: number; played: number }>()
+
+  // 1. Get all matchdays with their status
+  const { data: allMatchdayStats, error: matchdayStatsError } = await supabase
+    .from('challenge_matchdays')
+    .select('challenge_id, status')
+    .in('challenge_id', challengeIds)
+
+  if (!matchdayStatsError && allMatchdayStats) {
+    for (const md of allMatchdayStats) {
+      const current = matchdayStatsByChallenge.get(md.challenge_id) ?? { total: 0, finished: 0 }
+      current.total++
+      if (md.status?.toLowerCase() === 'finished') {
+        current.finished++
+      }
+      matchdayStatsByChallenge.set(md.challenge_id, current)
+    }
+  }
+
+  // 2. Get all fixtures with their status (via matchday_fixtures)
+  const { data: allFixtureStats, error: fixtureStatsError } = await supabase
+    .from('matchday_fixtures')
+    .select(`
+      matchday:challenge_matchdays!inner(challenge_id),
+      fixture:fb_fixtures(status_short)
+    `)
+
+  if (!fixtureStatsError && allFixtureStats) {
+    for (const row of allFixtureStats as Array<{
+      matchday: { challenge_id: string }
+      fixture: { status_short: string | null } | null
+    }>) {
+      const challengeId = row.matchday?.challenge_id
+      if (!challengeId || !challengeIds.includes(challengeId)) continue
+
+      const current = fixtureStatsByChallenge.get(challengeId) ?? { total: 0, played: 0 }
+      current.total++
+      if (row.fixture?.status_short && FINISHED_STATUSES.includes(row.fixture.status_short)) {
+        current.played++
+      }
+      fixtureStatsByChallenge.set(challengeId, current)
+    }
+  }
+
+  // Update challenges with stats
+  for (const game of challengesById.values()) {
+    const matchdayStats = matchdayStatsByChallenge.get(game.id)
+    const fixtureStats = fixtureStatsByChallenge.get(game.id)
+    if (matchdayStats) {
+      game.total_matchdays = matchdayStats.total
+      game.matchdays_finished = matchdayStats.finished
+    }
+    if (fixtureStats) {
+      game.total_fixtures = fixtureStats.total
+      game.fixtures_played = fixtureStats.played
     }
   }
 

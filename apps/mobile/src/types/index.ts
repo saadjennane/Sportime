@@ -589,6 +589,12 @@ export interface SportimeGame {
   entry_deadline?: string; // ISO date, calculated: firstMatchDate - 30min
   first_kickoff_time?: string; // ISO date, earliest match kickoff time
   period_type?: 'matchdays' | 'calendar'; // How to group matches: by championship matchday or calendar date
+  // Stats for GameInfoModal
+  league_name?: string;          // Liga name from leagues table
+  total_fixtures?: number;       // Total fixtures in challenge
+  fixtures_played?: number;      // Fixtures with status FT/AET/PEN
+  total_matchdays?: number;      // Number of matchdays
+  matchdays_finished?: number;   // Matchdays with status 'finished'
 }
 
 // Alias for backwards compatibility - SportimeGame is the unified type for all games

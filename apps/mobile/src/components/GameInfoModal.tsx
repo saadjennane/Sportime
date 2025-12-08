@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Calendar, Users, Coins, Target, Hourglass, ScrollText } from 'lucide-react';
+import { X, Calendar, Users, Coins, Target, Hourglass, ScrollText, CalendarDays, Trophy } from 'lucide-react';
 import { SportimeGame, GameType } from '../types';
 import { format, parseISO, differenceInDays } from 'date-fns';
 
@@ -70,9 +70,11 @@ export const GameInfoModal: React.FC<GameInfoModalProps> = ({ isOpen, onClose, g
 
   const rules = rulesByGameType[game.game_type] || rulesByGameType.betting;
 
-  // Calculate stats
-  const matchesPlayed = game.matches?.filter(m => m.result !== undefined).length ?? 0;
-  const totalMatches = game.matches?.length ?? 0;
+  // Calculate stats from new fields
+  const totalFixtures = game.total_fixtures ?? 0;
+  const fixturesPlayed = game.fixtures_played ?? 0;
+  const totalMatchdays = game.total_matchdays ?? 0;
+  const matchdaysFinished = game.matchdays_finished ?? 0;
   const daysRemaining = game.end_date
     ? Math.max(0, differenceInDays(parseISO(game.end_date), new Date()))
     : null;
@@ -96,7 +98,13 @@ export const GameInfoModal: React.FC<GameInfoModalProps> = ({ isOpen, onClose, g
 
         {/* Header */}
         <div className="p-6 pb-4 text-center border-b border-white/10">
-          <h2 className="text-xl font-bold text-text-primary mb-3 pr-8">{game.name}</h2>
+          <h2 className="text-xl font-bold text-text-primary mb-2 pr-8">{game.name}</h2>
+          {game.league_name && (
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <Trophy size={14} className="text-warm-yellow" />
+              <span className="text-sm text-text-secondary">{game.league_name}</span>
+            </div>
+          )}
           <div className="flex flex-wrap justify-center gap-2">
             <span className={`text-xs font-bold px-3 py-1 rounded-full ${gameTypeColors[game.game_type]}`}>
               {gameTypeLabels[game.game_type]}
@@ -125,10 +133,21 @@ export const GameInfoModal: React.FC<GameInfoModalProps> = ({ isOpen, onClose, g
               </span>
             </div>
 
-            {totalMatches > 0 && (
+            {/* Total fixtures progress */}
+            {totalFixtures > 0 && (
               <div className="flex items-center gap-3 text-text-secondary">
                 <Target size={18} className="flex-shrink-0" />
-                <span>{matchesPlayed}/{totalMatches} {game.period_type === 'matchdays' ? 'matchdays' : 'matches'} played</span>
+                <span>{fixturesPlayed}/{totalFixtures} matches</span>
+              </div>
+            )}
+
+            {/* Matchdays/Days progress */}
+            {totalMatchdays > 0 && (
+              <div className="flex items-center gap-3 text-text-secondary">
+                <CalendarDays size={18} className="flex-shrink-0" />
+                <span>
+                  {matchdaysFinished}/{totalMatchdays} {game.period_type === 'matchdays' ? 'matchdays' : 'days'}
+                </span>
               </div>
             )}
 
