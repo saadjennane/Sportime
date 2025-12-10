@@ -274,6 +274,12 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
     return hasFirstMatchStartedInGroup(currentGroup.matches);
   }, [currentGroup]);
 
+  // Check if current matchday is completely finished (all matches played)
+  const isCurrentGroupFinished = useMemo(() => {
+    if (!currentGroup) return false;
+    return currentGroup.matches.every(m => m.status === 'played');
+  }, [currentGroup]);
+
   // Get bets and calculate remaining balance for current group
   // For calendar mode, we need to aggregate bets across all matchdays in the group
   const { groupBets, remainingGroupBalance, groupBooster } = useMemo(() => {
@@ -526,7 +532,8 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
         </p>
       </div>
 
-      {betsLocked && (
+      {/* Only show "Bets are Locked" on current matchday that's in progress (not finished) */}
+      {betsLocked && !isCurrentGroupFinished && (
         <div className="bg-warm-yellow/10 border-l-4 border-warm-yellow text-warm-yellow p-4 rounded-r-lg">
           <div className="flex">
             <div className="py-1"><ShieldAlert size={20} className="mr-3" /></div>
@@ -538,7 +545,8 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
         </div>
       )}
 
-      {hasNextMatchday && (
+      {/* Only show "Next matchday unlocks" when viewing current matchday (not past ones) */}
+      {hasNextMatchday && !isCurrentGroupFinished && (
         <div className="flex items-center gap-2 text-text-secondary text-sm bg-navy-accent/50 px-4 py-2 rounded-lg">
           <Lock size={14} />
           <span>Next matchday unlocks after current matches finish</span>
