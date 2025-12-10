@@ -184,34 +184,22 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
     md.fixtures_count === undefined || md.fixtures_count > 0
   );
 
-  // Filter matchdays based on period_type:
-  // - calendar: Show only finished + today (one day at a time progression)
-  // - matchdays: Show all up to last non-finished (existing behavior)
-  const periodType = challenge?.period_type || 'matchdays';
-
+  // Filter matchdays: Show finished dates + the first non-finished (next active)
+  // This allows users to see history and the next date they can predict on
   let visibleMatchdays: typeof matchdaysWithFixtures;
-
-  if (periodType === 'calendar') {
-    // Calendar: Show ALL matchdays (past, today, and future)
-    // Users need to see upcoming dates to plan their predictions
+  let firstNonFinishedIdx = -1;
+  for (let i = 0; i < matchdaysWithFixtures.length; i++) {
+    if (matchdaysWithFixtures[i].status !== 'finished') {
+      firstNonFinishedIdx = i;
+      break;
+    }
+  }
+  if (firstNonFinishedIdx === -1) {
+    // All finished, show all
     visibleMatchdays = matchdaysWithFixtures;
   } else {
-    // Matchdays: Show ONLY the first non-finished matchday (+ history of finished ones)
-    // As each matchday finishes, the next one becomes visible
-    let firstNonFinishedIdx = -1;
-    for (let i = 0; i < matchdaysWithFixtures.length; i++) {
-      if (matchdaysWithFixtures[i].status !== 'finished') {
-        firstNonFinishedIdx = i;
-        break;
-      }
-    }
-    if (firstNonFinishedIdx === -1) {
-      // All finished, show all
-      visibleMatchdays = matchdaysWithFixtures;
-    } else {
-      // Show all finished + the first non-finished
-      visibleMatchdays = matchdaysWithFixtures.slice(0, firstNonFinishedIdx + 1);
-    }
+    // Show all finished + the first non-finished
+    visibleMatchdays = matchdaysWithFixtures.slice(0, firstNonFinishedIdx + 1);
   }
 
   // Get the matchday number from current matches' round field (if available)
