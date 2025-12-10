@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Challenge, ChallengeMatch, UserChallengeEntry, ChallengeBet, BoosterSelection, DailyChallengeEntry, LeaderboardEntry, Profile, UserLeague, LeagueMember, LeagueGame, Game } from '../types';
-import { ArrowLeft, Coins, ShieldAlert, Trophy, Info, Clock, Lock } from 'lucide-react';
+import { ArrowLeft, Coins, Trophy, Info, Clock, Lock } from 'lucide-react';
 import { ChallengeBetController } from '../components/ChallengeBetController';
 import { BoosterSelector } from '../components/BoosterSelector';
 import { BoosterInfoModal } from '../components/BoosterInfoModal';
@@ -532,24 +532,11 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
         </p>
       </div>
 
-      {/* Only show "Bets are Locked" on current matchday that's in progress (not finished) */}
+      {/* Simple "Bets are Locked" indicator - only on current matchday in progress */}
       {betsLocked && !isCurrentGroupFinished && (
-        <div className="bg-warm-yellow/10 border-l-4 border-warm-yellow text-warm-yellow p-4 rounded-r-lg">
-          <div className="flex">
-            <div className="py-1"><ShieldAlert size={20} className="mr-3" /></div>
-            <div>
-              <p className="font-bold">Bets are Locked</p>
-              <p className="text-sm">This challenge has started. You can no longer place or modify bets.</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Only show "Next matchday unlocks" when viewing current matchday (not past ones) */}
-      {hasNextMatchday && !isCurrentGroupFinished && (
-        <div className="flex items-center gap-2 text-text-secondary text-sm bg-navy-accent/50 px-4 py-2 rounded-lg">
+        <div className="flex items-center gap-2 text-warm-yellow text-sm bg-warm-yellow/10 px-4 py-2 rounded-lg">
           <Lock size={14} />
-          <span>Next matchday unlocks after current matches finish</span>
+          <span className="font-medium">Bets are Locked</span>
         </div>
       )}
 
