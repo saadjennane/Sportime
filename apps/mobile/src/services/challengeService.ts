@@ -1317,6 +1317,10 @@ function buildChallengeMatches(challengeId: string, matchdays: RawMatchday[] | n
     // because the UI groups matchdays by sequential index, not by league round number
     const day = index + 1
 
+    // Extract display day from the first fixture's round (e.g., "Regular Season - 16" → 16)
+    const firstFixtureRound = fixtures[0]?.fixture?.round
+    const displayDay = firstFixtureRound ? extractMatchdayNumber(firstFixtureRound) : day
+
     fixtures.forEach(entry => {
       const fixture = entry?.fixture
       if (!fixture) return
@@ -1335,6 +1339,7 @@ function buildChallengeMatches(challengeId: string, matchdays: RawMatchday[] | n
         id: fixture.id,
         challengeId,
         day,
+        displayDay,
         teamA: {
           name: fixture.home?.name ?? 'Home',
           emoji: nameInitialEmoji(fixture.home?.name),

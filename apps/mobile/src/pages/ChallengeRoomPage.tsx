@@ -122,9 +122,9 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
           date = match.kickoffTime ? new Date(match.kickoffTime) : addDays(parseISO(challenge.start_date), match.day - 1);
           displayName = format(date, 'MMM d');
         } else {
-          // Matchday mode: use matchday number
+          // Matchday mode: use displayDay (actual round number) for UI, day for internal logic
           date = addDays(parseISO(challenge.start_date), match.day - 1);
-          displayName = `Matchday ${match.day}`;
+          displayName = `Matchday ${match.displayDay ?? match.day}`;
         }
 
         groups.set(key, { key, matches: [], displayName, date, matchdays: [] });

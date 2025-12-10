@@ -39,7 +39,8 @@ export interface Bet {
 export interface ChallengeMatch {
   id: string;
   challengeId: string;
-  day: number;
+  day: number; // Sequential index (1, 2, 3...) for internal logic
+  displayDay?: number; // Actual round number (e.g., 14, 15, 16) for UI display
   teamA: { name: string; emoji: string; logo?: string };
   teamB: { name: string; emoji: string; logo?: string };
   odds: { teamA: number; draw: number; teamB: number };
