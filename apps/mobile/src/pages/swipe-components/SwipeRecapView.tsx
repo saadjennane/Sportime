@@ -192,17 +192,9 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
   let visibleMatchdays: typeof matchdaysWithFixtures;
 
   if (periodType === 'calendar') {
-    // Calendar: Show finished matchdays + current day (today or first upcoming)
-    const today = new Date().toISOString().split('T')[0];
-    visibleMatchdays = matchdaysWithFixtures.filter(md => {
-      const mdDate = md.date?.split('T')[0];
-      // Show if finished OR if it's today or earlier (for history)
-      return md.status === 'finished' || (mdDate && mdDate <= today);
-    });
-    // If nothing visible yet (all future), show at least the first upcoming
-    if (visibleMatchdays.length === 0 && matchdaysWithFixtures.length > 0) {
-      visibleMatchdays = [matchdaysWithFixtures[0]];
-    }
+    // Calendar: Show ALL matchdays (past, today, and future)
+    // Users need to see upcoming dates to plan their predictions
+    visibleMatchdays = matchdaysWithFixtures;
   } else {
     // Matchdays: Show ONLY the first non-finished matchday (+ history of finished ones)
     // As each matchday finishes, the next one becomes visible
