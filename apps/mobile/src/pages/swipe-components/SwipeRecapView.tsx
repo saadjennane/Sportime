@@ -329,7 +329,7 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
           gameWeeks={matchDaysForSwitcher}
           selectedGameWeekId={currentMatchday.id}
           onSelect={onSelectMatchday}
-          hideDate={false}
+          hideDate
         />
       </div>
 

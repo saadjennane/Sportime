@@ -521,7 +521,7 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
             setUserHasManuallySelected(true);
             setSelectedGroupKey(id);
           }}
-          hideDate={false}
+          hideDate={challenge.period_type !== 'calendar'}
         />
       </div>
 
