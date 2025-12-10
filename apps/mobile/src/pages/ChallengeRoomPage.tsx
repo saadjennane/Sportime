@@ -285,12 +285,21 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
     let bets: ChallengeBet[] = [];
     let booster: BoosterSelection | undefined;
 
+    // DEBUG: Log IDs for comparison
+    console.log('[DEBUG groupBets] Challenge:', challenge.name);
+    console.log('[DEBUG groupBets] Match IDs in group:', currentGroup.matches.map(m => m.id));
+    console.log('[DEBUG groupBets] All bet challengeMatchIds:', userEntry.dailyEntries.flatMap(d => d.bets.map(b => b.challengeMatchId)));
+
     currentGroup.matchdays.forEach(matchday => {
       const dailyEntry = userEntry.dailyEntries.find(d => d.day === matchday);
       if (dailyEntry) {
         // Only include bets for matches that are actually in this group
         const matchIdsInGroup = new Set(currentGroup.matches.map(m => m.id));
         const groupBetsFromDay = dailyEntry.bets.filter(b => matchIdsInGroup.has(b.challengeMatchId));
+
+        // DEBUG: Log filtering results
+        console.log('[DEBUG groupBets] Matchday:', matchday, 'All bets:', dailyEntry.bets.length, 'Filtered bets:', groupBetsFromDay.length);
+
         bets = [...bets, ...groupBetsFromDay];
         totalBet += groupBetsFromDay.reduce((sum, b) => sum + b.amount, 0);
 
