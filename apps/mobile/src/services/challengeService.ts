@@ -1312,9 +1312,10 @@ function buildChallengeMatches(challengeId: string, matchdays: RawMatchday[] | n
 
   sorted.forEach((matchday, index) => {
     const fixtures = matchday.matchday_fixtures ?? []
-    // Try to extract real matchday number from the first fixture's round
-    const firstFixtureRound = fixtures[0]?.fixture?.round
-    const day = firstFixtureRound ? extractMatchdayNumber(firstFixtureRound) : index + 1
+    // Always use sequential index (1, 2, 3, ...) for consistency
+    // The round number from the league (e.g., "Round 16") should NOT be used as day_number
+    // because the UI groups matchdays by sequential index, not by league round number
+    const day = index + 1
 
     fixtures.forEach(entry => {
       const fixture = entry?.fixture
