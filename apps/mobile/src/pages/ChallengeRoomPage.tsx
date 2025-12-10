@@ -584,13 +584,14 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
 
                 // Sort dates and render with separators
                 const sortedDates = Array.from(matchesByDate.keys()).sort();
-                const showDateSeparators = challenge.period_type !== 'calendar' && sortedDates.length > 1;
+                // Always show date separators for matchday mode (even with single date)
+                const showDateSeparators = challenge.period_type !== 'calendar';
 
                 return sortedDates.flatMap((dateKey) => {
                   const dateMatches = matchesByDate.get(dateKey)!;
                   const elements: React.ReactNode[] = [];
 
-                  // Add date separator for Matchday mode (when multiple dates exist)
+                  // Add date separator for Matchday mode
                   if (showDateSeparators && dateKey !== 'unknown') {
                     elements.push(
                       <div key={`sep-${dateKey}`} className="flex items-center gap-2 py-2">
