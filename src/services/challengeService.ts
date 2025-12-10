@@ -741,7 +741,9 @@ async function buildMatchesFromChallengeMatches(challengeId: string, rows: Chall
           }
 
       return {
-        id: row.id,
+        // Use fixture_id to match with challenge_bets.challenge_match_id
+        // (bets are stored with fixture_id, not challenge_matches.id)
+        id: match.fixture_id ?? row.id,
         challengeId,
         day: row.day_number ?? 1,
         teamA: {
