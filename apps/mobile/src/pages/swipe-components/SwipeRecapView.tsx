@@ -184,22 +184,27 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
     md.fixtures_count === undefined || md.fixtures_count > 0
   );
 
-  // Filter matchdays: Show finished dates + the first non-finished (next active)
-  // This allows users to see history and the next date they can predict on
+  // Filter matchdays: Show past dates + today + first future date (next active)
+  // Use DATE comparison, not status, to ensure future dates appear correctly
+  const today = new Date().toISOString().split('T')[0];
   let visibleMatchdays: typeof matchdaysWithFixtures;
-  let firstNonFinishedIdx = -1;
+
+  // Find the first future date (date > today)
+  let firstFutureIdx = -1;
   for (let i = 0; i < matchdaysWithFixtures.length; i++) {
-    if (matchdaysWithFixtures[i].status !== 'finished') {
-      firstNonFinishedIdx = i;
+    const mdDate = matchdaysWithFixtures[i].date?.split('T')[0];
+    if (mdDate && mdDate > today) {
+      firstFutureIdx = i;
       break;
     }
   }
-  if (firstNonFinishedIdx === -1) {
-    // All finished, show all
+
+  if (firstFutureIdx === -1) {
+    // No future dates, show all (all are past/today)
     visibleMatchdays = matchdaysWithFixtures;
   } else {
-    // Show all finished + the first non-finished
-    visibleMatchdays = matchdaysWithFixtures.slice(0, firstNonFinishedIdx + 1);
+    // Show all past/today + the first future date
+    visibleMatchdays = matchdaysWithFixtures.slice(0, firstFutureIdx + 1);
   }
 
   // Get the matchday number from current matches' round field (if available)
