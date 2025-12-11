@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { ChallengeMatch, ChallengeBet, Profile } from '../types';
-import { TrendingUp, Zap } from 'lucide-react';
+import { TrendingUp, Zap, CheckCircle2, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface ChallengeBetControllerProps {
@@ -157,6 +157,39 @@ export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ 
         >
           <Zap size={14} /> Apply Booster to this Match
         </button>
+      )}
+      {/* Bet Result Summary - Show when match is played and user had a bet */}
+      {match.status === 'played' && bet && bet.amount > 0 && (
+        <div className="mt-3 p-3 rounded-lg bg-deep-navy border border-white/10">
+          {/* Score */}
+          <div className="text-center text-lg font-bold text-text-primary mb-2">
+            {teamA.name} {match.score?.teamA ?? '?'} - {match.score?.teamB ?? '?'} {teamB.name}
+          </div>
+          {/* Bet result */}
+          <div className="flex items-center justify-center gap-2">
+            {bet.prediction === match.result ? (
+              <>
+                <CheckCircle2 className="text-lime-glow" size={18} />
+                <span className="text-lime-glow font-bold">
+                  Won +{Math.round(bet.amount * odds[bet.prediction])} coins
+                </span>
+              </>
+            ) : (
+              <>
+                <XCircle className="text-hot-red" size={18} />
+                <span className="text-hot-red font-bold">
+                  Lost {bet.amount} coins
+                </span>
+              </>
+            )}
+          </div>
+          <div className="text-center text-xs text-text-secondary mt-1">
+            Bet: {bet.amount} on {
+              bet.prediction === 'teamA' ? teamA.name :
+              bet.prediction === 'teamB' ? teamB.name : 'Draw'
+            } @{odds[bet.prediction].toFixed(2)}
+          </div>
+        </div>
       )}
     </div>
   );

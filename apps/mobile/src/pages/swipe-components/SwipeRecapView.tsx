@@ -514,6 +514,37 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
                       )}
                     </button>
                   </div>
+                  {/* Match Result Summary - Show when match finished and user made a prediction */}
+                  {!isEditable && match.result && prediction && (
+                    <div className="mt-3 pt-3 border-t border-white/10">
+                      {/* Score */}
+                      <div className="text-center text-lg font-bold text-text-primary mb-2">
+                        {match.teamA.name} {match.score?.teamA ?? '?'} - {match.score?.teamB ?? '?'} {match.teamB.name}
+                      </div>
+                      {/* User's pick and result */}
+                      <div className="flex items-center justify-center gap-2">
+                        {isCorrect ? (
+                          <>
+                            <CheckCircle2 className="text-lime-glow" size={18} />
+                            <span className="text-lime-glow font-bold">
+                              Correct! +{points} pts
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="text-hot-red" size={18} />
+                            <span className="text-hot-red font-bold">
+                              Wrong - Result: {match.result === 'teamA' ? match.teamA.name : match.result === 'teamB' ? match.teamB.name : 'Draw'}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                      <div className="text-center text-xs text-text-secondary mt-1">
+                        Your pick: {prediction === 'teamA' ? match.teamA.name : prediction === 'teamB' ? match.teamB.name : 'Draw'}
+                        <span className="text-electric-blue ml-1">@{match.odds[prediction].toFixed(2)}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
                   </React.Fragment>
                 );
