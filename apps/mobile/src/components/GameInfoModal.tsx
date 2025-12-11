@@ -215,17 +215,16 @@ export const GameInfoModal: React.FC<GameInfoModalProps> = ({ isOpen, onClose, g
               </div>
             )}
 
-            {/* Matchdays/Days progress */}
-            {totalMatchdays > 0 && (
+            {/* Matchdays progress - for matchdays period type */}
+            {normalizedGame.period_type === 'matchdays' && totalMatchdays > 0 && (
               <div className="flex items-center gap-3 text-text-secondary">
                 <CalendarDays size={18} className="flex-shrink-0" />
-                <span>
-                  {matchdaysFinished}/{totalMatchdays} {normalizedGame.period_type === 'matchdays' ? 'matchdays' : 'days'}
-                </span>
+                <span>{matchdaysFinished}/{totalMatchdays} matchdays</span>
               </div>
             )}
 
-            {daysRemaining !== null && (
+            {/* Days remaining - for calendar period type or when no matchday info */}
+            {normalizedGame.period_type !== 'matchdays' && daysRemaining !== null && (
               <div className="flex items-center gap-3 text-text-secondary">
                 <Hourglass size={18} className="flex-shrink-0" />
                 <span>{daysRemaining} {daysRemaining === 1 ? 'day' : 'days'} remaining</span>
