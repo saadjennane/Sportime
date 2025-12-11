@@ -979,47 +979,62 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
   const matchdayStatsByChallenge = new Map<string, { total: number; finished: number }>()
   const fixtureStatsByChallenge = new Map<string, { total: number; played: number }>()
 
-  // 1. Get all matchdays with their status
-  const { data: allMatchdayStats, error: matchdayStatsError } = await supabase
-    .from('challenge_matchdays')
-    .select('challenge_id, status')
-    .in('challenge_id', challengeIds)
-
-  if (!matchdayStatsError && allMatchdayStats) {
-    for (const md of allMatchdayStats) {
-      const current = matchdayStatsByChallenge.get(md.challenge_id) ?? { total: 0, finished: 0 }
-      current.total++
-      if (md.status?.toLowerCase() === 'finished') {
-        current.finished++
-      }
-      matchdayStatsByChallenge.set(md.challenge_id, current)
-    }
-  }
-
-  // 2. Get all fixtures with their status (via matchday_fixtures)
-  // IMPORTANT: Filter by challengeIds to avoid fetching ALL fixtures in the database
-  const { data: allFixtureStats, error: fixtureStatsError } = await supabase
+  // Get all matchday fixtures with their status to calculate:
+  // 1. Total matchdays and matchdays where ALL fixtures are finished
+  // 2. Total fixtures and fixtures played
+  // NOTE: We calculate matchdays_finished from actual fixture status, not matchday.status field
+  const { data: allMatchdayFixtures, error: allMatchdayFixturesError } = await supabase
     .from('matchday_fixtures')
     .select(`
-      matchday:challenge_matchdays!inner(challenge_id),
+      matchday_id,
+      matchday:challenge_matchdays!inner(id, challenge_id),
       fixture:fb_fixtures(status_short)
     `)
     .in('matchday.challenge_id', challengeIds)
 
-  if (!fixtureStatsError && allFixtureStats) {
-    for (const row of allFixtureStats as Array<{
-      matchday: { challenge_id: string }
+  if (!allMatchdayFixturesError && allMatchdayFixtures) {
+    // Group fixtures by matchday to determine if matchday is fully finished
+    const fixturesByMatchday = new Map<string, {
+      challengeId: string
+      total: number
+      finished: number
+    }>()
+
+    for (const row of allMatchdayFixtures as Array<{
+      matchday_id: string
+      matchday: { id: string; challenge_id: string }
       fixture: { status_short: string | null } | null
     }>) {
+      const matchdayId = row.matchday_id
       const challengeId = row.matchday?.challenge_id
-      if (!challengeId || !challengeIds.includes(challengeId)) continue
+      if (!matchdayId || !challengeId || !challengeIds.includes(challengeId)) continue
 
+      // Track fixtures per matchday
+      const mdStats = fixturesByMatchday.get(matchdayId) ?? { challengeId, total: 0, finished: 0 }
+      mdStats.total++
+      if (row.fixture?.status_short && FINISHED_STATUSES.includes(row.fixture.status_short)) {
+        mdStats.finished++
+      }
+      fixturesByMatchday.set(matchdayId, mdStats)
+
+      // Track fixtures per challenge
       const current = fixtureStatsByChallenge.get(challengeId) ?? { total: 0, played: 0 }
       current.total++
       if (row.fixture?.status_short && FINISHED_STATUSES.includes(row.fixture.status_short)) {
         current.played++
       }
       fixtureStatsByChallenge.set(challengeId, current)
+    }
+
+    // Now calculate matchday stats: a matchday is "finished" if ALL its fixtures are finished
+    for (const [matchdayId, mdStats] of fixturesByMatchday) {
+      const current = matchdayStatsByChallenge.get(mdStats.challengeId) ?? { total: 0, finished: 0 }
+      current.total++
+      // Matchday is finished only if ALL fixtures are finished (and has at least 1 fixture)
+      if (mdStats.total > 0 && mdStats.finished === mdStats.total) {
+        current.finished++
+      }
+      matchdayStatsByChallenge.set(mdStats.challengeId, current)
     }
   }
 
