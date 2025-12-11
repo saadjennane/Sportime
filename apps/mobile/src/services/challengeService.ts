@@ -1353,6 +1353,9 @@ function buildChallengeMatches(challengeId: string, matchdays: RawMatchday[] | n
         odds,
         status,
         result,
+        score: status === 'played' && fixture.goals_home !== null && fixture.goals_away !== null
+          ? { teamA: fixture.goals_home!, teamB: fixture.goals_away! }
+          : undefined,
         kickoffTime: fixture.date ?? undefined,
       })
     })
@@ -1879,6 +1882,9 @@ export async function fetchChallengeMatches(challengeId: string) {
               odds: preferOdds(fixture.odds as RawMatchday['matchday_fixtures'][number]['fixture']['odds']),
               status,
               result,
+              score: status === 'played' && fixture.goals_home !== null && fixture.goals_away !== null
+                ? { teamA: fixture.goals_home!, teamB: fixture.goals_away! }
+                : undefined,
               kickoffTime: fixture.date,
             })
           }
