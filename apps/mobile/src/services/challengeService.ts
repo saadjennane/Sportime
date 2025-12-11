@@ -1038,6 +1038,62 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
     }
   }
 
+  // BETTING CHALLENGES: Fetch stats from challenge_matches → matches (different structure)
+  // Betting games don't use challenge_matchdays/matchday_fixtures - they use challenge_matches directly
+  const bettingChallengeIds = challenges
+    .filter(ch => ch.game_type === 'betting')
+    .map(ch => ch.id)
+
+  if (bettingChallengeIds.length > 0 && supabase) {
+    const { data: bettingMatchesData, error: bettingMatchesError } = await supabase
+      .from('challenge_matches')
+      .select(`
+        challenge_id,
+        match:matches(status)
+      `)
+      .in('challenge_id', bettingChallengeIds)
+
+    if (!bettingMatchesError && bettingMatchesData) {
+      // Group matches by challenge
+      const matchesByChallengeForStats = new Map<string, { total: number; played: number }>()
+
+      for (const row of bettingMatchesData) {
+        const challengeId = row.challenge_id
+        if (!challengeId) continue
+
+        const stats = matchesByChallengeForStats.get(challengeId) ?? { total: 0, played: 0 }
+        stats.total++
+
+        // Check if match is finished (betting uses 'matches' table with 'status' field)
+        // match is returned as an object from the join
+        const matchData = row.match as { status: string | null } | null
+        const status = matchData?.status?.toUpperCase() ?? ''
+        if (FINISHED_STATUSES.includes(status) || status === 'FINISHED' || status === 'PLAYED') {
+          stats.played++
+        }
+        matchesByChallengeForStats.set(challengeId, stats)
+      }
+
+      // Update fixture stats for betting challenges
+      for (const [challengeId, stats] of matchesByChallengeForStats) {
+        fixtureStatsByChallenge.set(challengeId, stats)
+      }
+
+      // For betting challenges, calculate matchdays from the matchesByChallenge we built earlier
+      // (matchesByChallenge was populated at line ~765 for period_type challenges)
+      for (const challengeId of bettingChallengeIds) {
+        const matches = matchesByChallenge.get(challengeId) ?? []
+        if (matches.length > 0) {
+          const finishedMatchdays = matches.filter(m => m.result !== undefined).length
+          matchdayStatsByChallenge.set(challengeId, {
+            total: matches.length,
+            finished: finishedMatchdays,
+          })
+        }
+      }
+    }
+  }
+
   // Update challenges with stats
   for (const game of challengesById.values()) {
     const matchdayStats = matchdayStatsByChallenge.get(game.id)
