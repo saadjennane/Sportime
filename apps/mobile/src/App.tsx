@@ -53,6 +53,7 @@ import LiveGameBettingResultsPage from './pages/live-game/betting/LiveGameBettin
 import PredictionChallengeOverviewPage from './pages/prediction/PredictionChallengeOverviewPage';
 import FantasyLiveTeamSelectionPage from './pages/live-game/FantasyLiveTeamSelectionPage';
 import FantasyLiveGamePage from './pages/live-game/FantasyLiveGamePage';
+import LiveGameLobbyPage from './pages/live-game/LiveGameLobbyPage';
 import { OnboardingFlow } from './components/OnboardingFlow';
 import { isBefore, parseISO, differenceInHours } from 'date-fns';
 import { TicketWalletModal } from './components/TicketWalletModal';
@@ -123,6 +124,13 @@ function App() {
 
   // --- Game Modal States ---
   const [liveGameModalState, setLiveGameModalState] = useState<{ isOpen: boolean; matchId: string | null; matchName: string | null; isLoading: boolean; }>({ isOpen: false, matchId: null, matchName: null, isLoading: false });
+
+  // --- Active Live Game (Supabase) ---
+  const [activeLiveGameSupabase, setActiveLiveGameSupabase] = useState<{
+    id: string;
+    fixtureId: string;
+    mode: 'free' | 'ranked';
+  } | null>(null);
 
   // --- Store State ---
   const {
@@ -364,25 +372,29 @@ function App() {
   };
 
   // Handle Live Game mode selection (Free or Stakes)
-  const handleSelectLiveGameMode = async (mode: 'free' | 'ranked') => {
+  const handleSelectLiveGameMode = async (mode: 'free' | 'ranked', entryCost?: number) => {
     if (!liveGameModalState.matchId) return;
 
     setLiveGameModalState(prev => ({ ...prev, isLoading: true }));
 
     try {
-      console.log('[App] Creating live game via Supabase:', { matchId: liveGameModalState.matchId, mode });
+      const cost = mode === 'ranked' ? (entryCost ?? 1000) : 0;
+      console.log('[App] Creating live game via Supabase:', { matchId: liveGameModalState.matchId, mode, entryCost: cost });
       const game = await createLiveGameSupabase({
         fixtureId: liveGameModalState.matchId,
         mode,
-        entryCost: mode === 'ranked' ? 1000 : 0,
+        entryCost: cost,
       });
       console.log('[App] Live game created:', game);
 
       if (game) {
         addToast(`${mode === 'free' ? 'Free' : 'Stakes'} game created!`, 'success');
-        // TODO: Navigate to live game page when implemented
-        // setActiveView('live-game');
-        // setActiveLiveGameId(game.id);
+        // Navigate to live game lobby
+        setActiveLiveGameSupabase({
+          id: game.id,
+          fixtureId: game.fixtureId,
+          mode: game.mode as 'free' | 'ranked',
+        });
       } else {
         addToast('Failed to create game - no response', 'error');
       }
@@ -1356,6 +1368,18 @@ function App() {
     return <OnboardingPage profile={profile} onComplete={handleCompleteOnboarding} />;
   }
 
+  // Show Live Game Lobby if active
+  if (activeLiveGameSupabase) {
+    return (
+      <LiveGameLobbyPage
+        gameId={activeLiveGameSupabase.id}
+        fixtureId={activeLiveGameSupabase.fixtureId}
+        mode={activeLiveGameSupabase.mode}
+        onBack={() => setActiveLiveGameSupabase(null)}
+      />
+    );
+  }
+
   return (
     <div className="main-background">
       <ToastContainer toasts={toasts} removeToast={removeToast} />
@@ -1468,6 +1492,8 @@ function App() {
         matchName={liveGameModalState.matchName}
         onSelectMode={handleSelectLiveGameMode}
         isLoading={liveGameModalState.isLoading}
+        userBalance={profile?.coins_balance ?? 0}
+        userTier={profile?.level ?? profile?.current_level ?? 'rookie'}
     />
     <NotificationCenter
       isOpen={isNotificationCenterOpen}

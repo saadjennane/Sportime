@@ -249,6 +249,54 @@ export async function getUserLimits(userId: string): Promise<LiveGameUserLimits 
   };
 }
 
+// Default tier limits (fallback if database not available)
+const DEFAULT_TIER_LIMITS: Record<string, number> = {
+  rookie: 500,
+  rising_star: 1000,
+  pro: 2500,
+  legend: 5000,
+  goat: 10000,
+};
+
+/**
+ * Get tier-based entry limits from database
+ * These are administrable by admins via the admin dashboard
+ */
+export async function getTierLimits(): Promise<Record<string, number>> {
+  if (!supabase) {
+    console.warn('[liveGameService] Supabase not available, using default tier limits');
+    return DEFAULT_TIER_LIMITS;
+  }
+
+  const { data, error } = await supabase
+    .from('live_game_tier_limits')
+    .select('tier, max_entry');
+
+  if (error) {
+    console.error('[liveGameService] Error fetching tier limits:', error);
+    return DEFAULT_TIER_LIMITS;
+  }
+
+  if (!data || data.length === 0) {
+    console.warn('[liveGameService] No tier limits in database, using defaults');
+    return DEFAULT_TIER_LIMITS;
+  }
+
+  return data.reduce((acc, row) => {
+    acc[row.tier] = row.max_entry;
+    return acc;
+  }, {} as Record<string, number>);
+}
+
+/**
+ * Get the max entry allowed for a specific user tier
+ */
+export function getMaxEntryForTier(tier: string, tierLimits: Record<string, number>): number {
+  // Normalize tier name (handle variations like "Rising Star" vs "rising_star")
+  const normalizedTier = tier.toLowerCase().replace(/\s+/g, '_');
+  return tierLimits[normalizedTier] || DEFAULT_TIER_LIMITS.rookie;
+}
+
 // =============================================
 // BETTING
 // =============================================
@@ -616,6 +664,8 @@ export const liveGameService = {
   joinLiveGame,
   joinByFriendCode,
   getUserLimits,
+  getTierLimits,
+  getMaxEntryForTier,
   placeBet,
   confirmBet,
   voidBet,
