@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Users, Coins, Clock, Loader2, Gift, Trophy, Zap } from 'lucide-react';
+import { ArrowLeft, Users, Coins, Clock, Loader2, Gift, Trophy, Zap, Target, ChevronRight, AlertCircle, Check } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { supabase } from '../../lib/supabaseClient';
-import { getUserEntry, getLeaderboard, joinLiveGame } from '../../services/liveGameService';
+import { getUserEntry, getLeaderboard, joinLiveGame, placeBet, confirmBet } from '../../services/liveGameService';
+import type { LiveBetCategory } from '../../types';
 
 interface LiveGameLobbyPageProps {
   gameId: string;
@@ -30,6 +31,74 @@ interface LeaderboardEntry {
   totalGains: number;
 }
 
+// Market Categories for betting
+interface MarketCategory {
+  id: LiveBetCategory;
+  name: string;
+  icon: string;
+  description: string;
+  color: string;
+}
+
+const MARKET_CATEGORIES: MarketCategory[] = [
+  { id: 'result', name: 'Match Result', icon: '🏆', description: 'Final result, halftime score', color: 'bg-electric-blue/20 text-electric-blue' },
+  { id: 'goals', name: 'Goals', icon: '⚽', description: 'Next goal, total goals, over/under', color: 'bg-lime-glow/20 text-lime-glow' },
+  { id: 'scorers', name: 'Scorers', icon: '👤', description: 'First scorer, anytime scorer', color: 'bg-warm-yellow/20 text-warm-yellow' },
+  { id: 'cards', name: 'Cards', icon: '🟨', description: 'Yellow cards, red cards', color: 'bg-orange-500/20 text-orange-400' },
+  { id: 'quick', name: 'Quick Bets', icon: '⚡', description: 'Next minute events', color: 'bg-hot-red/20 text-hot-red' },
+  { id: 'special', name: 'Special', icon: '✨', description: 'Corners, penalties, own goals', color: 'bg-purple-500/20 text-purple-400' },
+];
+
+// Mock markets for demo (will come from API)
+interface Market {
+  id: number;
+  name: string;
+  category: LiveBetCategory;
+  options: { label: string; value: string; odds: number }[];
+}
+
+const MOCK_MARKETS: Market[] = [
+  {
+    id: 1,
+    name: 'Match Result',
+    category: 'result',
+    options: [
+      { label: 'Home Win', value: 'home', odds: 2.10 },
+      { label: 'Draw', value: 'draw', odds: 3.25 },
+      { label: 'Away Win', value: 'away', odds: 3.40 },
+    ],
+  },
+  {
+    id: 2,
+    name: 'Next Goal',
+    category: 'goals',
+    options: [
+      { label: 'Home Team', value: 'home', odds: 1.85 },
+      { label: 'No Goal', value: 'none', odds: 6.50 },
+      { label: 'Away Team', value: 'away', odds: 2.20 },
+    ],
+  },
+  {
+    id: 3,
+    name: 'Total Goals Over/Under',
+    category: 'goals',
+    options: [
+      { label: 'Over 2.5', value: 'over_2.5', odds: 1.90 },
+      { label: 'Under 2.5', value: 'under_2.5', odds: 1.95 },
+    ],
+  },
+  {
+    id: 4,
+    name: 'Next Card',
+    category: 'cards',
+    options: [
+      { label: 'Home Team', value: 'home', odds: 1.75 },
+      { label: 'No Card Next 10min', value: 'none', odds: 3.50 },
+      { label: 'Away Team', value: 'away', odds: 2.05 },
+    ],
+  },
+];
+
 const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
   gameId,
   fixtureId,
@@ -44,6 +113,15 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Betting state
+  const [showBettingPanel, setShowBettingPanel] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<LiveBetCategory | null>(null);
+  const [selectedMarket, setSelectedMarket] = useState<Market | null>(null);
+  const [selectedOption, setSelectedOption] = useState<{ label: string; value: string; odds: number } | null>(null);
+  const [betAmount, setBetAmount] = useState<number>(100);
+  const [isPlacingBet, setIsPlacingBet] = useState(false);
+  const [betSuccess, setBetSuccess] = useState(false);
 
   // Fetch fixture details
   useEffect(() => {
@@ -166,77 +244,142 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
     }
   };
 
+  // Place a bet
+  const handlePlaceBet = async () => {
+    if (!userEntry || !selectedMarket || !selectedOption || betAmount < 50) return;
+
+    setIsPlacingBet(true);
+    setError(null);
+
+    try {
+      const bet = await placeBet(userEntry.id, {
+        category: selectedMarket.category,
+        marketId: selectedMarket.id,
+        marketName: selectedMarket.name,
+        choice: selectedOption.value,
+        choiceLabel: selectedOption.label,
+        amount: betAmount,
+        odds: selectedOption.odds,
+      });
+
+      if (bet) {
+        // Update local balance
+        setUserEntry((prev: any) => ({
+          ...prev,
+          balance: prev.balance - betAmount,
+        }));
+        setBetSuccess(true);
+
+        // Auto-confirm after delay (simulating 8s delay)
+        setTimeout(async () => {
+          await confirmBet(bet.id);
+          setBetSuccess(false);
+          setSelectedMarket(null);
+          setSelectedOption(null);
+        }, 2000);
+      }
+    } catch (err: any) {
+      console.error('[LiveGameLobbyPage] Error placing bet:', err);
+      setError(err?.message || 'Failed to place bet');
+    } finally {
+      setIsPlacingBet(false);
+    }
+  };
+
+  // Filter markets by category
+  const filteredMarkets = selectedCategory
+    ? MOCK_MARKETS.filter(m => m.category === selectedCategory)
+    : MOCK_MARKETS;
+
+  // Bet amounts
+  const BET_AMOUNTS = [50, 100, 200, 500];
+
   if (isLoading) {
     return (
-      <div className="fixed inset-0 bg-deep-navy flex items-center justify-center">
+      <div className="fixed inset-0 bg-deep-navy flex items-center justify-center safe-area-inset">
         <Loader2 className="animate-spin text-electric-blue" size={48} />
       </div>
     );
   }
 
   return (
-    <div className="fixed inset-0 bg-deep-navy overflow-y-auto">
+    <div className="fixed inset-0 bg-deep-navy overflow-y-auto safe-area-inset">
       {/* Header */}
       <div className="sticky top-0 bg-deep-navy/95 backdrop-blur-sm z-10 border-b border-white/10">
-        <div className="px-4 py-3 flex items-center gap-3">
+        <div className="px-3 sm:px-4 py-3 flex items-center gap-2 sm:gap-3">
           <button
             onClick={onBack}
             className="p-2 -ml-2 text-text-secondary hover:text-text-primary transition-colors"
           >
-            <ArrowLeft size={24} />
+            <ArrowLeft size={22} />
           </button>
-          <div className="flex-1">
-            <h1 className="font-bold text-text-primary">
+          <div className="flex-1 min-w-0">
+            <h1 className="font-bold text-text-primary text-sm sm:text-base truncate">
               {mode === 'free' ? 'Free Betting Game' : 'Stakes Betting Game'}
             </h1>
-            <p className="text-xs text-text-secondary">Live Game Lobby</p>
+            <p className="text-xs text-text-secondary">Live Game</p>
           </div>
-          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full ${
+          {userEntry && (
+            <div className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-full bg-lime-glow/20">
+              <Coins size={14} className="text-lime-glow" />
+              <span className="text-xs sm:text-sm font-bold text-lime-glow">{userEntry.balance.toLocaleString()}</span>
+            </div>
+          )}
+          <div className={`flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-full ${
             mode === 'free' ? 'bg-lime-glow/20 text-lime-glow' : 'bg-warm-yellow/20 text-warm-yellow'
           }`}>
-            {mode === 'free' ? <Gift size={16} /> : <Coins size={16} />}
-            <span className="text-xs font-bold">{mode === 'free' ? 'Free' : 'Stakes'}</span>
+            {mode === 'free' ? <Gift size={14} /> : <Coins size={14} />}
+            <span className="text-xs font-bold hidden sm:inline">{mode === 'free' ? 'Free' : 'Stakes'}</span>
           </div>
         </div>
       </div>
 
-      <div className="p-4 space-y-4">
+      <div className="p-3 sm:p-4 space-y-3 sm:space-y-4 pb-24">
         {/* Error message */}
         {error && (
-          <div className="bg-hot-red/10 border border-hot-red/20 text-hot-red p-3 rounded-xl text-sm">
-            {error}
+          <div className="bg-hot-red/10 border border-hot-red/20 text-hot-red p-3 rounded-xl text-sm flex items-start gap-2">
+            <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
+            <span>{error}</span>
           </div>
         )}
 
-        {/* Match Card */}
+        {/* Success message */}
+        {betSuccess && (
+          <div className="bg-lime-glow/10 border border-lime-glow/20 text-lime-glow p-3 rounded-xl text-sm flex items-center gap-2 animate-pulse">
+            <Check size={18} />
+            <span>Bet placed successfully!</span>
+          </div>
+        )}
+
+        {/* Match Card - Compact for mobile */}
         {fixture && (
-          <div className="card-base p-5">
-            <div className="flex items-center justify-between">
+          <div className="card-base p-3 sm:p-5">
+            <div className="flex items-center justify-between gap-2">
               {/* Home Team */}
-              <div className="flex-1 flex flex-col items-center gap-2">
-                <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center overflow-hidden">
+              <div className="flex-1 min-w-0 flex flex-col items-center gap-1.5 sm:gap-2">
+                <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-white/10 flex items-center justify-center overflow-hidden flex-shrink-0">
                   {fixture.homeTeam.logo ? (
-                    <img src={fixture.homeTeam.logo} alt="" className="w-10 h-10 object-contain" />
+                    <img src={fixture.homeTeam.logo} alt="" className="w-7 h-7 sm:w-10 sm:h-10 object-contain" />
                   ) : (
-                    <span className="text-2xl">⚽</span>
+                    <span className="text-lg sm:text-2xl">⚽</span>
                   )}
                 </div>
-                <span className="text-sm font-medium text-text-primary text-center line-clamp-2">
+                <span className="text-xs sm:text-sm font-medium text-text-primary text-center line-clamp-2">
                   {fixture.homeTeam.name}
                 </span>
               </div>
 
               {/* Score / VS */}
-              <div className="px-4 flex flex-col items-center">
+              <div className="px-2 sm:px-4 flex flex-col items-center flex-shrink-0">
                 {gameStatus === 'live' && (
                   <span className="text-xs font-bold text-hot-red animate-pulse mb-1">LIVE</span>
                 )}
                 {fixture.homeScore !== undefined && fixture.homeScore !== null ? (
-                  <div className="text-3xl font-bold text-text-primary">
+                  <div className="text-2xl sm:text-3xl font-bold text-text-primary">
                     {fixture.homeScore} - {fixture.awayScore}
                   </div>
                 ) : (
-                  <div className="text-2xl font-bold text-text-disabled">VS</div>
+                  <div className="text-xl sm:text-2xl font-bold text-text-disabled">VS</div>
                 )}
                 <span className="text-xs text-text-secondary mt-1">
                   {format(parseISO(fixture.date), 'MMM d, HH:mm')}
@@ -244,15 +387,15 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
               </div>
 
               {/* Away Team */}
-              <div className="flex-1 flex flex-col items-center gap-2">
-                <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center overflow-hidden">
+              <div className="flex-1 min-w-0 flex flex-col items-center gap-1.5 sm:gap-2">
+                <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-white/10 flex items-center justify-center overflow-hidden flex-shrink-0">
                   {fixture.awayTeam.logo ? (
-                    <img src={fixture.awayTeam.logo} alt="" className="w-10 h-10 object-contain" />
+                    <img src={fixture.awayTeam.logo} alt="" className="w-7 h-7 sm:w-10 sm:h-10 object-contain" />
                   ) : (
-                    <span className="text-2xl">⚽</span>
+                    <span className="text-lg sm:text-2xl">⚽</span>
                   )}
                 </div>
-                <span className="text-sm font-medium text-text-primary text-center line-clamp-2">
+                <span className="text-xs sm:text-sm font-medium text-text-primary text-center line-clamp-2">
                   {fixture.awayTeam.name}
                 </span>
               </div>
@@ -260,20 +403,20 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
           </div>
         )}
 
-        {/* Game Status */}
-        <div className="card-base p-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+        {/* Game Status + Player count */}
+        <div className="card-base p-3 sm:p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center ${
               gameStatus === 'live' ? 'bg-hot-red/20' :
               gameStatus === 'finished' ? 'bg-electric-blue/20' :
               'bg-warm-yellow/20'
             }`}>
-              {gameStatus === 'live' ? <Zap className="text-hot-red" size={20} /> :
-               gameStatus === 'finished' ? <Trophy className="text-electric-blue" size={20} /> :
-               <Clock className="text-warm-yellow" size={20} />}
+              {gameStatus === 'live' ? <Zap className="text-hot-red" size={18} /> :
+               gameStatus === 'finished' ? <Trophy className="text-electric-blue" size={18} /> :
+               <Clock className="text-warm-yellow" size={18} />}
             </div>
             <div>
-              <p className="font-bold text-text-primary">
+              <p className="font-bold text-text-primary text-sm sm:text-base">
                 {gameStatus === 'live' ? 'Match is Live!' :
                  gameStatus === 'finished' ? 'Match Finished' :
                  'Waiting for Kickoff'}
@@ -285,33 +428,18 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-text-secondary">
-            <Users size={18} />
-            <span className="font-bold">{playerCount}</span>
+          <div className="flex items-center gap-1.5 text-text-secondary">
+            <Users size={16} />
+            <span className="font-bold text-sm">{playerCount}</span>
           </div>
         </div>
 
-        {/* User Entry Status */}
-        {userEntry ? (
-          <div className="card-base p-4">
-            <h3 className="font-bold text-text-primary mb-3 flex items-center gap-2">
-              <Coins size={18} className="text-warm-yellow" />
-              Your Balance
-            </h3>
-            <div className="flex items-center justify-between">
-              <span className="text-3xl font-bold text-lime-glow">
-                {userEntry.balance.toLocaleString()}
-              </span>
-              <span className="text-text-secondary text-sm">
-                Gains: +{userEntry.totalGains.toLocaleString()}
-              </span>
-            </div>
-          </div>
-        ) : (
+        {/* Join Game button (if not joined) */}
+        {!userEntry && (
           <button
             onClick={handleJoinGame}
             disabled={isJoining}
-            className="w-full primary-button py-4"
+            className="w-full primary-button py-3 sm:py-4"
           >
             {isJoining ? (
               <span className="flex items-center justify-center gap-2">
@@ -324,10 +452,95 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
           </button>
         )}
 
+        {/* Betting Section - Only show if user joined and game is live or upcoming */}
+        {userEntry && (gameStatus === 'live' || gameStatus === 'upcoming') && (
+          <>
+            {/* Market Categories */}
+            <div className="card-base p-3 sm:p-4">
+              <h3 className="font-bold text-text-primary mb-3 flex items-center gap-2 text-sm sm:text-base">
+                <Target size={18} className="text-electric-blue" />
+                Betting Markets
+              </h3>
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                {MARKET_CATEGORIES.map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setSelectedCategory(selectedCategory === cat.id ? null : cat.id)}
+                    className={`flex flex-col items-center p-2 sm:p-3 rounded-xl transition-all ${
+                      selectedCategory === cat.id
+                        ? `${cat.color} border-2 border-current`
+                        : 'bg-navy-accent/50 hover:bg-navy-accent border-2 border-transparent'
+                    }`}
+                  >
+                    <span className="text-lg sm:text-xl">{cat.icon}</span>
+                    <span className="text-xs font-medium text-text-primary mt-1 truncate w-full text-center">
+                      {cat.name.split(' ')[0]}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Markets List */}
+            <div className="card-base p-3 sm:p-4 space-y-3">
+              <h3 className="font-bold text-text-primary text-sm sm:text-base">
+                {selectedCategory
+                  ? MARKET_CATEGORIES.find(c => c.id === selectedCategory)?.name
+                  : 'All Markets'}
+              </h3>
+
+              {gameStatus === 'upcoming' && (
+                <div className="bg-warm-yellow/10 text-warm-yellow p-2 rounded-lg text-xs flex items-center gap-2">
+                  <Clock size={14} />
+                  <span>Betting opens when match starts</span>
+                </div>
+              )}
+
+              {filteredMarkets.map((market) => (
+                <div key={market.id} className="bg-navy-accent/30 rounded-xl p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium text-text-primary text-sm">{market.name}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      MARKET_CATEGORIES.find(c => c.id === market.category)?.color || 'bg-white/10'
+                    }`}>
+                      {MARKET_CATEGORIES.find(c => c.id === market.category)?.icon}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {market.options.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => {
+                          if (gameStatus === 'live') {
+                            setSelectedMarket(market);
+                            setSelectedOption(opt);
+                            setShowBettingPanel(true);
+                          }
+                        }}
+                        disabled={gameStatus !== 'live'}
+                        className={`p-2 sm:p-3 rounded-lg text-center transition-all ${
+                          selectedMarket?.id === market.id && selectedOption?.value === opt.value
+                            ? 'bg-electric-blue text-white'
+                            : gameStatus === 'live'
+                              ? 'bg-deep-navy hover:bg-navy-accent'
+                              : 'bg-deep-navy/50 cursor-not-allowed opacity-60'
+                        }`}
+                      >
+                        <div className="text-xs text-text-secondary truncate">{opt.label}</div>
+                        <div className="font-bold text-electric-blue text-sm sm:text-base">{opt.odds.toFixed(2)}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
         {/* Leaderboard Preview */}
         {leaderboard.length > 0 && (
-          <div className="card-base p-4">
-            <h3 className="font-bold text-text-primary mb-3 flex items-center gap-2">
+          <div className="card-base p-3 sm:p-4">
+            <h3 className="font-bold text-text-primary mb-3 flex items-center gap-2 text-sm sm:text-base">
               <Trophy size={18} className="text-warm-yellow" />
               Leaderboard
             </h3>
@@ -337,7 +550,7 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
                   key={entry.userId}
                   className="flex items-center p-2 rounded-lg bg-navy-accent/50"
                 >
-                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mr-3 ${
+                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mr-2 sm:mr-3 flex-shrink-0 ${
                     entry.rank === 1 ? 'bg-warm-yellow text-deep-navy' :
                     entry.rank === 2 ? 'bg-gray-300 text-deep-navy' :
                     entry.rank === 3 ? 'bg-amber-600 text-white' :
@@ -345,10 +558,10 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
                   }`}>
                     {entry.rank}
                   </span>
-                  <span className="flex-1 font-medium text-text-primary truncate">
+                  <span className="flex-1 font-medium text-text-primary truncate text-sm">
                     {entry.username}
                   </span>
-                  <span className="font-bold text-lime-glow">
+                  <span className="font-bold text-lime-glow text-sm">
                     {entry.balance.toLocaleString()}
                   </span>
                 </div>
@@ -356,17 +569,90 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
             </div>
           </div>
         )}
-
-        {/* Action Button for Live Games */}
-        {userEntry && gameStatus === 'live' && (
-          <button className="w-full primary-button py-4 bg-hot-red hover:bg-hot-red/90">
-            <span className="flex items-center justify-center gap-2">
-              <Zap size={20} />
-              Place Bets
-            </span>
-          </button>
-        )}
       </div>
+
+      {/* Betting Panel - Bottom Sheet */}
+      {showBettingPanel && selectedMarket && selectedOption && userEntry && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end">
+          <div className="w-full bg-navy-accent rounded-t-3xl p-4 sm:p-6 animate-slide-up">
+            <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-4" />
+
+            <h3 className="font-bold text-text-primary text-lg mb-1">Place Your Bet</h3>
+            <p className="text-text-secondary text-sm mb-4">{selectedMarket.name}</p>
+
+            {/* Selected Option */}
+            <div className="bg-electric-blue/20 rounded-xl p-3 mb-4 flex items-center justify-between">
+              <div>
+                <span className="text-text-secondary text-xs">Your pick</span>
+                <div className="font-bold text-text-primary">{selectedOption.label}</div>
+              </div>
+              <div className="text-right">
+                <span className="text-text-secondary text-xs">Odds</span>
+                <div className="font-bold text-electric-blue text-xl">{selectedOption.odds.toFixed(2)}</div>
+              </div>
+            </div>
+
+            {/* Bet Amount Selection */}
+            <div className="mb-4">
+              <span className="text-text-secondary text-xs block mb-2">Bet amount</span>
+              <div className="grid grid-cols-4 gap-2">
+                {BET_AMOUNTS.map((amount) => (
+                  <button
+                    key={amount}
+                    onClick={() => setBetAmount(amount)}
+                    disabled={amount > userEntry.balance}
+                    className={`py-2 sm:py-3 rounded-xl font-bold transition-all ${
+                      betAmount === amount
+                        ? 'bg-warm-yellow text-deep-navy'
+                        : amount > userEntry.balance
+                          ? 'bg-navy-accent/30 text-text-disabled cursor-not-allowed'
+                          : 'bg-deep-navy text-text-primary hover:bg-navy-accent'
+                    }`}
+                  >
+                    {amount}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Potential Win */}
+            <div className="bg-lime-glow/10 rounded-xl p-3 mb-4 flex items-center justify-between">
+              <span className="text-text-secondary text-sm">Potential win</span>
+              <span className="font-bold text-lime-glow text-lg">
+                +{Math.round(betAmount * selectedOption.odds).toLocaleString()}
+              </span>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowBettingPanel(false);
+                  setSelectedMarket(null);
+                  setSelectedOption(null);
+                }}
+                className="flex-1 py-3 rounded-xl font-bold text-text-secondary bg-deep-navy"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePlaceBet}
+                disabled={isPlacingBet || betAmount > userEntry.balance}
+                className="flex-1 py-3 rounded-xl font-bold text-white bg-electric-blue hover:bg-electric-blue/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isPlacingBet ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 className="animate-spin" size={18} />
+                    Placing...
+                  </span>
+                ) : (
+                  `Bet ${betAmount}`
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
