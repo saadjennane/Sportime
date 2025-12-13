@@ -120,7 +120,9 @@ export async function joinLiveGame(gameId: string): Promise<LiveGameEntry | null
     .single();
 
   if (gameError || !game) throw new Error('Game not found');
-  if (game.status !== 'upcoming') throw new Error('Game has already started');
+  // Allow joining anytime before match is finished
+  // Late joiners have natural handicap: less time = fewer betting opportunities
+  if (game.status === 'finished') throw new Error('This game has ended');
 
   // Check user limits
   const limits = await getUserLimits(user.user.id);
