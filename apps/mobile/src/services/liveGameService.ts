@@ -103,11 +103,15 @@ export async function createLiveGame(options: CreateGameOptions): Promise<LiveGa
     gameData.friend_code = code;
   }
 
-  const { data, error } = await supabase
+  const result = await supabase
     .from('live_games')
     .insert(gameData)
     .select()
     .single();
+
+  console.log('[liveGameService] Insert result:', JSON.stringify(result, null, 2));
+
+  const { data, error } = result;
 
   if (error) {
     console.error('[liveGameService] Error creating game:', error);
