@@ -12,6 +12,7 @@ import { DataSyncPage } from './pages/DataSyncPage';
 import { CelebrationsPage } from './pages/CelebrationsPage';
 import { ConfigPage } from './pages/ConfigPage';
 import { BookmakerPage } from './pages/BookmakerPage';
+import { LiveGameConfigPage } from './pages/LiveGameConfigPage';
 
 function App() {
   return (
@@ -29,6 +30,7 @@ function App() {
         <Route path="/bookmaker" element={<BookmakerPage />} />
         <Route path="/celebrations" element={<CelebrationsPage />} />
         <Route path="/config" element={<ConfigPage />} />
+        <Route path="/live-game" element={<LiveGameConfigPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

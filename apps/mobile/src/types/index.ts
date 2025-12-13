@@ -889,3 +889,100 @@ export interface MatchStats {
 }
 
 export type ContextualPromptType = 'out_of_coins' | 'missed_streak' | 'heavy_player';
+
+// =============================================
+// LIVE BETTING GAME V2
+// =============================================
+
+export type LiveGameMode = 'free' | 'ranked';
+export type LiveBetCategory = 'result' | 'goals' | 'scorers' | 'cards' | 'quick' | 'special';
+export type LiveBetStatus = 'pending' | 'confirming' | 'confirmed' | 'voided' | 'won' | 'lost';
+export type LiveRewardType = 'coins' | 'xp' | 'ticket' | 'spin';
+export type LiveRewardTier = 'amateur' | 'master' | 'apex';
+
+export interface LiveGame {
+  id: string;
+  fixtureId: string;
+  mode: LiveGameMode;
+  entryCost: number;
+  status: 'upcoming' | 'live' | 'finished' | 'cancelled';
+  friendCode?: string;
+  createdBy?: string;
+  createdAt: string;
+  players: number;
+  // Fixture data (joined)
+  fixture?: {
+    homeTeam: { name: string; logo?: string };
+    awayTeam: { name: string; logo?: string };
+    kickoffTime: string;
+    score?: { home: number; away: number };
+    status?: string;
+  };
+}
+
+export interface LiveGameEntry {
+  id: string;
+  liveGameId: string;
+  userId: string;
+  balance: number;
+  totalGains: number;
+  finalRank?: number;
+  joinedAt: string;
+  bets: LiveGameBet[];
+}
+
+export interface LiveGameBet {
+  id: string;
+  entryId: string;
+  category: LiveBetCategory;
+  marketId: number;
+  marketName: string;
+  choice: string;
+  choiceLabel: string;
+  amount: number;
+  odds: number;
+  placedAtMinute?: number;
+  placedAt: string;
+  confirmedAt?: string;
+  resolvedAt?: string;
+  status: LiveBetStatus;
+  gain?: number;
+  voidReason?: string;
+}
+
+// Admin Configuration Types
+export interface LiveGameLevelConfig {
+  id: string;
+  levelName: string;
+  levelOrder: number;
+  minXp: number;
+  maxXp: number | null;
+  entryMax: number | null;
+  slotsMax: number | null;
+  isActive: boolean;
+}
+
+export interface LiveGameFreeRewardConfig {
+  id: string;
+  minPlayers: number;
+  maxPlayers: number | null;
+  topX: number;
+  isActive: boolean;
+  tiers: LiveGameRewardTier[];
+}
+
+export interface LiveGameRewardTier {
+  id?: string;
+  freeRewardId?: string;
+  rank: number;
+  rewardType: LiveRewardType;
+  rewardAmount: number;
+  rewardTier?: LiveRewardTier;
+}
+
+export interface LiveGameUserLimits {
+  levelName: string;
+  entryMax: number | null;
+  slotsMax: number | null;
+  slotsUsed: number;
+}
