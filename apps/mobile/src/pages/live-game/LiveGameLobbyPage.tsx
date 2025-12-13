@@ -41,14 +41,15 @@ interface MarketCategory {
 }
 
 const MARKET_CATEGORIES: MarketCategory[] = [
-  { id: 'result', name: 'Result', icon: '🏆', description: '1X2, 1st/2nd half winner', color: 'bg-electric-blue/20 text-electric-blue' },
-  { id: 'goals', name: 'Goals', icon: '⚽', description: 'Next goal, O/U, BTTS', color: 'bg-lime-glow/20 text-lime-glow' },
-  { id: 'scorers', name: 'Scorers', icon: '👤', description: 'Anytime, first scorer', color: 'bg-warm-yellow/20 text-warm-yellow' },
-  { id: 'cards', name: 'Cards', icon: '🟨', description: 'Yellow/red cards', color: 'bg-orange-500/20 text-orange-400' },
-  { id: 'quick', name: 'Quick', icon: '⚡', description: 'Next min, intervals', color: 'bg-hot-red/20 text-hot-red' },
+  { id: 'result', name: 'Result', icon: '🏆', description: '1X2, handicaps', color: 'bg-electric-blue/20 text-electric-blue' },
+  { id: 'goals', name: 'Goals', icon: '⚽', description: 'O/U, BTTS, next goal', color: 'bg-lime-glow/20 text-lime-glow' },
+  { id: 'scorers', name: 'Scorers', icon: '👤', description: 'Goal scorer, shots', color: 'bg-warm-yellow/20 text-warm-yellow' },
+  { id: 'cards', name: 'Cards', icon: '🟨', description: 'Bookings, total cards', color: 'bg-orange-500/20 text-orange-400' },
+  { id: 'corners', name: 'Corners', icon: '📐', description: 'Corner markets', color: 'bg-purple-500/20 text-purple-400' },
   { id: 'clean_sheet', name: 'Clean', icon: '🧤', description: 'Clean sheet bets', color: 'bg-teal-500/20 text-teal-400' },
-  { id: 'extra_time', name: 'ET', icon: '⏱️', description: 'Extra time markets', color: 'bg-cyan-500/20 text-cyan-400' },
-  { id: 'penalties', name: 'Pens', icon: '🥅', description: 'Shootout markets', color: 'bg-pink-500/20 text-pink-400' },
+  { id: 'quick', name: 'Quick', icon: '⚡', description: 'Goal intervals', color: 'bg-hot-red/20 text-hot-red' },
+  { id: 'extra_time', name: 'ET', icon: '⏱️', description: 'Extra time', color: 'bg-cyan-500/20 text-cyan-400' },
+  { id: 'penalties', name: 'Pens', icon: '🥅', description: 'Shootout', color: 'bg-pink-500/20 text-pink-400' },
 ];
 
 // Knockout rounds where Extra Time and Penalties categories are available

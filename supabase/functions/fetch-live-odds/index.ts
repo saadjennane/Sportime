@@ -13,13 +13,15 @@ import 'jsr:@supabase/functions-js'
 const API_FOOTBALL_KEY = Deno.env.get('API_FOOTBALL_KEY')
 
 // Market IDs from API-Football organized by category
+// Based on actual API response structure for /odds/live endpoint
 const MARKET_IDS: Record<string, number[]> = {
-  result: [59, 48, 72, 19, 35],    // Fulltime Result, DNB, Double Chance, 1X2 1st Half, To Win 2nd Half
-  goals: [36, 25, 69, 73, 84, 92], // O/U, Match Goals, BTTS, Next Goal (1st, 2nd, 3rd)
-  scorers: [63, 46],              // Anytime Goal Scorer, Goal Scorer
-  cards: [119, 210],              // Total Cards, Yellow O/U
-  quick: [65, 116, 18, 90, 94],   // Next 10 Min, Action 1 Min, Goal in Interval
-  clean_sheet: [66, 57],          // Home/Away Clean Sheet
+  result: [19, 35, 41, 64, 21, 33, 17, 26, 29],  // 1X2 1st Half, To Win 2nd Half, 1X2 50min, HT/FT, 3-Way Handicap, Asian Handicap
+  goals: [36, 25, 49, 24, 73, 58, 39, 27, 38, 30, 16, 23, 60], // O/U, Match Goals, O/U 1st Half, Next Goal, Team Goals, Score in Both Halves, BTTS, Final Score
+  scorers: [46, 148, 60],         // Goal Scorer, Player Shots, To Score 3+
+  cards: [119, 115],              // Total Cards, Player to be Booked
+  quick: [18],                    // Goal in Interval
+  clean_sheet: [57, 66],          // Away/Home Clean Sheet
+  corners: [20, 37, 32, 78, 76, 61, 45, 31], // Match Corners, Total Corners, Asian Corners, Corners 1x2, Race to corner
   extra_time: [2, 1, 11, 6, 9],   // 1X2 ET, O/U ET, Handicap ET
   penalties: [107, 101, 10, 8],   // Shootout Winner, Total Penalties, To Qualify
 }
@@ -104,53 +106,47 @@ Deno.serve(async (req) => {
     }
 
     // Process odds into our market structure
+    // API-Football /odds/live returns odds directly in an array, not nested in bookmakers
     const markets: Market[] = []
     let marketIdCounter = 1
 
-    for (const oddGroup of fixtureData.odds) {
-      // Select preferred bookmaker
-      let selectedBookmaker = null
-      for (const priorityId of BOOKMAKER_PRIORITY) {
-        const found = oddGroup.bookmakers?.find((b: any) => b.id === priorityId)
-        if (found) {
-          selectedBookmaker = found
+    for (const odd of fixtureData.odds) {
+      // Each odd has: id, name, values[]
+      // values[] contains: { value, odd, handicap, main, suspended }
+
+      if (!odd.id || !odd.values?.length) continue
+
+      // Determine category from market ID
+      let category = 'result' // default
+      for (const [cat, ids] of Object.entries(MARKET_IDS)) {
+        if (ids.includes(odd.id)) {
+          category = cat
           break
         }
       }
-      if (!selectedBookmaker && oddGroup.bookmakers?.length > 0) {
-        selectedBookmaker = oddGroup.bookmakers[0]
-      }
 
-      if (!selectedBookmaker?.bets?.length) continue
-
-      for (const bet of selectedBookmaker.bets) {
-        // Determine category from bet ID
-        let category = 'result' // default
-        for (const [cat, ids] of Object.entries(MARKET_IDS)) {
-          if (ids.includes(bet.id)) {
-            category = cat
-            break
-          }
-        }
-
-        // Map options
-        const options: MarketOption[] = bet.values?.map((v: any) => ({
+      // Filter out suspended options and map to our format
+      const options: MarketOption[] = odd.values
+        .filter((v: any) => !v.suspended && parseFloat(v.odd) > 0)
+        .map((v: any) => ({
           label: String(v.value),
           value: String(v.value).toLowerCase().replace(/\s+/g, '_'),
           odds: parseFloat(v.odd) || 0,
-        })).filter((o: MarketOption) => o.odds > 0) || []
+          handicap: v.handicap || null,
+        }))
+        // Limit options to avoid overwhelming UI (keep top 10 by odds)
+        .slice(0, 20)
 
-        if (options.length === 0) continue
+      if (options.length === 0) continue
 
-        markets.push({
-          id: marketIdCounter++,
-          apiId: bet.id,
-          name: bet.name,
-          category,
-          bookmaker: selectedBookmaker.name,
-          options,
-        })
-      }
+      markets.push({
+        id: marketIdCounter++,
+        apiId: odd.id,
+        name: odd.name,
+        category,
+        bookmaker: 'API-Football', // Live odds don't specify bookmaker
+        options,
+      })
     }
 
     console.log(`[fetch-live-odds] Returning ${markets.length} markets for fixture ${fixtureApiId}`)
