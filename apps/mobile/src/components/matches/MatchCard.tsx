@@ -245,8 +245,8 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
                 )}
               </button>
             )}
-             {onPlayGame && isUpcoming && (
-              <button onClick={() => onPlayGame(match.id, `${match.teamA.name} vs ${match.teamB.name}`)} className="flex items-center gap-1.5 text-xs font-semibold text-warm-yellow bg-warm-yellow/10 px-2 py-1 rounded-md hover:bg-warm-yellow/20">
+             {onPlayGame && (isUpcoming || isLive) && (
+              <button onClick={() => onPlayGame(match.id, `${match.teamA.name} vs ${match.teamB.name}`)} className={`flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-md ${isLive ? 'text-hot-red bg-hot-red/10 hover:bg-hot-red/20 animate-pulse' : 'text-warm-yellow bg-warm-yellow/10 hover:bg-warm-yellow/20'}`}>
                 <Zap size={16} />
                 Live Game
               </button>
