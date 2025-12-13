@@ -370,20 +370,25 @@ function App() {
     setLiveGameModalState(prev => ({ ...prev, isLoading: true }));
 
     try {
+      console.log('[App] Creating live game:', { matchId: liveGameModalState.matchId, mode });
       const game = await createLiveGame({
         fixtureId: liveGameModalState.matchId,
         mode,
         entryCost: mode === 'ranked' ? 1000 : 0,
       });
+      console.log('[App] Live game created:', game);
 
       if (game) {
         addToast(`${mode === 'free' ? 'Free' : 'Stakes'} game created!`, 'success');
         // TODO: Navigate to live game page when implemented
         // setActiveView('live-game');
         // setActiveLiveGameId(game.id);
+      } else {
+        addToast('Failed to create game - no response', 'error');
       }
     } catch (error: any) {
-      addToast(error.message || 'Failed to create game', 'error');
+      console.error('[App] Error creating live game:', error);
+      addToast(error?.message || 'Failed to create game', 'error');
     } finally {
       setLiveGameModalState({ isOpen: false, matchId: null, matchName: null, isLoading: false });
     }

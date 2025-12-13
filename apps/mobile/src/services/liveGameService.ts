@@ -57,13 +57,26 @@ interface LeaderboardEntry {
  * Create a new live game for a fixture
  */
 export async function createLiveGame(options: CreateGameOptions): Promise<LiveGame | null> {
-  if (!supabase) return null;
+  console.log('[liveGameService] createLiveGame called with:', options);
+
+  if (!supabase) {
+    console.error('[liveGameService] Supabase not initialized');
+    return null;
+  }
 
   const { data: user } = await supabase.auth.getUser();
+  console.log('[liveGameService] User:', user?.user?.id);
   if (!user.user) throw new Error('Not authenticated');
 
-  // Check user limits
-  const limits = await getUserLimits(user.user.id);
+  // Check user limits (skip if RPC doesn't exist yet)
+  let limits = null;
+  try {
+    limits = await getUserLimits(user.user.id);
+    console.log('[liveGameService] User limits:', limits);
+  } catch (limitsError) {
+    console.warn('[liveGameService] Could not get user limits, skipping check:', limitsError);
+  }
+
   if (limits && limits.slotsMax !== null && limits.slotsUsed >= limits.slotsMax) {
     throw new Error(`You have reached your maximum of ${limits.slotsMax} active games. Complete a game to join another.`);
   }
@@ -82,6 +95,7 @@ export async function createLiveGame(options: CreateGameOptions): Promise<LiveGa
     status: 'upcoming',
     created_by: user.user.id,
   };
+  console.log('[liveGameService] Inserting game data:', gameData);
 
   // Generate friend code if requested
   if (options.createFriendCode) {
@@ -100,6 +114,7 @@ export async function createLiveGame(options: CreateGameOptions): Promise<LiveGa
     throw error;
   }
 
+  console.log('[liveGameService] Game created successfully:', data);
   return mapGameFromDb(data);
 }
 
