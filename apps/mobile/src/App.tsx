@@ -57,9 +57,8 @@ import { OnboardingFlow } from './components/OnboardingFlow';
 import { isBefore, parseISO, differenceInHours } from 'date-fns';
 import { TicketWalletModal } from './components/TicketWalletModal';
 import { SpinWheel } from './components/SpinWheel';
-import { GameModal } from './components/modals/GameModal';
-import { LiveArenaModal } from './components/modals/LiveArenaModal';
-import { JoinGameModal } from './components/modals/JoinGameModal';
+import { LiveGameModal } from './components/modals/LiveGameModal';
+import { createLiveGame } from './services/liveGameService';
 import { NotificationCenter } from './components/notifications/NotificationCenter';
 import FunZonePage from './pages/FunZonePage';
 import { PremiumModal } from './components/premium/PremiumModal';
@@ -123,9 +122,7 @@ function App() {
   const [modalState, setModalState] = useState<{ isOpen: boolean; match: Match | null; prediction: 'teamA' | 'draw' | 'teamB' | null; odds: number; }>({ isOpen: false, match: null, prediction: null, odds: 0 });
 
   // --- Game Modal States ---
-  const [gameModalState, setGameModalState] = useState<{ isOpen: boolean; matchId: string | null; matchName: string | null; }>({ isOpen: false, matchId: null, matchName: null });
-  const [liveGameModalState, setLiveGameModalState] = useState<{ isOpen: boolean; matchId: string | null; matchName: string | null; }>({ isOpen: false, matchId: null, matchName: null });
-  const [joinGameModalState, setJoinGameModalState] = useState<{ isOpen: boolean }>({ isOpen: false });
+  const [liveGameModalState, setLiveGameModalState] = useState<{ isOpen: boolean; matchId: string | null; matchName: string | null; isLoading: boolean; }>({ isOpen: false, matchId: null, matchName: null, isLoading: false });
 
   // --- Store State ---
   const {
@@ -363,6 +360,32 @@ function App() {
     } catch (error) {
       console.error('[App] Failed to claim streak:', error);
       addToast('Failed to claim daily streak', 'error');
+    }
+  };
+
+  // Handle Live Game mode selection (Free or Stakes)
+  const handleSelectLiveGameMode = async (mode: 'free' | 'ranked') => {
+    if (!liveGameModalState.matchId) return;
+
+    setLiveGameModalState(prev => ({ ...prev, isLoading: true }));
+
+    try {
+      const game = await createLiveGame({
+        fixtureId: liveGameModalState.matchId,
+        mode,
+        entryCost: mode === 'ranked' ? 1000 : 0,
+      });
+
+      if (game) {
+        addToast(`${mode === 'free' ? 'Free' : 'Stakes'} game created!`, 'success');
+        // TODO: Navigate to live game page when implemented
+        // setActiveView('live-game');
+        // setActiveLiveGameId(game.id);
+      }
+    } catch (error: any) {
+      addToast(error.message || 'Failed to create game', 'error');
+    } finally {
+      setLiveGameModalState({ isOpen: false, matchId: null, matchName: null, isLoading: false });
     }
   };
 
@@ -1034,7 +1057,7 @@ function App() {
   }, [userTickets, profile]);
 
   const handlePlayGameClick = (matchId: string, matchName: string) => {
-    setGameModalState({ isOpen: true, matchId, matchName });
+    setLiveGameModalState({ isOpen: true, matchId, matchName, isLoading: false });
   };
 
   const unreadNotificationsCount = useMemo(() => {
@@ -1433,30 +1456,13 @@ function App() {
         userId={profile.id}
       />
     )}
-    <GameModal 
-        isOpen={gameModalState.isOpen} 
-        onClose={() => setGameModalState({ isOpen: false, matchId: null, matchName: null })}
-        matchId={gameModalState.matchId}
-        matchName={gameModalState.matchName}
-        onStartLiveGame={() => {
-            setLiveGameModalState({ isOpen: true, matchId: gameModalState.matchId, matchName: gameModalState.matchName });
-            setGameModalState({ isOpen: false, matchId: null, matchName: null });
-        }}
-        onJoinGame={() => {
-            setJoinGameModalState({ isOpen: true });
-            setGameModalState({ isOpen: false, matchId: null, matchName: null });
-        }}
-        addToast={addToast}
-    />
-    <LiveArenaModal
+    <LiveGameModal
         isOpen={liveGameModalState.isOpen}
-        onClose={() => setLiveGameModalState({ isOpen: false, matchId: null, matchName: null })}
+        onClose={() => setLiveGameModalState({ isOpen: false, matchId: null, matchName: null, isLoading: false })}
         matchId={liveGameModalState.matchId}
         matchName={liveGameModalState.matchName}
-    />
-    <JoinGameModal
-        isOpen={joinGameModalState.isOpen}
-        onClose={() => setJoinGameModalState({ isOpen: false })}
+        onSelectMode={handleSelectLiveGameMode}
+        isLoading={liveGameModalState.isLoading}
     />
     <NotificationCenter
       isOpen={isNotificationCenterOpen}
