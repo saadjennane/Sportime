@@ -1,6 +1,6 @@
 import React from 'react';
 import { Match, Bet } from '../../types';
-import { Clock, TrendingUp, CheckCircle2, XCircle, BarChart2, Gamepad2 } from 'lucide-react';
+import { Clock, TrendingUp, CheckCircle2, XCircle, BarChart2, Zap } from 'lucide-react';
 
 interface BetButtonProps {
   prediction: 'teamA' | 'draw' | 'teamB';
@@ -246,9 +246,9 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
               </button>
             )}
              {onPlayGame && isUpcoming && (
-              <button onClick={() => onPlayGame(match.id, `${match.teamA.name} vs ${match.teamB.name}`)} className="flex items-center gap-1.5 text-xs font-semibold text-electric-blue bg-electric-blue/10 px-2 py-1 rounded-md hover:bg-electric-blue/20">
-                <Gamepad2 size={16} />
-                Play Game
+              <button onClick={() => onPlayGame(match.id, `${match.teamA.name} vs ${match.teamB.name}`)} className="flex items-center gap-1.5 text-xs font-semibold text-warm-yellow bg-warm-yellow/10 px-2 py-1 rounded-md hover:bg-warm-yellow/20">
+                <Zap size={16} />
+                Live Game
               </button>
             )}
           </div>
