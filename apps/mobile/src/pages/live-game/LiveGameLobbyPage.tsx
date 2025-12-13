@@ -56,11 +56,11 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
           .select(`
             id,
             date,
-            home_score,
-            away_score,
-            status_short,
-            home_team:fb_teams!fb_fixtures_home_team_id_fkey(name, logo),
-            away_team:fb_teams!fb_fixtures_away_team_id_fkey(name, logo)
+            goals_home,
+            goals_away,
+            status,
+            home_team:home_team_id(name, logo),
+            away_team:away_team_id(name, logo)
           `)
           .eq('id', fixtureId)
           .single();
@@ -79,18 +79,19 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
               name: data.away_team?.name || 'TBD',
               logo: data.away_team?.logo,
             },
-            homeScore: data.home_score,
-            awayScore: data.away_score,
-            status: data.status_short || 'NS',
+            homeScore: data.goals_home,
+            awayScore: data.goals_away,
+            status: data.status || 'NS',
           });
 
           // Determine game status based on fixture status
           const liveStatuses = ['1H', 'HT', '2H', 'ET', 'P', 'BT', 'LIVE'];
           const finishedStatuses = ['FT', 'AET', 'PEN', 'PST', 'CANC', 'ABD', 'AWD', 'WO'];
+          const status = data.status || 'NS';
 
-          if (finishedStatuses.includes(data.status_short)) {
+          if (finishedStatuses.includes(status)) {
             setGameStatus('finished');
-          } else if (liveStatuses.includes(data.status_short)) {
+          } else if (liveStatuses.includes(status)) {
             setGameStatus('live');
           } else {
             setGameStatus('upcoming');
