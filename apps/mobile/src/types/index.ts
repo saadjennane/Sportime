@@ -895,7 +895,7 @@ export type ContextualPromptType = 'out_of_coins' | 'missed_streak' | 'heavy_pla
 // =============================================
 
 export type LiveGameMode = 'free' | 'ranked';
-export type LiveBetCategory = 'result' | 'goals' | 'scorers' | 'cards' | 'quick' | 'special';
+export type LiveBetCategory = 'result' | 'goals' | 'scorers' | 'cards' | 'quick' | 'clean_sheet' | 'extra_time' | 'penalties';
 export type LiveBetStatus = 'pending' | 'confirming' | 'confirmed' | 'voided' | 'won' | 'lost';
 export type LiveRewardType = 'coins' | 'xp' | 'ticket' | 'spin';
 export type LiveRewardTier = 'amateur' | 'master' | 'apex';

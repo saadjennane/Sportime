@@ -658,6 +658,57 @@ function mapBetFromDb(data: any): LiveGameBet {
   };
 }
 
+// =============================================
+// LIVE MARKETS (API-FOOTBALL)
+// =============================================
+
+/**
+ * Live market interface for betting
+ */
+export interface LiveMarket {
+  id: number;
+  apiId: number;
+  name: string;
+  category: LiveBetCategory;
+  bookmaker: string;
+  options: Array<{
+    label: string;
+    value: string;
+    odds: number;
+  }>;
+}
+
+/**
+ * Fetch live markets from API-Football via edge function
+ */
+export async function fetchLiveMarkets(fixtureApiId: number): Promise<LiveMarket[]> {
+  if (!supabase) {
+    console.warn('[liveGameService] Supabase not available for fetchLiveMarkets');
+    return [];
+  }
+
+  try {
+    const { data, error } = await supabase.functions.invoke('fetch-live-odds', {
+      body: { fixtureApiId },
+    });
+
+    if (error) {
+      console.error('[liveGameService] Error fetching live markets:', error);
+      return [];
+    }
+
+    if (!data || !data.markets) {
+      console.log('[liveGameService] No markets returned from API');
+      return [];
+    }
+
+    return data.markets as LiveMarket[];
+  } catch (err) {
+    console.error('[liveGameService] fetchLiveMarkets failed:', err);
+    return [];
+  }
+}
+
 // Export all functions
 export const liveGameService = {
   createLiveGame,
@@ -674,6 +725,7 @@ export const liveGameService = {
   getUserEntry,
   getLeaderboard,
   getUserActiveGames,
+  fetchLiveMarkets,
 };
 
 export default liveGameService;

@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Users, Coins, Clock, Loader2, Gift, Trophy, Zap, Target, ChevronRight, AlertCircle, Check } from 'lucide-react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { ArrowLeft, Users, Coins, Clock, Loader2, Gift, Trophy, Zap, Target, ChevronRight, AlertCircle, Check, List } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { supabase } from '../../lib/supabaseClient';
-import { getUserEntry, getLeaderboard, joinLiveGame, placeBet, confirmBet } from '../../services/liveGameService';
+import { getUserEntry, getLeaderboard, joinLiveGame, placeBet, confirmBet, fetchLiveMarkets, LiveMarket } from '../../services/liveGameService';
 import type { LiveBetCategory } from '../../types';
 
 interface LiveGameLobbyPageProps {
@@ -41,13 +41,18 @@ interface MarketCategory {
 }
 
 const MARKET_CATEGORIES: MarketCategory[] = [
-  { id: 'result', name: 'Match Result', icon: '🏆', description: 'Final result, halftime score', color: 'bg-electric-blue/20 text-electric-blue' },
-  { id: 'goals', name: 'Goals', icon: '⚽', description: 'Next goal, total goals, over/under', color: 'bg-lime-glow/20 text-lime-glow' },
-  { id: 'scorers', name: 'Scorers', icon: '👤', description: 'First scorer, anytime scorer', color: 'bg-warm-yellow/20 text-warm-yellow' },
-  { id: 'cards', name: 'Cards', icon: '🟨', description: 'Yellow cards, red cards', color: 'bg-orange-500/20 text-orange-400' },
-  { id: 'quick', name: 'Quick Bets', icon: '⚡', description: 'Next minute events', color: 'bg-hot-red/20 text-hot-red' },
-  { id: 'special', name: 'Special', icon: '✨', description: 'Corners, penalties, own goals', color: 'bg-purple-500/20 text-purple-400' },
+  { id: 'result', name: 'Result', icon: '🏆', description: '1X2, 1st/2nd half winner', color: 'bg-electric-blue/20 text-electric-blue' },
+  { id: 'goals', name: 'Goals', icon: '⚽', description: 'Next goal, O/U, BTTS', color: 'bg-lime-glow/20 text-lime-glow' },
+  { id: 'scorers', name: 'Scorers', icon: '👤', description: 'Anytime, first scorer', color: 'bg-warm-yellow/20 text-warm-yellow' },
+  { id: 'cards', name: 'Cards', icon: '🟨', description: 'Yellow/red cards', color: 'bg-orange-500/20 text-orange-400' },
+  { id: 'quick', name: 'Quick', icon: '⚡', description: 'Next min, intervals', color: 'bg-hot-red/20 text-hot-red' },
+  { id: 'clean_sheet', name: 'Clean', icon: '🧤', description: 'Clean sheet bets', color: 'bg-teal-500/20 text-teal-400' },
+  { id: 'extra_time', name: 'ET', icon: '⏱️', description: 'Extra time markets', color: 'bg-cyan-500/20 text-cyan-400' },
+  { id: 'penalties', name: 'Pens', icon: '🥅', description: 'Shootout markets', color: 'bg-pink-500/20 text-pink-400' },
 ];
+
+// Knockout rounds where Extra Time and Penalties categories are available
+const KNOCKOUT_ROUNDS = ['Final', 'Semi', 'Quarter', 'Round of 16', 'Round of 32', 'Round of 8', 'Knockout', '1/8', '1/4', '1/2'];
 
 // Mock markets for demo (will come from API)
 interface Market {
@@ -123,6 +128,26 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
   const [isPlacingBet, setIsPlacingBet] = useState(false);
   const [betSuccess, setBetSuccess] = useState(false);
 
+  // My Bets state
+  const [userBets, setUserBets] = useState<{
+    id: string;
+    marketName: string;
+    choice: string;
+    choiceLabel: string;
+    amount: number;
+    odds: number;
+    status: 'pending' | 'confirming' | 'confirmed' | 'won' | 'lost';
+    potentialWin: number;
+    placedAt: Date;
+  }[]>([]);
+  const [activeTab, setActiveTab] = useState<'markets' | 'mybets'>('markets');
+
+  // Live markets state
+  const [liveMarkets, setLiveMarkets] = useState<LiveMarket[]>([]);
+  const [isLoadingMarkets, setIsLoadingMarkets] = useState(false);
+  const [isKnockoutMatch, setIsKnockoutMatch] = useState(false);
+  const [fixtureApiId, setFixtureApiId] = useState<number | null>(null);
+
   // Fetch fixture details
   useEffect(() => {
     const fetchFixtureDetails = async () => {
@@ -133,10 +158,12 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
           .from('fb_fixtures')
           .select(`
             id,
+            api_id,
             date,
             goals_home,
             goals_away,
             status,
+            round,
             home_team:home_team_id(name, logo),
             away_team:away_team_id(name, logo)
           `)
@@ -161,6 +188,19 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
             awayScore: data.goals_away,
             status: data.status || 'NS',
           });
+
+          // Store API ID for live markets
+          if (data.api_id) {
+            setFixtureApiId(data.api_id);
+          }
+
+          // Check if this is a knockout match (for ET/Penalties categories)
+          if (data.round) {
+            const isKnockout = KNOCKOUT_ROUNDS.some(kr =>
+              data.round.toLowerCase().includes(kr.toLowerCase())
+            );
+            setIsKnockoutMatch(isKnockout);
+          }
 
           // Determine game status based on fixture status
           const liveStatuses = ['1H', 'HT', '2H', 'ET', 'P', 'BT', 'LIVE'];
@@ -244,6 +284,34 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
     }
   };
 
+  // Load live markets from API
+  const loadLiveMarkets = useCallback(async () => {
+    if (!fixtureApiId || gameStatus !== 'live') return;
+
+    setIsLoadingMarkets(true);
+    try {
+      const markets = await fetchLiveMarkets(fixtureApiId);
+      if (markets.length > 0) {
+        setLiveMarkets(markets);
+      }
+    } catch (err) {
+      console.error('[LiveGameLobbyPage] Error loading live markets:', err);
+    } finally {
+      setIsLoadingMarkets(false);
+    }
+  }, [fixtureApiId, gameStatus]);
+
+  // Load live markets when game becomes live
+  useEffect(() => {
+    if (gameStatus === 'live' && fixtureApiId) {
+      loadLiveMarkets();
+
+      // Refresh markets every 30 seconds
+      const interval = setInterval(loadLiveMarkets, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [gameStatus, fixtureApiId, loadLiveMarkets]);
+
   // Place a bet
   const handlePlaceBet = async () => {
     if (!userEntry || !selectedMarket || !selectedOption || betAmount < 50) return;
@@ -268,11 +336,30 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
           ...prev,
           balance: prev.balance - betAmount,
         }));
+
+        // Add to user bets list
+        setUserBets(prev => [...prev, {
+          id: bet.id,
+          marketName: selectedMarket.name,
+          choice: selectedOption.value,
+          choiceLabel: selectedOption.label,
+          amount: betAmount,
+          odds: selectedOption.odds,
+          status: 'pending',
+          potentialWin: Math.round(betAmount * selectedOption.odds),
+          placedAt: new Date(),
+        }]);
+
         setBetSuccess(true);
+        setShowBettingPanel(false);
 
         // Auto-confirm after delay (simulating 8s delay)
         setTimeout(async () => {
           await confirmBet(bet.id);
+          // Update bet status in list
+          setUserBets(prev => prev.map(b =>
+            b.id === bet.id ? { ...b, status: 'confirmed' as const } : b
+          ));
           setBetSuccess(false);
           setSelectedMarket(null);
           setSelectedOption(null);
@@ -286,10 +373,21 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
     }
   };
 
+  // Use live markets if available, fallback to mock
+  const marketsToShow = liveMarkets.length > 0 ? liveMarkets : MOCK_MARKETS;
+
   // Filter markets by category
   const filteredMarkets = selectedCategory
-    ? MOCK_MARKETS.filter(m => m.category === selectedCategory)
-    : MOCK_MARKETS;
+    ? marketsToShow.filter(m => m.category === selectedCategory)
+    : marketsToShow;
+
+  // Filter visible categories (hide ET/Penalties for non-knockout matches)
+  const visibleCategories = MARKET_CATEGORIES.filter(cat => {
+    if (cat.id === 'extra_time' || cat.id === 'penalties') {
+      return isKnockoutMatch;
+    }
+    return true;
+  });
 
   // Bet amounts
   const BET_AMOUNTS = [50, 100, 200, 500];
@@ -304,6 +402,7 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
 
   return (
     <div className="fixed inset-0 bg-deep-navy overflow-y-auto safe-area-inset">
+      <div className="max-w-md mx-auto">
       {/* Header */}
       <div className="sticky top-0 bg-deep-navy/95 backdrop-blur-sm z-10 border-b border-white/10">
         <div className="px-3 sm:px-4 py-3 flex items-center gap-2 sm:gap-3">
@@ -461,8 +560,8 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
                 <Target size={18} className="text-electric-blue" />
                 Betting Markets
               </h3>
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                {MARKET_CATEGORIES.map((cat) => (
+              <div className="grid grid-cols-4 gap-2">
+                {visibleCategories.map((cat) => (
                   <button
                     key={cat.id}
                     onClick={() => setSelectedCategory(selectedCategory === cat.id ? null : cat.id)}
@@ -474,19 +573,95 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
                   >
                     <span className="text-lg sm:text-xl">{cat.icon}</span>
                     <span className="text-xs font-medium text-text-primary mt-1 truncate w-full text-center">
-                      {cat.name.split(' ')[0]}
+                      {cat.name}
                     </span>
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Markets List */}
+            {/* Tabs: Markets / My Bets */}
+            <div className="flex gap-2 px-1">
+              <button
+                onClick={() => setActiveTab('markets')}
+                className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+                  activeTab === 'markets'
+                    ? 'bg-electric-blue text-white'
+                    : 'bg-navy-accent/50 text-text-secondary hover:bg-navy-accent'
+                }`}
+              >
+                <Target size={16} />
+                Markets
+              </button>
+              <button
+                onClick={() => setActiveTab('mybets')}
+                className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 relative ${
+                  activeTab === 'mybets'
+                    ? 'bg-electric-blue text-white'
+                    : 'bg-navy-accent/50 text-text-secondary hover:bg-navy-accent'
+                }`}
+              >
+                <List size={16} />
+                My Bets
+                {userBets.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-warm-yellow text-deep-navy text-xs font-bold flex items-center justify-center">
+                    {userBets.length}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* My Bets Tab Content */}
+            {activeTab === 'mybets' && (
+              <div className="card-base p-3 sm:p-4 space-y-3">
+                <h3 className="font-bold text-text-primary text-sm sm:text-base">
+                  Your Bets
+                </h3>
+                {userBets.length === 0 ? (
+                  <div className="text-center py-8 text-text-secondary">
+                    <p>No bets placed yet</p>
+                    <p className="text-xs mt-1">Tap on a market to place your first bet</p>
+                  </div>
+                ) : (
+                  userBets.map((bet) => (
+                    <div key={bet.id} className="bg-navy-accent/30 rounded-xl p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium text-text-primary text-sm">{bet.marketName}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          bet.status === 'confirmed' ? 'bg-lime-glow/20 text-lime-glow' :
+                          bet.status === 'pending' ? 'bg-warm-yellow/20 text-warm-yellow' :
+                          bet.status === 'won' ? 'bg-lime-glow/20 text-lime-glow' :
+                          'bg-hot-red/20 text-hot-red'
+                        }`}>
+                          {bet.status === 'pending' ? 'Confirming...' : bet.status}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-text-primary font-bold">{bet.choiceLabel}</p>
+                          <p className="text-xs text-text-secondary">
+                            {bet.amount} coins @ {bet.odds.toFixed(2)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lime-glow font-bold">+{bet.potentialWin}</p>
+                          <p className="text-xs text-text-secondary">potential</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* Markets List - Only show when markets tab is active */}
+            {activeTab === 'markets' && (
             <div className="card-base p-3 sm:p-4 space-y-3">
               <h3 className="font-bold text-text-primary text-sm sm:text-base">
                 {selectedCategory
                   ? MARKET_CATEGORIES.find(c => c.id === selectedCategory)?.name
                   : 'All Markets'}
+                {isLoadingMarkets && <Loader2 className="inline-block ml-2 animate-spin" size={14} />}
               </h3>
 
               {gameStatus === 'upcoming' && (
@@ -534,6 +709,7 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
                 </div>
               ))}
             </div>
+            )}
           </>
         )}
 
@@ -569,6 +745,7 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
             </div>
           </div>
         )}
+      </div>
       </div>
 
       {/* Betting Panel - Bottom Sheet */}
