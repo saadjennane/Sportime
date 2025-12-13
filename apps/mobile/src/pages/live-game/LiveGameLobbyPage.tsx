@@ -141,8 +141,22 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
     status: 'pending' | 'confirming' | 'confirmed' | 'won' | 'lost';
     potentialWin: number;
     placedAt: Date;
+    confirmCountdown?: number; // Seconds remaining until confirmation (8s TV delay)
   }[]>([]);
   const [activeTab, setActiveTab] = useState<'markets' | 'mybets'>('markets');
+
+  // Countdown timer for pending bets (TV sync delay)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setUserBets(prev => prev.map(bet => {
+        if (bet.status === 'pending' && bet.confirmCountdown !== undefined && bet.confirmCountdown > 0) {
+          return { ...bet, confirmCountdown: bet.confirmCountdown - 1 };
+        }
+        return bet;
+      }));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Live markets state
   const [liveMarkets, setLiveMarkets] = useState<LiveMarket[]>([]);
@@ -315,6 +329,8 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
   }, [gameStatus, fixtureApiId, loadLiveMarkets]);
 
   // Place a bet
+  const CONFIRMATION_DELAY = 8; // 8 seconds delay for TV sync protection
+
   const handlePlaceBet = async () => {
     if (!userEntry || !selectedMarket || !selectedOption || betAmount < 50) return;
 
@@ -339,7 +355,7 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
           balance: prev.balance - betAmount,
         }));
 
-        // Add to user bets list
+        // Add to user bets list with countdown
         setUserBets(prev => [...prev, {
           id: bet.id,
           marketName: selectedMarket.name,
@@ -350,22 +366,24 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
           status: 'pending',
           potentialWin: Math.round(betAmount * selectedOption.odds),
           placedAt: new Date(),
+          confirmCountdown: CONFIRMATION_DELAY,
         }]);
 
         setBetSuccess(true);
         setShowBettingPanel(false);
+        setActiveTab('mybets'); // Switch to My Bets tab to show countdown
 
-        // Auto-confirm after delay (simulating 8s delay)
+        // Auto-confirm after 8 second delay (TV sync protection)
         setTimeout(async () => {
           await confirmBet(bet.id);
           // Update bet status in list
           setUserBets(prev => prev.map(b =>
-            b.id === bet.id ? { ...b, status: 'confirmed' as const } : b
+            b.id === bet.id ? { ...b, status: 'confirmed' as const, confirmCountdown: undefined } : b
           ));
           setBetSuccess(false);
           setSelectedMarket(null);
           setSelectedOption(null);
-        }, 2000);
+        }, CONFIRMATION_DELAY * 1000);
       }
     } catch (err: any) {
       console.error('[LiveGameLobbyPage] Error placing bet:', err);
@@ -631,17 +649,34 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
                   </div>
                 ) : (
                   userBets.map((bet) => (
-                    <div key={bet.id} className="bg-navy-accent/30 rounded-xl p-3">
+                    <div key={bet.id} className="bg-navy-accent/30 rounded-xl p-3 overflow-hidden relative">
+                      {/* Countdown progress bar (only shown during 8s TV delay) */}
+                      {bet.status === 'pending' && bet.confirmCountdown !== undefined && bet.confirmCountdown > 0 && (
+                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-warm-yellow/20">
+                          <div
+                            className="h-full bg-warm-yellow transition-all duration-1000 ease-linear"
+                            style={{ width: `${(bet.confirmCountdown / 8) * 100}%` }}
+                          />
+                        </div>
+                      )}
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-medium text-text-primary text-sm">{bet.marketName}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          bet.status === 'confirmed' ? 'bg-lime-glow/20 text-lime-glow' :
-                          bet.status === 'pending' ? 'bg-warm-yellow/20 text-warm-yellow' :
-                          bet.status === 'won' ? 'bg-lime-glow/20 text-lime-glow' :
-                          'bg-hot-red/20 text-hot-red'
-                        }`}>
-                          {bet.status === 'pending' ? 'Confirming...' : bet.status}
-                        </span>
+                        {/* Show countdown badge or status badge */}
+                        {bet.status === 'pending' && bet.confirmCountdown !== undefined && bet.confirmCountdown > 0 ? (
+                          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-warm-yellow/20">
+                            <div className="w-2 h-2 rounded-full bg-warm-yellow animate-pulse" />
+                            <span className="text-xs font-bold text-warm-yellow">{bet.confirmCountdown}s</span>
+                          </div>
+                        ) : (
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            bet.status === 'confirmed' ? 'bg-lime-glow/20 text-lime-glow' :
+                            bet.status === 'pending' ? 'bg-warm-yellow/20 text-warm-yellow' :
+                            bet.status === 'won' ? 'bg-lime-glow/20 text-lime-glow' :
+                            'bg-hot-red/20 text-hot-red'
+                          }`}>
+                            {bet.status}
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center justify-between">
                         <div>
@@ -655,6 +690,12 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
                           <p className="text-xs text-text-secondary">potential</p>
                         </div>
                       </div>
+                      {/* Syncing message during countdown */}
+                      {bet.status === 'pending' && bet.confirmCountdown !== undefined && bet.confirmCountdown > 0 && (
+                        <p className="text-xs text-text-secondary mt-2 text-center">
+                          Syncing with TV delay...
+                        </p>
+                      )}
                     </div>
                   ))
                 )}
@@ -755,37 +796,39 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
       </div>
       </div>
 
-      {/* Betting Panel - Bottom Sheet */}
+      {/* Betting Panel - Bottom Sheet (Mobile Optimized) */}
       {showBettingPanel && selectedMarket && selectedOption && userEntry && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end">
-          <div className="w-full bg-navy-accent rounded-t-3xl p-4 sm:p-6 animate-slide-up">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end justify-center">
+          <div className="w-full max-w-md bg-navy-accent rounded-t-3xl p-4 pb-8 animate-slide-up safe-area-inset-bottom">
+            {/* Handle bar */}
             <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-4" />
 
-            <h3 className="font-bold text-text-primary text-lg mb-1">Place Your Bet</h3>
-            <p className="text-text-secondary text-sm mb-4">{selectedMarket.name}</p>
-
-            {/* Selected Option */}
-            <div className="bg-electric-blue/20 rounded-xl p-3 mb-4 flex items-center justify-between">
-              <div>
-                <span className="text-text-secondary text-xs">Your pick</span>
-                <div className="font-bold text-text-primary">{selectedOption.label}</div>
+            {/* Compact header with pick and odds */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex-1">
+                <p className="text-xs text-text-secondary">{selectedMarket.name}</p>
+                <p className="font-bold text-text-primary">{selectedOption.label}</p>
               </div>
-              <div className="text-right">
-                <span className="text-text-secondary text-xs">Odds</span>
-                <div className="font-bold text-electric-blue text-xl">{selectedOption.odds.toFixed(2)}</div>
+              <div className="bg-electric-blue/20 px-3 py-1.5 rounded-lg">
+                <span className="font-bold text-electric-blue text-lg">{selectedOption.odds.toFixed(2)}</span>
               </div>
             </div>
 
-            {/* Bet Amount Selection */}
-            <div className="mb-4">
-              <span className="text-text-secondary text-xs block mb-2">Bet amount</span>
+            {/* Bet Amount Selection - Compact */}
+            <div className="mb-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-text-secondary text-xs">Bet amount</span>
+                <span className="text-xs text-text-secondary">
+                  Balance: <span className="text-lime-glow font-bold">{userEntry.balance.toLocaleString()}</span>
+                </span>
+              </div>
               <div className="grid grid-cols-4 gap-2">
                 {BET_AMOUNTS.map((amount) => (
                   <button
                     key={amount}
                     onClick={() => setBetAmount(amount)}
                     disabled={amount > userEntry.balance}
-                    className={`py-2 sm:py-3 rounded-xl font-bold transition-all ${
+                    className={`py-2.5 rounded-xl font-bold text-sm transition-all ${
                       betAmount === amount
                         ? 'bg-warm-yellow text-deep-navy'
                         : amount > userEntry.balance
@@ -799,12 +842,23 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
               </div>
             </div>
 
-            {/* Potential Win */}
-            <div className="bg-lime-glow/10 rounded-xl p-3 mb-4 flex items-center justify-between">
+            {/* Potential Win - Compact */}
+            <div className="bg-lime-glow/10 rounded-xl p-2.5 mb-3 flex items-center justify-between">
               <span className="text-text-secondary text-sm">Potential win</span>
-              <span className="font-bold text-lime-glow text-lg">
+              <span className="font-bold text-lime-glow">
                 +{Math.round(betAmount * selectedOption.odds).toLocaleString()}
               </span>
+            </div>
+
+            {/* 8-second delay warning */}
+            <div className="bg-warm-yellow/10 border border-warm-yellow/20 rounded-xl p-2.5 mb-4 flex items-start gap-2">
+              <Clock size={16} className="text-warm-yellow flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-warm-yellow text-xs font-medium">8-second confirmation delay</p>
+                <p className="text-text-secondary text-xs mt-0.5">
+                  Protects against TV broadcast delay. Check status in "My Bets".
+                </p>
+              </div>
             </div>
 
             {/* Actions */}
