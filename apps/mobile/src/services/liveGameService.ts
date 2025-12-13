@@ -663,6 +663,77 @@ function mapBetFromDb(data: any): LiveGameBet {
 // =============================================
 
 /**
+ * Market ID to category mapping
+ * Maintained frontend-side for flexibility - no need to redeploy edge function
+ * when adding new markets or changing categories
+ */
+const MARKET_ID_TO_CATEGORY: Record<number, LiveBetCategory> = {
+  // Result markets
+  19: 'result',   // 1X2 1st Half
+  35: 'result',   // To Win 2nd Half
+  41: 'result',   // 1X2 50min
+  64: 'result',   // HT/FT
+  21: 'result',   // 3-Way Handicap
+  33: 'result',   // Asian Handicap
+  17: 'result',   // Asian Handicap 1st Half
+  26: 'result',   // 1X2 2nd Half
+  29: 'result',   // Double Chance
+
+  // Goals markets
+  36: 'goals',    // Over/Under
+  25: 'goals',    // Match Goals
+  49: 'goals',    // O/U 1st Half
+  24: 'goals',    // Next Goal
+  73: 'goals',    // Team Goals
+  58: 'goals',    // Score in Both Halves
+  39: 'goals',    // BTTS
+  27: 'goals',    // BTTS 1st Half
+  38: 'goals',    // Final Score
+  30: 'goals',    // Home Team Goals
+  16: 'goals',    // Away Team Goals
+  23: 'goals',    // Exact Goals
+  60: 'goals',    // To Score 3+
+
+  // Scorers
+  46: 'scorers',  // Goal Scorer
+  148: 'scorers', // Player Shots
+
+  // Cards
+  119: 'cards',   // Total Cards
+  115: 'cards',   // Player to be Booked
+
+  // Quick bets
+  18: 'quick',    // Goal in Interval
+
+  // Clean sheet
+  57: 'clean_sheet', // Away Clean Sheet
+  66: 'clean_sheet', // Home Clean Sheet
+
+  // Corners
+  20: 'corners',  // Match Corners
+  37: 'corners',  // Total Corners
+  32: 'corners',  // Asian Corners
+  78: 'corners',  // Corners 1X2
+  76: 'corners',  // Race to Corners
+  61: 'corners',  // Team Corners
+  45: 'corners',  // Corners O/U
+  31: 'corners',  // Corners Range
+
+  // Extra Time (knockout only)
+  2: 'extra_time',
+  1: 'extra_time',
+  11: 'extra_time',
+  6: 'extra_time',
+  9: 'extra_time',
+
+  // Penalties (knockout only)
+  107: 'penalties',
+  101: 'penalties',
+  10: 'penalties',
+  8: 'penalties',
+};
+
+/**
  * Live market interface for betting
  */
 export interface LiveMarket {
@@ -680,6 +751,7 @@ export interface LiveMarket {
 
 /**
  * Fetch live markets from API-Football via edge function
+ * Edge function returns ALL markets, categorization is done here for flexibility
  */
 export async function fetchLiveMarkets(fixtureApiId: number): Promise<LiveMarket[]> {
   if (!supabase) {
@@ -702,7 +774,12 @@ export async function fetchLiveMarkets(fixtureApiId: number): Promise<LiveMarket
       return [];
     }
 
-    return data.markets as LiveMarket[];
+    // Categorize markets frontend-side
+    // Unknown market IDs are assigned 'other' category
+    return data.markets.map((market: any) => ({
+      ...market,
+      category: MARKET_ID_TO_CATEGORY[market.apiId] || 'other',
+    })) as LiveMarket[];
   } catch (err) {
     console.error('[liveGameService] fetchLiveMarkets failed:', err);
     return [];

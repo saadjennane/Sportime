@@ -50,6 +50,7 @@ const MARKET_CATEGORIES: MarketCategory[] = [
   { id: 'quick', name: 'Quick', icon: '⚡', description: 'Goal intervals', color: 'bg-hot-red/20 text-hot-red' },
   { id: 'extra_time', name: 'ET', icon: '⏱️', description: 'Extra time', color: 'bg-cyan-500/20 text-cyan-400' },
   { id: 'penalties', name: 'Pens', icon: '🥅', description: 'Shootout', color: 'bg-pink-500/20 text-pink-400' },
+  { id: 'other', name: 'Other', icon: '📊', description: 'Other markets', color: 'bg-gray-500/20 text-gray-400' },
 ];
 
 // Knockout rounds where Extra Time and Penalties categories are available
@@ -382,12 +383,17 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
     ? marketsToShow.filter(m => m.category === selectedCategory)
     : marketsToShow;
 
-  // Filter visible categories (hide ET/Penalties for non-knockout matches)
+  // Filter visible categories:
+  // 1. Hide ET/Penalties for non-knockout matches
+  // 2. Hide categories with no markets (dynamic filtering based on available markets)
   const visibleCategories = MARKET_CATEGORIES.filter(cat => {
-    if (cat.id === 'extra_time' || cat.id === 'penalties') {
-      return isKnockoutMatch;
+    // ET and Penalties only for knockout matches
+    if ((cat.id === 'extra_time' || cat.id === 'penalties') && !isKnockoutMatch) {
+      return false;
     }
-    return true;
+    // Hide categories with no markets
+    const hasMarkets = marketsToShow.some(m => m.category === cat.id);
+    return hasMarkets;
   });
 
   // Bet amounts
