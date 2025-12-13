@@ -58,7 +58,7 @@ import { isBefore, parseISO, differenceInHours } from 'date-fns';
 import { TicketWalletModal } from './components/TicketWalletModal';
 import { SpinWheel } from './components/SpinWheel';
 import { LiveGameModal } from './components/modals/LiveGameModal';
-import { createLiveGame } from './services/liveGameService';
+import { createLiveGame as createLiveGameSupabase } from './services/liveGameService';
 import { NotificationCenter } from './components/notifications/NotificationCenter';
 import FunZonePage from './pages/FunZonePage';
 import { PremiumModal } from './components/premium/PremiumModal';
@@ -370,8 +370,8 @@ function App() {
     setLiveGameModalState(prev => ({ ...prev, isLoading: true }));
 
     try {
-      console.log('[App] Creating live game:', { matchId: liveGameModalState.matchId, mode });
-      const game = await createLiveGame({
+      console.log('[App] Creating live game via Supabase:', { matchId: liveGameModalState.matchId, mode });
+      const game = await createLiveGameSupabase({
         fixtureId: liveGameModalState.matchId,
         mode,
         entryCost: mode === 'ranked' ? 1000 : 0,

@@ -57,7 +57,7 @@ interface LeaderboardEntry {
  * Create a new live game for a fixture
  */
 export async function createLiveGame(options: CreateGameOptions): Promise<LiveGame | null> {
-  console.log('[liveGameService] createLiveGame called with:', options);
+  console.log('[liveGameService] createLiveGame V2 called with:', options);
 
   if (!supabase) {
     console.error('[liveGameService] Supabase not initialized');
@@ -103,15 +103,20 @@ export async function createLiveGame(options: CreateGameOptions): Promise<LiveGa
     gameData.friend_code = code;
   }
 
-  const result = await supabase
-    .from('live_games')
-    .insert(gameData)
-    .select()
-    .single();
+  let result;
+  try {
+    result = await supabase
+      .from('live_games')
+      .insert(gameData)
+      .select()
+      .single();
+    console.log('[liveGameService] Insert result:', JSON.stringify(result, null, 2));
+  } catch (insertError) {
+    console.error('[liveGameService] Insert threw exception:', insertError);
+    throw new Error('Database insert failed');
+  }
 
-  console.log('[liveGameService] Insert result:', JSON.stringify(result, null, 2));
-
-  const { data, error } = result;
+  const { data, error } = result || { data: null, error: { message: 'No result from insert' } };
 
   if (error) {
     console.error('[liveGameService] Error creating game:', error);
