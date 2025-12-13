@@ -111,7 +111,12 @@ export async function createLiveGame(options: CreateGameOptions): Promise<LiveGa
 
   if (error) {
     console.error('[liveGameService] Error creating game:', error);
-    throw error;
+    throw new Error(error.message || 'Failed to create game');
+  }
+
+  if (!data) {
+    console.error('[liveGameService] No data returned from insert - table may not exist');
+    throw new Error('Failed to create game - database error');
   }
 
   console.log('[liveGameService] Game created successfully:', data);
