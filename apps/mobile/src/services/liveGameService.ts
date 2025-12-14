@@ -129,6 +129,30 @@ export async function createLiveGame(options: CreateGameOptions): Promise<LiveGa
   }
 
   console.log('[liveGameService] Game created successfully:', data);
+
+  // Auto-join the game as the creator
+  try {
+    const entryData = {
+      live_game_id: data.id,
+      user_id: user.user.id,
+      balance: data.entry_cost || 1000, // Free mode gets 1000 virtual coins
+    };
+    console.log('[liveGameService] Auto-joining as creator:', entryData);
+
+    const { error: entryError } = await supabase
+      .from('live_game_entries')
+      .insert(entryData);
+
+    if (entryError) {
+      console.error('[liveGameService] Error auto-joining game:', entryError);
+      // Don't throw - game was created successfully, just couldn't auto-join
+    } else {
+      console.log('[liveGameService] Creator auto-joined successfully');
+    }
+  } catch (joinError) {
+    console.error('[liveGameService] Exception during auto-join:', joinError);
+  }
+
   return mapGameFromDb(data);
 }
 

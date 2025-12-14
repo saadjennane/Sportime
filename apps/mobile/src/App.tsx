@@ -402,6 +402,8 @@ function App() {
 
       if (game) {
         addToast(`${mode === 'free' ? 'Free' : 'Stakes'} game created!`, 'success');
+        // Refresh the live games list (creator is auto-joined)
+        loadUserLiveGames();
         // Navigate to live game lobby
         setActiveLiveGameSupabase({
           id: game.id,
