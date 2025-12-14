@@ -226,6 +226,7 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
       if (!supabase || !fixtureId) return;
 
       try {
+        // Step 1: Fetch fixture with team IDs
         const { data, error } = await supabase
           .from('fb_fixtures')
           .select(`
@@ -236,8 +237,8 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
             goals_away,
             status,
             round,
-            home_team:home_team_id(name, logo),
-            away_team:away_team_id(name, logo)
+            home_team_id,
+            away_team_id
           `)
           .eq('id', fixtureId)
           .single();
@@ -245,16 +246,32 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
         if (error) throw error;
 
         if (data) {
+          // Step 2: Fetch teams separately
+          const teamIds = [data.home_team_id, data.away_team_id].filter(Boolean);
+          let teamsMap = new Map<string | number, { name: string; logo_url?: string }>();
+
+          if (teamIds.length > 0) {
+            const { data: teamsData } = await supabase
+              .from('fb_teams')
+              .select('id, name, logo_url')
+              .in('id', teamIds);
+
+            teamsMap = new Map((teamsData ?? []).map((t: any) => [t.id, t]));
+          }
+
+          const homeTeam = teamsMap.get(data.home_team_id);
+          const awayTeam = teamsMap.get(data.away_team_id);
+
           setFixture({
             id: data.id,
             date: data.date,
             homeTeam: {
-              name: data.home_team?.name || 'TBD',
-              logo: data.home_team?.logo,
+              name: homeTeam?.name || 'TBD',
+              logo: homeTeam?.logo_url,
             },
             awayTeam: {
-              name: data.away_team?.name || 'TBD',
-              logo: data.away_team?.logo,
+              name: awayTeam?.name || 'TBD',
+              logo: awayTeam?.logo_url,
             },
             homeScore: data.goals_home,
             awayScore: data.goals_away,
