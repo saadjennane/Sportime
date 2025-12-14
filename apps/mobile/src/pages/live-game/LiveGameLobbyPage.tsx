@@ -125,6 +125,73 @@ interface EnrichedPlayer {
 }
 
 /**
+ * Lineup player from API-Football
+ */
+interface LineupPlayer {
+  name: string;
+  photo?: string;
+  teamName: string;
+  teamLogo?: string;
+}
+
+/**
+ * Normalize name for matching (remove accents, lowercase, remove suffixes)
+ */
+function normalizeForMatch(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove accents
+    .replace(/\s+(jr\.?|junior|sr\.?|senior|iii|ii|iv)$/i, '') // Remove suffixes
+    .replace(/\./g, '') // Remove dots (J. -> J)
+    .trim();
+}
+
+/**
+ * Extract last name (last word after normalization)
+ */
+function extractLastName(name: string): string {
+  const normalized = normalizeForMatch(name);
+  const words = normalized.split(/\s+/).filter(Boolean);
+  return words[words.length - 1] || normalized;
+}
+
+/**
+ * Find a player in the lineup by matching names
+ */
+function findPlayerInLineup(
+  apiName: string,
+  lineupPlayers: LineupPlayer[]
+): LineupPlayer | null {
+  const apiLastName = extractLastName(apiName);
+  const apiFirstInitial = normalizeForMatch(apiName).charAt(0);
+
+  // First try exact last name match
+  const lastNameMatches = lineupPlayers.filter(p =>
+    extractLastName(p.name) === apiLastName
+  );
+
+  if (lastNameMatches.length === 1) {
+    return lastNameMatches[0];
+  }
+
+  // If multiple matches, also check first initial
+  if (lastNameMatches.length > 1) {
+    const initialMatch = lastNameMatches.find(p =>
+      normalizeForMatch(p.name).charAt(0) === apiFirstInitial
+    );
+    if (initialMatch) return initialMatch;
+  }
+
+  // Try full normalized name match
+  const fullNameMatch = lineupPlayers.find(p =>
+    normalizeForMatch(p.name) === normalizeForMatch(apiName)
+  );
+  if (fullNameMatch) return fullNameMatch;
+
+  return lastNameMatches[0] || null;
+}
+
+/**
  * Format market names and option labels by replacing Home/Away with team names
  */
 function formatWithTeamNames(text: string, fixture: FixtureDetails | null): string {
@@ -292,6 +359,9 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
   // Player data for scorers markets (name -> EnrichedPlayer)
   const [playersMap, setPlayersMap] = useState<Map<string, EnrichedPlayer>>(new Map());
 
+  // Lineup players for matching (includes starters + substitutes from both teams)
+  const [lineupPlayers, setLineupPlayers] = useState<LineupPlayer[]>([]);
+
   // Fetch live status from API-Football
   const fetchLiveStatusFromApi = useCallback(async (apiId: number): Promise<{ status: string; goalsHome: number | null; goalsAway: number | null; elapsed: number | null } | null> => {
     try {
@@ -319,6 +389,68 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
     } catch (err) {
       console.warn('[LiveGameLobbyPage] Failed to fetch live status from API:', err);
       return null;
+    }
+  }, []);
+
+  // Fetch lineups from API-Football (starters + substitutes)
+  const fetchLineups = useCallback(async (apiId: number): Promise<LineupPlayer[]> => {
+    try {
+      const response = await fetch(`https://v3.football.api-sports.io/fixtures/lineups?fixture=${apiId}`, {
+        headers: {
+          'x-rapidapi-key': import.meta.env.VITE_API_FOOTBALL_KEY || '',
+          'x-rapidapi-host': 'v3.football.api-sports.io',
+        },
+      });
+
+      if (!response.ok) {
+        console.warn('[LiveGameLobbyPage] Failed to fetch lineups:', response.status);
+        return [];
+      }
+
+      const data = await response.json();
+      const teams = data.response || [];
+      const players: LineupPlayer[] = [];
+
+      // Build player photo URL from player ID
+      const getPlayerPhoto = (playerId?: number): string | undefined => {
+        if (!playerId) return undefined;
+        return `https://media.api-sports.io/football/players/${playerId}.png`;
+      };
+
+      teams.forEach((team: any) => {
+        const teamName = team.team?.name || 'Unknown';
+        const teamLogo = team.team?.logo;
+
+        // Add starters
+        (team.startXI || []).forEach((item: any) => {
+          if (item.player?.name) {
+            players.push({
+              name: item.player.name,
+              photo: getPlayerPhoto(item.player.id),
+              teamName,
+              teamLogo,
+            });
+          }
+        });
+
+        // Add substitutes (bench)
+        (team.substitutes || []).forEach((item: any) => {
+          if (item.player?.name) {
+            players.push({
+              name: item.player.name,
+              photo: getPlayerPhoto(item.player.id),
+              teamName,
+              teamLogo,
+            });
+          }
+        });
+      });
+
+      console.log(`[LiveGameLobbyPage] Loaded ${players.length} players from lineups`);
+      return players;
+    } catch (err) {
+      console.warn('[LiveGameLobbyPage] Failed to fetch lineups:', err);
+      return [];
     }
   }, []);
 
@@ -548,62 +680,50 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
 
     setIsLoadingMarkets(true);
     try {
-      const markets = await fetchLiveMarkets(fixtureApiId);
+      // Fetch lineups and markets in parallel
+      const [markets, players] = await Promise.all([
+        fetchLiveMarkets(fixtureApiId),
+        lineupPlayers.length === 0 ? fetchLineups(fixtureApiId) : Promise.resolve(lineupPlayers),
+      ]);
+
+      // Update lineup players if we fetched new ones
+      if (players.length > 0 && lineupPlayers.length === 0) {
+        setLineupPlayers(players);
+      }
+
       if (markets.length > 0) {
         setLiveMarkets(markets);
 
-        // Enrich scorers markets with player photos and team info using RPC
+        // Enrich scorers markets with player photos using lineup matching
         const scorersMarkets = markets.filter(m => m.category === 'scorers');
-        if (scorersMarkets.length > 0 && supabase && fixture) {
-          const playerNames = new Set<string>();
+        if (scorersMarkets.length > 0 && players.length > 0) {
+          const newPlayersMap = new Map<string, EnrichedPlayer>();
+
           scorersMarkets.forEach(m => {
             m.options.forEach(opt => {
               // Use parsePlayerLabel to correctly extract player name
-              const { name } = parsePlayerLabel(opt.label);
-              if (name && !name.toLowerCase().startsWith('no ')) { // Exclude "No goal", "No 1st goal", etc.
-                playerNames.add(name);
+              const { name: apiName } = parsePlayerLabel(opt.label);
+              if (apiName && !apiName.toLowerCase().startsWith('no ')) { // Exclude "No goal", "No 1st goal", etc.
+                // Skip if already matched
+                if (newPlayersMap.has(apiName)) return;
+
+                // Find player in lineup using fuzzy matching
+                const matchedPlayer = findPlayerInLineup(apiName, players);
+                if (matchedPlayer) {
+                  newPlayersMap.set(apiName, {
+                    name: matchedPlayer.name,
+                    photo_url: matchedPlayer.photo,
+                    teamName: matchedPlayer.teamName,
+                    teamLogo: matchedPlayer.teamLogo,
+                  });
+                }
               }
             });
           });
 
-          if (playerNames.size > 0) {
-            // Use RPC function for normalized name matching (handles accents)
-            const { data: playersData, error: rpcError } = await supabase.rpc('match_players_by_name', {
-              p_names: Array.from(playerNames)
-            });
-
-            if (rpcError) {
-              console.warn('[LiveGameLobbyPage] RPC error, falling back to direct query:', rpcError);
-              // Fallback to direct query if RPC not available
-              const { data: fallbackData } = await supabase
-                .from('fb_players')
-                .select('name, photo')
-                .in('name', Array.from(playerNames));
-
-              if (fallbackData) {
-                const newPlayersMap = new Map<string, EnrichedPlayer>();
-                fallbackData.forEach((p: any) => {
-                  newPlayersMap.set(p.name, {
-                    name: p.name,
-                    photo_url: p.photo,
-                  });
-                });
-                setPlayersMap(newPlayersMap);
-              }
-            } else if (playersData && playersData.length > 0) {
-              // Build enriched players map from RPC results
-              const newPlayersMap = new Map<string, EnrichedPlayer>();
-              playersData.forEach((p: any) => {
-                // Map by original_name (API name) for lookup
-                newPlayersMap.set(p.original_name, {
-                  name: p.player_name,
-                  photo_url: p.photo_url,
-                  teamId: p.team_id,
-                  teamName: p.team_name,
-                });
-              });
-              setPlayersMap(newPlayersMap);
-            }
+          if (newPlayersMap.size > 0) {
+            console.log(`[LiveGameLobbyPage] Matched ${newPlayersMap.size} players from lineups`);
+            setPlayersMap(newPlayersMap);
           }
         }
       }
@@ -612,7 +732,7 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
     } finally {
       setIsLoadingMarkets(false);
     }
-  }, [fixtureApiId, gameStatus, fixture]);
+  }, [fixtureApiId, gameStatus, lineupPlayers, fetchLineups]);
 
   // Load live markets when game becomes live
   useEffect(() => {

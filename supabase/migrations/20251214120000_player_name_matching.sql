@@ -35,7 +35,22 @@ RETURNS TEXT AS $$
 $$ LANGUAGE SQL IMMUTABLE;
 
 -- Updated matching function with fuzzy matching
+-- Basic version (no team filtering) - kept for backwards compatibility
 CREATE OR REPLACE FUNCTION match_players_by_name(p_names TEXT[])
+RETURNS TABLE (
+  original_name TEXT,
+  player_id UUID,
+  player_name TEXT,
+  photo_url TEXT,
+  team_id UUID,
+  team_name TEXT
+) AS $$
+  SELECT * FROM match_players_by_name_for_teams(p_names, NULL);
+$$ LANGUAGE SQL;
+
+-- Version with team filtering - prioritizes players from specified teams
+-- p_team_ids: array of team UUIDs to prioritize (typically home + away team)
+CREATE OR REPLACE FUNCTION match_players_by_name_for_teams(p_names TEXT[], p_team_ids UUID[])
 RETURNS TABLE (
   original_name TEXT,
   player_id UUID,
@@ -65,7 +80,12 @@ RETURNS TABLE (
         -- Last name matches only
         WHEN extract_last_name(p.name) = extract_last_name(i.orig) THEN 80
         ELSE 0
-      END AS match_score
+      END AS match_score,
+      -- Team priority: players from match teams get priority
+      CASE
+        WHEN p_team_ids IS NOT NULL AND pta.team_id = ANY(p_team_ids) THEN 1
+        ELSE 0
+      END AS team_priority
     FROM input_names i
     JOIN fb_players p ON extract_last_name(p.name) = extract_last_name(i.orig)
     LEFT JOIN fb_player_team_association pta ON pta.player_id = p.id AND pta.end_date IS NULL
@@ -81,7 +101,7 @@ RETURNS TABLE (
     team_name
   FROM candidates
   WHERE match_score >= 80
-  ORDER BY orig, match_score DESC, team_id NULLS LAST;
+  ORDER BY orig, team_priority DESC, match_score DESC, team_id NULLS LAST;
 $$ LANGUAGE SQL;
 
 -- Create index on extracted last name for better performance
