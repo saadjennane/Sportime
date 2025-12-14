@@ -374,15 +374,24 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
         // This matches the logic in useMatchesOfTheDay.ts for consistency
         const liveStatuses = ['1H', 'HT', '2H', 'ET', 'P', 'BT', 'LIVE'];
         const finishedStatuses = ['FT', 'AET', 'PEN', 'PST', 'CANC', 'ABD', 'AWD', 'WO'];
-        const status = data.status || 'NS';
+        const dbStatus = data.status || 'NS';
         const kickoffTime = data.date ? new Date(data.date).getTime() : Number.POSITIVE_INFINITY;
         const hasStarted = kickoffTime <= Date.now();
 
         // Match is live if: has explicit live status OR kickoff time has passed (and not finished)
-        const isLive = !finishedStatuses.includes(status) &&
-                       (liveStatuses.includes(status) || hasStarted);
+        const isLive = !finishedStatuses.includes(dbStatus) &&
+                       (liveStatuses.includes(dbStatus) || hasStarted);
 
-        if (finishedStatuses.includes(status)) {
+        // Determine the display status (override NS if kickoff has passed)
+        let displayStatus = dbStatus;
+        if (dbStatus === 'NS' && hasStarted && !finishedStatuses.includes(dbStatus)) {
+          displayStatus = 'LIVE'; // Show LIVE instead of NS when kickoff has passed
+        }
+
+        // Update fixture status with calculated display status
+        setFixture(prev => prev ? { ...prev, status: displayStatus } : prev);
+
+        if (finishedStatuses.includes(dbStatus)) {
           setGameStatus('finished');
         } else if (isLive) {
           setGameStatus('live');
