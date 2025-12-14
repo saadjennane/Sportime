@@ -77,17 +77,38 @@ function formatWithTeamNames(text: string, fixture: FixtureDetails | null): stri
 
 /**
  * Check if an option label represents a team (for showing logos)
+ * Matches: Home, Away, 1, 2, Home Win, Away Win, Home Team, Away Team,
+ * Yes (for home-related markets), No (for away-related markets)
  */
 function getTeamForOption(label: string, fixture: FixtureDetails | null): 'home' | 'away' | null {
   if (!fixture) return null;
 
-  const lowerLabel = label.toLowerCase();
-  if (lowerLabel === 'home' || lowerLabel === 'home win' || lowerLabel === 'home team' || label === '1') {
+  const lowerLabel = label.toLowerCase().trim();
+
+  // Home team patterns
+  if (
+    lowerLabel === 'home' ||
+    lowerLabel === 'home win' ||
+    lowerLabel === 'home team' ||
+    lowerLabel === '1' ||
+    label === '1' ||
+    lowerLabel.startsWith('home ')
+  ) {
     return 'home';
   }
-  if (lowerLabel === 'away' || lowerLabel === 'away win' || lowerLabel === 'away team' || label === '2') {
+
+  // Away team patterns
+  if (
+    lowerLabel === 'away' ||
+    lowerLabel === 'away win' ||
+    lowerLabel === 'away team' ||
+    lowerLabel === '2' ||
+    label === '2' ||
+    lowerLabel.startsWith('away ')
+  ) {
     return 'away';
   }
+
   return null;
 }
 
@@ -855,11 +876,19 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
                               : 'bg-deep-navy/50 cursor-not-allowed opacity-60'
                         }`}
                       >
-                        <div className="text-xs text-text-secondary truncate flex items-center justify-center gap-1">
-                          {teamLogo && <img src={teamLogo} alt="" className="w-4 h-4 object-contain" />}
-                          <span>{formatWithTeamNames(opt.label, fixture)}</span>
-                          {opt.handicap && <span className="text-warm-yellow">({opt.handicap})</span>}
-                        </div>
+                        {teamLogo ? (
+                          <>
+                            <img src={teamLogo} alt="" className="w-5 h-5 sm:w-6 sm:h-6 object-contain mx-auto mb-0.5" />
+                            <div className="text-xs text-text-secondary truncate">
+                              {formatWithTeamNames(opt.label, fixture)}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-xs text-text-secondary truncate flex items-center justify-center gap-1">
+                            <span>{formatWithTeamNames(opt.label, fixture)}</span>
+                            {opt.handicap && <span className="text-warm-yellow">({opt.handicap})</span>}
+                          </div>
+                        )}
                         <div className="font-bold text-electric-blue text-sm sm:text-base">{opt.odds.toFixed(2)}</div>
                       </button>
                     )})}
