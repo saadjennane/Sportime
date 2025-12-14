@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { ArrowLeft, Users, Coins, Clock, Loader2, Gift, Trophy, Zap, Target, ChevronRight, AlertCircle, Check, List } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { supabase } from '../../lib/supabaseClient';
-import { getUserEntry, getLeaderboard, joinLiveGame, placeBet, confirmBet, fetchLiveMarkets, LiveMarket } from '../../services/liveGameService';
+import { getUserEntry, getLeaderboard, joinLiveGame, placeBet, confirmBet, fetchLiveMarkets, LiveMarket, updateGameStatus } from '../../services/liveGameService';
 import type { LiveBetCategory } from '../../types';
 
 interface LiveGameLobbyPageProps {
@@ -395,6 +395,8 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
 
         if (finishedStatuses.includes(dbStatus)) {
           setGameStatus('finished');
+          // Update game status in database when match finishes
+          updateGameStatus(gameId, 'finished');
         } else if (isLive) {
           setGameStatus('live');
         } else {

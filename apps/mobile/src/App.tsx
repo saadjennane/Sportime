@@ -496,12 +496,23 @@ function App() {
 
       if (data) {
         const now = Date.now();
+        const THREE_HOURS_MS = 3 * 60 * 60 * 1000; // Show finished games for 3 hours
 
         const entries = data
-          // Filter out entries without live_games data or finished games
+          // Filter out entries without live_games data
+          // Keep finished games if they finished recently (within 3 hours)
           .filter((entry: any) => {
             if (!entry.live_games) return false;
-            if (entry.live_games.status === 'finished') return false;
+            if (entry.live_games.status === 'finished') {
+              // For finished games, check if the match ended recently
+              // We use kickoff time + 2.5 hours as approximate end time
+              const kickoffTime = entry.live_games.fb_fixtures?.date
+                ? new Date(entry.live_games.fb_fixtures.date).getTime()
+                : 0;
+              const approxEndTime = kickoffTime + (2.5 * 60 * 60 * 1000); // 2.5h after kickoff
+              const timeSinceEnd = now - approxEndTime;
+              return timeSinceEnd < THREE_HOURS_MS;
+            }
             return true;
           })
           .map((entry: any) => {
@@ -509,8 +520,16 @@ function App() {
               ? new Date(entry.live_games.fb_fixtures.date).getTime()
               : Number.POSITIVE_INFINITY;
             const hasStarted = kickoffTime <= now;
-            // Determine actual status based on kickoff time
-            const calculatedStatus = hasStarted ? 'live' : 'upcoming';
+
+            // Determine actual status
+            let calculatedStatus: 'upcoming' | 'live' | 'finished';
+            if (entry.live_games.status === 'finished') {
+              calculatedStatus = 'finished';
+            } else if (hasStarted) {
+              calculatedStatus = 'live';
+            } else {
+              calculatedStatus = 'upcoming';
+            }
 
             return {
               gameId: entry.live_game_id,

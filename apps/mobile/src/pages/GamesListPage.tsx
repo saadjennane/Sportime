@@ -423,17 +423,19 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       {/* My Games Tab */}
       {activeTab === 'my-games' && (
         <>
-          {/* Live Games Section - shown first when user has joined live games */}
-          {userLiveGameEntries.length > 0 && (
+          {/* Live Games Section - active games (upcoming + live) */}
+          {userLiveGameEntries.filter(e => e.status !== 'finished').length > 0 && (
             <GameSection
               title="Live Games"
-              count={userLiveGameEntries.length}
+              count={userLiveGameEntries.filter(e => e.status !== 'finished').length}
               icon={<ZapIcon />}
               colorClass="text-electric-blue"
               defaultOpen={true}
             >
               <div className="space-y-3">
-                {userLiveGameEntries.map((entry) => (
+                {userLiveGameEntries
+                  .filter(entry => entry.status !== 'finished')
+                  .map((entry) => (
                   <button
                     key={entry.gameId}
                     onClick={() => onOpenLiveGame?.(entry.gameId, entry.fixtureId, entry.mode)}
@@ -467,6 +469,53 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
                         )}
                       </div>
                       <div className="text-electric-blue">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </GameSection>
+          )}
+
+          {/* Finished Live Games Section */}
+          {userLiveGameEntries.filter(e => e.status === 'finished').length > 0 && (
+            <GameSection
+              title="Finished Live Games"
+              count={userLiveGameEntries.filter(e => e.status === 'finished').length}
+              icon={<Trophy />}
+              colorClass="text-neon-cyan"
+              defaultOpen={true}
+            >
+              <div className="space-y-3">
+                {userLiveGameEntries
+                  .filter(entry => entry.status === 'finished')
+                  .map((entry) => (
+                  <button
+                    key={entry.gameId}
+                    onClick={() => onOpenLiveGame?.(entry.gameId, entry.fixtureId, entry.mode)}
+                    className="w-full bg-navy-accent rounded-xl p-4 text-left hover:bg-navy-accent/80 transition-all border border-neon-cyan/30"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-neon-cyan/20 text-neon-cyan">
+                            FINISHED
+                          </span>
+                          <span className="text-xs text-text-secondary">
+                            {entry.mode === 'free' ? 'Free' : 'Stakes'}
+                          </span>
+                        </div>
+                        <p className="font-semibold text-text-primary">
+                          {entry.fixture ? `${entry.fixture.homeTeam} vs ${entry.fixture.awayTeam}` : 'Live Betting Game'}
+                        </p>
+                        <p className="text-xs text-neon-cyan mt-1">
+                          View your results →
+                        </p>
+                      </div>
+                      <div className="text-neon-cyan">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>

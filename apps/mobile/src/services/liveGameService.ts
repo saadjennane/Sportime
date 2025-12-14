@@ -228,6 +228,26 @@ export async function createLiveGame(options: CreateGameOptions): Promise<LiveGa
 }
 
 /**
+ * Update game status (e.g., when match finishes)
+ */
+export async function updateGameStatus(gameId: string, status: 'upcoming' | 'live' | 'finished'): Promise<boolean> {
+  if (!supabase) return false;
+
+  const { error } = await supabase
+    .from('live_games')
+    .update({ status })
+    .eq('id', gameId);
+
+  if (error) {
+    console.error('[liveGameService] Error updating game status:', error);
+    return false;
+  }
+
+  console.log(`[liveGameService] Game ${gameId} status updated to ${status}`);
+  return true;
+}
+
+/**
  * Join a live game by ID
  */
 export async function joinLiveGame(gameId: string): Promise<LiveGameEntry | null> {
@@ -922,6 +942,7 @@ export const liveGameService = {
   getLeaderboard,
   getUserActiveGames,
   fetchLiveMarkets,
+  updateGameStatus,
 };
 
 export default liveGameService;
