@@ -1,24 +1,12 @@
--- Migration: Player Name Matching Functions (Improved)
--- Purpose: Enable matching API player names to DB players with fuzzy matching
--- Handles: accents (Güler → Guler), initials (J. Bellingham → Jude Bellingham), suffixes (Jr. → Junior)
-
--- Function to normalize player names (remove accents, lowercase)
-CREATE OR REPLACE FUNCTION normalize_name(name TEXT)
-RETURNS TEXT AS $$
-  SELECT LOWER(
-    translate(name,
-      'ÁÀÂÄÃÅÉÈÊËÍÌÎÏÓÒÔÖÕÚÙÛÜÑÇŠŽáàâäãåéèêëíìîïóòôöõúùûüñçšžíúóü',
-      'AAAAAAEEEEIIIIOOOOOUUUUNCSZaaaaaaeeeeiiiiooooouuuunsziuou'
-    )
-  );
-$$ LANGUAGE SQL IMMUTABLE;
+-- Migration: Improved Player Name Matching Functions
+-- Purpose: Enable fuzzy matching for player names (handles initials, suffixes, accents)
 
 -- Helper: Remove common suffixes (Jr., Junior, III, etc.)
 CREATE OR REPLACE FUNCTION remove_name_suffixes(name TEXT)
 RETURNS TEXT AS $$
   SELECT TRIM(regexp_replace(
     regexp_replace(name, '\s+(Jr\.?|Junior|Sr\.?|Senior|III|II|IV)$', '', 'i'),
-    '\.$', '' -- Remove trailing dots
+    '\.$', ''
   ));
 $$ LANGUAGE SQL IMMUTABLE;
 
@@ -55,14 +43,10 @@ RETURNS TABLE (
       p.photo AS photo_url,
       pta.team_id,
       t.name AS team_name,
-      -- Score: higher = better match
       CASE
-        -- Exact match after normalization (best)
         WHEN normalize_name(p.name) = normalize_name(i.orig) THEN 100
-        -- Last name matches + first initial matches
         WHEN extract_last_name(p.name) = extract_last_name(i.orig)
          AND extract_first_initial(p.name) = extract_first_initial(i.orig) THEN 90
-        -- Last name matches only
         WHEN extract_last_name(p.name) = extract_last_name(i.orig) THEN 80
         ELSE 0
       END AS match_score
@@ -83,14 +67,3 @@ RETURNS TABLE (
   WHERE match_score >= 80
   ORDER BY orig, match_score DESC, team_id NULLS LAST;
 $$ LANGUAGE SQL;
-
--- Create index on extracted last name for better performance
-DROP INDEX IF EXISTS idx_fb_players_normalized_name;
-CREATE INDEX IF NOT EXISTS idx_fb_players_last_name
-ON fb_players (extract_last_name(name));
-
-COMMENT ON FUNCTION normalize_name(TEXT) IS 'Removes accents and converts to lowercase for name matching';
-COMMENT ON FUNCTION remove_name_suffixes(TEXT) IS 'Removes common suffixes like Jr., Senior, III from names';
-COMMENT ON FUNCTION extract_last_name(TEXT) IS 'Extracts the last name (last word) from a player name';
-COMMENT ON FUNCTION extract_first_initial(TEXT) IS 'Extracts the first initial from a player name';
-COMMENT ON FUNCTION match_players_by_name(TEXT[]) IS 'Finds players by fuzzy name matching, returns photo and team info';
