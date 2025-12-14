@@ -57,6 +57,31 @@ const MARKET_CATEGORIES: MarketCategory[] = [
 const KNOCKOUT_ROUNDS = ['Final', 'Semi', 'Quarter', 'Round of 16', 'Round of 32', 'Round of 8', 'Knockout', '1/8', '1/4', '1/2'];
 
 /**
+ * Format handicap values into readable labels
+ */
+function formatHandicapLabel(handicap: string | null | undefined): string {
+  if (!handicap) return '';
+  const num = parseFloat(handicap);
+  if (isNaN(num)) return handicap;
+
+  if (num <= 0.5) return '1+ goal';
+  if (num <= 1.5 || num === 2) return '2+ goals';
+  if (num <= 2.5 || num === 3) return '3+ goals';
+  return `${Math.ceil(num)}+ goals`;
+}
+
+/**
+ * Player data with photo and team info
+ */
+interface EnrichedPlayer {
+  name: string;
+  photo_url?: string;
+  teamId?: number | string;
+  teamName?: string;
+  teamLogo?: string;
+}
+
+/**
  * Format market names and option labels by replacing Home/Away with team names
  */
 function formatWithTeamNames(text: string, fixture: FixtureDetails | null): string {
@@ -220,6 +245,9 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
   const [isKnockoutMatch, setIsKnockoutMatch] = useState(false);
   const [fixtureApiId, setFixtureApiId] = useState<number | null>(null);
 
+  // Player data for scorers markets (name -> EnrichedPlayer)
+  const [playersMap, setPlayersMap] = useState<Map<string, EnrichedPlayer>>(new Map());
+
   // Fetch fixture details
   useEffect(() => {
     const fetchFixtureDetails = async () => {
@@ -382,13 +410,79 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
       const markets = await fetchLiveMarkets(fixtureApiId);
       if (markets.length > 0) {
         setLiveMarkets(markets);
+
+        // Enrich scorers markets with player photos and team info
+        const scorersMarkets = markets.filter(m => m.category === 'scorers');
+        if (scorersMarkets.length > 0 && supabase && fixture) {
+          const playerNames = new Set<string>();
+          scorersMarkets.forEach(m => {
+            m.options.forEach(opt => {
+              // Extract player name (remove /Over, /Under suffixes)
+              const name = opt.label.split('/')[0].trim();
+              if (name) playerNames.add(name);
+            });
+          });
+
+          if (playerNames.size > 0) {
+            // Query players with their team associations
+            const { data: playersData } = await supabase
+              .from('fb_players')
+              .select(`
+                name,
+                photo_url,
+                fb_player_team_association(
+                  team_id
+                )
+              `)
+              .in('name', Array.from(playerNames));
+
+            if (playersData && playersData.length > 0) {
+              // Get team details for found players
+              const teamIds = new Set<number>();
+              playersData.forEach((p: any) => {
+                p.fb_player_team_association?.forEach((assoc: any) => {
+                  if (assoc.team_id) teamIds.add(assoc.team_id);
+                });
+              });
+
+              let teamsById = new Map<number, { name: string; logo_url?: string }>();
+              if (teamIds.size > 0) {
+                const { data: teamsData } = await supabase
+                  .from('fb_teams')
+                  .select('id, name, logo_url')
+                  .in('id', Array.from(teamIds));
+                teamsById = new Map((teamsData ?? []).map((t: any) => [t.id, t]));
+              }
+
+              // Build enriched players map
+              const newPlayersMap = new Map<string, EnrichedPlayer>();
+              playersData.forEach((p: any) => {
+                const assoc = p.fb_player_team_association?.[0];
+                const team = assoc?.team_id ? teamsById.get(assoc.team_id) : null;
+
+                // Match player to home or away team
+                let matchedTeamId = team?.name === fixture.homeTeam.name ? fixture.homeTeam.name
+                  : team?.name === fixture.awayTeam.name ? fixture.awayTeam.name : null;
+
+                newPlayersMap.set(p.name, {
+                  name: p.name,
+                  photo_url: p.photo_url,
+                  teamId: assoc?.team_id,
+                  teamName: team?.name,
+                  teamLogo: team?.logo_url,
+                });
+              });
+              setPlayersMap(newPlayersMap);
+            }
+          }
+        }
       }
     } catch (err) {
       console.error('[LiveGameLobbyPage] Error loading live markets:', err);
     } finally {
       setIsLoadingMarkets(false);
     }
-  }, [fixtureApiId, gameStatus]);
+  }, [fixtureApiId, gameStatus, fixture]);
 
   // Load live markets when game becomes live
   useEffect(() => {
@@ -860,6 +954,137 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
 
               {filteredMarkets.map((market) => {
                 const teamForOption = (label: string) => getTeamForOption(label, fixture);
+
+                // Special rendering for scorers markets
+                if (market.category === 'scorers' && fixture) {
+                  // Group players by team
+                  const homeTeamPlayers: typeof market.options = [];
+                  const awayTeamPlayers: typeof market.options = [];
+                  const unknownTeamPlayers: typeof market.options = [];
+
+                  market.options.forEach(opt => {
+                    const playerName = opt.label.split('/')[0].trim();
+                    const player = playersMap.get(playerName);
+
+                    if (player?.teamName === fixture.homeTeam.name) {
+                      homeTeamPlayers.push(opt);
+                    } else if (player?.teamName === fixture.awayTeam.name) {
+                      awayTeamPlayers.push(opt);
+                    } else {
+                      unknownTeamPlayers.push(opt);
+                    }
+                  });
+
+                  const renderPlayerButton = (opt: typeof market.options[0]) => {
+                    const playerName = opt.label.split('/')[0].trim();
+                    const player = playersMap.get(playerName);
+                    const handicapLabel = formatHandicapLabel(opt.handicap);
+
+                    return (
+                      <button
+                        key={opt.value}
+                        onClick={() => {
+                          if (gameStatus === 'live') {
+                            setSelectedMarket(market);
+                            setSelectedOption(opt);
+                            setShowBettingPanel(true);
+                          }
+                        }}
+                        disabled={gameStatus !== 'live'}
+                        className={`p-2 rounded-lg text-center transition-all flex flex-col items-center ${
+                          selectedMarket?.id === market.id && selectedOption?.value === opt.value
+                            ? 'bg-electric-blue text-white'
+                            : gameStatus === 'live'
+                              ? 'bg-deep-navy hover:bg-navy-accent'
+                              : 'bg-deep-navy/50 cursor-not-allowed opacity-60'
+                        }`}
+                      >
+                        {player?.photo_url ? (
+                          <img
+                            src={player.photo_url}
+                            alt={playerName}
+                            className="w-10 h-10 rounded-full object-cover mb-1 border-2 border-white/20"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center mb-1 text-lg">
+                            👤
+                          </div>
+                        )}
+                        <div className="text-xs text-text-primary font-medium truncate w-full">
+                          {playerName.split(' ').pop()}
+                        </div>
+                        {handicapLabel && (
+                          <div className="text-[10px] text-warm-yellow">{handicapLabel}</div>
+                        )}
+                        <div className="font-bold text-electric-blue text-sm">{opt.odds.toFixed(2)}</div>
+                      </button>
+                    );
+                  };
+
+                  return (
+                    <div key={market.id} className="bg-navy-accent/30 rounded-xl p-3">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="font-medium text-text-primary text-sm">{market.name}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          MARKET_CATEGORIES.find(c => c.id === market.category)?.color || 'bg-white/10'
+                        }`}>
+                          {MARKET_CATEGORIES.find(c => c.id === market.category)?.icon}
+                        </span>
+                      </div>
+
+                      {/* Home team players */}
+                      {homeTeamPlayers.length > 0 && (
+                        <div className="mb-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            {fixture.homeTeam.logo && (
+                              <img src={fixture.homeTeam.logo} alt="" className="w-5 h-5 object-contain" />
+                            )}
+                            <span className="text-xs text-text-secondary font-medium">{fixture.homeTeam.name}</span>
+                          </div>
+                          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                            {homeTeamPlayers.map(renderPlayerButton)}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Away team players */}
+                      {awayTeamPlayers.length > 0 && (
+                        <div className="mb-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            {fixture.awayTeam.logo && (
+                              <img src={fixture.awayTeam.logo} alt="" className="w-5 h-5 object-contain" />
+                            )}
+                            <span className="text-xs text-text-secondary font-medium">{fixture.awayTeam.name}</span>
+                          </div>
+                          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                            {awayTeamPlayers.map(renderPlayerButton)}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Unknown team players (fallback) */}
+                      {unknownTeamPlayers.length > 0 && (homeTeamPlayers.length > 0 || awayTeamPlayers.length > 0) && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs text-text-secondary font-medium">Other Players</span>
+                          </div>
+                          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                            {unknownTeamPlayers.map(renderPlayerButton)}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* If no team separation possible, show all */}
+                      {homeTeamPlayers.length === 0 && awayTeamPlayers.length === 0 && (
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                          {market.options.map(renderPlayerButton)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                // Default rendering for non-scorers markets
                 return (
                 <div key={market.id} className="bg-navy-accent/30 rounded-xl p-3">
                   <div className="flex items-center justify-between mb-2">
@@ -874,6 +1099,7 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
                     {market.options.map((opt) => {
                       const team = teamForOption(opt.label);
                       const teamLogo = team === 'home' ? fixture?.homeTeam.logo : team === 'away' ? fixture?.awayTeam.logo : null;
+                      const handicapLabel = formatHandicapLabel(opt.handicap);
                       return (
                       <button
                         key={opt.value}
@@ -903,7 +1129,7 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
                         ) : (
                           <div className="text-xs text-text-secondary truncate flex items-center justify-center gap-1">
                             <span>{formatWithTeamNames(opt.label, fixture)}</span>
-                            {opt.handicap && <span className="text-warm-yellow">({opt.handicap})</span>}
+                            {handicapLabel && <span className="text-warm-yellow">{handicapLabel}</span>}
                           </div>
                         )}
                         <div className="font-bold text-electric-blue text-sm sm:text-base">{opt.odds.toFixed(2)}</div>
