@@ -370,14 +370,21 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
           } : prev);
         }
 
-        // Determine game status based on fixture status
+        // Determine game status based on fixture status AND kickoff time
+        // This matches the logic in useMatchesOfTheDay.ts for consistency
         const liveStatuses = ['1H', 'HT', '2H', 'ET', 'P', 'BT', 'LIVE'];
         const finishedStatuses = ['FT', 'AET', 'PEN', 'PST', 'CANC', 'ABD', 'AWD', 'WO'];
         const status = data.status || 'NS';
+        const kickoffTime = data.date ? new Date(data.date).getTime() : Number.POSITIVE_INFINITY;
+        const hasStarted = kickoffTime <= Date.now();
+
+        // Match is live if: has explicit live status OR kickoff time has passed (and not finished)
+        const isLive = !finishedStatuses.includes(status) &&
+                       (liveStatuses.includes(status) || hasStarted);
 
         if (finishedStatuses.includes(status)) {
           setGameStatus('finished');
-        } else if (liveStatuses.includes(status)) {
+        } else if (isLive) {
           setGameStatus('live');
         } else {
           setGameStatus('upcoming');

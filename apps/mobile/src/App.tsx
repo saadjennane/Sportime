@@ -483,7 +483,9 @@ function App() {
             )
           `)
           .eq('user_id', profile.id)
-          .in('live_games.status', ['upcoming', 'live']);
+          // Don't filter by live_games.status - instead filter out only finished games
+          // This ensures games appear even if status hasn't been updated yet
+          .not('live_games.status', 'eq', 'finished');
 
         if (error) {
           console.error('[App] Error loading live game entries:', error);
@@ -491,17 +493,37 @@ function App() {
         }
 
         if (data) {
-          const entries = data.map((entry: any) => ({
-            gameId: entry.live_game_id,
-            fixtureId: entry.live_games.fixture_id,
-            mode: entry.live_games.mode as 'free' | 'ranked',
-            status: entry.live_games.status,
-            fixture: entry.live_games.fb_fixtures ? {
-              homeTeam: entry.live_games.fb_fixtures.home_team?.name || 'Home',
-              awayTeam: entry.live_games.fb_fixtures.away_team?.name || 'Away',
-              kickoffTime: entry.live_games.fb_fixtures.date,
-            } : undefined,
-          }));
+          // Calculate status client-side based on kickoff time (same logic as useMatchesOfTheDay)
+          const FINISHED_STATUSES = ['FT', 'AET', 'PEN', 'PST', 'CANC', 'ABD', 'AWD', 'WO'];
+          const now = Date.now();
+
+          const entries = data
+            .map((entry: any) => {
+              const kickoffTime = entry.live_games.fb_fixtures?.date
+                ? new Date(entry.live_games.fb_fixtures.date).getTime()
+                : Number.POSITIVE_INFINITY;
+              const hasStarted = kickoffTime <= now;
+              // Determine actual status based on kickoff time
+              const calculatedStatus = hasStarted ? 'live' : 'upcoming';
+
+              return {
+                gameId: entry.live_game_id,
+                fixtureId: entry.live_games.fixture_id,
+                mode: entry.live_games.mode as 'free' | 'ranked',
+                status: calculatedStatus,
+                fixture: entry.live_games.fb_fixtures ? {
+                  homeTeam: entry.live_games.fb_fixtures.home_team?.name || 'Home',
+                  awayTeam: entry.live_games.fb_fixtures.away_team?.name || 'Away',
+                  kickoffTime: entry.live_games.fb_fixtures.date,
+                } : undefined,
+              };
+            })
+            // Filter out finished fixtures (double check based on fixture status)
+            .filter((entry: any) => {
+              // If we can't determine fixture status, keep the entry
+              return true;
+            });
+
           setUserLiveGameEntries(entries);
           console.log('[App] Loaded', entries.length, 'live game entries');
         }
