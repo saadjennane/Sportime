@@ -50,6 +50,19 @@ const CATEGORY_COLORS: Record<string, string> = {
   other: 'bg-gray-500/20 text-gray-400',
 };
 
+const CATEGORY_ICONS: Record<string, string> = {
+  result: '🏆',
+  goals: '⚽',
+  scorers: '👤',
+  cards: '🟨',
+  corners: '📐',
+  quick: '⚡',
+  clean_sheet: '🧤',
+  extra_time: '⏱️',
+  penalties: '🥅',
+  other: '📊',
+};
+
 const LEVEL_LABELS: Record<string, string> = {
   rookie: 'Rookie',
   rising_star: 'Rising Star',
@@ -812,12 +825,13 @@ export function LiveGameConfigPage() {
                 <button
                   key={cat}
                   onClick={() => setCategoryFilter(cat)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
                     categoryFilter === cat
                       ? CATEGORY_COLORS[cat]
                       : 'bg-surface text-text-secondary hover:bg-surface-hover'
                   }`}
                 >
+                  <span>{CATEGORY_ICONS[cat]}</span>
                   {cat.replace('_', ' ')} ({count})
                 </button>
               );
@@ -932,7 +946,8 @@ export function LiveGameConfigPage() {
                           ))}
                         </select>
                       ) : (
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${CATEGORY_COLORS[cat.category] || CATEGORY_COLORS.other}`}>
+                        <span className={`px-2 py-1 rounded text-xs font-medium inline-flex items-center gap-1 ${CATEGORY_COLORS[cat.category] || CATEGORY_COLORS.other}`}>
+                          <span>{CATEGORY_ICONS[cat.category] || CATEGORY_ICONS.other}</span>
                           {cat.category.replace('_', ' ')}
                         </span>
                       )}
