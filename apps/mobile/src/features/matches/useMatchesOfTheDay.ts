@@ -89,6 +89,8 @@ type MatchOverride = Partial<
 >
 
 const LIVE_STATUSES = ['1H', 'HT', '2H', 'ET', 'P', 'BT', 'SUSP', 'INT', 'LIVE']
+// Statuses that should NEVER be considered live, even if kickoff time has passed
+const POSTPONED_STATUSES = ['PST', 'POST', 'CANC', 'ABD', 'AWD', 'WO', 'TBD']
 const POLL_INTERVAL_MS = 30_000
 const LINEUP_REFRESH_INTERVAL_MS = 120_000
 
@@ -200,8 +202,10 @@ export function useMatchesOfTheDay(): HookState {
         const norm = normalizeStatus(statusUpper)
         const kickoffTime = r.date ? new Date(r.date).getTime() : Number.POSITIVE_INFINITY
         const hasStarted = kickoffTime <= Date.now()
-        // isLive should NEVER be true for finished matches
-        const isLive = norm !== 'played' && (LIVE_STATUSES.includes(statusUpper) || hasStarted)
+        // isLive should NEVER be true for finished or postponed matches
+        const isLive = norm !== 'played' &&
+          !POSTPONED_STATUSES.includes(statusUpper) &&
+          (LIVE_STATUSES.includes(statusUpper) || hasStarted)
 
         const leagueLogo =
           r.league?.logo ?? leagueLogoFallback(r.league?.api_league_id ?? null)
@@ -354,7 +358,9 @@ export function useMatchesOfTheDay(): HookState {
             const hasStarted =
               kickoffISO !== null ? new Date(kickoffISO).getTime() <= Date.now() : false
             const isLive =
-              normalized !== 'played' && (LIVE_STATUSES.includes(statusUpper) || hasStarted)
+              normalized !== 'played' &&
+              !POSTPONED_STATUSES.includes(statusUpper) &&
+              (LIVE_STATUSES.includes(statusUpper) || hasStarted)
 
             const homeGoals = safeNum(item?.goals?.home)
             const awayGoals = safeNum(item?.goals?.away)
