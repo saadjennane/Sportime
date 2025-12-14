@@ -57,17 +57,59 @@ const MARKET_CATEGORIES: MarketCategory[] = [
 const KNOCKOUT_ROUNDS = ['Final', 'Semi', 'Quarter', 'Round of 16', 'Round of 32', 'Round of 8', 'Knockout', '1/8', '1/4', '1/2'];
 
 /**
- * Format handicap values into readable labels
+ * Parse player label to extract name and optional suffix (e.g., "Over 0.5")
+ * Examples:
+ *   "Adil Aouchiche/Over 0.5" → { name: "Adil Aouchiche", suffix: "Over 0.5" }
+ *   "Kevin Nisbet" → { name: "Kevin Nisbet" }
  */
-function formatHandicapLabel(handicap: string | null | undefined): string {
+function parsePlayerLabel(label: string): { name: string; suffix?: string } {
+  const match = label.match(/^(.+?)\/(Over|Under)\s*([\d.]+)$/i);
+  if (match) {
+    return { name: match[1].trim(), suffix: `${match[2]} ${match[3]}` };
+  }
+  return { name: label.trim() };
+}
+
+/**
+ * Format handicap for Goal Scorer market (handicap = goal number, not goals scored)
+ * Example: handicap "4" means "4th goal", not "4+ goals"
+ */
+function formatGoalScorerHandicap(handicap: string | null | undefined, marketName: string): string {
   if (!handicap) return '';
+
+  // For "Goal Scorer" market, handicap is the goal number
+  if (marketName === 'Goal Scorer') {
+    const num = parseInt(handicap);
+    if (isNaN(num)) return '';
+    if (num === 1) return '1st goal';
+    if (num === 2) return '2nd goal';
+    if (num === 3) return '3rd goal';
+    return `${num}th goal`;
+  }
+
+  // For other markets with handicap (Over/Under lines)
   const num = parseFloat(handicap);
   if (isNaN(num)) return handicap;
+  return `Over ${num}`;
+}
 
-  if (num <= 0.5) return '1+ goal';
-  if (num <= 1.5 || num === 2) return '2+ goals';
-  if (num <= 2.5 || num === 3) return '3+ goals';
-  return `${Math.ceil(num)}+ goals`;
+/**
+ * Format match status for display
+ */
+function formatMatchStatus(status: string): string {
+  const statusMap: Record<string, string> = {
+    '1H': '1st Half',
+    '2H': '2nd Half',
+    'HT': 'Half Time',
+    'ET': 'Extra Time',
+    'P': 'Penalties',
+    'BT': 'Break',
+    'LIVE': 'Live',
+    'FT': 'Full Time',
+    'AET': 'After ET',
+    'PEN': 'After Pens',
+  };
+  return statusMap[status] || status;
 }
 
 /**
@@ -411,65 +453,54 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
       if (markets.length > 0) {
         setLiveMarkets(markets);
 
-        // Enrich scorers markets with player photos and team info
+        // Enrich scorers markets with player photos and team info using RPC
         const scorersMarkets = markets.filter(m => m.category === 'scorers');
         if (scorersMarkets.length > 0 && supabase && fixture) {
           const playerNames = new Set<string>();
           scorersMarkets.forEach(m => {
             m.options.forEach(opt => {
-              // Extract player name (remove /Over, /Under suffixes)
-              const name = opt.label.split('/')[0].trim();
-              if (name) playerNames.add(name);
+              // Use parsePlayerLabel to correctly extract player name
+              const { name } = parsePlayerLabel(opt.label);
+              if (name && !name.toLowerCase().startsWith('no ')) { // Exclude "No goal", "No 1st goal", etc.
+                playerNames.add(name);
+              }
             });
           });
 
           if (playerNames.size > 0) {
-            // Query players with their team associations
-            const { data: playersData } = await supabase
-              .from('fb_players')
-              .select(`
-                name,
-                photo_url,
-                fb_player_team_association(
-                  team_id
-                )
-              `)
-              .in('name', Array.from(playerNames));
+            // Use RPC function for normalized name matching (handles accents)
+            const { data: playersData, error: rpcError } = await supabase.rpc('match_players_by_name', {
+              p_names: Array.from(playerNames)
+            });
 
-            if (playersData && playersData.length > 0) {
-              // Get team details for found players
-              const teamIds = new Set<number>();
-              playersData.forEach((p: any) => {
-                p.fb_player_team_association?.forEach((assoc: any) => {
-                  if (assoc.team_id) teamIds.add(assoc.team_id);
+            if (rpcError) {
+              console.warn('[LiveGameLobbyPage] RPC error, falling back to direct query:', rpcError);
+              // Fallback to direct query if RPC not available
+              const { data: fallbackData } = await supabase
+                .from('fb_players')
+                .select('name, photo')
+                .in('name', Array.from(playerNames));
+
+              if (fallbackData) {
+                const newPlayersMap = new Map<string, EnrichedPlayer>();
+                fallbackData.forEach((p: any) => {
+                  newPlayersMap.set(p.name, {
+                    name: p.name,
+                    photo_url: p.photo,
+                  });
                 });
-              });
-
-              let teamsById = new Map<number, { name: string; logo_url?: string }>();
-              if (teamIds.size > 0) {
-                const { data: teamsData } = await supabase
-                  .from('fb_teams')
-                  .select('id, name, logo_url')
-                  .in('id', Array.from(teamIds));
-                teamsById = new Map((teamsData ?? []).map((t: any) => [t.id, t]));
+                setPlayersMap(newPlayersMap);
               }
-
-              // Build enriched players map
+            } else if (playersData && playersData.length > 0) {
+              // Build enriched players map from RPC results
               const newPlayersMap = new Map<string, EnrichedPlayer>();
               playersData.forEach((p: any) => {
-                const assoc = p.fb_player_team_association?.[0];
-                const team = assoc?.team_id ? teamsById.get(assoc.team_id) : null;
-
-                // Match player to home or away team
-                let matchedTeamId = team?.name === fixture.homeTeam.name ? fixture.homeTeam.name
-                  : team?.name === fixture.awayTeam.name ? fixture.awayTeam.name : null;
-
-                newPlayersMap.set(p.name, {
-                  name: p.name,
+                // Map by original_name (API name) for lookup
+                newPlayersMap.set(p.original_name, {
+                  name: p.player_name,
                   photo_url: p.photo_url,
-                  teamId: assoc?.team_id,
-                  teamName: team?.name,
-                  teamLogo: team?.logo_url,
+                  teamId: p.team_id,
+                  teamName: p.team_name,
                 });
               });
               setPlayersMap(newPlayersMap);
@@ -729,7 +760,9 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
               {/* Score / VS */}
               <div className="px-2 sm:px-4 flex flex-col items-center flex-shrink-0">
                 {gameStatus === 'live' && (
-                  <span className="text-xs font-bold text-hot-red animate-pulse mb-1">LIVE</span>
+                  <span className="text-xs font-bold text-hot-red animate-pulse mb-1">
+                    {formatMatchStatus(fixture.status)}
+                  </span>
                 )}
                 {fixture.homeScore !== undefined && fixture.homeScore !== null ? (
                   <div className="text-2xl sm:text-3xl font-bold text-text-primary">
@@ -963,7 +996,7 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
                   const unknownTeamPlayers: typeof market.options = [];
 
                   market.options.forEach(opt => {
-                    const playerName = opt.label.split('/')[0].trim();
+                    const { name: playerName } = parsePlayerLabel(opt.label);
                     const player = playersMap.get(playerName);
 
                     if (player?.teamName === fixture.homeTeam.name) {
@@ -976,9 +1009,11 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
                   });
 
                   const renderPlayerButton = (opt: typeof market.options[0]) => {
-                    const playerName = opt.label.split('/')[0].trim();
+                    // Use parsePlayerLabel to handle "Name/Over 0.5" format
+                    const { name: playerName, suffix } = parsePlayerLabel(opt.label);
                     const player = playersMap.get(playerName);
-                    const handicapLabel = formatHandicapLabel(opt.handicap);
+                    // Use formatGoalScorerHandicap for proper handicap display
+                    const handicapLabel = formatGoalScorerHandicap(opt.handicap, market.name) || suffix;
 
                     return (
                       <button
