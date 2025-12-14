@@ -757,6 +757,7 @@ export interface LiveMarket {
     label: string;
     value: string;
     odds: number;
+    handicap?: string | null;
   }>;
 }
 

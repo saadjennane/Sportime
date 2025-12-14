@@ -56,12 +56,47 @@ const MARKET_CATEGORIES: MarketCategory[] = [
 // Knockout rounds where Extra Time and Penalties categories are available
 const KNOCKOUT_ROUNDS = ['Final', 'Semi', 'Quarter', 'Round of 16', 'Round of 32', 'Round of 8', 'Knockout', '1/8', '1/4', '1/2'];
 
+/**
+ * Format market names and option labels by replacing Home/Away with team names
+ */
+function formatWithTeamNames(text: string, fixture: FixtureDetails | null): string {
+  if (!fixture) return text;
+
+  const { homeTeam, awayTeam } = fixture;
+
+  return text
+    .replace(/\bHome Team\b/gi, homeTeam.name)
+    .replace(/\bAway Team\b/gi, awayTeam.name)
+    .replace(/\bHome Win\b/gi, homeTeam.name)
+    .replace(/\bAway Win\b/gi, awayTeam.name)
+    .replace(/\bHome\b/g, homeTeam.name)
+    .replace(/\bAway\b/g, awayTeam.name)
+    .replace(/^1$/, homeTeam.name)
+    .replace(/^2$/, awayTeam.name);
+}
+
+/**
+ * Check if an option label represents a team (for showing logos)
+ */
+function getTeamForOption(label: string, fixture: FixtureDetails | null): 'home' | 'away' | null {
+  if (!fixture) return null;
+
+  const lowerLabel = label.toLowerCase();
+  if (lowerLabel === 'home' || lowerLabel === 'home win' || lowerLabel === 'home team' || label === '1') {
+    return 'home';
+  }
+  if (lowerLabel === 'away' || lowerLabel === 'away win' || lowerLabel === 'away team' || label === '2') {
+    return 'away';
+  }
+  return null;
+}
+
 // Mock markets for demo (will come from API)
 interface Market {
   id: number;
   name: string;
   category: LiveBetCategory;
-  options: { label: string; value: string; odds: number }[];
+  options: { label: string; value: string; odds: number; handicap?: string | null }[];
 }
 
 const MOCK_MARKETS: Market[] = [
@@ -785,10 +820,12 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
                 </div>
               )}
 
-              {filteredMarkets.map((market) => (
+              {filteredMarkets.map((market) => {
+                const teamForOption = (label: string) => getTeamForOption(label, fixture);
+                return (
                 <div key={market.id} className="bg-navy-accent/30 rounded-xl p-3">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium text-text-primary text-sm">{market.name}</span>
+                    <span className="font-medium text-text-primary text-sm">{formatWithTeamNames(market.name, fixture)}</span>
                     <span className={`text-xs px-2 py-0.5 rounded-full ${
                       MARKET_CATEGORIES.find(c => c.id === market.category)?.color || 'bg-white/10'
                     }`}>
@@ -796,7 +833,10 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
                     </span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {market.options.map((opt) => (
+                    {market.options.map((opt) => {
+                      const team = teamForOption(opt.label);
+                      const teamLogo = team === 'home' ? fixture?.homeTeam.logo : team === 'away' ? fixture?.awayTeam.logo : null;
+                      return (
                       <button
                         key={opt.value}
                         onClick={() => {
@@ -815,13 +855,17 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
                               : 'bg-deep-navy/50 cursor-not-allowed opacity-60'
                         }`}
                       >
-                        <div className="text-xs text-text-secondary truncate">{opt.label}</div>
+                        <div className="text-xs text-text-secondary truncate flex items-center justify-center gap-1">
+                          {teamLogo && <img src={teamLogo} alt="" className="w-4 h-4 object-contain" />}
+                          <span>{formatWithTeamNames(opt.label, fixture)}</span>
+                          {opt.handicap && <span className="text-warm-yellow">({opt.handicap})</span>}
+                        </div>
                         <div className="font-bold text-electric-blue text-sm sm:text-base">{opt.odds.toFixed(2)}</div>
                       </button>
-                    ))}
+                    )})}
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
             )}
           </>
