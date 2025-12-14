@@ -663,8 +663,89 @@ function mapBetFromDb(data: any): LiveGameBet {
 // =============================================
 
 /**
+ * Market ID to category mapping (FALLBACK)
+ * Primary source is the database (market_categories table)
+ * This frontend mapping is used as fallback if DB category is missing
+ *
+ * NOTE: Some markets like Asian Handicap may be removed later
+ */
+const MARKET_ID_TO_CATEGORY: Record<number, LiveBetCategory> = {
+  // Result markets
+  1: 'result',    // Match Winner
+  19: 'result',   // 1X2 1st Half
+  35: 'result',   // To Win 2nd Half
+  41: 'result',   // 1X2 50min
+  64: 'result',   // HT/FT
+  21: 'result',   // 3-Way Handicap
+  33: 'result',   // Asian Handicap (may be removed)
+  17: 'result',   // Asian Handicap 1st Half (may be removed)
+  26: 'result',   // 1X2 2nd Half
+  29: 'result',   // Double Chance
+
+  // Goals markets
+  36: 'goals',    // Over/Under
+  25: 'goals',    // Match Goals
+  49: 'goals',    // O/U 1st Half
+  24: 'goals',    // Next Goal
+  73: 'goals',    // Team Goals
+  58: 'goals',    // Score in Both Halves
+  39: 'goals',    // BTTS
+  27: 'goals',    // BTTS 1st Half
+  38: 'goals',    // Final Score
+  30: 'goals',    // Home Team Goals
+  16: 'goals',    // Away Team Goals
+  23: 'goals',    // Exact Goals
+  60: 'goals',    // To Score 3+
+
+  // Scorers
+  46: 'scorers',  // Goal Scorer
+  148: 'scorers', // Player Shots
+  92: 'scorers',  // First Goalscorer
+  93: 'scorers',  // Last Goalscorer
+  94: 'scorers',  // Player to Score 2+
+
+  // Cards
+  119: 'cards',   // Total Cards
+  115: 'cards',   // Player to be Booked
+  120: 'cards',   // Home Team Cards
+  121: 'cards',   // Away Team Cards
+  122: 'cards',   // Cards Over/Under
+
+  // Quick bets
+  18: 'quick',    // Goal in Interval
+  47: 'quick',    // First Half Goals
+  48: 'quick',    // Second Half Goals
+
+  // Clean sheet
+  57: 'clean_sheet', // Away Clean Sheet
+  66: 'clean_sheet', // Home Clean Sheet
+  67: 'clean_sheet', // Both Teams Clean Sheet
+
+  // Corners
+  20: 'corners',  // Match Corners
+  37: 'corners',  // Total Corners
+  32: 'corners',  // Asian Corners (may be removed)
+  78: 'corners',  // Corners 1X2
+  76: 'corners',  // Race to Corners
+  61: 'corners',  // Team Corners
+  45: 'corners',  // Corners O/U
+  31: 'corners',  // Corners Range
+
+  // Extra Time (knockout only)
+  2: 'extra_time',   // Home/Away (ET)
+  6: 'extra_time',   // Goals Over/Under (ET)
+  9: 'extra_time',   // Both Teams Score (ET)
+  11: 'extra_time',  // Exact Score (ET)
+
+  // Penalties (knockout only)
+  8: 'penalties',    // Penalty Shootout Winner
+  10: 'penalties',   // To Qualify
+  101: 'penalties',  // Total Penalties
+  107: 'penalties',  // Penalties Over/Under
+};
+
+/**
  * Live market interface for betting
- * Categories are now fetched from the database via the edge function
  */
 export interface LiveMarket {
   id: number;
@@ -681,7 +762,9 @@ export interface LiveMarket {
 
 /**
  * Fetch live markets from API-Football via edge function
- * Markets are categorized backend-side using the market_categories table
+ * Markets are categorized by:
+ * 1. Database (market_categories table) - PRIMARY
+ * 2. Frontend mapping (MARKET_ID_TO_CATEGORY) - FALLBACK
  */
 export async function fetchLiveMarkets(fixtureApiId: number): Promise<LiveMarket[]> {
   if (!supabase) {
@@ -704,9 +787,14 @@ export async function fetchLiveMarkets(fixtureApiId: number): Promise<LiveMarket
       return [];
     }
 
-    // Markets come pre-categorized from the edge function
-    // Categories are managed via the market_categories table in the database
-    return data.markets as LiveMarket[];
+    // Markets come with category from edge function (from DB)
+    // Use frontend fallback if DB category is missing or 'other'
+    return data.markets.map((market: any) => ({
+      ...market,
+      category: market.category && market.category !== 'other'
+        ? market.category
+        : MARKET_ID_TO_CATEGORY[market.apiId] || 'other',
+    })) as LiveMarket[];
   } catch (err) {
     console.error('[liveGameService] fetchLiveMarkets failed:', err);
     return [];
