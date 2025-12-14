@@ -292,12 +292,42 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
   // Player data for scorers markets (name -> EnrichedPlayer)
   const [playersMap, setPlayersMap] = useState<Map<string, EnrichedPlayer>>(new Map());
 
+  // Fetch live status from API-Football
+  const fetchLiveStatusFromApi = useCallback(async (apiId: number): Promise<{ status: string; goalsHome: number | null; goalsAway: number | null; elapsed: number | null } | null> => {
+    try {
+      const response = await fetch(`https://v3.football.api-sports.io/fixtures?id=${apiId}`, {
+        headers: {
+          'x-rapidapi-key': import.meta.env.VITE_API_FOOTBALL_KEY || '',
+          'x-rapidapi-host': 'v3.football.api-sports.io',
+        },
+      });
+
+      if (!response.ok) return null;
+
+      const data = await response.json();
+      const fixture = data.response?.[0];
+
+      if (fixture) {
+        return {
+          status: fixture.fixture?.status?.short || 'NS',
+          goalsHome: fixture.goals?.home,
+          goalsAway: fixture.goals?.away,
+          elapsed: fixture.fixture?.status?.elapsed,
+        };
+      }
+      return null;
+    } catch (err) {
+      console.warn('[LiveGameLobbyPage] Failed to fetch live status from API:', err);
+      return null;
+    }
+  }, []);
+
   // Fetch fixture details and poll for status updates
   const fetchFixtureDetails = useCallback(async (isInitialLoad = false) => {
     if (!supabase || !fixtureId) return;
 
     try {
-      // Step 1: Fetch fixture with team IDs
+      // Step 1: Fetch fixture with team IDs from DB
       const { data, error } = await supabase
         .from('fb_fixtures')
         .select(`
@@ -317,6 +347,11 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
       if (error) throw error;
 
       if (data) {
+        // Store API ID for live markets
+        if (data.api_id && isInitialLoad) {
+          setFixtureApiId(data.api_id);
+        }
+
         // Only fetch teams on initial load
         if (isInitialLoad) {
           const teamIds = [data.home_team_id, data.away_team_id].filter(Boolean);
@@ -350,11 +385,6 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
             status: data.status || 'NS',
           });
 
-          // Store API ID for live markets
-          if (data.api_id) {
-            setFixtureApiId(data.api_id);
-          }
-
           // Check if this is a knockout match (for ET/Penalties categories)
           if (data.round) {
             const isKnockout = KNOCKOUT_ROUNDS.some(kr =>
@@ -362,42 +392,60 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
             );
             setIsKnockoutMatch(isKnockout);
           }
-        } else {
-          // On subsequent polls, only update score and status
-          setFixture(prev => prev ? {
-            ...prev,
-            homeScore: data.goals_home,
-            awayScore: data.goals_away,
-            status: data.status || 'NS',
-          } : prev);
         }
 
-        // Determine game status based on fixture status AND kickoff time
-        // This matches the logic in useMatchesOfTheDay.ts for consistency
-        const liveStatuses = ['1H', 'HT', '2H', 'ET', 'P', 'BT', 'LIVE'];
-        const finishedStatuses = ['FT', 'AET', 'PEN', 'PST', 'CANC', 'ABD', 'AWD', 'WO'];
-        const dbStatus = data.status || 'NS';
+        // Step 2: For polling, fetch LIVE status from API-Football if match might be in progress
         const kickoffTime = data.date ? new Date(data.date).getTime() : Number.POSITIVE_INFINITY;
         const hasStarted = kickoffTime <= Date.now();
+        const finishedStatuses = ['FT', 'AET', 'PEN', 'CANC', 'ABD', 'AWD', 'WO'];
+        const postponedStatuses = ['PST', 'SUSP', 'INT', 'TBD'];
 
-        // Match is live if: has explicit live status OR kickoff time has passed (and not finished)
-        const isLive = !finishedStatuses.includes(dbStatus) &&
-                       (liveStatuses.includes(dbStatus) || hasStarted);
+        let currentStatus = data.status || 'NS';
+        let currentGoalsHome = data.goals_home;
+        let currentGoalsAway = data.goals_away;
+        let elapsed: number | null = null;
 
-        // Determine the display status (override NS if kickoff has passed)
-        let displayStatus = dbStatus;
-        if (dbStatus === 'NS' && hasStarted && !finishedStatuses.includes(dbStatus)) {
-          displayStatus = 'LIVE'; // Show LIVE instead of NS when kickoff has passed
+        // If match has started and not finished, fetch live status from API
+        if (hasStarted && !finishedStatuses.includes(currentStatus) && data.api_id) {
+          const liveData = await fetchLiveStatusFromApi(data.api_id);
+          if (liveData) {
+            currentStatus = liveData.status;
+            currentGoalsHome = liveData.goalsHome;
+            currentGoalsAway = liveData.goalsAway;
+            elapsed = liveData.elapsed;
+
+            // Update DB with live status (fire and forget)
+            supabase
+              .from('fb_fixtures')
+              .update({
+                status: currentStatus,
+                goals_home: currentGoalsHome,
+                goals_away: currentGoalsAway
+              })
+              .eq('id', fixtureId)
+              .then(() => console.log('[LiveGameLobbyPage] Updated fixture status in DB:', currentStatus));
+          }
         }
 
-        // Update fixture status with calculated display status
-        setFixture(prev => prev ? { ...prev, status: displayStatus } : prev);
+        // Update fixture state with live data
+        setFixture(prev => prev ? {
+          ...prev,
+          homeScore: currentGoalsHome,
+          awayScore: currentGoalsAway,
+          status: currentStatus + (elapsed ? ` ${elapsed}'` : ''),
+        } : prev);
 
-        if (finishedStatuses.includes(dbStatus)) {
+        // Determine game status
+        const liveStatuses = ['1H', 'HT', '2H', 'ET', 'P', 'BT', 'LIVE'];
+
+        if (finishedStatuses.includes(currentStatus)) {
           setGameStatus('finished');
-          // Update game status in database when match finishes
           updateGameStatus(gameId, 'finished');
-        } else if (isLive) {
+        } else if (postponedStatuses.includes(currentStatus)) {
+          // Postponed/Suspended - treat as upcoming, don't show as LIVE
+          setGameStatus('upcoming');
+          setFixture(prev => prev ? { ...prev, status: currentStatus } : prev);
+        } else if (liveStatuses.includes(currentStatus) || (hasStarted && currentStatus === 'NS')) {
           setGameStatus('live');
         } else {
           setGameStatus('upcoming');
@@ -409,7 +457,7 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
         setError('Failed to load match details');
       }
     }
-  }, [fixtureId]);
+  }, [fixtureId, fetchLiveStatusFromApi, gameId]);
 
   // Initial load
   useEffect(() => {
