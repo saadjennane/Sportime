@@ -10,6 +10,7 @@ interface LiveGameLobbyPageProps {
   fixtureId: string;
   mode: 'free' | 'ranked';
   onBack: () => void;
+  onJoinSuccess?: () => void;
 }
 
 interface FixtureDetails {
@@ -234,6 +235,7 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
   fixtureId,
   mode,
   onBack,
+  onJoinSuccess,
 }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [fixture, setFixture] = useState<FixtureDetails | null>(null);
@@ -480,6 +482,8 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
       const entry = await joinLiveGame(gameId);
       setUserEntry(entry);
       setPlayerCount(prev => prev + 1);
+      // Notify parent to refresh the live games list
+      onJoinSuccess?.();
     } catch (err: any) {
       console.error('[LiveGameLobbyPage] Error joining game:', err);
       setError(err?.message || 'Failed to join game');

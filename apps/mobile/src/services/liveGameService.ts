@@ -516,7 +516,11 @@ export async function getGameByFixture(fixtureId: string): Promise<LiveGame | nu
  * Get user's entry for a game
  */
 export async function getUserEntry(gameId: string, userId: string): Promise<LiveGameEntry | null> {
-  if (!supabase) return null;
+  console.log('[liveGameService] getUserEntry called:', { gameId, userId });
+  if (!supabase) {
+    console.warn('[liveGameService] getUserEntry: supabase not initialized');
+    return null;
+  }
 
   const { data, error } = await supabase
     .from('live_game_entries')
@@ -528,8 +532,12 @@ export async function getUserEntry(gameId: string, userId: string): Promise<Live
     .eq('user_id', userId)
     .single();
 
-  if (error) return null;
+  if (error) {
+    console.log('[liveGameService] getUserEntry error:', error.message, { gameId, userId });
+    return null;
+  }
 
+  console.log('[liveGameService] getUserEntry found entry:', { entryId: data?.id, balance: data?.balance });
   return mapEntryFromDb(data);
 }
 

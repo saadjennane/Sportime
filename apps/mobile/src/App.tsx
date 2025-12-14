@@ -456,84 +456,85 @@ function App() {
     setLoading(false);
   }, [profile, isGuest, initializeUserSpinState, challengesLoading, shouldUseSupabaseChallenges]);
 
-  // Effect 3: Load user's joined live games
-  useEffect(() => {
-    const loadUserLiveGames = async () => {
-      if (!profile?.id || isGuest) {
-        setUserLiveGameEntries([]);
+  // Callback to load/refresh user's joined live games
+  // Extracted as useCallback so it can be called after joining a game
+  const loadUserLiveGames = useCallback(async () => {
+    if (!profile?.id || isGuest || !supabase) {
+      setUserLiveGameEntries([]);
+      return;
+    }
+
+    try {
+      // Use non-inner join to avoid excluding entries when live_games data is missing
+      const { data, error } = await supabase
+        .from('live_game_entries')
+        .select(`
+          live_game_id,
+          live_games (
+            id,
+            fixture_id,
+            mode,
+            status,
+            fb_fixtures (
+              id,
+              home_team:fb_teams!fb_fixtures_home_team_id_fkey (name),
+              away_team:fb_teams!fb_fixtures_away_team_id_fkey (name),
+              date
+            )
+          )
+        `)
+        .eq('user_id', profile.id);
+
+      console.log('[App] loadUserLiveGames query result:', { data, error, userId: profile.id });
+
+      if (error) {
+        console.error('[App] Error loading live game entries:', error);
         return;
       }
 
-      try {
-        const { data, error } = await supabase
-          .from('live_game_entries')
-          .select(`
-            live_game_id,
-            live_games!inner (
-              id,
-              fixture_id,
-              mode,
-              status,
-              fb_fixtures!inner (
-                id,
-                home_team:fb_teams!fb_fixtures_home_team_id_fkey (name),
-                away_team:fb_teams!fb_fixtures_away_team_id_fkey (name),
-                date
-              )
-            )
-          `)
-          .eq('user_id', profile.id)
-          // Don't filter by live_games.status - instead filter out only finished games
-          // This ensures games appear even if status hasn't been updated yet
-          .not('live_games.status', 'eq', 'finished');
+      if (data) {
+        const now = Date.now();
 
-        if (error) {
-          console.error('[App] Error loading live game entries:', error);
-          return;
-        }
+        const entries = data
+          // Filter out entries without live_games data or finished games
+          .filter((entry: any) => {
+            if (!entry.live_games) return false;
+            if (entry.live_games.status === 'finished') return false;
+            return true;
+          })
+          .map((entry: any) => {
+            const kickoffTime = entry.live_games.fb_fixtures?.date
+              ? new Date(entry.live_games.fb_fixtures.date).getTime()
+              : Number.POSITIVE_INFINITY;
+            const hasStarted = kickoffTime <= now;
+            // Determine actual status based on kickoff time
+            const calculatedStatus = hasStarted ? 'live' : 'upcoming';
 
-        if (data) {
-          // Calculate status client-side based on kickoff time (same logic as useMatchesOfTheDay)
-          const FINISHED_STATUSES = ['FT', 'AET', 'PEN', 'PST', 'CANC', 'ABD', 'AWD', 'WO'];
-          const now = Date.now();
+            return {
+              gameId: entry.live_game_id,
+              fixtureId: entry.live_games.fixture_id,
+              mode: entry.live_games.mode as 'free' | 'ranked',
+              status: calculatedStatus,
+              fixture: entry.live_games.fb_fixtures ? {
+                homeTeam: entry.live_games.fb_fixtures.home_team?.name || 'Home',
+                awayTeam: entry.live_games.fb_fixtures.away_team?.name || 'Away',
+                kickoffTime: entry.live_games.fb_fixtures.date,
+              } : undefined,
+            };
+          });
 
-          const entries = data
-            .map((entry: any) => {
-              const kickoffTime = entry.live_games.fb_fixtures?.date
-                ? new Date(entry.live_games.fb_fixtures.date).getTime()
-                : Number.POSITIVE_INFINITY;
-              const hasStarted = kickoffTime <= now;
-              // Determine actual status based on kickoff time
-              const calculatedStatus = hasStarted ? 'live' : 'upcoming';
-
-              return {
-                gameId: entry.live_game_id,
-                fixtureId: entry.live_games.fixture_id,
-                mode: entry.live_games.mode as 'free' | 'ranked',
-                status: calculatedStatus,
-                fixture: entry.live_games.fb_fixtures ? {
-                  homeTeam: entry.live_games.fb_fixtures.home_team?.name || 'Home',
-                  awayTeam: entry.live_games.fb_fixtures.away_team?.name || 'Away',
-                  kickoffTime: entry.live_games.fb_fixtures.date,
-                } : undefined,
-              };
-            })
-            // Filter out finished fixtures (double check based on fixture status)
-            .filter((entry: any) => {
-              // If we can't determine fixture status, keep the entry
-              return true;
-            });
-
-          setUserLiveGameEntries(entries);
-          console.log('[App] Loaded', entries.length, 'live game entries');
-        }
-      } catch (err) {
-        console.error('[App] Failed to load live game entries:', err);
+        setUserLiveGameEntries(entries);
+        console.log('[App] Loaded', entries.length, 'live game entries');
       }
-    };
-
-    loadUserLiveGames();
+    } catch (err) {
+      console.error('[App] Failed to load live game entries:', err);
+    }
   }, [profile?.id, isGuest]);
+
+  // Effect 3: Load user's joined live games on mount and when profile changes
+  useEffect(() => {
+    loadUserLiveGames();
+  }, [loadUserLiveGames]);
 
   // Base balance from profile
   const baseBalance = profile?.coins_balance ?? 0;
@@ -1473,6 +1474,7 @@ function App() {
         fixtureId={activeLiveGameSupabase.fixtureId}
         mode={activeLiveGameSupabase.mode}
         onBack={() => setActiveLiveGameSupabase(null)}
+        onJoinSuccess={loadUserLiveGames}
       />
     );
   }
