@@ -290,33 +290,33 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
   // Player data for scorers markets (name -> EnrichedPlayer)
   const [playersMap, setPlayersMap] = useState<Map<string, EnrichedPlayer>>(new Map());
 
-  // Fetch fixture details
-  useEffect(() => {
-    const fetchFixtureDetails = async () => {
-      if (!supabase || !fixtureId) return;
+  // Fetch fixture details and poll for status updates
+  const fetchFixtureDetails = useCallback(async (isInitialLoad = false) => {
+    if (!supabase || !fixtureId) return;
 
-      try {
-        // Step 1: Fetch fixture with team IDs
-        const { data, error } = await supabase
-          .from('fb_fixtures')
-          .select(`
-            id,
-            api_id,
-            date,
-            goals_home,
-            goals_away,
-            status,
-            round,
-            home_team_id,
-            away_team_id
-          `)
-          .eq('id', fixtureId)
-          .single();
+    try {
+      // Step 1: Fetch fixture with team IDs
+      const { data, error } = await supabase
+        .from('fb_fixtures')
+        .select(`
+          id,
+          api_id,
+          date,
+          goals_home,
+          goals_away,
+          status,
+          round,
+          home_team_id,
+          away_team_id
+        `)
+        .eq('id', fixtureId)
+        .single();
 
-        if (error) throw error;
+      if (error) throw error;
 
-        if (data) {
-          // Step 2: Fetch teams separately
+      if (data) {
+        // Only fetch teams on initial load
+        if (isInitialLoad) {
           const teamIds = [data.home_team_id, data.away_team_id].filter(Boolean);
           let teamsMap = new Map<string | number, { name: string; logo_url?: string }>();
 
@@ -360,28 +360,57 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
             );
             setIsKnockoutMatch(isKnockout);
           }
-
-          // Determine game status based on fixture status
-          const liveStatuses = ['1H', 'HT', '2H', 'ET', 'P', 'BT', 'LIVE'];
-          const finishedStatuses = ['FT', 'AET', 'PEN', 'PST', 'CANC', 'ABD', 'AWD', 'WO'];
-          const status = data.status || 'NS';
-
-          if (finishedStatuses.includes(status)) {
-            setGameStatus('finished');
-          } else if (liveStatuses.includes(status)) {
-            setGameStatus('live');
-          } else {
-            setGameStatus('upcoming');
-          }
+        } else {
+          // On subsequent polls, only update score and status
+          setFixture(prev => prev ? {
+            ...prev,
+            homeScore: data.goals_home,
+            awayScore: data.goals_away,
+            status: data.status || 'NS',
+          } : prev);
         }
-      } catch (err) {
-        console.error('[LiveGameLobbyPage] Error fetching fixture:', err);
+
+        // Determine game status based on fixture status
+        const liveStatuses = ['1H', 'HT', '2H', 'ET', 'P', 'BT', 'LIVE'];
+        const finishedStatuses = ['FT', 'AET', 'PEN', 'PST', 'CANC', 'ABD', 'AWD', 'WO'];
+        const status = data.status || 'NS';
+
+        if (finishedStatuses.includes(status)) {
+          setGameStatus('finished');
+        } else if (liveStatuses.includes(status)) {
+          setGameStatus('live');
+        } else {
+          setGameStatus('upcoming');
+        }
+      }
+    } catch (err) {
+      console.error('[LiveGameLobbyPage] Error fetching fixture:', err);
+      if (isInitialLoad) {
         setError('Failed to load match details');
       }
-    };
-
-    fetchFixtureDetails();
+    }
   }, [fixtureId]);
+
+  // Initial load
+  useEffect(() => {
+    fetchFixtureDetails(true);
+  }, [fetchFixtureDetails]);
+
+  // Poll fixture status every 30 seconds to sync with match status
+  useEffect(() => {
+    // Poll more frequently when upcoming (waiting for match to start)
+    // Poll every 30s when upcoming, every 60s when live (score updates less critical)
+    const pollInterval = gameStatus === 'upcoming' ? 30000 : 60000;
+
+    // Only poll if game is not finished
+    if (gameStatus !== 'finished') {
+      const interval = setInterval(() => {
+        fetchFixtureDetails(false);
+      }, pollInterval);
+
+      return () => clearInterval(interval);
+    }
+  }, [gameStatus, fetchFixtureDetails]);
 
   // Fetch game details, user entry and leaderboard
   useEffect(() => {
