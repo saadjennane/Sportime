@@ -67,9 +67,14 @@ interface MatchCardProps {
   userBet?: Bet;
 }
 
+// Statuses that should be treated as postponed/cancelled (no Live Game button)
+const POSTPONED_STATUSES = ['PST', 'POST', 'CANC', 'ABD', 'AWD', 'WO', 'TBD', 'SUSP'];
+
 export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats, onPlayGame, userBet }) => {
-  const isLive = !!match.isLive;
-  const isUpcoming = match.status === 'upcoming' && !isLive;
+  const rawStatusUpper = match.rawStatus?.toUpperCase() || '';
+  const isPostponed = POSTPONED_STATUSES.includes(rawStatusUpper);
+  const isLive = !!match.isLive && !isPostponed;
+  const isUpcoming = match.status === 'upcoming' && !isLive && !isPostponed;
   const betPlaced = !!userBet;
 
   const getResultStyling = (prediction: 'teamA' | 'draw' | 'teamB') => {
@@ -143,6 +148,13 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
       return (
         <span className="text-white text-xs px-3 py-1 rounded-full font-semibold bg-gradient-to-r from-hot-red to-electric-blue animate-pulse">
           {getLiveStatusLabel()}
+        </span>
+      );
+    }
+    if (isPostponed) {
+      return (
+        <span className="bg-warm-yellow/20 text-warm-yellow text-xs px-3 py-1 rounded-full font-semibold">
+          Postponed
         </span>
       );
     }
@@ -229,7 +241,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
           <div className="flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-electric-blue" />
             <span className="text-xs font-semibold text-text-secondary uppercase">
-              {isUpcoming ? 'Place Your Bet' : isLive ? 'Match In Progress' : 'Final Odds'}
+              {isPostponed ? 'Match Postponed' : isUpcoming ? 'Place Your Bet' : isLive ? 'Match In Progress' : 'Final Odds'}
             </span>
           </div>
           <div className="flex items-center gap-2">
