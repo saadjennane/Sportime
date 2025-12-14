@@ -54,7 +54,8 @@ interface LeaderboardEntry {
 // =============================================
 
 /**
- * Create a new live game for a fixture
+ * Create or join a live game for a fixture
+ * Uses "find or create" pattern to ensure only ONE game per fixture + mode
  */
 export async function createLiveGame(options: CreateGameOptions): Promise<LiveGame | null> {
   console.log('[liveGameService] createLiveGame V2 called with:', options);
@@ -67,6 +68,76 @@ export async function createLiveGame(options: CreateGameOptions): Promise<LiveGa
   const { data: user } = await supabase.auth.getUser();
   console.log('[liveGameService] User:', user?.user?.id);
   if (!user.user) throw new Error('Not authenticated');
+
+  // =============================================
+  // STEP 1: Check if game already exists for this fixture + mode
+  // =============================================
+  const { data: existingGame, error: findError } = await supabase
+    .from('live_games')
+    .select('*')
+    .eq('fixture_id', options.fixtureId)
+    .eq('mode', options.mode)
+    .neq('status', 'finished')
+    .limit(1)
+    .maybeSingle();
+
+  if (findError) {
+    console.error('[liveGameService] Error checking for existing game:', findError);
+  }
+
+  if (existingGame) {
+    console.log('[liveGameService] Found existing game:', existingGame.id);
+
+    // Check if user already joined
+    const { data: existingEntry } = await supabase
+      .from('live_game_entries')
+      .select('id')
+      .eq('live_game_id', existingGame.id)
+      .eq('user_id', user.user.id)
+      .maybeSingle();
+
+    if (existingEntry) {
+      console.log('[liveGameService] User already joined game:', existingEntry.id);
+    } else {
+      // User hasn't joined yet - join them
+      console.log('[liveGameService] User not yet joined, joining existing game...');
+
+      // Check user limits before joining
+      let limits = null;
+      try {
+        limits = await getUserLimits(user.user.id);
+      } catch (limitsError) {
+        console.warn('[liveGameService] Could not get user limits:', limitsError);
+      }
+
+      if (limits && limits.slotsMax !== null && limits.slotsUsed >= limits.slotsMax) {
+        throw new Error(`You have reached your maximum of ${limits.slotsMax} active games. Complete a game to join another.`);
+      }
+
+      const entryData = {
+        live_game_id: existingGame.id,
+        user_id: user.user.id,
+        balance: existingGame.entry_cost || 1000,
+      };
+
+      const { error: joinError } = await supabase
+        .from('live_game_entries')
+        .insert(entryData);
+
+      if (joinError) {
+        console.error('[liveGameService] Error joining existing game:', joinError);
+      } else {
+        console.log('[liveGameService] Successfully joined existing game');
+      }
+    }
+
+    return mapGameFromDb(existingGame);
+  }
+
+  // =============================================
+  // STEP 2: No existing game - create new one
+  // =============================================
+  console.log('[liveGameService] No existing game found, creating new one...');
 
   // Check user limits (skip if RPC doesn't exist yet)
   let limits = null;
