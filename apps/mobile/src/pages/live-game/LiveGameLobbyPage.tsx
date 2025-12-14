@@ -328,6 +328,72 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
     }
   }, [gameStatus, fixtureApiId, loadLiveMarkets]);
 
+  // Realtime subscriptions for bets and balance updates
+  useEffect(() => {
+    if (!userEntry?.id) return;
+
+    // Subscribe to bet status changes (won/lost/voided)
+    const betsChannel = supabase
+      .channel(`live-bets-${userEntry.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'live_game_bets',
+          filter: `entry_id=eq.${userEntry.id}`,
+        },
+        (payload) => {
+          const updatedBet = payload.new as any;
+          console.log('[Realtime] Bet updated:', updatedBet);
+
+          // Update bet in local state
+          setUserBets(prev => prev.map(bet =>
+            bet.id === updatedBet.id
+              ? {
+                  ...bet,
+                  status: updatedBet.status,
+                  // Add gain info if bet was won
+                  ...(updatedBet.gain && { potentialWin: updatedBet.gain }),
+                }
+              : bet
+          ));
+        }
+      )
+      .subscribe();
+
+    // Subscribe to balance changes
+    const entryChannel = supabase
+      .channel(`live-entry-${userEntry.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'live_game_entries',
+          filter: `id=eq.${userEntry.id}`,
+        },
+        (payload) => {
+          const updatedEntry = payload.new as any;
+          console.log('[Realtime] Entry updated:', updatedEntry);
+
+          // Update balance and total gains
+          setUserEntry((prev: any) => ({
+            ...prev,
+            balance: updatedEntry.balance,
+            totalGains: updatedEntry.total_gains,
+          }));
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscriptions on unmount
+    return () => {
+      supabase.removeChannel(betsChannel);
+      supabase.removeChannel(entryChannel);
+    };
+  }, [userEntry?.id]);
+
   // Place a bet
   const CONFIRMATION_DELAY = 8; // 8 seconds delay for TV sync protection
 

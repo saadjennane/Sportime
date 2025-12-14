@@ -10,7 +10,10 @@ import {
   Trophy,
   Users,
   Coins,
-  Gift
+  Gift,
+  Tags,
+  Check,
+  X
 } from 'lucide-react';
 import {
   liveGameConfigService,
@@ -18,6 +21,34 @@ import {
   FreeRewardConfig,
   RewardTier,
 } from '../services/liveGameConfigService';
+import { supabase } from '../lib/supabaseClient';
+
+interface MarketCategory {
+  id: string;
+  market_id: number;
+  category: string;
+  market_name: string;
+  description: string | null;
+  is_active: boolean;
+}
+
+const CATEGORY_OPTIONS = [
+  'result', 'goals', 'scorers', 'cards', 'corners',
+  'quick', 'clean_sheet', 'extra_time', 'penalties', 'other'
+];
+
+const CATEGORY_COLORS: Record<string, string> = {
+  result: 'bg-blue-500/20 text-blue-400',
+  goals: 'bg-lime-500/20 text-lime-400',
+  scorers: 'bg-yellow-500/20 text-yellow-400',
+  cards: 'bg-orange-500/20 text-orange-400',
+  corners: 'bg-purple-500/20 text-purple-400',
+  quick: 'bg-red-500/20 text-red-400',
+  clean_sheet: 'bg-teal-500/20 text-teal-400',
+  extra_time: 'bg-cyan-500/20 text-cyan-400',
+  penalties: 'bg-pink-500/20 text-pink-400',
+  other: 'bg-gray-500/20 text-gray-400',
+};
 
 const LEVEL_LABELS: Record<string, string> = {
   rookie: 'Rookie',
@@ -42,7 +73,7 @@ export function LiveGameConfigPage() {
   const [rewardConfigs, setRewardConfigs] = useState<FreeRewardConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'levels' | 'rewards'>('levels');
+  const [activeTab, setActiveTab] = useState<'levels' | 'rewards' | 'categories'>('levels');
   const [editingLevel, setEditingLevel] = useState<string | null>(null);
   const [editingReward, setEditingReward] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -60,6 +91,13 @@ export function LiveGameConfigPage() {
     rewardTier: null,
   });
 
+  // Market categories state
+  const [marketCategories, setMarketCategories] = useState<MarketCategory[]>([]);
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [showNewCategoryForm, setShowNewCategoryForm] = useState(false);
+  const [newCategory, setNewCategory] = useState({ market_id: 0, category: 'other', market_name: '', description: '' });
+
   // Load data
   useEffect(() => {
     loadData();
@@ -74,6 +112,18 @@ export function LiveGameConfigPage() {
       ]);
       setLevelConfigs(levels);
       setRewardConfigs(rewards);
+
+      // Load market categories
+      if (supabase) {
+        const { data: categories } = await supabase
+          .from('market_categories')
+          .select('*')
+          .order('category', { ascending: true })
+          .order('market_id', { ascending: true });
+        if (categories) {
+          setMarketCategories(categories);
+        }
+      }
     } catch (error) {
       showToast('Failed to load configuration', 'error');
     } finally {
@@ -229,6 +279,83 @@ export function LiveGameConfigPage() {
     }
   };
 
+  // Market category handlers
+  const handleCreateCategory = async () => {
+    if (!supabase || !newCategory.market_id || !newCategory.market_name) {
+      showToast('Market ID and name are required', 'error');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const { data, error } = await supabase
+        .from('market_categories')
+        .insert({
+          market_id: newCategory.market_id,
+          category: newCategory.category,
+          market_name: newCategory.market_name,
+          description: newCategory.description || null,
+          is_active: true,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (data) {
+        setMarketCategories(prev => [...prev, data]);
+        setShowNewCategoryForm(false);
+        setNewCategory({ market_id: 0, category: 'other', market_name: '', description: '' });
+        showToast('Market category created', 'success');
+      }
+    } catch (error: any) {
+      showToast(error.message || 'Failed to create category', 'error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleUpdateCategory = async (id: string, updates: Partial<MarketCategory>) => {
+    if (!supabase) return;
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from('market_categories')
+        .update(updates)
+        .eq('id', id);
+
+      if (error) throw error;
+      setMarketCategories(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+      setEditingCategory(null);
+      showToast('Category updated', 'success');
+    } catch (error) {
+      showToast('Failed to update category', 'error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    if (!supabase || !confirm('Delete this market category?')) return;
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from('market_categories')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      setMarketCategories(prev => prev.filter(c => c.id !== id));
+      showToast('Category deleted', 'success');
+    } catch (error) {
+      showToast('Failed to delete category', 'error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const filteredCategories = categoryFilter === 'all'
+    ? marketCategories
+    : marketCategories.filter(c => c.category === categoryFilter);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -282,6 +409,17 @@ export function LiveGameConfigPage() {
         >
           <Gift className="w-4 h-4" />
           Free Mode Rewards
+        </button>
+        <button
+          onClick={() => setActiveTab('categories')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+            activeTab === 'categories'
+              ? 'bg-electric-blue text-white'
+              : 'bg-surface text-text-secondary hover:bg-surface-hover'
+          }`}
+        >
+          <Tags className="w-4 h-4" />
+          Market Categories
         </button>
       </div>
 
@@ -630,6 +768,217 @@ export function LiveGameConfigPage() {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Market Categories Tab */}
+      {activeTab === 'categories' && (
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <Tags className="w-5 h-5 text-purple-400" />
+                Market Categories
+              </h2>
+              <p className="text-text-secondary text-sm mt-1">
+                Map API-Football market IDs to betting categories
+              </p>
+            </div>
+            <button
+              onClick={() => setShowNewCategoryForm(true)}
+              className="px-4 py-2 rounded-lg bg-electric-blue text-white hover:bg-electric-blue/90 transition-colors flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Add Category
+            </button>
+          </div>
+
+          {/* Filter */}
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => setCategoryFilter('all')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                categoryFilter === 'all'
+                  ? 'bg-electric-blue text-white'
+                  : 'bg-surface text-text-secondary hover:bg-surface-hover'
+              }`}
+            >
+              All ({marketCategories.length})
+            </button>
+            {CATEGORY_OPTIONS.map(cat => {
+              const count = marketCategories.filter(c => c.category === cat).length;
+              return (
+                <button
+                  key={cat}
+                  onClick={() => setCategoryFilter(cat)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    categoryFilter === cat
+                      ? CATEGORY_COLORS[cat]
+                      : 'bg-surface text-text-secondary hover:bg-surface-hover'
+                  }`}
+                >
+                  {cat.replace('_', ' ')} ({count})
+                </button>
+              );
+            })}
+          </div>
+
+          {/* New Category Form */}
+          {showNewCategoryForm && (
+            <div className="bg-surface rounded-xl border border-electric-blue/50 p-4">
+              <h3 className="font-medium mb-3">New Market Category</h3>
+              <div className="grid grid-cols-4 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm text-text-secondary mb-1">Market ID *</label>
+                  <input
+                    type="number"
+                    value={newCategory.market_id || ''}
+                    onChange={(e) => setNewCategory(prev => ({ ...prev, market_id: parseInt(e.target.value) || 0 }))}
+                    placeholder="e.g., 36"
+                    className="w-full px-3 py-2 bg-background-dark border border-border-subtle rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-text-secondary mb-1">Category *</label>
+                  <select
+                    value={newCategory.category}
+                    onChange={(e) => setNewCategory(prev => ({ ...prev, category: e.target.value }))}
+                    className="w-full px-3 py-2 bg-background-dark border border-border-subtle rounded-lg"
+                  >
+                    {CATEGORY_OPTIONS.map(cat => (
+                      <option key={cat} value={cat}>{cat.replace('_', ' ')}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-text-secondary mb-1">Market Name *</label>
+                  <input
+                    type="text"
+                    value={newCategory.market_name}
+                    onChange={(e) => setNewCategory(prev => ({ ...prev, market_name: e.target.value }))}
+                    placeholder="e.g., Over/Under"
+                    className="w-full px-3 py-2 bg-background-dark border border-border-subtle rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-text-secondary mb-1">Description</label>
+                  <input
+                    type="text"
+                    value={newCategory.description}
+                    onChange={(e) => setNewCategory(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="Optional"
+                    className="w-full px-3 py-2 bg-background-dark border border-border-subtle rounded-lg"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCreateCategory}
+                  disabled={isSaving}
+                  className="px-4 py-2 rounded-lg bg-lime-glow text-black font-medium hover:bg-lime-glow/90 transition-colors flex items-center gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  Create
+                </button>
+                <button
+                  onClick={() => setShowNewCategoryForm(false)}
+                  className="px-4 py-2 rounded-lg bg-surface-hover text-text-secondary hover:text-text-primary transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Categories Table */}
+          <div className="bg-surface rounded-xl border border-border-subtle overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-background-dark border-b border-border-subtle">
+                  <th className="text-left py-3 px-4 text-text-secondary font-medium">Market ID</th>
+                  <th className="text-left py-3 px-4 text-text-secondary font-medium">Market Name</th>
+                  <th className="text-left py-3 px-4 text-text-secondary font-medium">Category</th>
+                  <th className="text-left py-3 px-4 text-text-secondary font-medium">Description</th>
+                  <th className="text-left py-3 px-4 text-text-secondary font-medium">Active</th>
+                  <th className="text-left py-3 px-4 text-text-secondary font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredCategories.map((cat) => (
+                  <tr key={cat.id} className="border-b border-border-subtle/50 hover:bg-surface-hover/50">
+                    <td className="py-3 px-4 font-mono text-sm">{cat.market_id}</td>
+                    <td className="py-3 px-4">
+                      {editingCategory === cat.id ? (
+                        <input
+                          type="text"
+                          defaultValue={cat.market_name}
+                          className="px-2 py-1 bg-background-dark border border-border-subtle rounded w-full"
+                          onBlur={(e) => handleUpdateCategory(cat.id, { market_name: e.target.value })}
+                        />
+                      ) : (
+                        <span className="font-medium">{cat.market_name}</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      {editingCategory === cat.id ? (
+                        <select
+                          defaultValue={cat.category}
+                          className="px-2 py-1 bg-background-dark border border-border-subtle rounded"
+                          onChange={(e) => handleUpdateCategory(cat.id, { category: e.target.value })}
+                        >
+                          {CATEGORY_OPTIONS.map(opt => (
+                            <option key={opt} value={opt}>{opt.replace('_', ' ')}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${CATEGORY_COLORS[cat.category] || CATEGORY_COLORS.other}`}>
+                          {cat.category.replace('_', ' ')}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-text-secondary text-sm">{cat.description || '-'}</td>
+                    <td className="py-3 px-4">
+                      <button
+                        onClick={() => handleUpdateCategory(cat.id, { is_active: !cat.is_active })}
+                        className={`px-2 py-1 rounded text-xs font-medium ${
+                          cat.is_active
+                            ? 'bg-lime-glow/20 text-lime-glow'
+                            : 'bg-hot-red/20 text-hot-red'
+                        }`}
+                      >
+                        {cat.is_active ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                      </button>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => setEditingCategory(editingCategory === cat.id ? null : cat.id)}
+                          className="p-2 rounded hover:bg-surface-hover transition-colors"
+                        >
+                          <Edit2 className="w-4 h-4 text-text-secondary" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCategory(cat.id)}
+                          className="p-2 rounded hover:bg-hot-red/20 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4 text-hot-red" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {filteredCategories.length === 0 && (
+              <div className="p-8 text-center">
+                <Tags className="w-12 h-12 text-text-disabled mx-auto mb-3" />
+                <p className="text-text-secondary">
+                  {categoryFilter === 'all' ? 'No market categories configured' : `No markets in category "${categoryFilter}"`}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -2,15 +2,18 @@
  * Fetch Live Odds Edge Function
  *
  * Fetches live betting odds from API-Football for a specific fixture.
- * Returns ALL markets - categorization is done frontend-side for flexibility.
+ * Markets are categorized using the market_categories table in the database.
  *
  * Endpoint: POST /functions/v1/fetch-live-odds
  * Body: { fixtureApiId: number }
  */
 
 import 'jsr:@supabase/functions-js'
+import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const API_FOOTBALL_KEY = Deno.env.get('API_FOOTBALL_KEY')
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
 interface MarketOption {
   label: string
@@ -24,6 +27,7 @@ interface Market {
   apiId: number
   name: string
   bookmaker: string
+  category: string
   options: MarketOption[]
 }
 
@@ -59,6 +63,21 @@ Deno.serve(async (req) => {
 
     if (!API_FOOTBALL_KEY) {
       return json({ error: 'API key not configured' }, 500, req)
+    }
+
+    // Initialize Supabase client for category lookup
+    let categoryMap = new Map<number, string>()
+    if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+      const { data: categories } = await supabase
+        .from('market_categories')
+        .select('market_id, category')
+        .eq('is_active', true)
+
+      if (categories) {
+        categoryMap = new Map(categories.map((c: any) => [c.market_id, c.category]))
+        console.log(`[fetch-live-odds] Loaded ${categories.length} market categories from DB`)
+      }
     }
 
     // Fetch live odds from API-Football
@@ -114,6 +133,7 @@ Deno.serve(async (req) => {
         apiId: odd.id,
         name: odd.name,
         bookmaker: 'API-Football',
+        category: categoryMap.get(odd.id) || 'other',
         options,
       })
     }
