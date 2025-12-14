@@ -132,6 +132,19 @@ function App() {
     mode: 'free' | 'ranked';
   } | null>(null);
 
+  // --- User's joined Live Games ---
+  const [userLiveGameEntries, setUserLiveGameEntries] = useState<{
+    gameId: string;
+    fixtureId: string;
+    mode: 'free' | 'ranked';
+    status: string;
+    fixture?: {
+      homeTeam: string;
+      awayTeam: string;
+      kickoffTime: string;
+    };
+  }[]>([]);
+
   // --- Store State ---
   const {
     currentUserId, setCurrentUserId, allUsers, ensureUserExists,
@@ -442,6 +455,63 @@ function App() {
 
     setLoading(false);
   }, [profile, isGuest, initializeUserSpinState, challengesLoading, shouldUseSupabaseChallenges]);
+
+  // Effect 3: Load user's joined live games
+  useEffect(() => {
+    const loadUserLiveGames = async () => {
+      if (!profile?.id || isGuest) {
+        setUserLiveGameEntries([]);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('live_game_entries')
+          .select(`
+            live_game_id,
+            live_games!inner (
+              id,
+              fixture_id,
+              mode,
+              status,
+              fb_fixtures!inner (
+                id,
+                home_team:fb_teams!fb_fixtures_home_team_id_fkey (name),
+                away_team:fb_teams!fb_fixtures_away_team_id_fkey (name),
+                date
+              )
+            )
+          `)
+          .eq('user_id', profile.id)
+          .in('live_games.status', ['upcoming', 'live']);
+
+        if (error) {
+          console.error('[App] Error loading live game entries:', error);
+          return;
+        }
+
+        if (data) {
+          const entries = data.map((entry: any) => ({
+            gameId: entry.live_game_id,
+            fixtureId: entry.live_games.fixture_id,
+            mode: entry.live_games.mode as 'free' | 'ranked',
+            status: entry.live_games.status,
+            fixture: entry.live_games.fb_fixtures ? {
+              homeTeam: entry.live_games.fb_fixtures.home_team?.name || 'Home',
+              awayTeam: entry.live_games.fb_fixtures.away_team?.name || 'Away',
+              kickoffTime: entry.live_games.fb_fixtures.date,
+            } : undefined,
+          }));
+          setUserLiveGameEntries(entries);
+          console.log('[App] Loaded', entries.length, 'live game entries');
+        }
+      } catch (err) {
+        console.error('[App] Failed to load live game entries:', err);
+      }
+    };
+
+    loadUserLiveGames();
+  }, [profile?.id, isGuest]);
 
   // Base balance from profile
   const baseBalance = profile?.coins_balance ?? 0;
@@ -821,6 +891,11 @@ function App() {
   }, []);
   const handleViewFantasyGame = (gameId: string) => {
     setActiveFantasyGameId(gameId);
+  };
+
+  // Handler for opening a live game lobby from My Games section
+  const handleOpenLiveGame = (gameId: string, fixtureId: string, mode: 'free' | 'ranked') => {
+    setActiveLiveGameSupabase({ id: gameId, fixtureId, mode });
   };
   
   const handleCreateLeague = (name: string, description: string, image_url: string | null) => {
@@ -1331,7 +1406,7 @@ function App() {
           </ErrorBoundary>
         );
       case 'challenges':
-        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} />;
+        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} userLiveGameEntries={userLiveGameEntries} onOpenLiveGame={handleOpenLiveGame} />;
       case 'squads':
           return <LeaguesListPage
               leagues={myLeagues}
@@ -1350,7 +1425,7 @@ function App() {
         }
         return null;
       default:
-        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} />;
+        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} userLiveGameEntries={userLiveGameEntries} onOpenLiveGame={handleOpenLiveGame} />;
     }
   }
   

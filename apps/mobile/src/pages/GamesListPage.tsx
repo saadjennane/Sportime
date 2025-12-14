@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { SportimeGame, UserChallengeEntry, UserSwipeEntry, UserFantasyTeam, Profile, UserTicket, GameFilters } from '../types';
+import { Zap as ZapIcon } from 'lucide-react';
 import { GameCard } from '../components/GameCard';
 import { RewardsPreviewModal } from '../components/RewardsPreviewModal';
 import { GameInfoModal } from '../components/GameInfoModal';
@@ -105,6 +106,19 @@ function getRealGameStatus(game: SportimeGame, now: Date): 'Upcoming' | 'Ongoing
   return 'Ongoing';
 }
 
+// Live game entry from user's joined games
+interface LiveGameEntry {
+  gameId: string;
+  fixtureId: string;
+  mode: 'free' | 'ranked';
+  status: string;
+  fixture?: {
+    homeTeam: string;
+    awayTeam: string;
+    kickoffTime: string;
+  };
+}
+
 interface GamesListPageProps {
   games: SportimeGame[];
   userChallengeEntries: UserChallengeEntry[];
@@ -118,10 +132,13 @@ interface GamesListPageProps {
   myGamesCount: number;
   profile: Profile | null;
   userTickets: UserTicket[];
+  // Live games props
+  userLiveGameEntries?: LiveGameEntry[];
+  onOpenLiveGame?: (gameId: string, fixtureId: string, mode: 'free' | 'ranked') => void;
 }
 
 const GamesListPage: React.FC<GamesListPageProps> = (props) => {
-  const { games, userChallengeEntries, userSwipeEntries, userFantasyTeams, onJoinChallenge, onViewChallenge, onJoinSwipeGame, onPlaySwipeGame, onViewFantasyGame, profile, userTickets } = props;
+  const { games, userChallengeEntries, userSwipeEntries, userFantasyTeams, onJoinChallenge, onViewChallenge, onJoinSwipeGame, onPlaySwipeGame, onViewFantasyGame, profile, userTickets, userLiveGameEntries = [], onOpenLiveGame } = props;
 
   const [activeTab, setActiveTab] = useState<GamesTab>('my-games');
   const [filters, setFilters] = useState<GameFilters>({
@@ -406,6 +423,61 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       {/* My Games Tab */}
       {activeTab === 'my-games' && (
         <>
+          {/* Live Games Section - shown first when user has joined live games */}
+          {userLiveGameEntries.length > 0 && (
+            <GameSection
+              title="Live Games"
+              count={userLiveGameEntries.length}
+              icon={<ZapIcon />}
+              colorClass="text-electric-blue"
+              defaultOpen={true}
+            >
+              <div className="space-y-3">
+                {userLiveGameEntries.map((entry) => (
+                  <button
+                    key={entry.gameId}
+                    onClick={() => onOpenLiveGame?.(entry.gameId, entry.fixtureId, entry.mode)}
+                    className="w-full bg-navy-accent rounded-xl p-4 text-left hover:bg-navy-accent/80 transition-all border border-electric-blue/30"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            entry.status === 'live' ? 'bg-lime-glow/20 text-lime-glow' : 'bg-warm-yellow/20 text-warm-yellow'
+                          }`}>
+                            {entry.status === 'live' ? 'LIVE' : 'Upcoming'}
+                          </span>
+                          <span className="text-xs text-text-secondary">
+                            {entry.mode === 'free' ? 'Free' : 'Stakes'}
+                          </span>
+                        </div>
+                        <p className="font-semibold text-text-primary">
+                          {entry.fixture ? `${entry.fixture.homeTeam} vs ${entry.fixture.awayTeam}` : 'Live Betting Game'}
+                        </p>
+                        {entry.fixture?.kickoffTime && (
+                          <p className="text-xs text-text-secondary mt-1">
+                            {new Date(entry.fixture.kickoffTime).toLocaleString('en-US', {
+                              weekday: 'short',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-electric-blue">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </GameSection>
+          )}
+
           <GameSection
             title="Play Now"
             count={playNowGames.length}
