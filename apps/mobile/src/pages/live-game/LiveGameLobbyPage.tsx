@@ -1134,7 +1134,7 @@ const LiveGameLobbyPage: React.FC<LiveGameLobbyPageProps> = ({
                     {market.options.map((opt) => {
                       const team = teamForOption(opt.label);
                       const teamLogo = team === 'home' ? fixture?.homeTeam.logo : team === 'away' ? fixture?.awayTeam.logo : null;
-                      const handicapLabel = formatHandicapLabel(opt.handicap);
+                      const handicapLabel = opt.handicap ? `(${opt.handicap})` : '';
                       return (
                       <button
                         key={opt.value}
