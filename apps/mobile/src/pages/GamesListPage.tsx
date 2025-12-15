@@ -111,7 +111,8 @@ interface LiveGameEntry {
   gameId: string;
   fixtureId: string;
   mode: 'free' | 'ranked';
-  status: string;
+  status: 'upcoming' | 'live' | 'finished' | 'postponed';
+  fixtureStatus?: string;
   fixture?: {
     homeTeam: string;
     awayTeam: string;
@@ -445,9 +446,11 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <span className={`text-xs px-2 py-0.5 rounded-full ${
-                            entry.status === 'live' ? 'bg-lime-glow/20 text-lime-glow' : 'bg-warm-yellow/20 text-warm-yellow'
+                            entry.status === 'live' ? 'bg-lime-glow/20 text-lime-glow' :
+                            entry.status === 'postponed' ? 'bg-warm-yellow/20 text-warm-yellow' :
+                            'bg-electric-blue/20 text-electric-blue'
                           }`}>
-                            {entry.status === 'live' ? 'LIVE' : 'Upcoming'}
+                            {entry.status === 'live' ? 'LIVE' : entry.status === 'postponed' ? 'Postponed' : 'Upcoming'}
                           </span>
                           <span className="text-xs text-text-secondary">
                             {entry.mode === 'free' ? 'Free' : 'Stakes'}

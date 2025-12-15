@@ -137,7 +137,8 @@ function App() {
     gameId: string;
     fixtureId: string;
     mode: 'free' | 'ranked';
-    status: string;
+    status: 'upcoming' | 'live' | 'finished' | 'postponed';
+    fixtureStatus?: string;
     fixture?: {
       homeTeam: string;
       awayTeam: string;
@@ -479,6 +480,7 @@ function App() {
             status,
             fb_fixtures (
               id,
+              status,
               home_team:fb_teams!fb_fixtures_home_team_id_fkey (name),
               away_team:fb_teams!fb_fixtures_away_team_id_fkey (name),
               date
@@ -520,11 +522,16 @@ function App() {
               ? new Date(entry.live_games.fb_fixtures.date).getTime()
               : Number.POSITIVE_INFINITY;
             const hasStarted = kickoffTime <= now;
+            const fixtureStatus = entry.live_games.fb_fixtures?.status?.toUpperCase() || '';
+            const POSTPONED_STATUSES = ['PST', 'POST', 'CANC', 'ABD', 'AWD', 'WO', 'TBD', 'SUSP'];
+            const isPostponed = POSTPONED_STATUSES.includes(fixtureStatus);
 
-            // Determine actual status
-            let calculatedStatus: 'upcoming' | 'live' | 'finished';
+            // Determine actual status - postponed matches should never be "live"
+            let calculatedStatus: 'upcoming' | 'live' | 'finished' | 'postponed';
             if (entry.live_games.status === 'finished') {
               calculatedStatus = 'finished';
+            } else if (isPostponed) {
+              calculatedStatus = 'postponed';
             } else if (hasStarted) {
               calculatedStatus = 'live';
             } else {
@@ -536,6 +543,7 @@ function App() {
               fixtureId: entry.live_games.fixture_id,
               mode: entry.live_games.mode as 'free' | 'ranked',
               status: calculatedStatus,
+              fixtureStatus: fixtureStatus,
               fixture: entry.live_games.fb_fixtures ? {
                 homeTeam: entry.live_games.fb_fixtures.home_team?.name || 'Home',
                 awayTeam: entry.live_games.fb_fixtures.away_team?.name || 'Away',
