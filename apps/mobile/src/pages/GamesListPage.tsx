@@ -424,18 +424,18 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       {/* My Games Tab */}
       {activeTab === 'my-games' && (
         <>
-          {/* Live Games Section - active games (upcoming + live) */}
-          {userLiveGameEntries.filter(e => e.status !== 'finished').length > 0 && (
+          {/* Live Games Section - active games (upcoming + live, NOT postponed) */}
+          {userLiveGameEntries.filter(e => e.status !== 'finished' && e.status !== 'postponed').length > 0 && (
             <GameSection
               title="Live Games"
-              count={userLiveGameEntries.filter(e => e.status !== 'finished').length}
+              count={userLiveGameEntries.filter(e => e.status !== 'finished' && e.status !== 'postponed').length}
               icon={<ZapIcon />}
               colorClass="text-electric-blue"
               defaultOpen={true}
             >
               <div className="space-y-3">
                 {userLiveGameEntries
-                  .filter(entry => entry.status !== 'finished')
+                  .filter(entry => entry.status !== 'finished' && entry.status !== 'postponed')
                   .map((entry) => (
                   <button
                     key={entry.gameId}
@@ -446,11 +446,9 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <span className={`text-xs px-2 py-0.5 rounded-full ${
-                            entry.status === 'live' ? 'bg-lime-glow/20 text-lime-glow' :
-                            entry.status === 'postponed' ? 'bg-warm-yellow/20 text-warm-yellow' :
-                            'bg-electric-blue/20 text-electric-blue'
+                            entry.status === 'live' ? 'bg-lime-glow/20 text-lime-glow' : 'bg-electric-blue/20 text-electric-blue'
                           }`}>
-                            {entry.status === 'live' ? 'LIVE' : entry.status === 'postponed' ? 'Postponed' : 'Upcoming'}
+                            {entry.status === 'live' ? 'LIVE' : 'Upcoming'}
                           </span>
                           <span className="text-xs text-text-secondary">
                             {entry.mode === 'free' ? 'Free' : 'Stakes'}
