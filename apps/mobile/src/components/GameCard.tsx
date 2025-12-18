@@ -100,8 +100,42 @@ function getProgressStatus(
   if (game.game_type === 'betting') {
     if (!userEntry || userEntry.dailyEntries.length === 0) return 'none';
 
-    // Check current matchday's bets (last entry = current day)
-    const currentDayEntry = userEntry.dailyEntries[userEntry.dailyEntries.length - 1];
+    // Find the current matchday by looking at game.matches
+    // The current matchday is the first one where matches haven't all finished
+    const matches = game.matches || [];
+    if (matches.length === 0) return 'none';
+
+    // Group matches by day and find the current playable day
+    const matchesByDay = new Map<number, typeof matches>();
+    for (const match of matches) {
+      const day = (match as any).day ?? 1;
+      if (!matchesByDay.has(day)) matchesByDay.set(day, []);
+      matchesByDay.get(day)!.push(match);
+    }
+
+    // Find the first day where matches haven't all finished (have results)
+    const sortedDays = Array.from(matchesByDay.keys()).sort((a, b) => a - b);
+    let currentDay: number | null = null;
+    const now = new Date();
+
+    for (const day of sortedDays) {
+      const dayMatches = matchesByDay.get(day)!;
+      const allHaveResults = dayMatches.every(m => m.result !== undefined);
+
+      if (!allHaveResults) {
+        // This is the current matchday
+        currentDay = day;
+        break;
+      }
+    }
+
+    // If all matchdays are finished, use the last one
+    if (currentDay === null) {
+      currentDay = sortedDays[sortedDays.length - 1];
+    }
+
+    // Find bets for the current matchday
+    const currentDayEntry = userEntry.dailyEntries.find(d => d.day === currentDay);
     if (!currentDayEntry || currentDayEntry.bets.length === 0) return 'none';
 
     const totalBet = currentDayEntry.bets.reduce((sum, b) => sum + b.amount, 0);

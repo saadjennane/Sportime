@@ -377,10 +377,12 @@ export function calculateBettingGameState(
 
 /**
  * Check if all matches in a game have results
+ * Returns false if there are no matches (game not configured yet)
  */
 export function areAllMatchesFinished(game: SportimeGame): boolean {
   const matches = game.matches || [];
-  if (matches.length === 0) return true;
+  // No matches = not finished (game might not be configured yet)
+  if (matches.length === 0) return false;
   return matches.every(m => m.result !== undefined);
 }
 
