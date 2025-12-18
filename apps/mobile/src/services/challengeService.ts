@@ -1316,7 +1316,13 @@ function normalizeFixtureStatus(status: string | null | undefined, kickoffISO: s
  * Falls back to 1 if no number is found.
  */
 function extractMatchdayNumber(round: string): number {
-  const match = round.match(/(\d+)$/);
+  // First try to match "- XX" pattern (e.g., "Regular Season - 17")
+  const dashMatch = round.match(/- (\d+)/);
+  if (dashMatch) {
+    return parseInt(dashMatch[1], 10);
+  }
+  // Fallback: match first number in string
+  const match = round.match(/(\d+)/);
   return match ? parseInt(match[1], 10) : 1;
 }
 
