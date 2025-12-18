@@ -1407,9 +1407,17 @@ function buildChallengeMatches(challengeId: string, matchdays: RawMatchday[] | n
     // because the UI groups matchdays by sequential index, not by league round number
     const day = index + 1
 
-    // Extract display day from the first fixture's round (e.g., "Regular Season - 16" → 16)
-    const firstFixtureRound = fixtures[0]?.fixture?.round
-    const displayDay = firstFixtureRound ? extractMatchdayNumber(firstFixtureRound) : day
+    // Extract display day from fixtures' round field (e.g., "Regular Season - 16" → 16)
+    // Check all fixtures to find valid round numbers, use the highest one (most likely the actual matchday)
+    const roundNumbers = fixtures
+      .map(entry => entry?.fixture?.round)
+      .filter((round): round is string => Boolean(round))
+      .map(round => extractMatchdayNumber(round))
+      .filter(num => num >= 1 && num <= 50) // Valid matchday range
+
+    const displayDay = roundNumbers.length > 0
+      ? Math.max(...roundNumbers)
+      : day
 
     fixtures.forEach(entry => {
       const fixture = entry?.fixture
