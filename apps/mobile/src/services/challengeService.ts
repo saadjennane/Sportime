@@ -1373,10 +1373,23 @@ function mapChallengeRowToChallenge(row: ChallengeRow, totalPlayers: number): Ch
 
 function buildChallengeMatches(challengeId: string, matchdays: RawMatchday[] | null | undefined): ChallengeMatch[] {
   if (!matchdays || matchdays.length === 0) return []
+
+  // Extract matchday number from fixtures' round field for proper sorting
+  // This ensures correct order even if challenge_matchdays.date is incorrect
+  const getMatchdayNumber = (matchday: RawMatchday): number => {
+    const fixtures = matchday.matchday_fixtures ?? []
+    const firstRound = fixtures[0]?.fixture?.round
+    if (firstRound) {
+      return extractMatchdayNumber(firstRound)
+    }
+    // Fallback to date-based sorting
+    return matchday?.date ? Date.parse(matchday.date) : Number.POSITIVE_INFINITY
+  }
+
   const sorted = [...matchdays].sort((a, b) => {
-    const aDate = a?.date ? Date.parse(a.date) : Number.POSITIVE_INFINITY
-    const bDate = b?.date ? Date.parse(b.date) : Number.POSITIVE_INFINITY
-    return aDate - bDate
+    const aNum = getMatchdayNumber(a)
+    const bNum = getMatchdayNumber(b)
+    return aNum - bNum
   })
 
   const matches: ChallengeMatch[] = []
