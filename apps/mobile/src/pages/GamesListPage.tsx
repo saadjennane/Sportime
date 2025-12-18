@@ -191,9 +191,14 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       const hasJoined = myGameIds.has(game.id);
       if (!hasJoined) continue; // My Games = only joined games
 
-      // RULE: Game is finished when ALL matches are completed (have results)
+      // RULE: Game is finished when:
+      // 1. ALL matches are completed (have results)
+      // 2. AND end_date has passed (no more matchdays coming)
       const allMatchesFinished = areAllMatchesFinished(game);
-      if (allMatchesFinished && game.matches && game.matches.length > 0) {
+      const endDate = parseEndDateLocal(game.end_date);
+      const isEndDatePassed = endDate ? now > endDate : false;
+
+      if (allMatchesFinished && game.matches && game.matches.length > 0 && isEndDatePassed) {
         // Use last match kickoff time to determine if "recently" finished (< 7 days)
         const lastMatchKickoff = Math.max(...game.matches.map(m => new Date(m.kickoffTime).getTime()));
         const lastMatchDate = new Date(lastMatchKickoff);
