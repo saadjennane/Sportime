@@ -1296,14 +1296,25 @@ function normalizeChallengeStatus(status: string | null | undefined): Challenge[
   return 'Upcoming'
 }
 
-function normalizeFixtureStatus(status: string | null | undefined, kickoffISO: string | null | undefined) {
+function normalizeFixtureStatus(
+  status: string | null | undefined,
+  kickoffISO: string | null | undefined,
+  goalsHome?: number | null,
+  goalsAway?: number | null
+) {
   const upper = (status ?? 'NS').toUpperCase()
   const liveStatuses = ['1H', 'HT', '2H', 'ET', 'P', 'BT', 'SUSP', 'INT', 'LIVE']
   const finishedStatuses = ['FT', 'AET', 'PEN', 'AWARDED', 'W.O', 'CANC', 'ABD', 'POST']
   if (finishedStatuses.includes(upper)) return 'played'
   if (liveStatuses.includes(upper)) return 'upcoming'
+
   const kickoff = kickoffISO ? Date.parse(kickoffISO) : Number.POSITIVE_INFINITY
   if (!Number.isFinite(kickoff)) return 'upcoming'
+
+  // If kickoff has passed and we have scores, consider it played
+  const hasScores = typeof goalsHome === 'number' && typeof goalsAway === 'number'
+  if (kickoff <= Date.now() && hasScores) return 'played'
+
   return kickoff <= Date.now() && upper !== 'NS' ? 'played' : 'upcoming'
 }
 
@@ -1423,7 +1434,7 @@ function buildChallengeMatches(challengeId: string, matchdays: RawMatchday[] | n
       const fixture = entry?.fixture
       if (!fixture) return
       const odds = preferOdds(fixture.odds)
-      const status = normalizeFixtureStatus(fixture.status, fixture.date)
+      const status = normalizeFixtureStatus(fixture.status, fixture.date, fixture.goals_home, fixture.goals_away)
       const result =
         status === 'played' && Number.isInteger(fixture.goals_home) && Number.isInteger(fixture.goals_away)
           ? fixture.goals_home === fixture.goals_away
@@ -1489,7 +1500,7 @@ async function buildMatchesFromChallengeMatches(challengeId: string, rows: Chall
           ? score.goals_away
           : null
 
-      const status = normalizeFixtureStatus(match.status, match.kickoff_time)
+      const status = normalizeFixtureStatus(match.status, match.kickoff_time, homeGoals, awayGoals)
       const result =
         status === 'played' && homeGoals !== null && awayGoals !== null
           ? homeGoals === awayGoals
@@ -1953,7 +1964,7 @@ export async function fetchChallengeMatches(challengeId: string) {
           const day = extractMatchdayNumber(matchday.key)
 
           for (const fixture of matchday.fixtures) {
-            const status = normalizeFixtureStatus(fixture.status, fixture.date)
+            const status = normalizeFixtureStatus(fixture.status, fixture.date, fixture.goals_home, fixture.goals_away)
             const result =
               status === 'played' && fixture.goals_home !== null && fixture.goals_away !== null
                 ? fixture.goals_home === fixture.goals_away
