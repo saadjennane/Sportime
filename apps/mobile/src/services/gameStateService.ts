@@ -503,8 +503,15 @@ export function calculateGameState(
   const gameType = game.game_type ?? 'betting';
   const matches = game.matches || [];
 
-  // Game is finished when ALL matches have results (completed)
-  if (areAllMatchesFinished(game) && matches.length > 0) {
+  // Parse end_date to check if game period is over
+  const endDate = parseEndDateLocal(game.end_date);
+  const isEndDatePassed = endDate ? now > endDate : false;
+
+  // Game is finished ONLY when:
+  // 1. ALL loaded matches have results (completed)
+  // 2. AND the end_date has passed (no more matches coming)
+  // This prevents games with future matchdays from being marked as finished
+  if (areAllMatchesFinished(game) && matches.length > 0 && isEndDatePassed) {
     return {
       category: 'finished',
       cta: 'VIEW_RESULTS',
@@ -664,7 +671,21 @@ export function calculateGameState(
     };
   }
 
-  // All matches have results → finished
+  // All loaded matches have results
+  // But only mark as "finished" if end_date has passed
+  // Otherwise, there might be future matchdays not yet loaded
+  if (!isEndDatePassed) {
+    // End date not passed yet - game is still active (waiting for next matchday)
+    return {
+      category: 'active',
+      cta: getDefaultCTA(gameType, userEntry, userFantasyTeam),
+      deadline: null,
+      currentGroupKey,
+      hasNextGroup: false,
+    };
+  }
+
+  // All matches have results AND end_date has passed → finished
   return {
     category: 'finished',
     cta: 'VIEW_RESULTS',
