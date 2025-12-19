@@ -74,23 +74,81 @@ async function fetchFixturesForChallenge(challengeId: string): Promise<{
     return { challenge: challenge as FetchedChallenge, fixtures: [] };
   }
 
-  console.log(`[swipeGameService] Fetching fixtures for challenge ${challengeId}, leagues: ${leagueIds.join(', ')}`);
-  console.log(`[swipeGameService] Date range: ${challenge.start_date} to ${challenge.end_date}`);
+  // Normalize dates to ensure we include all matches within the day range
+  // If end_date is just a date (e.g., "2024-12-21"), we want to include all matches that day
+  const startDate = challenge.start_date;
+  const endDate = challenge.end_date.includes('T')
+    ? challenge.end_date
+    : `${challenge.end_date}T23:59:59Z`;
 
-  // 2. Fetch fixtures from fb_fixtures
-  const { data: fixtures, error: fixturesError } = await supabase
-    .from('fb_fixtures')
-    .select(`
-      id, date, status, round, goals_home, goals_away,
-      home:fb_teams!fb_fixtures_home_team_id_fkey(id, name, logo_url),
-      away:fb_teams!fb_fixtures_away_team_id_fkey(id, name, logo_url),
-      odds:fb_odds(home_win, draw, away_win, bookmaker_name),
-      league:fb_leagues(id, name, logo)
-    `)
-    .in('league_id', leagueIds)
-    .gte('date', challenge.start_date)
-    .lte('date', challenge.end_date)
-    .order('date', { ascending: true });
+  const rules = challenge.rules ?? {};
+  const periodType = (rules.period_type as string) ?? 'matchdays';
+
+  console.log(`[swipeGameService] Fetching fixtures for challenge ${challengeId}, leagues: ${leagueIds.join(', ')} (${periodType} mode)`);
+  console.log(`[swipeGameService] Date range: ${startDate} to ${endDate}`);
+
+  let fixtures: FetchedFixture[] | null = null;
+  let fixturesError: Error | null = null;
+
+  if (periodType === 'matchdays') {
+    // For matchday mode: first find rounds that have at least one match in the date range,
+    // then fetch ALL matches from those rounds (even if some matches are outside the date range)
+    // This ensures complete matchdays are shown
+
+    // Step 1: Find rounds that have at least one match in the date range
+    const { data: roundsInRange, error: roundsError } = await supabase
+      .from('fb_fixtures')
+      .select('round')
+      .in('league_id', leagueIds)
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .not('round', 'is', null);
+
+    if (roundsError) {
+      console.error('[swipeGameService] Failed to fetch rounds:', roundsError);
+      fixturesError = roundsError;
+    } else if (roundsInRange && roundsInRange.length > 0) {
+      // Get unique rounds
+      const uniqueRounds = [...new Set(roundsInRange.map(r => r.round).filter(Boolean))] as string[];
+      console.log(`[swipeGameService] Found ${uniqueRounds.length} matchdays in date range: ${uniqueRounds.join(', ')}`);
+
+      // Step 2: Fetch ALL fixtures from those rounds (no date filter)
+      const { data: allFixtures, error: allFixturesError } = await supabase
+        .from('fb_fixtures')
+        .select(`
+          id, date, status, round, goals_home, goals_away,
+          home:fb_teams!fb_fixtures_home_team_id_fkey(id, name, logo_url),
+          away:fb_teams!fb_fixtures_away_team_id_fkey(id, name, logo_url),
+          odds:fb_odds(home_win, draw, away_win, bookmaker_name),
+          league:fb_leagues(id, name, logo)
+        `)
+        .in('league_id', leagueIds)
+        .in('round', uniqueRounds)
+        .order('date', { ascending: true });
+
+      fixtures = allFixtures as FetchedFixture[] | null;
+      fixturesError = allFixturesError;
+      console.log(`[swipeGameService] Fetched ${fixtures?.length ?? 0} total fixtures from ${uniqueRounds.length} matchdays`);
+    }
+  } else {
+    // For calendar mode: just fetch fixtures within the date range
+    const { data, error } = await supabase
+      .from('fb_fixtures')
+      .select(`
+        id, date, status, round, goals_home, goals_away,
+        home:fb_teams!fb_fixtures_home_team_id_fkey(id, name, logo_url),
+        away:fb_teams!fb_fixtures_away_team_id_fkey(id, name, logo_url),
+        odds:fb_odds(home_win, draw, away_win, bookmaker_name),
+        league:fb_leagues(id, name, logo)
+      `)
+      .in('league_id', leagueIds)
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .order('date', { ascending: true });
+
+    fixtures = data as FetchedFixture[] | null;
+    fixturesError = error;
+  }
 
   if (fixturesError) {
     console.error('[swipeGameService] Failed to fetch fixtures:', fixturesError);

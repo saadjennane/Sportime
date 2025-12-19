@@ -942,13 +942,19 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
       const rules = (challenge.rules ?? {}) as Record<string, unknown>
       const periodType = (rules.period_type as string) ?? 'matchdays'
 
+      // Normalize dates to ensure we include all matches within the day range
+      const startDate = challenge.start_date
+      const endDate = challenge.end_date.includes('T')
+        ? challenge.end_date
+        : `${challenge.end_date}T23:59:59Z`
+
       // Fetch fixtures for this challenge from fb_fixtures
       const { data: fixtures, error: fixturesError } = await supabase
         .from('fb_fixtures')
         .select('id, date, status, round')
         .in('league_id', leagueIds)
-        .gte('date', challenge.start_date)
-        .lte('date', challenge.end_date)
+        .gte('date', startDate)
+        .lte('date', endDate)
         .order('date', { ascending: true })
 
       if (fixturesError || !fixtures) {
@@ -1871,39 +1877,123 @@ export async function fetchChallengeMatches(challengeId: string) {
   const leagueIds = (challengeRow.challenge_leagues as Array<{ league_id: string }> | null)?.map(cl => cl.league_id) ?? []
 
   if (leagueIds.length > 0) {
-    console.log(`[fetchChallengeMatches] Fetching fixtures from fb_fixtures for leagues: ${leagueIds.join(', ')} (${periodType} mode)`)
-    console.log(`[fetchChallengeMatches] Date range: ${challengeRow.start_date} to ${challengeRow.end_date}`)
+    // Normalize dates to ensure we include all matches within the day range
+    // If end_date is just a date (e.g., "2024-12-21"), we want to include all matches that day
+    const startDate = challengeRow.start_date
+    // Append end of day if end_date doesn't have time component
+    const endDate = challengeRow.end_date.includes('T')
+      ? challengeRow.end_date
+      : `${challengeRow.end_date}T23:59:59Z`
 
-    const { data: fixturesData, error: fixturesError } = await supabase
-      .from('fb_fixtures')
-      .select(`
-        id,
-        date,
-        status,
-        goals_home,
-        goals_away,
-        round,
-        odds:fb_odds (
-          home_win,
-          draw,
-          away_win,
-          bookmaker_name
-        ),
-        home:fb_teams!fb_fixtures_home_team_id_fkey (
+    console.log(`[fetchChallengeMatches] Fetching fixtures from fb_fixtures for leagues: ${leagueIds.join(', ')} (${periodType} mode)`)
+    console.log(`[fetchChallengeMatches] Date range: ${startDate} to ${endDate}`)
+
+    let fixturesData: Array<{
+      id: string
+      date: string
+      status: string | null
+      goals_home: number | null
+      goals_away: number | null
+      round: string | null
+      odds: Array<{ home_win: number | null; draw: number | null; away_win: number | null; bookmaker_name: string | null }> | null
+      home: { id: string; name: string | null; logo_url: string | null } | null
+      away: { id: string; name: string | null; logo_url: string | null } | null
+    }> | null = null
+    let fixturesError: Error | null = null
+
+    if (periodType === 'matchdays') {
+      // For matchday mode: first find rounds that have at least one match in the date range,
+      // then fetch ALL matches from those rounds (even if some matches are outside the date range)
+      // This ensures complete matchdays are shown
+
+      // Step 1: Find rounds that have at least one match in the date range
+      const { data: roundsInRange, error: roundsError } = await supabase
+        .from('fb_fixtures')
+        .select('round')
+        .in('league_id', leagueIds)
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .not('round', 'is', null)
+
+      if (roundsError) {
+        console.error('[fetchChallengeMatches] Failed to fetch rounds', roundsError)
+        fixturesError = roundsError
+      } else if (roundsInRange && roundsInRange.length > 0) {
+        // Get unique rounds
+        const uniqueRounds = [...new Set(roundsInRange.map(r => r.round).filter(Boolean))] as string[]
+        console.log(`[fetchChallengeMatches] Found ${uniqueRounds.length} matchdays in date range: ${uniqueRounds.join(', ')}`)
+
+        // Step 2: Fetch ALL fixtures from those rounds (no date filter)
+        const { data: allFixtures, error: allFixturesError } = await supabase
+          .from('fb_fixtures')
+          .select(`
+            id,
+            date,
+            status,
+            goals_home,
+            goals_away,
+            round,
+            odds:fb_odds (
+              home_win,
+              draw,
+              away_win,
+              bookmaker_name
+            ),
+            home:fb_teams!fb_fixtures_home_team_id_fkey (
+              id,
+              name,
+              logo_url
+            ),
+            away:fb_teams!fb_fixtures_away_team_id_fkey (
+              id,
+              name,
+              logo_url
+            )
+          `)
+          .in('league_id', leagueIds)
+          .in('round', uniqueRounds)
+          .order('date', { ascending: true })
+
+        fixturesData = allFixtures
+        fixturesError = allFixturesError
+        console.log(`[fetchChallengeMatches] Fetched ${fixturesData?.length ?? 0} total fixtures from ${uniqueRounds.length} matchdays`)
+      }
+    } else {
+      // For calendar mode: just fetch fixtures within the date range
+      const { data, error } = await supabase
+        .from('fb_fixtures')
+        .select(`
           id,
-          name,
-          logo_url
-        ),
-        away:fb_teams!fb_fixtures_away_team_id_fkey (
-          id,
-          name,
-          logo_url
-        )
-      `)
-      .in('league_id', leagueIds)
-      .gte('date', challengeRow.start_date)
-      .lte('date', challengeRow.end_date)
-      .order('date', { ascending: true })
+          date,
+          status,
+          goals_home,
+          goals_away,
+          round,
+          odds:fb_odds (
+            home_win,
+            draw,
+            away_win,
+            bookmaker_name
+          ),
+          home:fb_teams!fb_fixtures_home_team_id_fkey (
+            id,
+            name,
+            logo_url
+          ),
+          away:fb_teams!fb_fixtures_away_team_id_fkey (
+            id,
+            name,
+            logo_url
+          )
+        `)
+        .in('league_id', leagueIds)
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: true })
+
+      fixturesData = data
+      fixturesError = error
+    }
 
     if (fixturesError) {
       console.error('[fetchChallengeMatches] Failed to fetch fb_fixtures', fixturesError)
