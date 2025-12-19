@@ -239,8 +239,8 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
           return;
         }
 
-        // Load matchday fixtures
-        const matchdayData = await swipeService.getMatchdayWithFixtures(currentMatchday.id);
+        // Load matchday fixtures (pass challengeId for new fb_fixtures-based approach)
+        const matchdayData = await swipeService.getMatchdayWithFixtures(currentMatchday.id, challengeId);
         if (!isMounted) return;
 
         // Extract fixtures from matchday data
@@ -459,7 +459,8 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
     setState(prev => ({ ...prev, view: 'loading', currentMatchday: matchday }));
 
     try {
-      const matchdayData = await swipeService.getMatchdayWithFixtures(matchdayId);
+      // Pass challengeId for new fb_fixtures-based approach
+      const matchdayData = await swipeService.getMatchdayWithFixtures(matchdayId, challengeId);
       const fixtures =
         matchdayData?.matchday_fixtures?.map((mf: any) => mf.fixture).filter(Boolean) || [];
       const matches = fixturesToSwipeMatches(fixtures);

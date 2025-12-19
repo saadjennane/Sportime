@@ -19,6 +19,93 @@ import type {
 import { detectAndSyncMissingOdds } from './oddsSyncService';
 
 // ============================================================================
+// HELPER: Fetch fixtures directly from fb_fixtures
+// ============================================================================
+
+interface FetchedFixture {
+  id: string;
+  date: string;
+  status: string | null;
+  round: string | null;
+  goals_home: number | null;
+  goals_away: number | null;
+  home: { id: string; name: string; logo_url: string | null } | null;
+  away: { id: string; name: string; logo_url: string | null } | null;
+  odds: Array<{ home_win: number; draw: number; away_win: number; bookmaker_name: string }> | null;
+  league: { id: string; name: string; logo: string | null } | null;
+}
+
+interface FetchedChallenge {
+  id: string;
+  start_date: string;
+  end_date: string;
+  rules: Record<string, any> | null;
+  created_at?: string;
+  challenge_leagues: Array<{ league_id: string }> | null;
+}
+
+/**
+ * Fetch fixtures directly from fb_fixtures for a challenge
+ * This replaces the old logic that depended on challenge_matchdays being created manually
+ */
+async function fetchFixturesForChallenge(challengeId: string): Promise<{
+  challenge: FetchedChallenge;
+  fixtures: FetchedFixture[];
+}> {
+  // 1. Get challenge with leagues
+  const { data: challenge, error: challengeError } = await supabase
+    .from('challenges')
+    .select(`
+      id, start_date, end_date, rules, created_at,
+      challenge_leagues(league_id)
+    `)
+    .eq('id', challengeId)
+    .single();
+
+  if (challengeError || !challenge) {
+    console.error('[swipeGameService] Failed to fetch challenge:', challengeError);
+    throw new Error('Challenge not found');
+  }
+
+  const leagueIds = challenge.challenge_leagues?.map((cl: { league_id: string }) => cl.league_id) ?? [];
+
+  if (leagueIds.length === 0) {
+    console.warn('[swipeGameService] No leagues found for challenge', challengeId);
+    return { challenge: challenge as FetchedChallenge, fixtures: [] };
+  }
+
+  console.log(`[swipeGameService] Fetching fixtures for challenge ${challengeId}, leagues: ${leagueIds.join(', ')}`);
+  console.log(`[swipeGameService] Date range: ${challenge.start_date} to ${challenge.end_date}`);
+
+  // 2. Fetch fixtures from fb_fixtures
+  const { data: fixtures, error: fixturesError } = await supabase
+    .from('fb_fixtures')
+    .select(`
+      id, date, status, round, goals_home, goals_away,
+      home:fb_teams!fb_fixtures_home_team_id_fkey(id, name, logo_url),
+      away:fb_teams!fb_fixtures_away_team_id_fkey(id, name, logo_url),
+      odds:fb_odds(home_win, draw, away_win, bookmaker_name),
+      league:fb_leagues(id, name, logo)
+    `)
+    .in('league_id', leagueIds)
+    .gte('date', challenge.start_date)
+    .lte('date', challenge.end_date)
+    .order('date', { ascending: true });
+
+  if (fixturesError) {
+    console.error('[swipeGameService] Failed to fetch fixtures:', fixturesError);
+    return { challenge: challenge as FetchedChallenge, fixtures: [] };
+  }
+
+  console.log(`[swipeGameService] Found ${fixtures?.length ?? 0} fixtures`);
+
+  return {
+    challenge: challenge as FetchedChallenge,
+    fixtures: (fixtures ?? []) as FetchedFixture[]
+  };
+}
+
+// ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
 
@@ -252,31 +339,144 @@ export async function getOrCreateMatchday(
 
 /**
  * Get all matchdays for a challenge with fixtures count
+ * REFACTORED: Now fetches directly from fb_fixtures instead of challenge_matchdays
+ * This ensures matches appear even if matchdays weren't created manually in admin
  */
 export async function getChallengeMatchdays(challengeId: string): Promise<ChallengeMatchday[]> {
-  const { data, error } = await supabase
-    .from('challenge_matchdays')
-    .select(`
-      *,
-      matchday_fixtures(count)
-    `)
-    .eq('challenge_id', challengeId)
-    .order('date', { ascending: true });
+  const { challenge, fixtures } = await fetchFixturesForChallenge(challengeId);
 
-  if (error) throw error;
+  if (fixtures.length === 0) {
+    console.log('[swipeGameService] No fixtures found for challenge', challengeId);
+    return [];
+  }
 
-  // Transform the data to include fixtures_count
-  return (data || []).map(md => ({
-    ...md,
-    fixtures_count: md.matchday_fixtures?.[0]?.count || 0,
-    matchday_fixtures: undefined, // Remove the nested object
-  }));
+  const rules = challenge.rules ?? {};
+  const periodType = (rules.period_type as 'matchdays' | 'calendar') ?? 'matchdays';
+
+  console.log(`[swipeGameService] Grouping ${fixtures.length} fixtures by ${periodType}`);
+
+  // Group fixtures by round (matchdays) or date (calendar)
+  const groupedFixtures = new Map<string, FetchedFixture[]>();
+
+  for (const fixture of fixtures) {
+    const key = periodType === 'calendar'
+      ? fixture.date.split('T')[0]  // Group by date (YYYY-MM-DD)
+      : fixture.round ?? 'unknown';  // Group by round (e.g., "Regular Season - 17")
+
+    if (!groupedFixtures.has(key)) {
+      groupedFixtures.set(key, []);
+    }
+    groupedFixtures.get(key)!.push(fixture);
+  }
+
+  // Convert to ChallengeMatchday format
+  const matchdays: ChallengeMatchday[] = [];
+
+  // Sort keys by earliest fixture date in each group
+  const sortedEntries = Array.from(groupedFixtures.entries())
+    .map(([key, groupFixtures]) => ({
+      key,
+      groupFixtures,
+      earliestDate: groupFixtures.reduce(
+        (min, f) => f.date < min ? f.date : min,
+        groupFixtures[0].date
+      )
+    }))
+    .sort((a, b) => a.earliestDate.localeCompare(b.earliestDate));
+
+  for (const { key, groupFixtures, earliestDate } of sortedEntries) {
+    // Determine status based on fixtures
+    const finishedStatuses = ['FT', 'AET', 'PEN', 'AWARDED', 'W.O', 'CANC', 'ABD'];
+    const allPlayed = groupFixtures.every(f =>
+      finishedStatuses.includes((f.status ?? '').toUpperCase())
+    );
+    const anyStarted = groupFixtures.some(f =>
+      new Date(f.date) <= new Date()
+    );
+
+    matchdays.push({
+      id: key,  // Use key as virtual ID (round or date)
+      challenge_id: challengeId,
+      date: earliestDate,
+      status: allPlayed ? 'finished' : anyStarted ? 'active' : 'upcoming',
+      deadline: earliestDate,
+      created_at: challenge.created_at ?? new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      fixtures_count: groupFixtures.length,
+    });
+  }
+
+  console.log(`[swipeGameService] Created ${matchdays.length} virtual matchdays`);
+  return matchdays;
 }
 
 /**
  * Get specific matchday with fixtures
+ * REFACTORED: Now accepts matchdayKey (round or date) and challengeId
+ * instead of a UUID matchdayId from challenge_matchdays table
  */
-export async function getMatchdayWithFixtures(matchdayId: string) {
+export async function getMatchdayWithFixtures(matchdayKey: string, challengeId?: string) {
+  // If challengeId is provided, use the new fb_fixtures-based approach
+  if (challengeId) {
+    const { challenge, fixtures } = await fetchFixturesForChallenge(challengeId);
+
+    const rules = challenge.rules ?? {};
+    const periodType = (rules.period_type as 'matchdays' | 'calendar') ?? 'matchdays';
+
+    // Filter fixtures for this matchday
+    const matchdayFixtures = fixtures.filter(f => {
+      const key = periodType === 'calendar'
+        ? f.date.split('T')[0]
+        : f.round ?? 'unknown';
+      return key === matchdayKey;
+    });
+
+    console.log(`[swipeGameService] getMatchdayWithFixtures: Found ${matchdayFixtures.length} fixtures for key "${matchdayKey}"`);
+
+    // Detect and sync missing odds (fire and forget)
+    const fixturesForOddsCheck = matchdayFixtures.map(f => ({
+      id: f.id,
+      league_id: f.league?.id,
+      odds: f.odds,
+    })).filter(f => f.id && f.league_id);
+
+    if (fixturesForOddsCheck.length > 0) {
+      detectAndSyncMissingOdds(fixturesForOddsCheck).catch(err => {
+        console.error('[swipeGameService] Error detecting missing odds:', err);
+      });
+    }
+
+    // Build response in expected format
+    return {
+      id: matchdayKey,
+      challenge_id: challengeId,
+      date: matchdayFixtures[0]?.date ?? new Date().toISOString(),
+      status: 'active' as const,
+      deadline: matchdayFixtures[0]?.date ?? null,
+      created_at: challenge.created_at ?? new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      matchday_fixtures: matchdayFixtures.map(f => ({
+        fixture_id: f.id,
+        fixture: {
+          id: f.id,
+          api_id: null,
+          date: f.date,
+          status: f.status,
+          round: f.round,
+          goals_home: f.goals_home,
+          goals_away: f.goals_away,
+          league: f.league,
+          home: f.home,
+          away: f.away,
+          odds: f.odds,
+        }
+      }))
+    };
+  }
+
+  // Fallback to old behavior for backwards compatibility (if only matchdayId is provided)
+  // This can be removed once all callers pass challengeId
+  console.warn('[swipeGameService] getMatchdayWithFixtures called without challengeId, using legacy query');
   const { data, error } = await supabase
     .from('challenge_matchdays')
     .select(`
@@ -298,7 +498,7 @@ export async function getMatchdayWithFixtures(matchdayId: string) {
         )
       )
     `)
-    .eq('id', matchdayId)
+    .eq('id', matchdayKey)
     .single();
 
   if (error) {
@@ -306,19 +506,15 @@ export async function getMatchdayWithFixtures(matchdayId: string) {
     throw error;
   }
 
-  // Debug logging
-  console.log('Matchday data:', data);
-  console.log('Fixtures count:', data?.matchday_fixtures?.length || 0);
-
   // Detect and sync missing odds (fire and forget)
-  const fixtures = data?.matchday_fixtures?.map((mf: any) => ({
+  const legacyFixtures = data?.matchday_fixtures?.map((mf: any) => ({
     id: mf.fixture?.id,
     league_id: mf.fixture?.league?.id,
     odds: mf.fixture?.odds,
   })).filter((f: any) => f.id) || [];
 
-  if (fixtures.length > 0) {
-    detectAndSyncMissingOdds(fixtures).catch(err => {
+  if (legacyFixtures.length > 0) {
+    detectAndSyncMissingOdds(legacyFixtures).catch(err => {
       console.error('[swipeGameService] Error detecting missing odds:', err);
     });
   }
