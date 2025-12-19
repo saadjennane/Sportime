@@ -251,11 +251,16 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
         const matches = fixturesToSwipeMatches(fixtures);
 
         // Load user predictions if userId exists
+        // Extract fixtureIds for the new fb_fixtures-based approach
+        const fixtureIds = matches.map(m => m.id);
+
         let predictions: Record<string, SwipePredictionRecord> = {};
         if (userId) {
           const predictionRecords = await swipeService.getUserMatchdayPredictions(
             currentMatchday.id,
-            userId
+            userId,
+            challengeId,
+            fixtureIds
           );
           if (!isMounted) return;
           predictions = arrayToRecord(predictionRecords);
@@ -465,9 +470,17 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
         matchdayData?.matchday_fixtures?.map((mf: any) => mf.fixture).filter(Boolean) || [];
       const matches = fixturesToSwipeMatches(fixtures);
 
+      // Extract fixtureIds for the new fb_fixtures-based approach
+      const fixtureIds = matches.map(m => m.id);
+
       let predictions: Record<string, SwipePredictionRecord> = {};
       if (userId) {
-        const predictionRecords = await swipeService.getUserMatchdayPredictions(matchdayId, userId);
+        const predictionRecords = await swipeService.getUserMatchdayPredictions(
+          matchdayId,
+          userId,
+          challengeId,
+          fixtureIds
+        );
         predictions = arrayToRecord(predictionRecords);
       }
 

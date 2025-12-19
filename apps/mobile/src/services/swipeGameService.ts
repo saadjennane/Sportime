@@ -570,8 +570,31 @@ export async function updateMatchdayStatus(
 // ============================================================================
 
 /**
+ * Generate a deterministic UUID from a string
+ * This creates a consistent UUID for virtual matchday IDs (round or date strings)
+ */
+function generateDeterministicUUID(input: string): string {
+  // Simple hash function to create a deterministic UUID-like string
+  let hash = 0;
+  for (let i = 0; i < input.length; i++) {
+    const char = input.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+
+  // Convert to positive number and pad to create UUID format
+  const positiveHash = Math.abs(hash);
+  const hexHash = positiveHash.toString(16).padStart(12, '0');
+
+  // Create a valid UUID v4-like format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+  // Using '4' for version and '8' for variant
+  return `${hexHash.slice(0, 8)}-${hexHash.slice(0, 4)}-4${hexHash.slice(1, 4)}-8${hexHash.slice(0, 3)}-${hexHash.padEnd(12, '0').slice(0, 12)}`;
+}
+
+/**
  * Save or update a prediction
  * Validates that the match has not started before allowing the prediction
+ * REFACTORED: Handles virtual matchday IDs (round or date strings) by generating deterministic UUIDs
  */
 export async function savePrediction(params: {
   challengeId: string;
@@ -595,11 +618,21 @@ export async function savePrediction(params: {
     throw new Error('Cannot save prediction - match has already started');
   }
 
+  // Check if matchdayId is a valid UUID or a virtual ID (round/date string)
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  let matchdayUUID = params.matchdayId;
+
+  if (!uuidRegex.test(params.matchdayId)) {
+    // Virtual matchday ID - generate deterministic UUID from challengeId + matchdayKey
+    matchdayUUID = generateDeterministicUUID(`${params.challengeId}:${params.matchdayId}`);
+    console.log(`[savePrediction] Generated deterministic UUID for matchday "${params.matchdayId}": ${matchdayUUID}`);
+  }
+
   const { data, error } = await supabase
     .from('swipe_predictions')
     .upsert({
       challenge_id: params.challengeId,
-      matchday_id: params.matchdayId,
+      matchday_id: matchdayUUID,
       user_id: params.userId,
       fixture_id: params.fixtureId,
       prediction: params.prediction,
@@ -616,18 +649,44 @@ export async function savePrediction(params: {
 
 /**
  * Get user predictions for a matchday
+ * REFACTORED: Now accepts challengeId + fixtureIds instead of matchday_id UUID
+ * This works with the new fb_fixtures-based approach where matchday IDs are virtual strings
  */
 export async function getUserMatchdayPredictions(
-  matchdayId: string,
-  userId: string
+  matchdayKey: string,
+  userId: string,
+  challengeId?: string,
+  fixtureIds?: string[]
 ): Promise<SwipePredictionRecord[]> {
+  // If challengeId and fixtureIds are provided, use the new approach
+  if (challengeId && fixtureIds && fixtureIds.length > 0) {
+    const { data, error } = await supabase
+      .from('swipe_predictions')
+      .select('*')
+      .eq('challenge_id', challengeId)
+      .eq('user_id', userId)
+      .in('fixture_id', fixtureIds);
+
+    if (error) throw error;
+    return data || [];
+  }
+
+  // Fallback: Try to use matchdayKey as UUID (legacy approach)
+  // This will fail for virtual matchday IDs but allows gradual migration
   const { data, error } = await supabase
     .from('swipe_predictions')
     .select('*')
-    .eq('matchday_id', matchdayId)
+    .eq('matchday_id', matchdayKey)
     .eq('user_id', userId);
 
-  if (error) throw error;
+  if (error) {
+    // If error is about invalid UUID, return empty array (no predictions yet)
+    if (error.message?.includes('invalid input syntax for type uuid')) {
+      console.warn('[swipeGameService] getUserMatchdayPredictions: matchdayKey is not a UUID, returning empty predictions');
+      return [];
+    }
+    throw error;
+  }
   return data || [];
 }
 
@@ -664,12 +723,30 @@ export async function getFixturePredictions(fixtureId: string): Promise<SwipePre
 
 /**
  * Check if user has made all predictions for a matchday
+ * REFACTORED: Now accepts optional challengeId and fixtureIds for fb_fixtures-based approach
  */
 export async function hasCompletedMatchday(
   matchdayId: string,
-  userId: string
+  userId: string,
+  challengeId?: string,
+  fixtureIds?: string[]
 ): Promise<boolean> {
-  // Get total fixtures in matchday
+  // If fixtureIds are provided, use the new approach
+  if (challengeId && fixtureIds && fixtureIds.length > 0) {
+    // Get user's predictions for these fixtures
+    const { count: userPredictions, error: predictionsError } = await supabase
+      .from('swipe_predictions')
+      .select('*', { count: 'exact', head: true })
+      .eq('challenge_id', challengeId)
+      .eq('user_id', userId)
+      .in('fixture_id', fixtureIds);
+
+    if (predictionsError) throw predictionsError;
+
+    return (userPredictions || 0) >= fixtureIds.length;
+  }
+
+  // Fallback: Legacy approach using matchday_fixtures table
   const { count: totalFixtures, error: fixturesError } = await supabase
     .from('matchday_fixtures')
     .select('*', { count: 'exact', head: true })
