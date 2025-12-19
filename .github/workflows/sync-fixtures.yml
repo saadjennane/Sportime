@@ -1,0 +1,95 @@
+# Sync Fixture Schedules - GitHub Actions Workflow
+# Synchronise automatiquement les horaires des matchs depuis l'API Football
+#
+# Schedule:
+#   - Tous les jours à 3h UTC: sync des 14 prochains jours
+#   - Toutes les 2h de 6h à 23h UTC: refresh des matchs du jour
+#
+# Secrets requis:
+#   - SUPABASE_URL: URL de votre projet Supabase
+#   - SUPABASE_ANON_KEY: Clé anon de votre projet Supabase
+
+name: Sync Fixture Schedules
+
+on:
+  # Planification automatique
+  schedule:
+    # Sync quotidienne à 3h UTC (pour les 14 prochains jours)
+    - cron: '0 3 * * *'
+    # Refresh fréquent pour les matchs du jour (toutes les 2h de 6h à 23h UTC)
+    - cron: '0 6,8,10,12,14,16,18,20,22 * * *'
+
+  # Déclenchement manuel depuis l'interface GitHub
+  workflow_dispatch:
+    inputs:
+      days_ahead:
+        description: 'Nombre de jours à synchroniser'
+        required: false
+        default: '14'
+        type: string
+
+jobs:
+  sync-fixtures:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Determine sync parameters
+        id: params
+        run: |
+          # Si déclenchement manuel, utiliser l'input
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "days_ahead=${{ github.event.inputs.days_ahead }}" >> $GITHUB_OUTPUT
+            echo "mode=manual" >> $GITHUB_OUTPUT
+          # Si cron à 3h, sync 14 jours
+          elif [ "$(date -u +%H)" = "03" ]; then
+            echo "days_ahead=14" >> $GITHUB_OUTPUT
+            echo "mode=scheduled" >> $GITHUB_OUTPUT
+          # Sinon (crons de la journée), sync 1 jour
+          else
+            echo "days_ahead=1" >> $GITHUB_OUTPUT
+            echo "mode=today" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Call Supabase Edge Function
+        run: |
+          echo "Syncing fixtures for next ${{ steps.params.outputs.days_ahead }} days (mode: ${{ steps.params.outputs.mode }})"
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "${{ secrets.SUPABASE_URL }}/functions/v1/sync-fixture-schedules" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"days_ahead\": ${{ steps.params.outputs.days_ahead }}, \"update_mode\": \"${{ steps.params.outputs.mode }}\"}")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $BODY"
+
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "Error: Sync failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+          # Extraire et afficher les stats
+          CHECKED=$(echo "$BODY" | jq -r '.checked // 0')
+          INSERTED=$(echo "$BODY" | jq -r '.inserted // 0')
+          UPDATED=$(echo "$BODY" | jq -r '.updated // 0')
+
+          echo ""
+          echo "=== Sync Summary ==="
+          echo "Fixtures checked: $CHECKED"
+          echo "Fixtures inserted: $INSERTED"
+          echo "Fixtures updated: $UPDATED"
+
+          # Si des changements de calendrier ont été détectés, les afficher
+          CHANGES=$(echo "$BODY" | jq -r '.schedule_changes // []')
+          if [ "$CHANGES" != "[]" ]; then
+            echo ""
+            echo "=== Schedule Changes Detected ==="
+            echo "$CHANGES" | jq -r '.[] | "\(.league): \(.home_team) vs \(.away_team) - \(.old_date) -> \(.new_date)"'
+          fi
+
+      - name: Summary
+        run: |
+          echo "Fixture sync completed at $(date -u)"
