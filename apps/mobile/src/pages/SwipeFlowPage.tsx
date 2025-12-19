@@ -543,7 +543,7 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
         onDismissTutorial={onDismissTutorial}
         onSwipe={handleSwipe}
         onComplete={handleSwipeComplete}
-        onExit={state.editMode ? handleGoToRecap : onExit}
+        onExit={handleGoToRecap}
         editMode={state.editMode}
       />
     );

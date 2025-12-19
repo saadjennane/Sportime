@@ -245,6 +245,7 @@ export function fixtureToSwipeMatch(
 
 /**
  * Convert array of fixtures to SwipeMatch array with predictions
+ * Sorted chronologically (earliest match first)
  */
 export function fixturesToSwipeMatches(
   fixtures: FixtureData[],
@@ -255,7 +256,12 @@ export function fixturesToSwipeMatches(
     predictions.map(p => [p.fixture_id, p])
   );
 
-  return fixtures.map(fixture =>
+  // Sort fixtures chronologically (earliest first)
+  const sortedFixtures = [...fixtures].sort((a, b) =>
+    new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
+
+  return sortedFixtures.map(fixture =>
     fixtureToSwipeMatch(fixture, predictionMap.get(fixture.id))
   );
 }
