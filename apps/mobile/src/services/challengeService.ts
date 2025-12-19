@@ -1750,6 +1750,7 @@ export async function distributeChallengePrizes(challengeId: string) {
 // ==================== END ADMIN FUNCTIONS ====================
 
 export async function fetchChallengeMatches(challengeId: string) {
+  // Simplified query: we no longer need challenge_matchdays since we fetch from fb_fixtures directly
   const { data: challengeRow, error } = await supabase
     .from('challenges')
     .select(`
@@ -1771,37 +1772,6 @@ export async function fetchChallengeMatches(challengeId: string) {
       ),
       challenge_leagues (
         league_id
-      ),
-      challenge_matchdays (
-        id,
-        date,
-        status,
-        matchday_fixtures (
-          fixture:fb_fixtures (
-            id,
-            date,
-            status,
-            round,
-            goals_home,
-            goals_away,
-            odds:fb_odds (
-              home_win,
-              draw,
-              away_win,
-              bookmaker_name
-            ),
-            home:fb_teams!fb_fixtures_home_team_id_fkey (
-              id,
-              name,
-              logo_url
-            ),
-            away:fb_teams!fb_fixtures_away_team_id_fkey (
-              id,
-              name,
-              logo_url
-            )
-          )
-        )
       )
     `)
     .eq('id', challengeId)
@@ -1830,184 +1800,127 @@ export async function fetchChallengeMatches(challengeId: string) {
     throw countError
   }
 
-  const gameType = challengeRow.game_type?.toLowerCase()
   const rules = challengeRow.rules as Record<string, any> | null ?? {}
   const periodType = (rules?.period_type as 'matchdays' | 'calendar') ?? 'matchdays'
   let matches: ChallengeMatch[] = []
 
-  // For BETTING games OR CALENDAR mode: Always fetch directly from fb_fixtures
-  // This ensures all matches are included even if matchdays weren't properly created in admin
-  const shouldFetchFromFixtures = gameType === 'betting' || periodType === 'calendar'
+  // REFACTORED: Always fetch directly from fb_fixtures for ALL game types
+  // This ensures all matches are included regardless of how matchdays were created in admin
+  // The period_type only affects how matches are GROUPED (by round vs by date), not the data source
+  const leagueIds = (challengeRow.challenge_leagues as Array<{ league_id: string }> | null)?.map(cl => cl.league_id) ?? []
 
-  if (shouldFetchFromFixtures) {
-    console.log(`[fetchChallengeMatches] ${gameType} game (${periodType} mode) - fetching all fixtures from fb_fixtures...`)
-    const leagueId = (challengeRow.challenge_leagues as Array<{ league_id: string }> | null)?.[0]?.league_id
+  if (leagueIds.length > 0) {
+    console.log(`[fetchChallengeMatches] Fetching fixtures from fb_fixtures for leagues: ${leagueIds.join(', ')} (${periodType} mode)`)
 
-    if (leagueId) {
-
-      const { data: fixturesData, error: fixturesError } = await supabase
-        .from('fb_fixtures')
-        .select(`
+    const { data: fixturesData, error: fixturesError } = await supabase
+      .from('fb_fixtures')
+      .select(`
+        id,
+        date,
+        status,
+        goals_home,
+        goals_away,
+        round,
+        odds:fb_odds (
+          home_win,
+          draw,
+          away_win,
+          bookmaker_name
+        ),
+        home:fb_teams!fb_fixtures_home_team_id_fkey (
           id,
-          date,
-          status,
-          goals_home,
-          goals_away,
-          round,
-          odds:fb_odds (
-            home_win,
-            draw,
-            away_win,
-            bookmaker_name
-          ),
-          home:fb_teams!fb_fixtures_home_team_id_fkey (
-            id,
-            name,
-            logo_url
-          ),
-          away:fb_teams!fb_fixtures_away_team_id_fkey (
-            id,
-            name,
-            logo_url
-          )
-        `)
-        .eq('league_id', leagueId)
-        .gte('date', challengeRow.start_date)
-        .lte('date', challengeRow.end_date)
-        .order('date', { ascending: true })
+          name,
+          logo_url
+        ),
+        away:fb_teams!fb_fixtures_away_team_id_fkey (
+          id,
+          name,
+          logo_url
+        )
+      `)
+      .in('league_id', leagueIds)
+      .gte('date', challengeRow.start_date)
+      .lte('date', challengeRow.end_date)
+      .order('date', { ascending: true })
 
-      if (fixturesError) {
-        console.error('[fetchChallengeMatches] Failed to fetch fb_fixtures', fixturesError)
-      } else if (fixturesData && fixturesData.length > 0) {
-        console.log('[fetchChallengeMatches] Found', fixturesData.length, 'fixtures from fb_fixtures')
+    if (fixturesError) {
+      console.error('[fetchChallengeMatches] Failed to fetch fb_fixtures', fixturesError)
+    } else if (fixturesData && fixturesData.length > 0) {
+      console.log('[fetchChallengeMatches] Found', fixturesData.length, 'fixtures from fb_fixtures')
 
-        // Group fixtures by matchday based on period_type
-        const matchdayMap = new Map<string, Array<typeof fixturesData[0]>>()
+      // Group fixtures based on period_type
+      const matchdayMap = new Map<string, Array<typeof fixturesData[0]>>()
 
-        for (const fixture of fixturesData) {
-          let groupKey: string
+      for (const fixture of fixturesData) {
+        let groupKey: string
 
-          if (periodType === 'matchdays') {
-            // Group by round (e.g., "Regular Season - 15")
-            groupKey = fixture.round ?? 'unknown'
-          } else {
-            // Calendar: group by date (YYYY-MM-DD)
-            groupKey = fixture.date.split('T')[0]
-          }
-
-          if (!matchdayMap.has(groupKey)) {
-            matchdayMap.set(groupKey, [])
-          }
-          matchdayMap.get(groupKey)!.push(fixture)
+        if (periodType === 'matchdays') {
+          // Group by round (e.g., "Regular Season - 17")
+          groupKey = fixture.round ?? 'unknown'
+        } else {
+          // Calendar: group by date (YYYY-MM-DD)
+          groupKey = fixture.date.split('T')[0]
         }
 
-        // Sort matchdays by earliest fixture date
-        const sortedMatchdays = Array.from(matchdayMap.entries())
-          .map(([key, fixtures]) => ({
-            key,
-            fixtures,
-            earliestDate: fixtures.reduce((min, f) => f.date < min ? f.date : min, fixtures[0].date)
-          }))
-          .sort((a, b) => a.earliestDate.localeCompare(b.earliestDate))
-
-        // Build ChallengeMatch array
-        sortedMatchdays.forEach((matchday) => {
-          const day = extractMatchdayNumber(matchday.key)
-
-          for (const fixture of matchday.fixtures) {
-            const status = normalizeFixtureStatus(fixture.status, fixture.date, fixture.goals_home, fixture.goals_away)
-            const result =
-              status === 'played' && fixture.goals_home !== null && fixture.goals_away !== null
-                ? fixture.goals_home === fixture.goals_away
-                  ? 'draw'
-                  : fixture.goals_home! > fixture.goals_away!
-                    ? 'teamA'
-                    : 'teamB'
-                : undefined
-
-            matches.push({
-              id: fixture.id,
-              challengeId,
-              day,
-              teamA: {
-                name: fixture.home?.name ?? 'Home',
-                emoji: nameInitialEmoji(fixture.home?.name),
-                logo: fixture.home?.logo_url ?? undefined,
-              },
-              teamB: {
-                name: fixture.away?.name ?? 'Away',
-                emoji: nameInitialEmoji(fixture.away?.name),
-                logo: fixture.away?.logo_url ?? undefined,
-              },
-              odds: preferOdds(fixture.odds as RawMatchday['matchday_fixtures'][number]['fixture']['odds']),
-              status,
-              result,
-              score: status === 'played' && fixture.goals_home !== null && fixture.goals_away !== null
-                ? { teamA: fixture.goals_home!, teamB: fixture.goals_away! }
-                : undefined,
-              kickoffTime: fixture.date,
-            })
-          }
-        })
-
-        console.log('[fetchChallengeMatches] Auto-generated', matches.length, 'matches from fb_fixtures')
+        if (!matchdayMap.has(groupKey)) {
+          matchdayMap.set(groupKey, [])
+        }
+        matchdayMap.get(groupKey)!.push(fixture)
       }
+
+      // Sort matchdays by earliest fixture date
+      const sortedMatchdays = Array.from(matchdayMap.entries())
+        .map(([key, fixtures]) => ({
+          key,
+          fixtures,
+          earliestDate: fixtures.reduce((min, f) => f.date < min ? f.date : min, fixtures[0].date)
+        }))
+        .sort((a, b) => a.earliestDate.localeCompare(b.earliestDate))
+
+      // Build ChallengeMatch array
+      sortedMatchdays.forEach((matchday) => {
+        const day = extractMatchdayNumber(matchday.key)
+
+        for (const fixture of matchday.fixtures) {
+          const status = normalizeFixtureStatus(fixture.status, fixture.date, fixture.goals_home, fixture.goals_away)
+          const result =
+            status === 'played' && fixture.goals_home !== null && fixture.goals_away !== null
+              ? fixture.goals_home === fixture.goals_away
+                ? 'draw'
+                : fixture.goals_home! > fixture.goals_away!
+                  ? 'teamA'
+                  : 'teamB'
+              : undefined
+
+          matches.push({
+            id: fixture.id,
+            challengeId,
+            day,
+            teamA: {
+              name: fixture.home?.name ?? 'Home',
+              emoji: nameInitialEmoji(fixture.home?.name),
+              logo: fixture.home?.logo_url ?? undefined,
+            },
+            teamB: {
+              name: fixture.away?.name ?? 'Away',
+              emoji: nameInitialEmoji(fixture.away?.name),
+              logo: fixture.away?.logo_url ?? undefined,
+            },
+            odds: preferOdds(fixture.odds as RawMatchday['matchday_fixtures'][number]['fixture']['odds']),
+            status,
+            result,
+            score: status === 'played' && fixture.goals_home !== null && fixture.goals_away !== null
+              ? { teamA: fixture.goals_home!, teamB: fixture.goals_away! }
+              : undefined,
+            kickoffTime: fixture.date,
+          })
+        }
+      })
+
+      console.log('[fetchChallengeMatches] Built', matches.length, 'matches from fb_fixtures')
     }
   } else {
-    // For NON-BETTING games (prediction, etc.): Use challenge_matchdays
-    console.log('[fetchChallengeMatches] challengeRow.challenge_matchdays:', challengeRow.challenge_matchdays)
-    matches = buildChallengeMatches(challengeId, challengeRow.challenge_matchdays as RawMatchday[])
-    console.log('[fetchChallengeMatches] Built matches from matchdays:', matches.length)
-
-    // Filter matches by end_date using date-only string comparison to avoid timezone issues
-    if (challengeRow.end_date && matches.length > 0) {
-      const endDateStr = challengeRow.end_date.split('T')[0]
-      const beforeFilter = matches.length
-      matches = matches.filter(m => {
-        if (!m.kickoffTime) return true
-        const matchDateStr = m.kickoffTime.split('T')[0]
-        return matchDateStr <= endDateStr
-      })
-      if (matches.length < beforeFilter) {
-        console.log(`[fetchChallengeMatches] Filtered out ${beforeFilter - matches.length} matches after end_date (${challengeRow.end_date})`)
-      }
-    }
-
-    // Fallback to challenge_matches if no matchdays
-    if (matches.length === 0) {
-      console.log('[fetchChallengeMatches] No matches from matchdays, trying challenge_matches fallback...')
-      const { data: directRows, error: directError } = await supabase
-        .from('challenge_matches')
-        .select(`
-          id,
-          day_number,
-          match:matches (
-            id,
-            fixture_id,
-            kickoff_time,
-            status,
-            score,
-            home:teams!matches_home_team_id_fkey (
-              id,
-              name,
-              logo_url
-            ),
-            away:teams!matches_away_team_id_fkey (
-              id,
-              name,
-              logo_url
-            )
-          )
-        `)
-        .eq('challenge_id', challengeId)
-        .order('day_number', { ascending: true })
-
-      if (directError) {
-        console.error('[challengeService] Failed to fetch challenge_matches fallback', directError)
-      } else {
-        matches = await buildMatchesFromChallengeMatches(challengeId, directRows as ChallengeMatchRow[])
-      }
-    }
+    console.warn('[fetchChallengeMatches] No leagues found for challenge', challengeId)
   }
 
   const challenge = mapChallengeRowToChallenge(challengeRow as ChallengeRow, participantCount ?? 0)
