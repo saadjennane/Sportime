@@ -1831,17 +1831,19 @@ export async function fetchChallengeMatches(challengeId: string) {
   }
 
   const gameType = challengeRow.game_type?.toLowerCase()
+  const rules = challengeRow.rules as Record<string, any> | null ?? {}
+  const periodType = (rules?.period_type as 'matchdays' | 'calendar') ?? 'matchdays'
   let matches: ChallengeMatch[] = []
 
-  // For BETTING games: Always fetch directly from fb_fixtures to ensure all matches are included
-  // This avoids issues where matchdays weren't properly created in admin
-  if (gameType === 'betting') {
-    console.log('[fetchChallengeMatches] Betting game - fetching all fixtures from fb_fixtures...')
+  // For BETTING games OR CALENDAR mode: Always fetch directly from fb_fixtures
+  // This ensures all matches are included even if matchdays weren't properly created in admin
+  const shouldFetchFromFixtures = gameType === 'betting' || periodType === 'calendar'
+
+  if (shouldFetchFromFixtures) {
+    console.log(`[fetchChallengeMatches] ${gameType} game (${periodType} mode) - fetching all fixtures from fb_fixtures...`)
     const leagueId = (challengeRow.challenge_leagues as Array<{ league_id: string }> | null)?.[0]?.league_id
 
     if (leagueId) {
-      const rules = challengeRow.rules as Record<string, any> | null ?? {}
-      const periodType = (rules?.period_type as 'matchdays' | 'calendar') ?? 'matchdays'
 
       const { data: fixturesData, error: fixturesError } = await supabase
         .from('fb_fixtures')
