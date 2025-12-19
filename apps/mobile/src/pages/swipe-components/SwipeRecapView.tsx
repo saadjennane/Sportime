@@ -222,9 +222,11 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
       if (isCurrentMatchday && currentMatchdayNumber !== null) {
         displayName = `Matchday ${currentMatchdayNumber}`;
       } else {
-        // Fallback to index-based numbering for non-current matchdays
-        // (we don't have their fixtures loaded)
-        displayName = `Matchday ${index + 1}`;
+        // Extract matchday number from the md.id (which is the round like "Regular Season - 16")
+        const extractedNumber = extractMatchdayNumber(md.id);
+        displayName = extractedNumber !== null
+          ? `Matchday ${extractedNumber}`
+          : `Matchday ${index + 1}`;
       }
     } else {
       displayName = format(new Date(md.date), 'MMM d');
