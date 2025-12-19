@@ -386,7 +386,8 @@ export async function getChallengeMatchdays(challengeId: string): Promise<Challe
 
   for (const { key, groupFixtures, earliestDate } of sortedEntries) {
     // Determine status based on fixtures
-    const finishedStatuses = ['FT', 'AET', 'PEN', 'AWARDED', 'W.O', 'CANC', 'ABD'];
+    // Include postponed/cancelled statuses as "finished" for matchday progression purposes
+    const finishedStatuses = ['FT', 'AET', 'PEN', 'AWARDED', 'W.O', 'CANC', 'ABD', 'PST', 'POSTP', 'TBD'];
     const allPlayed = groupFixtures.every(f =>
       finishedStatuses.includes((f.status ?? '').toUpperCase())
     );
