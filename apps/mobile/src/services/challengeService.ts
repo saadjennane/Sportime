@@ -923,55 +923,91 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
 
   // Fetch current matchday fixture count for each prediction challenge
   // This enables "Ready" badge when all predictions are made
+  // REFACTORED: Now uses fb_fixtures directly instead of challenge_matchdays
   if (userId && swipeEntriesWithPredictions.length > 0) {
     const predictionChallengeIds = swipeEntriesWithPredictions.map(e => e.matchDayId)
 
-    // Get current matchday (first non-finished) for each challenge with fixture count
-    const { data: currentMatchdays, error: matchdaysError } = await supabase
-      .from('challenge_matchdays')
-      .select(`
-        id,
-        challenge_id,
-        status,
-        matchday_fixtures(count)
-      `)
-      .in('challenge_id', predictionChallengeIds)
-      .order('date', { ascending: true })
+    // Get challenges with their leagues and rules
+    const predictionChallenges = predictionChallengeIds
+      .map(id => challengesById.get(id))
+      .filter((c): c is NonNullable<typeof c> => c !== undefined)
 
-    if (matchdaysError) {
-      console.warn('[challengeService] Failed to fetch current matchday fixture counts', matchdaysError)
-    } else if (currentMatchdays && currentMatchdays.length > 0) {
-      // Group by challenge_id and find first non-finished matchday
-      const fixtureCountByChallenge = new Map<string, number>()
+    const fixtureCountByChallenge = new Map<string, number>()
 
-      for (const md of currentMatchdays as Array<{
-        id: string
-        challenge_id: string
-        status: string | null
-        matchday_fixtures: Array<{ count: number }> | { count: number } | null
-      }>) {
-        // Skip if we already found a non-finished matchday for this challenge
-        if (fixtureCountByChallenge.has(md.challenge_id)) continue
+    for (const challenge of predictionChallenges) {
+      const leagueIds = challenge.challenge_leagues?.map(cl => cl.league_id) ?? []
+      if (leagueIds.length === 0) continue
 
-        // Only use matchdays that are not finished
-        const status = (md.status ?? 'upcoming').toLowerCase()
-        if (status === 'finished') continue
+      const rules = (challenge.rules ?? {}) as Record<string, unknown>
+      const periodType = (rules.period_type as string) ?? 'matchdays'
 
-        // Extract fixture count
-        const mf = md.matchday_fixtures
-        const count = Array.isArray(mf)
-          ? (mf[0]?.count ?? 0)
-          : (mf as any)?.count ?? 0
+      // Fetch fixtures for this challenge from fb_fixtures
+      const { data: fixtures, error: fixturesError } = await supabase
+        .from('fb_fixtures')
+        .select('id, date, status, round')
+        .in('league_id', leagueIds)
+        .gte('date', challenge.start_date)
+        .lte('date', challenge.end_date)
+        .order('date', { ascending: true })
 
-        fixtureCountByChallenge.set(md.challenge_id, count)
+      if (fixturesError || !fixtures) {
+        console.warn(`[challengeService] Failed to fetch fixtures for challenge ${challenge.id}`, fixturesError)
+        continue
       }
 
-      // Update entries with fixture count
-      swipeEntriesWithPredictions = swipeEntriesWithPredictions.map(entry => ({
-        ...entry,
-        currentMatchdayFixtureCount: fixtureCountByChallenge.get(entry.matchDayId) ?? 0,
-      }))
+      // Group fixtures by matchday (round) or date (calendar)
+      const groupedFixtures = new Map<string, typeof fixtures>()
+      for (const fixture of fixtures) {
+        const key = periodType === 'calendar'
+          ? fixture.date.split('T')[0]
+          : fixture.round ?? 'unknown'
+
+        if (!groupedFixtures.has(key)) {
+          groupedFixtures.set(key, [])
+        }
+        groupedFixtures.get(key)!.push(fixture)
+      }
+
+      // Find the current (active) matchday - first one that's not finished
+      // Include postponed/cancelled statuses as "finished" for progression purposes
+      const finishedStatuses = ['FT', 'AET', 'PEN', 'AWARDED', 'W.O', 'CANC', 'ABD', 'PST', 'POSTP', 'TBD']
+
+      // Sort entries by earliest fixture date
+      const sortedEntries = Array.from(groupedFixtures.entries())
+        .map(([key, groupFixtures]) => ({
+          key,
+          groupFixtures,
+          earliestDate: groupFixtures.reduce(
+            (min, f) => f.date < min ? f.date : min,
+            groupFixtures[0].date
+          )
+        }))
+        .sort((a, b) => a.earliestDate.localeCompare(b.earliestDate))
+
+      for (const { groupFixtures } of sortedEntries) {
+        const allFinished = groupFixtures.every(f =>
+          finishedStatuses.includes((f.status ?? '').toUpperCase())
+        )
+
+        if (!allFinished) {
+          // This is the current active matchday
+          fixtureCountByChallenge.set(challenge.id, groupFixtures.length)
+          break
+        }
+      }
+
+      // If all matchdays are finished, use the last one
+      if (!fixtureCountByChallenge.has(challenge.id) && sortedEntries.length > 0) {
+        const lastGroup = sortedEntries[sortedEntries.length - 1]
+        fixtureCountByChallenge.set(challenge.id, lastGroup.groupFixtures.length)
+      }
     }
+
+    // Update entries with fixture count
+    swipeEntriesWithPredictions = swipeEntriesWithPredictions.map(entry => ({
+      ...entry,
+      currentMatchdayFixtureCount: fixtureCountByChallenge.get(entry.matchDayId) ?? 0,
+    }))
   }
 
   // Fetch matchday and fixture stats for all challenges (for GameInfoModal)
