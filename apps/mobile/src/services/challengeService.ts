@@ -1811,6 +1811,7 @@ export async function fetchChallengeMatches(challengeId: string) {
 
   if (leagueIds.length > 0) {
     console.log(`[fetchChallengeMatches] Fetching fixtures from fb_fixtures for leagues: ${leagueIds.join(', ')} (${periodType} mode)`)
+    console.log(`[fetchChallengeMatches] Date range: ${challengeRow.start_date} to ${challengeRow.end_date}`)
 
     const { data: fixturesData, error: fixturesError } = await supabase
       .from('fb_fixtures')
@@ -1847,6 +1848,13 @@ export async function fetchChallengeMatches(challengeId: string) {
       console.error('[fetchChallengeMatches] Failed to fetch fb_fixtures', fixturesError)
     } else if (fixturesData && fixturesData.length > 0) {
       console.log('[fetchChallengeMatches] Found', fixturesData.length, 'fixtures from fb_fixtures')
+      // Log all fixture dates for debugging
+      const fixturesByDate = fixturesData.reduce((acc, f) => {
+        const date = f.date.split('T')[0]
+        acc[date] = (acc[date] || 0) + 1
+        return acc
+      }, {} as Record<string, number>)
+      console.log('[fetchChallengeMatches] Fixtures by date:', JSON.stringify(fixturesByDate))
 
       // Group fixtures based on period_type
       const matchdayMap = new Map<string, Array<typeof fixturesData[0]>>()

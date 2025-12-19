@@ -109,6 +109,11 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
 
   // Get unique groups based on period_type
   const allMatchGroups = useMemo(() => {
+    // Debug: log all incoming matches
+    console.log('[ChallengeRoomPage] matches received:', matches.length)
+    const uniqueDates = [...new Set(matches.map(m => m.kickoffTime?.split('T')[0]))].sort()
+    console.log('[ChallengeRoomPage] unique dates in matches:', uniqueDates)
+
     const groups = new Map<string, { key: string; matches: ChallengeMatch[]; displayName: string; date: Date; matchdays: number[] }>();
 
     matches.forEach(match => {
@@ -144,12 +149,14 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   const { matchGroups, currentMatchdayIndex, hasNextMatchday } = useMemo(() => {
     // 1. Filter out empty groups (days without matches)
     const nonEmptyGroups = allMatchGroups.filter(g => g.matches.length > 0);
+    console.log('[ChallengeRoomPage] nonEmptyGroups:', nonEmptyGroups.length, nonEmptyGroups.map(g => ({ key: g.key, displayName: g.displayName, matchCount: g.matches.length })))
 
     // 2. Find the first group that is not finished (= next playable day)
     let nextPlayableIdx = -1;
     for (let i = 0; i < nonEmptyGroups.length; i++) {
       const group = nonEmptyGroups[i];
       const allFinished = group.matches.every(m => m.status === 'played');
+      console.log(`[ChallengeRoomPage] Group ${i} (${group.displayName}): allFinished=${allFinished}, statuses=${group.matches.map(m => m.status).join(',')}`)
 
       if (!allFinished) {
         nextPlayableIdx = i;
@@ -160,12 +167,14 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
     // If all days are finished, show all of them (including the last one as current)
     // This allows users to see all completed days
     if (nextPlayableIdx === -1) {
+      console.log('[ChallengeRoomPage] All days finished, showing all')
       nextPlayableIdx = nonEmptyGroups.length - 1;
     }
 
     // 3. Show history + next playable day
     // Always include at least up to nextPlayableIdx + 1
     const visibleGroups = nonEmptyGroups.slice(0, nextPlayableIdx + 1);
+    console.log('[ChallengeRoomPage] visibleGroups:', visibleGroups.length, 'nextPlayableIdx:', nextPlayableIdx)
 
     return {
       matchGroups: visibleGroups,
