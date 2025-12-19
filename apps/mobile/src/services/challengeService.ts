@@ -932,7 +932,8 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
       .map(id => challengesById.get(id))
       .filter((c): c is NonNullable<typeof c> => c !== undefined)
 
-    const fixtureCountByChallenge = new Map<string, number>()
+    // Store both fixture count AND fixture IDs for current matchday
+    const currentMatchdayDataByChallenge = new Map<string, { count: number; fixtureIds: string[] }>()
 
     for (const challenge of predictionChallenges) {
       const leagueIds = challenge.challenge_leagues?.map(cl => cl.league_id) ?? []
@@ -990,24 +991,48 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
         )
 
         if (!allFinished) {
-          // This is the current active matchday
-          fixtureCountByChallenge.set(challenge.id, groupFixtures.length)
+          // This is the current active matchday - store count AND fixture IDs
+          currentMatchdayDataByChallenge.set(challenge.id, {
+            count: groupFixtures.length,
+            fixtureIds: groupFixtures.map(f => f.id)
+          })
           break
         }
       }
 
       // If all matchdays are finished, use the last one
-      if (!fixtureCountByChallenge.has(challenge.id) && sortedEntries.length > 0) {
+      if (!currentMatchdayDataByChallenge.has(challenge.id) && sortedEntries.length > 0) {
         const lastGroup = sortedEntries[sortedEntries.length - 1]
-        fixtureCountByChallenge.set(challenge.id, lastGroup.groupFixtures.length)
+        currentMatchdayDataByChallenge.set(challenge.id, {
+          count: lastGroup.groupFixtures.length,
+          fixtureIds: lastGroup.groupFixtures.map(f => f.id)
+        })
       }
     }
 
-    // Update entries with fixture count
-    swipeEntriesWithPredictions = swipeEntriesWithPredictions.map(entry => ({
-      ...entry,
-      currentMatchdayFixtureCount: fixtureCountByChallenge.get(entry.matchDayId) ?? 0,
-    }))
+    // Update entries with fixture count AND filter predictions to only current matchday
+    swipeEntriesWithPredictions = swipeEntriesWithPredictions.map(entry => {
+      const matchdayData = currentMatchdayDataByChallenge.get(entry.matchDayId)
+      if (!matchdayData) {
+        return {
+          ...entry,
+          currentMatchdayFixtureCount: 0,
+          predictions: [], // No matchday data = no predictions to show
+        }
+      }
+
+      // Filter predictions to only include those for the current matchday fixtures
+      const currentMatchdayFixtureIds = new Set(matchdayData.fixtureIds)
+      const filteredPredictions = entry.predictions.filter(p =>
+        currentMatchdayFixtureIds.has(p.matchId)
+      )
+
+      return {
+        ...entry,
+        currentMatchdayFixtureCount: matchdayData.count,
+        predictions: filteredPredictions,
+      }
+    })
   }
 
   // Fetch matchday and fixture stats for all challenges (for GameInfoModal)
