@@ -1830,64 +1830,13 @@ export async function fetchChallengeMatches(challengeId: string) {
     throw countError
   }
 
-  console.log('[fetchChallengeMatches] challengeRow.challenge_matchdays:', challengeRow.challenge_matchdays)
-  let matches = buildChallengeMatches(challengeId, challengeRow.challenge_matchdays as RawMatchday[])
-  console.log('[fetchChallengeMatches] Built matches from matchdays:', matches.length)
+  const gameType = challengeRow.game_type?.toLowerCase()
+  let matches: ChallengeMatch[] = []
 
-  // Filter matches by end_date using date-only string comparison to avoid timezone issues
-  // new Date("2025-12-06") creates UTC midnight, but setHours() uses local time
-  // This caused dates to shift by timezone offset
-  if (challengeRow.end_date && matches.length > 0) {
-    const endDateStr = challengeRow.end_date.split('T')[0]  // "2025-12-06"
-    const beforeFilter = matches.length
-    matches = matches.filter(m => {
-      if (!m.kickoffTime) return true
-      const matchDateStr = m.kickoffTime.split('T')[0]      // "2025-12-06"
-      return matchDateStr <= endDateStr
-    })
-    if (matches.length < beforeFilter) {
-      console.log(`[fetchChallengeMatches] Filtered out ${beforeFilter - matches.length} matches after end_date (${challengeRow.end_date})`)
-    }
-  }
-
-  if (matches.length === 0) {
-    console.log('[fetchChallengeMatches] No matches from matchdays, trying challenge_matches fallback...')
-    const { data: directRows, error: directError } = await supabase
-      .from('challenge_matches')
-      .select(`
-        id,
-        day_number,
-        match:matches (
-          id,
-          fixture_id,
-          kickoff_time,
-          status,
-          score,
-          home:teams!matches_home_team_id_fkey (
-            id,
-            name,
-            logo_url
-          ),
-          away:teams!matches_away_team_id_fkey (
-            id,
-            name,
-            logo_url
-          )
-        )
-      `)
-      .eq('challenge_id', challengeId)
-      .order('day_number', { ascending: true })
-
-    if (directError) {
-      console.error('[challengeService] Failed to fetch challenge_matches fallback', directError)
-    } else {
-      matches = await buildMatchesFromChallengeMatches(challengeId, directRows as ChallengeMatchRow[])
-    }
-  }
-
-  // 3rd fallback: Auto-generate matches from fb_fixtures for betting games
-  if (matches.length === 0 && challengeRow.game_type?.toLowerCase() === 'betting') {
-    console.log('[fetchChallengeMatches] No matches found, auto-generating from fb_fixtures...')
+  // For BETTING games: Always fetch directly from fb_fixtures to ensure all matches are included
+  // This avoids issues where matchdays weren't properly created in admin
+  if (gameType === 'betting') {
+    console.log('[fetchChallengeMatches] Betting game - fetching all fixtures from fb_fixtures...')
     const leagueId = (challengeRow.challenge_leagues as Array<{ league_id: string }> | null)?.[0]?.league_id
 
     if (leagueId) {
@@ -2000,6 +1949,61 @@ export async function fetchChallengeMatches(challengeId: string) {
         })
 
         console.log('[fetchChallengeMatches] Auto-generated', matches.length, 'matches from fb_fixtures')
+      }
+    }
+  } else {
+    // For NON-BETTING games (prediction, etc.): Use challenge_matchdays
+    console.log('[fetchChallengeMatches] challengeRow.challenge_matchdays:', challengeRow.challenge_matchdays)
+    matches = buildChallengeMatches(challengeId, challengeRow.challenge_matchdays as RawMatchday[])
+    console.log('[fetchChallengeMatches] Built matches from matchdays:', matches.length)
+
+    // Filter matches by end_date using date-only string comparison to avoid timezone issues
+    if (challengeRow.end_date && matches.length > 0) {
+      const endDateStr = challengeRow.end_date.split('T')[0]
+      const beforeFilter = matches.length
+      matches = matches.filter(m => {
+        if (!m.kickoffTime) return true
+        const matchDateStr = m.kickoffTime.split('T')[0]
+        return matchDateStr <= endDateStr
+      })
+      if (matches.length < beforeFilter) {
+        console.log(`[fetchChallengeMatches] Filtered out ${beforeFilter - matches.length} matches after end_date (${challengeRow.end_date})`)
+      }
+    }
+
+    // Fallback to challenge_matches if no matchdays
+    if (matches.length === 0) {
+      console.log('[fetchChallengeMatches] No matches from matchdays, trying challenge_matches fallback...')
+      const { data: directRows, error: directError } = await supabase
+        .from('challenge_matches')
+        .select(`
+          id,
+          day_number,
+          match:matches (
+            id,
+            fixture_id,
+            kickoff_time,
+            status,
+            score,
+            home:teams!matches_home_team_id_fkey (
+              id,
+              name,
+              logo_url
+            ),
+            away:teams!matches_away_team_id_fkey (
+              id,
+              name,
+              logo_url
+            )
+          )
+        `)
+        .eq('challenge_id', challengeId)
+        .order('day_number', { ascending: true })
+
+      if (directError) {
+        console.error('[challengeService] Failed to fetch challenge_matches fallback', directError)
+      } else {
+        matches = await buildMatchesFromChallengeMatches(challengeId, directRows as ChallengeMatchRow[])
       }
     }
   }
