@@ -39,7 +39,8 @@ export const SwipeCardStack = memo<SwipeCardStackProps>(function SwipeCardStack(
   const [showTutorial, setShowTutorial] = useState(!hasSeenTutorial);
 
   // In edit mode, show ALL matches; otherwise only unpredicted
-  const matchesToShow = editMode ? matches : matches.filter(m => !predictions[m.id]);
+  // Reverse the order so earliest match appears on top of the stack (first to swipe)
+  const matchesToShow = (editMode ? matches : matches.filter(m => !predictions[m.id])).slice().reverse();
 
   const [currentIndex, setCurrentIndex] = useState(() => {
     // Start from the end (stack displays top card last)
