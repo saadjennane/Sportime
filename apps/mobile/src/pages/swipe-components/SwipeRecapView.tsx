@@ -184,27 +184,50 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
     md.fixtures_count === undefined || md.fixtures_count > 0
   );
 
-  // Filter matchdays: Show past dates + today + first future date (next active)
-  // Use DATE comparison, not status, to ensure future dates appear correctly
-  const today = new Date().toISOString().split('T')[0];
+  // Filter matchdays: Show finished matchdays + the first non-finished (active/upcoming)
+  // For matchdays mode: use status to determine visibility
+  // For calendar mode: use date comparison
   let visibleMatchdays: typeof matchdaysWithFixtures;
 
-  // Find the first future date (date > today)
-  let firstFutureIdx = -1;
-  for (let i = 0; i < matchdaysWithFixtures.length; i++) {
-    const mdDate = matchdaysWithFixtures[i].date?.split('T')[0];
-    if (mdDate && mdDate > today) {
-      firstFutureIdx = i;
-      break;
+  if (challenge?.period_type === 'matchdays') {
+    // For matchdays mode: show all finished + first non-finished
+    // Find the first non-finished matchday
+    let firstNonFinishedIdx = -1;
+    for (let i = 0; i < matchdaysWithFixtures.length; i++) {
+      if (matchdaysWithFixtures[i].status !== 'finished') {
+        firstNonFinishedIdx = i;
+        break;
+      }
     }
-  }
 
-  if (firstFutureIdx === -1) {
-    // No future dates, show all (all are past/today)
-    visibleMatchdays = matchdaysWithFixtures;
+    if (firstNonFinishedIdx === -1) {
+      // All matchdays finished, show all
+      visibleMatchdays = matchdaysWithFixtures;
+    } else {
+      // Show all finished + the first non-finished (active/upcoming)
+      visibleMatchdays = matchdaysWithFixtures.slice(0, firstNonFinishedIdx + 1);
+    }
   } else {
-    // Show all past/today + the first future date
-    visibleMatchdays = matchdaysWithFixtures.slice(0, firstFutureIdx + 1);
+    // For calendar mode: use date comparison
+    const today = new Date().toISOString().split('T')[0];
+
+    // Find the first future date (date > today)
+    let firstFutureIdx = -1;
+    for (let i = 0; i < matchdaysWithFixtures.length; i++) {
+      const mdDate = matchdaysWithFixtures[i].date?.split('T')[0];
+      if (mdDate && mdDate > today) {
+        firstFutureIdx = i;
+        break;
+      }
+    }
+
+    if (firstFutureIdx === -1) {
+      // No future dates, show all (all are past/today)
+      visibleMatchdays = matchdaysWithFixtures;
+    } else {
+      // Show all past/today + the first future date
+      visibleMatchdays = matchdaysWithFixtures.slice(0, firstFutureIdx + 1);
+    }
   }
 
   // Get the matchday number from current matches' round field (if available)
