@@ -696,17 +696,36 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
           const periodType = (rules?.period_type as 'matchdays' | 'calendar') ?? 'matchdays'
 
           // Use date-only string comparison to avoid timezone issues
-          // new Date("2025-12-06") creates UTC midnight, but setHours() uses local time
-          // This caused dates to shift by timezone offset
           const startDateStr = ch.start_date.split('T')[0]  // "2025-12-01"
           const endDateStr = ch.end_date.split('T')[0]      // "2025-12-06"
 
-          // Filter fixtures for this challenge's league and date range
-          const challengeFixtures = fixturesData.filter(f => {
-            if (f.league_id !== leagueId) return false
-            const fixtureDateStr = f.date.split('T')[0]     // "2025-12-06"
-            return fixtureDateStr >= startDateStr && fixtureDateStr <= endDateStr
-          })
+          // For matchday mode: first find rounds that have at least one match in the date range
+          // then include ALL matches from those rounds
+          let challengeFixtures: typeof fixturesData
+
+          if (periodType === 'matchdays') {
+            // Step 1: Find rounds that have at least one match in the date range
+            const roundsInRange = new Set<string>()
+            for (const f of fixturesData) {
+              if (f.league_id !== leagueId) continue
+              const fixtureDateStr = f.date.split('T')[0]
+              if (fixtureDateStr >= startDateStr && fixtureDateStr <= endDateStr && f.round) {
+                roundsInRange.add(f.round)
+              }
+            }
+
+            // Step 2: Include ALL fixtures from those rounds
+            challengeFixtures = fixturesData.filter(f =>
+              f.league_id === leagueId && f.round && roundsInRange.has(f.round)
+            )
+          } else {
+            // Calendar mode: just filter by date range
+            challengeFixtures = fixturesData.filter(f => {
+              if (f.league_id !== leagueId) return false
+              const fixtureDateStr = f.date.split('T')[0]
+              return fixtureDateStr >= startDateStr && fixtureDateStr <= endDateStr
+            })
+          }
 
           if (challengeFixtures.length === 0) continue
 
