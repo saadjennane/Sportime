@@ -63,7 +63,7 @@ export const SignUpStep: React.FC<SignUpStepProps> = ({ onMagicLinkSent, onBack 
   };
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-gray-900 via-gray-800 to-black flex items-center justify-center p-4">
+    <div className="screen-safe w-full bg-gradient-to-br from-gray-900 via-gray-800 to-black flex items-center justify-center">
         <div className="w-full max-w-md mx-auto p-8 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-3xl shadow-2xl border border-purple-500/20 space-y-6 animate-scale-in relative">
             <button onClick={onBack} className="absolute top-4 left-4 p-2 text-gray-400 hover:bg-gray-700/50 rounded-full transition-colors">
                 <ArrowLeft size={24} />

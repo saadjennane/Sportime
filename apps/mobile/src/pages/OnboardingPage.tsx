@@ -63,7 +63,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ profile, onCompl
   };
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-gray-900 via-gray-800 to-black flex items-center justify-center p-4">
+    <div className="screen-safe w-full bg-gradient-to-br from-gray-900 via-gray-800 to-black flex items-center justify-center">
       {step === 1 && (
         <UserInfoStep profile={profile} onContinue={handleUserInfoContinue} loading={loading} />
       )}

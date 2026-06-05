@@ -63,3 +63,52 @@
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
 }
+
+/* ------------------------------------------------------------------ *
+ * Native (Capacitor) safe areas & keyboard
+ * env(safe-area-inset-*) resolves to 0 on the web, so these utilities
+ * are harmless in the PWA build and only take effect on device.
+ * ------------------------------------------------------------------ */
+
+/* Fill the dynamic viewport so backgrounds extend under the status bar
+   and home indicator on notched devices. */
+html,
+body,
+#root {
+  min-height: 100dvh;
+}
+
+/* Single-side padding helpers */
+.pt-safe { padding-top: env(safe-area-inset-top); }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+.pl-safe { padding-left: env(safe-area-inset-left); }
+.pr-safe { padding-right: env(safe-area-inset-right); }
+.px-safe {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Combined helpers (also restores the legacy classes used by live-game) */
+.safe-area-inset {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+.safe-area-inset-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
+/* Full-screen container that respects the insets and stays centred, but
+   releases vertical centering when the soft keyboard is open so focused
+   inputs are never hidden behind it. */
+.screen-safe {
+  min-height: 100dvh;
+  padding-top: max(1rem, env(safe-area-inset-top));
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
+
+body.keyboard-open .screen-safe {
+  align-items: flex-start;
+  overflow-y: auto;
+}
