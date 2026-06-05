@@ -1,0 +1,1030 @@
+/**
+ * Swipe Game Admin Component
+ *
+ * Admin interface for creating and managing swipe prediction games
+ * - Create multi-day swipe challenges from fixtures
+ * - Automatically generates matchdays from league fixtures
+ * - Manual fixture result resolution (triggers points calculation)
+ * - Challenge status management
+ */
+
+import React, { useEffect, useMemo, useState } from 'react'
+import { Play, Square, RefreshCw, Calendar, Trophy, Coins, ChevronDown } from 'lucide-react'
+import { supabase } from '../../services/supabase'
+import * as swipeService from '../../services/swipeGameService'
+import { MultiSelect } from './MultiSelect'
+import { getMatchdayDate, formatMatchdayDate } from '../../features/swipe/swipeMappers';
+import type { GameRewardTier } from '../../types'
+
+type DurationKey = 'flash' | 'series' | 'season'
+type SwipeTier = 'amateur' | 'master' | 'apex'
+
+const SWIPE_TIER_COSTS: Record<SwipeTier, { base: number; multipliers: Record<DurationKey, number> }> = {
+  amateur: { base: 2000, multipliers: { flash: 1, series: 2, season: 4 } },
+  master: { base: 10000, multipliers: { flash: 1, series: 2, season: 4 } },
+  apex: { base: 20000, multipliers: { flash: 1, series: 2, season: 4 } },
+}
+
+const DEFAULT_DURATION: DurationKey = 'flash'
+const DEFAULT_TIER: SwipeTier = 'amateur'
+const DEFAULT_MIN_LEVEL = 'Rookie' // Progression level, not tier
+
+interface SwipeGameAdminProps {
+  addToast: (message: string, type: 'success' | 'error' | 'info') => void;
+}
+
+interface League {
+  id: string
+  name: string
+  logo: string | null
+}
+
+interface Challenge {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+  entry_cost: number;
+  status: string;
+  league?: League;
+}
+
+interface LevelOption {
+  name: string
+}
+
+interface BadgeOption {
+  id: string
+  name: string
+}
+
+export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
+  const [leagues, setLeagues] = useState<League[]>([]);
+  const [challenges, setChallenges] = useState<Challenge[]>([]);
+  const [levels, setLevels] = useState<LevelOption[]>([])
+  const [badges, setBadges] = useState<BadgeOption[]>([])
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Load leagues
+  useEffect(() => {
+    loadLeagues();
+    loadChallenges();
+    loadLevels()
+    loadBadges()
+  }, []);
+
+  const loadLeagues = async () => {
+    try {
+      // Load from 'fb_leagues' table (renamed from leagues)
+      const { data, error } = await supabase
+        .from('fb_leagues')
+        .select('id, name, logo')
+        .order('name')
+
+      if (error) throw error
+
+      setLeagues(
+        (data ?? []).map((league) => ({
+          id: league.id, // Already a UUID, no need to convert to String
+          name: league.name,
+          logo: league.logo ?? null,
+        }))
+      )
+    } catch (err) {
+      console.error('Error loading leagues:', err)
+      addToast('Failed to load leagues', 'error')
+      setLeagues([])
+    }
+  }
+
+  const loadChallenges = async () => {
+    try {
+      // Step 1: Load challenges
+      const { data: challengesData, error: challengesError } = await supabase
+        .from('challenges')
+        .select('id, name, start_date, end_date, entry_cost, status')
+        .eq('game_type', 'prediction')
+        .order('start_date', { ascending: false });
+
+      if (challengesError) throw challengesError;
+
+      if (!challengesData || challengesData.length === 0) {
+        setChallenges([]);
+        return;
+      }
+
+      // Step 2: Load challenge_leagues mappings
+      const challengeIds = challengesData.map(c => c.id);
+      const { data: leagueMappings, error: mappingsError } = await supabase
+        .from('challenge_leagues')
+        .select('challenge_id, league_id')
+        .in('challenge_id', challengeIds);
+
+      if (mappingsError) throw mappingsError;
+
+      // Step 3: Get unique league IDs
+      const leagueIds = [...new Set(leagueMappings?.map(m => m.league_id) || [])];
+
+      // Step 4: Load leagues (only if we have league IDs)
+      let leaguesData: any[] = [];
+      if (leagueIds.length > 0) {
+        const { data, error: leaguesError } = await supabase
+          .from('fb_leagues')
+          .select('id, name, logo')
+          .in('id', leagueIds);
+
+        if (leaguesError) throw leaguesError;
+        leaguesData = data || [];
+      }
+
+      // Step 5: Create a map of challenge_id -> league
+      const leagueMap = new Map(leaguesData.map(l => [l.id, l]));
+      const challengeLeagueMap = new Map(
+        leagueMappings?.map(m => [m.challenge_id, leagueMap.get(m.league_id)]) || []
+      );
+
+      // Step 6: Transform data with league information
+      const transformed = challengesData.map(c => ({
+        id: c.id,
+        name: c.name,
+        start_date: c.start_date,
+        end_date: c.end_date,
+        entry_cost: c.entry_cost,
+        status: c.status,
+        league: challengeLeagueMap.get(c.id),
+      }));
+
+      setChallenges(transformed);
+    } catch (err) {
+      console.error('Error loading challenges:', err);
+      addToast('Failed to load challenges', 'error');
+    }
+  };
+
+  const loadLevels = async () => {
+    try {
+      const { data, error } = await supabase.from('levels_config').select('name').order('level')
+      if (error) throw error
+      setLevels((data ?? []).map(({ name }) => ({ name })))
+    } catch (err) {
+      console.error('Error loading levels:', err)
+      addToast('Failed to load levels', 'error')
+      setLevels([{ name: DEFAULT_MIN_LEVEL }])
+    }
+  }
+
+  const loadBadges = async () => {
+    try {
+      const { data, error } = await supabase.from('badges').select('id, name').order('name')
+      if (error) throw error
+      setBadges(data ?? [])
+    } catch (err) {
+      console.error('Error loading badges:', err)
+      addToast('Failed to load badges', 'error')
+      setBadges([])
+    }
+  }
+
+  const handleCreateChallenge = async (formData: {
+    name: string;
+    description?: string;
+    league_id: string;
+    start_date: string;
+    end_date: string;
+    entry_cost: number;
+    game_type: 'betting' | 'prediction' | 'fantasy';
+    tier: SwipeTier;
+    duration_type: DurationKey;
+    custom_entry_cost_enabled: boolean;
+    minimum_level: string;
+    minimum_players: number;
+    maximum_players: number;
+    required_badges: string[];
+    requires_subscription: boolean;
+    period_type: 'matchdays' | 'calendar';
+  }) => {
+    setIsLoading(true);
+    try {
+      // Validate league is selected
+      if (!formData.league_id || formData.league_id === '') {
+        addToast('Please select a league', 'error');
+        setIsLoading(false);
+        return;
+      }
+
+      // 1. Create challenge
+      const challenge = await swipeService.createSwipeChallenge({
+        name: formData.name,
+        description: formData.description || `Swipe predictions for ${formData.name}`,
+        league_id: formData.league_id,
+        start_date: formData.start_date,
+        end_date: formData.end_date,
+        entry_cost: formData.entry_cost,
+        game_type: formData.game_type,
+        tier: formData.tier,
+        duration_type: formData.duration_type,
+        minimum_level: formData.minimum_level,
+        minimum_players: formData.minimum_players,
+        maximum_players: formData.maximum_players,
+        required_badges: formData.required_badges,
+        requires_subscription: formData.requires_subscription,
+        period_type: formData.period_type,
+      });
+
+      addToast('Challenge created successfully!', 'success');
+
+      // 2. Auto-generate matchdays and link fixtures
+      await generateMatchdays(challenge.id, formData.league_id, formData.start_date, formData.end_date, formData.period_type);
+
+      addToast('Matchdays generated successfully!', 'success');
+      setShowCreateForm(false);
+      await loadChallenges();
+    } catch (err: any) {
+      console.error('Error creating challenge:', err);
+      addToast(err.message || 'Failed to create challenge', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const generateMatchdays = async (
+    challengeId: string,
+    leagueId: string,
+    startDate: string,
+    endDate: string,
+    periodType: 'matchdays' | 'calendar' = 'matchdays'
+  ) => {
+    // Get all fixtures in the date range for this league
+    const { data: fixtures, error } = await supabase
+      .from('fb_fixtures')
+      .select('id, date, league_id')
+      .eq('league_id', leagueId)
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .order('date');
+
+    if (error) throw error;
+
+    if (!fixtures || fixtures.length === 0) {
+      throw new Error('No fixtures found in this date range for the selected league');
+    }
+
+    if (periodType === 'calendar') {
+      // CALENDAR MODE: One matchday per calendar day
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      let currentDate = new Date(start);
+      let dayNumber = 1;
+
+      while (currentDate <= end) {
+        const dateStr = currentDate.toISOString().split('T')[0];
+
+        // Find fixtures for this day
+        const fixturesForDay = fixtures.filter(f =>
+          getMatchdayDate(f.date) === dateStr
+        );
+
+        // Create matchday even if no fixtures (user can still participate)
+        const matchday = await swipeService.getOrCreateMatchday(challengeId, dateStr);
+
+        // Link fixtures if any
+        if (fixturesForDay.length > 0) {
+          await swipeService.linkFixturesToMatchday(matchday.id, fixturesForDay.map(f => f.id));
+
+          // Set deadline to first kickoff time
+          const firstFixture = fixturesForDay[0];
+          if (firstFixture) {
+            await swipeService.updateMatchdayDeadline(matchday.id, firstFixture.date);
+          }
+        } else {
+          // No fixtures, set deadline to end of day
+          await swipeService.updateMatchdayDeadline(matchday.id, `${dateStr}T23:59:59Z`);
+        }
+
+        currentDate.setDate(currentDate.getDate() + 1);
+        dayNumber++;
+      }
+    } else {
+      // MATCHDAYS MODE: Group by actual match dates
+      const fixturesByDate = new Map<string, string[]>();
+      for (const fixture of fixtures) {
+        const date = getMatchdayDate(fixture.date);
+        const existing = fixturesByDate.get(date) || [];
+        fixturesByDate.set(date, [...existing, fixture.id]);
+      }
+
+      // Create matchdays and link fixtures
+      for (const [date, fixtureIds] of fixturesByDate.entries()) {
+        const matchday = await swipeService.getOrCreateMatchday(challengeId, date);
+        await swipeService.linkFixturesToMatchday(matchday.id, fixtureIds);
+
+        // Set deadline to first kickoff time
+        const firstFixture = fixtures.find(f => getMatchdayDate(f.date) === date);
+        if (firstFixture) {
+          await swipeService.updateMatchdayDeadline(matchday.id, firstFixture.date);
+        }
+      }
+    }
+  };
+
+  const handleCalculatePoints = async (challengeId: string) => {
+    setIsLoading(true);
+    try {
+      // Call edge function to calculate points for all fixtures in challenge
+      const { data, error } = await supabase.functions.invoke('calculate-swipe-points', {
+        body: { challengeId },
+      });
+
+      if (error) throw error;
+
+      addToast(`Points calculated: ${data.updatedPredictions} predictions updated`, 'success');
+    } catch (err: any) {
+      console.error('Error calculating points:', err);
+      addToast(err.message || 'Failed to calculate points', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUpdateStatus = async (challengeId: string, newStatus: string) => {
+    setIsLoading(true);
+    try {
+      const { error } = await supabase
+        .from('challenges')
+        .update({ status: newStatus })
+        .eq('id', challengeId);
+
+      if (error) throw error;
+
+      addToast(`Challenge status updated to ${newStatus}`, 'success');
+      await loadChallenges();
+    } catch (err: any) {
+      console.error('Error updating status:', err);
+      addToast(err.message || 'Failed to update status', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h2 className="font-bold text-lg text-electric-blue">Swipe Prediction Games</h2>
+        <button
+          onClick={() => setShowCreateForm(!showCreateForm)}
+          className="flex items-center gap-2 text-sm font-semibold bg-lime-glow/20 text-lime-glow px-4 py-3 rounded-lg hover:bg-lime-glow/30"
+          disabled={isLoading}
+        >
+          {showCreateForm ? 'Cancel' : '+ Create Swipe Game'}
+        </button>
+      </div>
+
+      {showCreateForm && (
+        <CreateSwipeGameForm
+          leagues={leagues}
+          levels={levels}
+          badges={badges}
+          onSubmit={handleCreateChallenge}
+          onCancel={() => setShowCreateForm(false)}
+          isLoading={isLoading}
+        />
+      )}
+
+      {/* Challenges List */}
+      <div className="space-y-3">
+        {challenges.length === 0 ? (
+          <div className="card-base p-6 text-center text-text-disabled">
+            No swipe games created yet
+          </div>
+        ) : (
+          challenges.map(challenge => (
+            <ChallengeCard
+              key={challenge.id}
+              challenge={challenge}
+              onCalculatePoints={handleCalculatePoints}
+              onUpdateStatus={handleUpdateStatus}
+              isLoading={isLoading}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
+// CREATE FORM
+// ============================================================================
+
+interface CreateSwipeGameFormProps {
+  leagues: League[];
+  levels: LevelOption[];
+  badges: BadgeOption[];
+  onSubmit: (data: {
+    name: string;
+    description?: string;
+    league_id: string;
+    start_date: string;
+    end_date: string;
+    entry_cost: number;
+    game_type: 'betting' | 'prediction' | 'fantasy';
+    tier: SwipeTier;
+    duration_type: DurationKey;
+    custom_entry_cost_enabled: boolean;
+    minimum_level: string;
+    minimum_players: number;
+    maximum_players: number;
+    required_badges: string[];
+    requires_subscription: boolean;
+    period_type: 'matchdays' | 'calendar';
+  }) => void;
+  onCancel: () => void;
+  isLoading: boolean;
+}
+
+const CreateSwipeGameForm: React.FC<CreateSwipeGameFormProps> = ({
+  leagues,
+  levels,
+  badges,
+  onSubmit,
+  onCancel,
+  isLoading,
+}) => {
+  const today = useMemo(() => new Date().toISOString().split('T')[0], [])
+  const nextWeek = useMemo(() => {
+    const d = new Date()
+    d.setDate(d.getDate() + 7)
+    return d.toISOString().split('T')[0]
+  }, [])
+
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [leagueId, setLeagueId] = useState('')
+  const [startDate, setStartDate] = useState(today)
+  const [endDate, setEndDate] = useState(nextWeek)
+  const [gameType, setGameType] = useState<'betting' | 'prediction' | 'fantasy'>('prediction')
+  const [tier, setTier] = useState<SwipeTier>(DEFAULT_TIER)
+  const [durationType, setDurationType] = useState<DurationKey>(DEFAULT_DURATION)
+  const [customEntryEnabled, setCustomEntryEnabled] = useState(false)
+  const [entryCost, setEntryCost] = useState<number>(() => computeEntryCost(DEFAULT_TIER, DEFAULT_DURATION))
+  const [minimumPlayers, setMinimumPlayers] = useState<number>(0)
+  const [maximumPlayers, setMaximumPlayers] = useState<number>(0)
+  const [minimumLevel, setMinimumLevel] = useState<string>(DEFAULT_MIN_LEVEL)
+  const [requiredBadges, setRequiredBadges] = useState<string[]>([])
+  const [requiresSubscription, setRequiresSubscription] = useState(false)
+  const [periodType, setPeriodType] = useState<'matchdays' | 'calendar'>('matchdays')
+  const [periodInfo, setPeriodInfo] = useState<{ type: string; count: number } | null>(null)
+
+  useEffect(() => {
+    if (!customEntryEnabled) {
+      setEntryCost(computeEntryCost(tier, durationType))
+    }
+  }, [tier, durationType, customEntryEnabled])
+
+  useEffect(() => {
+    if (!leagueId && leagues.length) {
+      setLeagueId(leagues[0].id)
+    }
+  }, [leagueId, leagues])
+
+  useEffect(() => {
+    if ((!minimumLevel || minimumLevel.trim() === '') && levels.length) {
+      setMinimumLevel(levels[0].name)
+    }
+  }, [levels, minimumLevel])
+
+  // Calculate period count when dates, league, or period type changes
+  useEffect(() => {
+    const calculatePeriodCount = async () => {
+      if (!startDate || !endDate || !leagueId) {
+        setPeriodInfo(null)
+        return
+      }
+
+      try {
+        if (periodType === 'calendar') {
+          // Calculate calendar days
+          const start = new Date(startDate)
+          const end = new Date(endDate)
+          const diffTime = Math.abs(end.getTime() - start.getTime())
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
+          setPeriodInfo({ type: 'calendar', count: diffDays })
+        } else {
+          // Calculate matchdays based on fixtures
+          const { data: fixtures, error } = await supabase
+            .from('fb_fixtures')
+            .select('fixture_date')
+            .eq('league_id', leagueId)
+            .gte('fixture_date', startDate)
+            .lte('fixture_date', endDate)
+
+          if (error) throw error
+
+          if (fixtures && fixtures.length > 0) {
+            const uniqueDates = [...new Set(fixtures.map((f: any) => f.fixture_date.split('T')[0]))]
+            setPeriodInfo({ type: 'matchdays', count: uniqueDates.length })
+          } else {
+            setPeriodInfo({ type: 'matchdays', count: 0 })
+          }
+        }
+      } catch (error) {
+        console.error('Error calculating period count:', error)
+        setPeriodInfo(null)
+      }
+    }
+
+    calculatePeriodCount()
+  }, [startDate, endDate, leagueId, periodType])
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit({
+      name,
+      league_id: leagueId,
+      start_date: startDate,
+      end_date: endDate,
+      entry_cost: entryCost,
+      description,
+      game_type: gameType,
+      tier,
+      duration_type: durationType,
+      custom_entry_cost_enabled: customEntryEnabled,
+      minimum_level: minimumLevel,
+      minimum_players: minimumPlayers,
+      maximum_players: maximumPlayers,
+      required_badges: requiredBadges,
+      requires_subscription: requiresSubscription,
+      period_type: periodType,
+    });
+  };
+
+  const levelOptions = levels.length ? levels : [{ name: DEFAULT_MIN_LEVEL }]
+  const badgeOptions = badges.map((badge) => ({ value: badge.id, label: badge.name }))
+
+  const effectiveEntryCost = customEntryEnabled ? entryCost : computeEntryCost(tier, durationType)
+  const tierLabel = (value: SwipeTier) => value.charAt(0).toUpperCase() + value.slice(1)
+  const durationLabel = (value: DurationKey) => value.charAt(0).toUpperCase() + value.slice(1)
+
+  return (
+    <form onSubmit={handleSubmit} className="card-base p-4 space-y-3">
+      <h3 className="font-bold text-text-primary">Create New Swipe Game</h3>
+
+      <div>
+        <label className="block text-xs font-semibold text-text-secondary mb-1">
+          Game Name
+        </label>
+        <input
+          type="text"
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder="e.g., Champions League November 2025"
+          className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block text-xs font-semibold text-text-secondary mb-1">
+          Description
+        </label>
+        <textarea
+          value={description}
+          onChange={e => setDescription(e.target.value)}
+          placeholder="Short summary for the game…"
+          className="w-full h-20 p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+        />
+      </div>
+
+      <div>
+        <label className="block text-xs font-semibold text-text-secondary mb-1">
+          League
+        </label>
+        <select
+          value={leagueId}
+          onChange={e => setLeagueId(e.target.value)}
+          className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+          required
+        >
+          <option value="">Select a league...</option>
+          {leagues.map(league => (
+            <option key={league.id} value={league.id}>
+              {league.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-semibold text-text-secondary mb-1">
+            Start Date
+          </label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={e => setStartDate(e.target.value)}
+            className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-text-secondary mb-1">
+            End Date
+          </label>
+          <input
+            type="date"
+            value={endDate}
+            onChange={e => setEndDate(e.target.value)}
+            className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+            required
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-xs font-semibold text-text-secondary mb-1">
+          Period Type
+        </label>
+        <select
+          value={periodType}
+          onChange={(e) => setPeriodType(e.target.value as 'matchdays' | 'calendar')}
+          className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+        >
+          <option value="matchdays">Matchdays (grouped by match dates)</option>
+          <option value="calendar">Calendar Days (one period per day)</option>
+        </select>
+        <p className="text-xs text-text-disabled mt-1">
+          {periodType === 'matchdays'
+            ? 'Periods grouped by actual match dates (e.g., GW1, GW2...)'
+            : 'One period for each calendar day from start to end'}
+        </p>
+      </div>
+
+      {periodInfo && (
+        <div className="bg-electric-blue/10 border border-electric-blue/20 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <div className="text-3xl">
+              {periodInfo.type === 'calendar' ? '📅' : '⚽'}
+            </div>
+            <div className="flex-1">
+              <p className="font-bold text-lg text-electric-blue">
+                {periodInfo.count} {periodInfo.type === 'calendar' ? 'jours calendaires' : 'matchdays'}
+              </p>
+              <p className="text-xs text-text-secondary">
+                Du {new Date(startDate).toLocaleDateString('fr-FR')} au {new Date(endDate).toLocaleDateString('fr-FR')}
+              </p>
+              {periodInfo.type === 'matchdays' && periodInfo.count === 0 && (
+                <p className="text-xs text-hot-red mt-1">
+                  ⚠️ Aucun match trouvé pour cette ligue dans cette période
+                </p>
+              )}
+              {periodInfo.type === 'matchdays' && periodInfo.count > 0 && (
+                <p className="text-xs text-text-disabled mt-1">
+                  Basé sur les fixtures disponibles pour cette ligue
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="block text-xs font-semibold text-text-secondary mb-1">
+            Game Type
+          </label>
+          <select
+            value={gameType}
+            onChange={(e) => setGameType(e.target.value as typeof gameType)}
+            className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+          >
+            <option value="betting">Betting</option>
+            <option value="prediction">Prediction</option>
+            <option value="fantasy">Fantasy</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-text-secondary mb-1">
+            Tier
+          </label>
+          <select
+            value={tier}
+            onChange={(e) => setTier(e.target.value as SwipeTier)}
+            className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+          >
+            {(['amateur', 'master', 'apex'] as SwipeTier[]).map((option) => (
+              <option key={option} value={option}>
+                {tierLabel(option)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-text-secondary mb-1">
+            Duration
+          </label>
+          <select
+            value={durationType}
+            onChange={(e) => setDurationType(e.target.value as DurationKey)}
+            className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+          >
+            {(['flash', 'series', 'season'] as DurationKey[]).map((option) => (
+              <option key={option} value={option}>
+                {durationLabel(option)}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-xs font-semibold text-text-secondary mb-1">
+          Entry Cost (Coins)
+        </label>
+        <div className="flex items-end gap-3">
+          <div className="flex-1">
+            <input
+              type="number"
+              value={effectiveEntryCost}
+              onChange={e => setEntryCost(parseInt(e.target.value) || 0)}
+              className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue disabled:bg-navy-accent"
+              min="0"
+              disabled={!customEntryEnabled}
+              required
+            />
+            {!customEntryEnabled && (
+              <p className="text-xs text-text-disabled mt-1">
+                Auto: {tierLabel(tier)} × {durationLabel(durationType)} ({SWIPE_TIER_COSTS[tier].base.toLocaleString()} x {SWIPE_TIER_COSTS[tier].multipliers[durationType]})
+              </p>
+            )}
+          </div>
+          <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer">
+            <input
+              type="checkbox"
+              checked={customEntryEnabled}
+              onChange={(e) => setCustomEntryEnabled(e.target.checked)}
+              className="accent-electric-blue"
+            />
+            Override
+          </label>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-semibold text-text-secondary mb-1">
+            Minimum Players
+          </label>
+          <input
+            type="number"
+            value={minimumPlayers || ''}
+            onChange={(e) => setMinimumPlayers(Math.max(0, parseInt(e.target.value) || 0))}
+            placeholder="0 = no minimum"
+            className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+            min="0"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-text-secondary mb-1">
+            Maximum Players
+          </label>
+          <input
+            type="number"
+            value={maximumPlayers || ''}
+            onChange={(e) => setMaximumPlayers(Math.max(0, parseInt(e.target.value) || 0))}
+            placeholder="0 = unlimited"
+            className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+            min="0"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <h4 className="text-sm font-semibold text-text-secondary">Access Conditions</h4>
+        <label className="flex items-center gap-2 text-sm text-text-primary cursor-pointer">
+          <input
+            type="checkbox"
+            checked={requiresSubscription}
+            onChange={(e) => setRequiresSubscription(e.target.checked)}
+            className="accent-electric-blue"
+          />
+          Subscriber Only
+        </label>
+        <div>
+          <label className="block text-xs font-semibold text-text-secondary mb-1">
+            Minimum Level
+          </label>
+          <select
+            value={minimumLevel}
+            onChange={(e) => setMinimumLevel(e.target.value)}
+            className="w-full p-2 bg-navy-accent text-text-primary rounded-lg text-sm border border-white/10 focus:outline-none focus:border-electric-blue"
+          >
+            {levelOptions.map((level) => (
+              <option key={level.name} value={level.name}>
+                {level.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-text-secondary mb-1">
+            Required Badges
+          </label>
+          <MultiSelect
+            options={badgeOptions}
+            selectedValues={requiredBadges}
+            onChange={(values) => setRequiredBadges(values)}
+            placeholder="Select badges..."
+          />
+        </div>
+      </div>
+
+      <CollapsibleSummary
+        tier={tier}
+        duration={durationType}
+        cost={effectiveEntryCost}
+        minimumLevel={minimumLevel}
+        subscription={requiresSubscription}
+        dateRange={{ start: startDate, end: endDate }}
+        players={{ min: minimumPlayers, max: maximumPlayers }}
+      />
+
+      <div className="flex gap-2 pt-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex-1 py-2 bg-navy-accent text-text-secondary rounded-lg font-semibold hover:bg-white/10"
+          disabled={isLoading}
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className="flex-1 py-2 bg-electric-blue text-white rounded-lg font-semibold hover:bg-electric-blue/80 disabled:opacity-50"
+          disabled={isLoading}
+        >
+          {isLoading ? 'Creating...' : 'Create Game'}
+        </button>
+      </div>
+
+      <p className="text-xs text-text-disabled">
+        💡 Matchdays will be automatically generated from fixtures in the selected date range
+      </p>
+    </form>
+  );
+};
+
+const CollapsibleSummary: React.FC<{
+  tier: SwipeTier
+  duration: DurationKey
+  cost: number
+  minimumLevel: string
+  subscription: boolean
+  dateRange: { start: string; end: string }
+  players: { min: number; max: number }
+}> = ({ tier, duration, cost, minimumLevel, subscription, dateRange, players }) => {
+  const [open, setOpen] = useState(false)
+  const formattedDuration = duration.charAt(0).toUpperCase() + duration.slice(1)
+
+  return (
+    <div className="border-t border-disabled/50 pt-3">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="w-full flex items-center justify-between text-sm font-semibold text-text-secondary"
+      >
+        Quick Summary
+        <ChevronDown className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-text-secondary">
+          <div className="bg-navy-accent rounded-lg p-3">
+            <p className="font-semibold text-text-primary mb-1">Game</p>
+            <p>Tier: {tier.charAt(0).toUpperCase() + tier.slice(1)}</p>
+            <p>Duration: {formattedDuration}</p>
+            <p>Cost: {cost.toLocaleString()} coins</p>
+          </div>
+          <div className="bg-navy-accent rounded-lg p-3">
+            <p className="font-semibold text-text-primary mb-1">Eligibility</p>
+            <p>Minimum level: {minimumLevel}</p>
+            <p>Subscription: {subscription ? 'Required' : 'Optional'}</p>
+            <p>
+              Players: {players.min || '0'} - {players.max || '∞'}
+            </p>
+          </div>
+          <div className="bg-navy-accent rounded-lg p-3 col-span-2">
+            <p className="font-semibold text-text-primary mb-1">Timeline</p>
+            <p>
+              {new Date(dateRange.start).toLocaleDateString()} → {new Date(dateRange.end).toLocaleDateString()}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function computeEntryCost(tier: SwipeTier, duration: DurationKey): number {
+  const tierConfig = SWIPE_TIER_COSTS[tier]
+  return tierConfig.base * (tierConfig.multipliers[duration] ?? 1)
+}
+
+// ============================================================================
+// CHALLENGE CARD
+// ============================================================================
+
+interface ChallengeCardProps {
+  challenge: Challenge;
+  onCalculatePoints: (challengeId: string) => void;
+  onUpdateStatus: (challengeId: string, newStatus: string) => void;
+  isLoading: boolean;
+}
+
+const ChallengeCard: React.FC<ChallengeCardProps> = ({
+  challenge,
+  onCalculatePoints,
+  onUpdateStatus,
+  isLoading,
+}) => {
+  const statusColors: Record<string, string> = {
+    upcoming: 'bg-blue-500/20 text-blue-400',
+    active: 'bg-lime-glow/20 text-lime-glow',
+    finished: 'bg-gray-500/20 text-gray-400',
+  };
+
+  const statusColor = statusColors[challenge.status] || 'bg-gray-500/20 text-gray-400';
+
+  return (
+    <div className="card-base p-4 space-y-3">
+      <div className="flex justify-between items-start">
+        <div className="flex-1">
+          <h3 className="font-bold text-text-primary">{challenge.name}</h3>
+          <div className="flex items-center gap-2 mt-1">
+            {challenge.league && (
+              <div className="flex items-center gap-1">
+                <img src={challenge.league.logo} alt="" className="w-4 h-4" />
+                <span className="text-xs text-text-secondary">{challenge.league.name}</span>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-3 mt-2 text-xs text-text-disabled">
+            <span className="flex items-center gap-1">
+              <Calendar size={12} />
+              {new Date(challenge.start_date).toLocaleDateString()} -{' '}
+              {new Date(challenge.end_date).toLocaleDateString()}
+            </span>
+            <span className="flex items-center gap-1">
+              <Coins size={12} />
+              {challenge.entry_cost} coins
+            </span>
+          </div>
+        </div>
+        <span className={`text-xs font-bold px-2 py-1 rounded-full ${statusColor}`}>
+          {challenge.status}
+        </span>
+      </div>
+
+      <div className="flex gap-2 pt-2 border-t border-white/5">
+        {challenge.status === 'upcoming' && (
+          <button
+            onClick={() => onUpdateStatus(challenge.id, 'active')}
+            className="flex items-center gap-1 text-xs font-semibold bg-lime-glow/20 text-lime-glow px-3 py-2 rounded-lg hover:bg-lime-glow/30"
+            disabled={isLoading}
+          >
+            <Play size={14} /> Start Game
+          </button>
+        )}
+
+        {challenge.status === 'active' && (
+          <>
+            <button
+              onClick={() => onCalculatePoints(challenge.id)}
+              className="flex items-center gap-1 text-xs font-semibold bg-electric-blue/20 text-electric-blue px-3 py-2 rounded-lg hover:bg-electric-blue/30"
+              disabled={isLoading}
+            >
+              <RefreshCw size={14} /> Calculate Points
+            </button>
+            <button
+              onClick={() => onUpdateStatus(challenge.id, 'finished')}
+              className="flex items-center gap-1 text-xs font-semibold bg-hot-red/20 text-hot-red px-3 py-2 rounded-lg hover:bg-hot-red/30"
+              disabled={isLoading}
+            >
+              <Square size={14} /> End Game
+            </button>
+          </>
+        )}
+
+        {challenge.status === 'finished' && (
+          <button
+            onClick={() => onCalculatePoints(challenge.id)}
+            className="flex items-center gap-1 text-xs font-semibold bg-gray-500/20 text-gray-400 px-3 py-2 rounded-lg hover:bg-gray-500/30"
+            disabled={isLoading}
+          >
+            <Trophy size={14} /> Recalculate Final Scores
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
