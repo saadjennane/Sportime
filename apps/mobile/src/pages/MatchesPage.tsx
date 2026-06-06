@@ -193,6 +193,22 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
     };
   }, [bets, upcomingMatches]);
 
+  // Ids of matches the user has a pick on.
+  const pickedMatchIds = useMemo(() => new Set(bets.map(b => b.matchId)), [bets]);
+
+  // Today tab = today's matches that are NOT picked and NOT finished.
+  // Picked matches move to Picks; finished matches move to Finished.
+  const groupedToday = useMemo(() => {
+    const result: Record<string, Match[]> = {};
+    for (const [league, leagueMatches] of Object.entries(groupedUpcoming)) {
+      const filtered = leagueMatches.filter(
+        m => !pickedMatchIds.has(m.id) && m.status !== 'played',
+      );
+      if (filtered.length) result[league] = filtered;
+    }
+    return result;
+  }, [groupedUpcoming, pickedMatchIds]);
+
   return (
     <PullToRefresh onRefresh={refresh}>
     <div className="space-y-4">
@@ -254,11 +270,15 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
           <div className="card-base p-6 text-center text-text-secondary text-sm">Loading today's matches…</div>
         ) : error ? (
           <div className="card-base p-6 text-center text-hot-red text-sm">Failed to load matches: {error}</div>
-        ) : Object.keys(groupedUpcoming).length === 0 ? (
-          <div className="card-base p-6 text-center text-text-secondary text-sm">No matches scheduled for today.</div>
+        ) : Object.keys(groupedToday).length === 0 ? (
+          <div className="card-base p-6 text-center text-text-secondary text-sm">
+            {Object.keys(groupedUpcoming).length === 0
+              ? 'No matches scheduled for today.'
+              : 'No matches left here — check Picks and Finished.'}
+          </div>
         ) : (
           <UpcomingPage
-            groupedMatches={groupedUpcoming}
+            groupedMatches={groupedToday}
             orderedLeagues={effectiveOrderedLeagues}
             bets={bets}
             onBet={onBet}

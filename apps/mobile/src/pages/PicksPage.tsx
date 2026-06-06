@@ -18,12 +18,19 @@ const PicksPage: React.FC<PicksPageProps> = ({
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const { picks, isLoading, hasMore, loadMore, stats, totalPicks } = useUserPicks(bets);
+  const { picks, isLoading, hasMore, loadMore, stats } = useUserPicks(bets);
+
+  // Picks tab only shows picks whose match is still upcoming or ongoing.
+  // Finished picked matches move to the Finished tab.
+  const activePicks = useMemo(
+    () => picks.filter((pick) => pick.match.status !== 'played'),
+    [picks],
+  );
 
   // Group picks by league
   const groupedPicks = useMemo(() => {
     const grouped: Record<string, { match: Match; bet: Bet }[]> = {};
-    picks.forEach((pick) => {
+    activePicks.forEach((pick) => {
       const leagueName = pick.match.leagueName || 'Unknown League';
       if (!grouped[leagueName]) {
         grouped[leagueName] = [];
@@ -31,7 +38,7 @@ const PicksPage: React.FC<PicksPageProps> = ({
       grouped[leagueName].push({ match: pick.match, bet: pick.bet });
     });
     return grouped;
-  }, [picks]);
+  }, [activePicks]);
 
   // Sort leagues according to user's order
   const sortedLeagueNames = useMemo(() => {
@@ -59,7 +66,7 @@ const PicksPage: React.FC<PicksPageProps> = ({
     return () => container.removeEventListener('scroll', handleScroll);
   }, [hasMore, isLoading, loadMore]);
 
-  const hasPicks = picks.length > 0;
+  const hasPicks = activePicks.length > 0;
   const showEmptyState = !isLoading && !hasPicks;
 
   return (
@@ -96,7 +103,7 @@ const PicksPage: React.FC<PicksPageProps> = ({
         {isLoading && picks.length === 0 ? (
           <span>Loading your picks...</span>
         ) : hasPicks ? (
-          <span>Showing {picks.length} of {totalPicks} picks</span>
+          <span>{activePicks.length} active {activePicks.length === 1 ? 'pick' : 'picks'}</span>
         ) : null}
       </div>
 

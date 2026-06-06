@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Match, Bet } from '../types';
 import { MatchCard } from '../components/matches/MatchCard';
 import { LeagueMatchGroup } from '../components/matches/LeagueMatchGroup';
@@ -36,16 +37,24 @@ const UpcomingPage: React.FC<UpcomingPageProps> = ({ groupedMatches, orderedLeag
               matchesCount={matchesForLeague.length}
               initialOpen={index < 5}
             >
-              {matchesForLeague.map(match => (
-                <MatchCard
-                  key={match.id}
-                  match={match}
-                  onBet={(prediction, odds) => onBet(match, prediction, odds)}
-                  onViewStats={() => onViewStats(match)}
-                  onPlayGame={onPlayGame}
-                  userBet={bets.find(bet => bet.matchId === match.id)}
-                />
-              ))}
+              <AnimatePresence initial={false}>
+                {matchesForLeague.map(match => (
+                  <motion.div
+                    key={match.id}
+                    layout
+                    exit={{ opacity: 0, x: 80, height: 0, marginBottom: 0 }}
+                    transition={{ duration: 0.28, ease: 'easeInOut' }}
+                  >
+                    <MatchCard
+                      match={match}
+                      onBet={(prediction, odds) => onBet(match, prediction, odds)}
+                      onViewStats={() => onViewStats(match)}
+                      onPlayGame={onPlayGame}
+                      userBet={bets.find(bet => bet.matchId === match.id)}
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </LeagueMatchGroup>
           );
         })

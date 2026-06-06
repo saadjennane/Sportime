@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { Match, Bet } from '../types';
 import { MatchCard } from '../components/MatchCard';
 import { LeagueMatchGroup } from '../components/matches/LeagueMatchGroup';
@@ -20,16 +20,25 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
   orderedLeagues,
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [pickedOnly, setPickedOnly] = useState(false);
 
-  const { matches, isLoading, hasMore, loadMore, daysLoaded } = useFinishedMatches(
+  const { matches, isLoading, hasMore, loadMore } = useFinishedMatches(
     userId,
     bets
+  );
+
+  const pickedMatchIds = useMemo(() => new Set(bets.map((b) => b.matchId)), [bets]);
+
+  // All finished matches, or only the ones the user picked when the toggle is on.
+  const displayedMatches = useMemo(
+    () => (pickedOnly ? matches.filter((m) => pickedMatchIds.has(m.id)) : matches),
+    [matches, pickedOnly, pickedMatchIds],
   );
 
   // Group matches by league
   const groupedMatches = useMemo(() => {
     const grouped: Record<string, Match[]> = {};
-    matches.forEach((match) => {
+    displayedMatches.forEach((match) => {
       const leagueName = match.leagueName || 'Unknown League';
       if (!grouped[leagueName]) {
         grouped[leagueName] = [];
@@ -37,7 +46,7 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
       grouped[leagueName].push(match);
     });
     return grouped;
-  }, [matches]);
+  }, [displayedMatches]);
 
 
   // Sort leagues according to user's order
@@ -66,13 +75,8 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
     return () => container.removeEventListener('scroll', handleScroll);
   }, [hasMore, isLoading, loadMore]);
 
-  const hasMatches = matches.length > 0;
+  const hasMatches = displayedMatches.length > 0;
   const showEmptyState = !isLoading && !hasMatches;
-
-  const formatDaysLoaded = (days: number) => {
-    if (days === 2) return 'last 2 days';
-    return `last ${days} days`;
-  };
 
   // Calculate header stats for finished matches
   const headerStats = useMemo(() => {
@@ -109,14 +113,29 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
         isPlayedTab={true}
       />
 
-      {/* Info Banner */}
-      <div className="text-center text-sm text-text-disabled">
-        {isLoading && matches.length === 0 ? (
-          <span>Loading finished matches...</span>
-        ) : hasMatches ? (
-          <span>Showing matches from the {formatDaysLoaded(daysLoaded)}</span>
-        ) : null}
-      </div>
+      {/* Picked Games Only toggle */}
+      <button
+        type="button"
+        onClick={() => setPickedOnly((v) => !v)}
+        className="w-full flex items-center justify-between bg-navy-accent rounded-xl px-4 py-2.5"
+      >
+        <span className="text-sm font-semibold text-text-primary">Picked Games Only</span>
+        <span
+          className={`relative w-11 h-6 rounded-full transition-colors ${
+            pickedOnly ? 'bg-electric-blue' : 'bg-deep-navy border border-disabled'
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+              pickedOnly ? 'translate-x-5' : ''
+            }`}
+          />
+        </span>
+      </button>
+
+      {isLoading && matches.length === 0 && (
+        <div className="text-center text-sm text-text-disabled">Loading finished matches…</div>
+      )}
 
       {/* Empty State */}
       {showEmptyState && (
