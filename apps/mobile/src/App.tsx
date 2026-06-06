@@ -71,6 +71,7 @@ import { ContextualPremiumPrompt } from './components/premium/ContextualPremiumP
 import { useActivityTracker } from './hooks/useActivityTracker';
 import { useAuth } from './contexts/AuthContext';
 import { useChallengesCatalog } from './features/challenges/useChallengesCatalog';
+import { useMatchBets } from './features/matches/useMatchBets';
 import { useChallengeMatches } from './features/challenges/useChallengeMatches';
 import { useUserTickets } from './hooks/useUserTickets';
 import { completeGuestRegistration } from './services/userService';
@@ -136,7 +137,7 @@ function App() {
 
   const [page, setPage] = useState<Page>('matches');
   const [matches, setMatches] = useState<Match[]>(mockMatches);
-  const [bets, setBets] = useState<Bet[]>([]);
+  // `bets` now comes from useMatchBets (persisted); see below.
   const [modalState, setModalState] = useState<{ isOpen: boolean; match: Match | null; prediction: 'teamA' | 'draw' | 'teamB' | null; odds: number; }>({ isOpen: false, match: null, prediction: null, odds: 0 });
 
   // --- Game Modal States ---
@@ -207,6 +208,9 @@ function App() {
     refresh: refreshChallenges,
     updateUserEntryBets,
   } = useChallengesCatalog(profile?.id ?? null, USE_SUPABASE);
+
+  // Persisted match bets (Matches page) — replaces the old in-memory bets.
+  const { bets, refresh: refreshMatchBets } = useMatchBets(profile?.id ?? null);
 
   const shouldUseSupabaseChallenges = USE_SUPABASE && !challengesError;
 
@@ -460,13 +464,10 @@ function App() {
     setLoading(false);
   }, [profile, isGuest, initializeUserSpinState, challengesLoading, shouldUseSupabaseChallenges]);
 
-  // Base balance from profile
+  // Base balance from profile. Match bets are now deducted server-side
+  // (place_match_bet RPC), so coins_balance already reflects locked stakes.
   const baseBalance = profile?.coins_balance ?? 0;
-
-  // Calculate effective balance by subtracting all pending bets
-  // This ensures the UI reflects coins that are "locked" in bets
-  const totalBetAmount = bets.reduce((sum, bet) => sum + bet.amount, 0);
-  const coinBalance = baseBalance - totalBetAmount;
+  const coinBalance = baseBalance;
 
   const profileLevel = profile ? profile.level ?? profile.current_level ?? profile.level : undefined;
 
@@ -598,34 +599,44 @@ function App() {
     setModalState({ isOpen: true, match, prediction, odds });
   };
 
-  const handleConfirmBet = (amount: number, prediction: 'teamA' | 'draw' | 'teamB', odds: number) => {
+  const handleConfirmBet = async (amount: number, prediction: 'teamA' | 'draw' | 'teamB', odds: number) => {
+    if (!modalState.match) return;
+    // Client-side guard for fast feedback; the RPC re-validates the limit server-side.
     const betLimit = getLevelBetLimit(profile?.level);
     if (betLimit !== null && amount > betLimit) {
       addToast(`Your level limit is ${betLimit.toLocaleString()} coins per match.`, 'error');
       return;
     }
-    if (modalState.match) {
-      // Validate odds to prevent issues
-      const safeOdds = typeof odds === 'number' && Number.isFinite(odds) ? odds : 0;
-      const newBetData = { prediction, amount, odds: safeOdds };
-      const existingBetIndex = bets.findIndex(b => b.matchId === modalState.match!.id);
-      if (existingBetIndex !== -1) {
-        // Modifying existing bet - just update the bet, balance recalculates automatically
-        const oldBet = bets[existingBetIndex];
-        const updatedBets = [...bets];
-        updatedBets[existingBetIndex] = { ...oldBet, ...newBetData };
-        setBets(updatedBets);
-      } else {
-        // New bet - just add it, balance recalculates automatically
-        const newBet: Bet = { matchId: modalState.match.id, ...newBetData, status: 'pending' };
-        setBets([...bets, newBet]);
-      }
+    if (!supabase) {
+      addToast('Betting is unavailable right now.', 'error');
+      return;
+    }
+    const safeOdds = typeof odds === 'number' && Number.isFinite(odds) ? odds : 0;
+    try {
+      const { error } = await supabase.rpc('place_match_bet', {
+        p_fixture_id: modalState.match.id,
+        p_prediction: prediction,
+        p_amount: amount,
+        p_odds: safeOdds,
+      });
+      if (error) throw error;
+      await Promise.all([refreshMatchBets(), reloadProfile()]);
+    } catch (err: any) {
+      console.error('[App] place_match_bet failed', err);
+      addToast(err?.message || 'Unable to place your bet. Please try again.', 'error');
     }
   };
-  
-  const handleCancelBet = (matchId: string) => {
-    // Just remove the bet - balance recalculates automatically
-    setBets(prevBets => prevBets.filter(b => b.matchId !== matchId));
+
+  const handleCancelBet = async (matchId: string) => {
+    if (!supabase) return;
+    try {
+      const { error } = await supabase.rpc('cancel_match_bet', { p_fixture_id: matchId });
+      if (error) throw error;
+      await Promise.all([refreshMatchBets(), reloadProfile()]);
+    } catch (err: any) {
+      console.error('[App] cancel_match_bet failed', err);
+      addToast(err?.message || 'Unable to cancel your bet. Please try again.', 'error');
+    }
   };
 
   const handleUpdateDailyBets = async (challengeId: string, day: number, newBets: ChallengeBet[]) => {
