@@ -1,9 +1,10 @@
 import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { Match, Bet } from '../types';
-import { MatchCard } from '../components/MatchCard';
+import { FinishedCard } from '../components/matches/FinishedCard';
 import { LeagueMatchGroup } from '../components/matches/LeagueMatchGroup';
 import { DailySummaryHeader } from '../components/matches/DailySummaryHeader';
 import { useFinishedMatches } from '../features/matches/useFinishedMatches';
+import { useUserPicks } from '../features/matches/useUserPicks';
 import { Loader } from 'lucide-react';
 
 interface FinishedMatchesPageProps {
@@ -11,6 +12,11 @@ interface FinishedMatchesPageProps {
   bets: Bet[];
   onViewStats: (match: Match) => void;
   orderedLeagues: string[];
+}
+
+interface FinishedItem {
+  match: Match;
+  bet?: Bet;
 }
 
 const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
@@ -22,46 +28,48 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [pickedOnly, setPickedOnly] = useState(false);
 
-  const { matches, isLoading, hasMore, loadMore } = useFinishedMatches(
-    userId,
-    bets
-  );
+  // OFF: all finished matches in a rolling date window (paginated).
+  const { matches, isLoading, hasMore, loadMore } = useFinishedMatches(userId, bets);
+  // ON (Option B): ALL the user's settled picks, regardless of date.
+  const { picks, isLoading: picksLoading } = useUserPicks(bets);
 
-  const pickedMatchIds = useMemo(() => new Set(bets.map((b) => b.matchId)), [bets]);
+  const betByMatchId = useMemo(() => {
+    const m = new Map<string, Bet>();
+    bets.forEach((b) => m.set(b.matchId, b));
+    return m;
+  }, [bets]);
 
-  // All finished matches, or only the ones the user picked when the toggle is on.
-  const displayedMatches = useMemo(
-    () => (pickedOnly ? matches.filter((m) => pickedMatchIds.has(m.id)) : matches),
-    [matches, pickedOnly, pickedMatchIds],
-  );
+  const items: FinishedItem[] = useMemo(() => {
+    if (pickedOnly) {
+      return picks
+        .filter((p) => p.match.status === 'played')
+        .map((p) => ({ match: p.match, bet: p.bet }));
+    }
+    return matches.map((m) => ({ match: m, bet: betByMatchId.get(m.id) }));
+  }, [pickedOnly, picks, matches, betByMatchId]);
 
-  // Group matches by league
-  const groupedMatches = useMemo(() => {
-    const grouped: Record<string, Match[]> = {};
-    displayedMatches.forEach((match) => {
-      const leagueName = match.leagueName || 'Unknown League';
-      if (!grouped[leagueName]) {
-        grouped[leagueName] = [];
-      }
-      grouped[leagueName].push(match);
+  // Group by league
+  const groupedItems = useMemo(() => {
+    const grouped: Record<string, FinishedItem[]> = {};
+    items.forEach((it) => {
+      const league = it.match.leagueName || 'Unknown League';
+      (grouped[league] ||= []).push(it);
     });
     return grouped;
-  }, [displayedMatches]);
+  }, [items]);
 
-
-  // Sort leagues according to user's order
   const sortedLeagueNames = useMemo(() => {
-    const leaguesInMatches = Object.keys(groupedMatches);
-    const ordered = orderedLeagues.filter((league) => leaguesInMatches.includes(league));
-    const unordered = leaguesInMatches.filter((league) => !orderedLeagues.includes(league));
+    const leaguesInMatches = Object.keys(groupedItems);
+    const ordered = orderedLeagues.filter((l) => leaguesInMatches.includes(l));
+    const unordered = leaguesInMatches.filter((l) => !orderedLeagues.includes(l));
     return [...ordered, ...unordered];
-  }, [groupedMatches, orderedLeagues]);
+  }, [groupedItems, orderedLeagues]);
 
-  // Infinite scroll via a sentinel — works with the app's single scroll region.
+  // Infinite scroll only for the full (date-windowed) list.
   useEffect(() => {
+    if (pickedOnly) return;
     const sentinel = sentinelRef.current;
     if (!sentinel || !hasMore || isLoading) return;
-
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting) loadMore();
@@ -70,35 +78,22 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, isLoading, loadMore]);
+  }, [pickedOnly, hasMore, isLoading, loadMore]);
 
-  const hasMatches = displayedMatches.length > 0;
-  const showEmptyState = !isLoading && !hasMatches;
+  const loading = pickedOnly ? picksLoading : isLoading;
+  const hasItems = items.length > 0;
+  const showEmptyState = !loading && !hasItems;
 
-  // Calculate header stats for finished matches
+  // Header stats from ALL settled picks (won + winnings).
   const headerStats = useMemo(() => {
-    // Get bets that have a corresponding finished match
-    const finishedBets = bets.filter(bet =>
-      matches.some(match => match.id === bet.matchId)
+    const settled = picks.filter((p) => p.match.status === 'played');
+    const successfulPicks = settled.filter((p) => p.bet.status === 'won').length;
+    const totalWinnings = settled.reduce(
+      (t, p) => (p.bet.status === 'won' && p.bet.winAmount ? t + p.bet.winAmount : t),
+      0,
     );
-
-    // Count successful picks (won bets)
-    const successfulPicks = finishedBets.filter(bet => bet.status === 'won').length;
-
-    // Calculate total winnings from won bets
-    const totalWinnings = finishedBets.reduce((total, bet) => {
-      if (bet.status === 'won' && bet.winAmount) {
-        return total + bet.winAmount;
-      }
-      return total;
-    }, 0);
-
-    return {
-      successfulPicks,
-      totalBets: finishedBets.length,
-      totalWinnings,
-    };
-  }, [bets, matches]);
+    return { successfulPicks, totalBets: settled.length, totalWinnings };
+  }, [picks]);
 
   return (
     <div className="space-y-4">
@@ -130,7 +125,7 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
         </span>
       </button>
 
-      {isLoading && matches.length === 0 && (
+      {loading && !hasItems && (
         <div className="text-center text-sm text-text-disabled">Loading finished matches…</div>
       )}
 
@@ -138,44 +133,46 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
       {showEmptyState && (
         <div className="card-base p-8 text-center">
           <div className="text-6xl mb-4">🏆</div>
-          <p className="text-text-secondary font-medium">No finished matches found</p>
+          <p className="text-text-secondary font-medium">
+            {pickedOnly ? 'No settled picks yet' : 'No finished matches found'}
+          </p>
           <p className="text-sm text-text-disabled mt-2">
-            Check back later for recent results
+            {pickedOnly ? 'Your settled bets will appear here.' : 'Check back later for recent results'}
           </p>
         </div>
       )}
 
-      {/* Matches Grouped by League */}
-      {hasMatches &&
+      {/* Matches grouped by league */}
+      {hasItems &&
         sortedLeagueNames.map((leagueName, index) => {
-          const matchesForLeague = groupedMatches[leagueName] || [];
-          if (matchesForLeague.length === 0) return null;
+          const itemsForLeague = groupedItems[leagueName] || [];
+          if (itemsForLeague.length === 0) return null;
 
           return (
             <LeagueMatchGroup
               key={leagueName}
               leagueName={leagueName}
-              leagueLogo={matchesForLeague[0].leagueLogo}
-              matchesCount={matchesForLeague.length}
+              leagueLogo={itemsForLeague[0].match.leagueLogo}
+              matchesCount={itemsForLeague.length}
               initialOpen={index < 5}
             >
-              {matchesForLeague.map((match) => (
-                <MatchCard
+              {itemsForLeague.map(({ match, bet }) => (
+                <FinishedCard
                   key={match.id}
                   match={match}
+                  bet={bet}
                   onViewStats={() => onViewStats(match)}
-                  userBet={bets.find((bet) => bet.matchId === match.id)}
                 />
               ))}
             </LeagueMatchGroup>
           );
         })}
 
-      {/* Infinite-scroll sentinel */}
-      <div ref={sentinelRef} className="h-px" />
+      {/* Infinite-scroll sentinel (full list only) */}
+      {!pickedOnly && <div ref={sentinelRef} className="h-px" />}
 
       {/* Loading More Indicator */}
-      {isLoading && matches.length > 0 && (
+      {!pickedOnly && isLoading && matches.length > 0 && (
         <div className="flex items-center justify-center gap-2 py-4 text-text-disabled">
           <Loader className="w-5 h-5 animate-spin" />
           <span className="text-sm">Loading older matches...</span>
@@ -183,9 +180,14 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
       )}
 
       {/* End of List */}
-      {!isLoading && !hasMore && hasMatches && (
+      {!pickedOnly && !isLoading && !hasMore && hasItems && (
         <div className="text-center text-sm text-text-disabled py-4">
           <span>That's all the finished matches we have!</span>
+        </div>
+      )}
+      {pickedOnly && hasItems && (
+        <div className="text-center text-sm text-text-disabled py-4">
+          <span>That's all your settled picks.</span>
         </div>
       )}
     </div>

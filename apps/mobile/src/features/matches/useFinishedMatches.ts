@@ -117,7 +117,8 @@ export function useFinishedMatches(
           const oddsData = fixture.odds?.[0];
 
           const match: Match = {
-            id: String(fixture.api_id || fixture.id),
+            // UUID (matches bet.matchId / match_bets.fixture_id) so picks pair up.
+            id: String(fixture.id),
             leagueName: fixture.league?.name || 'Unknown League',
             leagueLogo: fixture.league?.logo || null,
             teamA: {
