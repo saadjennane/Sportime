@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Match, Bet } from '../types';
 import UpcomingPage from './Upcoming';
 import FinishedMatchesPage from './FinishedMatches';
@@ -11,6 +11,7 @@ import { useImportedLeagues } from '../hooks/useImportedLeagues';
 import { LeagueOrderModal } from '../components/matches/LeagueOrderModal';
 import { MatchStatsDrawer } from '../components/matches/stats/MatchStatsDrawer';
 import { useMatchesOfTheDay } from '../features/matches/useMatchesOfTheDay';
+import { useUnreadSettled } from '../features/matches/useUnreadSettled';
 import { PullToRefresh } from '../components/PullToRefresh';
 import type { UiMatch } from '../features/matches/useMatchesOfTheDay';
 
@@ -31,6 +32,12 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
 
   const { data: groups, isLoading: loading, error, refresh } = useMatchesOfTheDay();
   const { leagues: importedLeagues, isLoading: leaguesLoading, error: leaguesError } = useImportedLeagues();
+
+  // Unread badge for settled bets the user hasn't seen; cleared on opening Finished.
+  const { unreadCount, markAllSeen } = useUnreadSettled(bets);
+  useEffect(() => {
+    if (activeTab === 'finished') markAllSeen();
+  }, [activeTab, markAllSeen]);
 
 
   const toLegacyMatch = useCallback((m: UiMatch): Match => {
@@ -255,9 +262,14 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
           </button>
           <button
             onClick={() => setActiveTab('finished')}
-            className={`flex-1 p-2 rounded-lg font-semibold transition-all text-sm ${activeTab === 'finished' ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'}`}
+            className={`flex-1 p-2 rounded-lg font-semibold transition-all text-sm flex items-center justify-center gap-1 ${activeTab === 'finished' ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'}`}
           >
             Finished
+            {unreadCount > 0 && (
+              <span className="text-xs px-1.5 py-0.5 rounded-full bg-hot-red text-white font-bold">
+                {unreadCount}
+              </span>
+            )}
           </button>
         </div>
         <button onClick={() => setIsOrderModalOpen(true)} className="p-3 bg-navy-accent rounded-xl text-text-secondary hover:text-electric-blue">

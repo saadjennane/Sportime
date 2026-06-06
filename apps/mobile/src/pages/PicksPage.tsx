@@ -3,7 +3,7 @@ import { Match, Bet } from '../types';
 import { PickCard } from '../components/matches/PickCard';
 import { LeagueMatchGroup } from '../components/matches/LeagueMatchGroup';
 import { useUserPicks } from '../features/matches/useUserPicks';
-import { Loader, Target, CircleDollarSign, Coins } from 'lucide-react';
+import { Loader, Target } from 'lucide-react';
 
 interface PicksPageProps {
   bets: Bet[];
@@ -70,51 +70,20 @@ const PicksPage: React.FC<PicksPageProps> = ({
   const hasPicks = activePicks.length > 0;
   const showEmptyState = !isLoading && !hasPicks;
 
-  // Stats relevant to ACTIVE picks (settled results live in Finished).
-  const picksSummary = useMemo(() => {
-    const staked = activePicks.reduce((t, p) => t + p.bet.amount, 0);
-    const potential = activePicks.reduce(
-      (t, p) => t + Math.ceil(p.bet.amount * (Number.isFinite(p.bet.odds) ? p.bet.odds : 0)),
-      0,
-    );
-    return { count: activePicks.length, staked, potential };
-  }, [activePicks]);
-
   return (
     <div className="space-y-4">
-      {/* Stats Header - Active Picks | Staked | Potential Win */}
-      <div className="grid grid-cols-3 gap-2 text-xs">
-        <div className="bg-navy-accent p-2 rounded-lg flex items-center gap-2">
-          <Target size={24} className="text-electric-blue" />
-          <div>
-            <p className="font-bold text-text-primary">Active Picks</p>
-            <p className="text-text-secondary">{picksSummary.count}</p>
-          </div>
-        </div>
-        <div className="bg-navy-accent p-2 rounded-lg flex items-center gap-2">
-          <CircleDollarSign size={24} className="text-electric-blue" />
-          <div>
-            <p className="font-bold text-text-primary">Staked</p>
-            <p className="text-text-secondary">{picksSummary.staked.toLocaleString()} coins</p>
-          </div>
-        </div>
-        <div className="bg-navy-accent p-2 rounded-lg flex items-center gap-2">
-          <Coins size={24} className="text-warm-yellow" />
-          <div>
-            <p className="font-bold text-text-primary">Potential Win</p>
-            <p className="text-text-secondary">{picksSummary.potential.toLocaleString()} coins</p>
-          </div>
+      {/* Header — Active Picks only */}
+      <div className="bg-navy-accent p-3 rounded-lg flex items-center gap-3">
+        <Target size={22} className="text-electric-blue" />
+        <div>
+          <p className="font-bold text-text-primary text-sm">Active Picks</p>
+          <p className="text-text-secondary text-sm">{activePicks.length}</p>
         </div>
       </div>
 
-      {/* Info Banner */}
-      <div className="text-center text-sm text-text-disabled">
-        {isLoading && picks.length === 0 ? (
-          <span>Loading your picks...</span>
-        ) : hasPicks ? (
-          <span>{activePicks.length} active {activePicks.length === 1 ? 'pick' : 'picks'}</span>
-        ) : null}
-      </div>
+      {isLoading && picks.length === 0 && (
+        <div className="text-center text-sm text-text-disabled">Loading your picks…</div>
+      )}
 
       {/* Empty State */}
       {showEmptyState && (
