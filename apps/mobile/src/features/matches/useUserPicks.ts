@@ -220,10 +220,14 @@ export function useUserPicks(userBets: Bet[] = []): UseUserPicksReturn {
               draw: oddsData?.draw || 0,
               teamB: oddsData?.away_win || 0,
             },
-            score: isFinished ? {
-              teamA: fixture.goals_home || 0,
-              teamB: fixture.goals_away || 0,
-            } : undefined,
+            // Score for finished AND in-play matches (so live picks show it).
+            score:
+              fixture.status && fixture.status !== 'NS' && fixture.status !== 'TBD'
+                ? {
+                    teamA: fixture.goals_home || 0,
+                    teamB: fixture.goals_away || 0,
+                  }
+                : undefined,
             result,
           };
 

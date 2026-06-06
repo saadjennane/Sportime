@@ -1,6 +1,6 @@
 import React from 'react';
 import { Match, Bet } from '../../types';
-import { Clock, Pencil, BarChart2 } from 'lucide-react';
+import { Clock, Pencil, BarChart2, Lock } from 'lucide-react';
 import { format, isToday, isTomorrow } from 'date-fns';
 
 interface PickCardProps {
@@ -20,6 +20,18 @@ function formatKickoff(iso: string): string {
   return format(d, 'MMM d · HH:mm');
 }
 
+// Live status label, mirroring the Today match card (1H/HT/2H/ET/PEN…).
+function liveLabel(raw?: string): string {
+  const r = (raw || '').toUpperCase();
+  if (r === '1H') return '1H';
+  if (r === 'HT') return 'HT';
+  if (r === '2H') return '2H';
+  if (r === 'ET') return 'ET';
+  if (r === 'P' || r === 'PEN') return 'PEN';
+  if (r === 'BT') return 'BT';
+  return 'Live';
+}
+
 const TeamAvatar: React.FC<{ team: Match['teamA'] }> = ({ team }) =>
   team.logo ? (
     <div className="mx-auto w-14 h-14 mb-2 rounded-full bg-white/10 flex items-center justify-center">
@@ -36,15 +48,9 @@ export const PickCard: React.FC<PickCardProps> = ({ match, bet, onEdit, onViewSt
   const safeOdds = typeof bet.odds === 'number' && Number.isFinite(bet.odds) ? bet.odds : 0;
   const potential = Math.ceil(bet.amount * safeOdds);
 
-  const badge =
-    bet.status === 'won'
-      ? { text: 'Won', cls: 'bg-lime-glow/20 text-lime-glow' }
-      : bet.status === 'lost'
-        ? { text: 'Lost', cls: 'bg-hot-red/20 text-hot-red' }
-        : { text: 'Bet Placed', cls: 'text-white bg-gradient-to-r from-electric-blue to-neon-cyan' };
-
-  const isSettled = bet.status === 'won' || bet.status === 'lost';
-  const canEdit = !started && bet.status === 'pending' && !!onEdit;
+  const isLive = !!match.isLive;
+  const showEdit = !started && bet.status === 'pending' && !!onEdit;
+  const showLocked = started; // match in progress / kicked off -> bet locked
   const hasScore = !!match.score;
 
   return (
@@ -55,9 +61,15 @@ export const PickCard: React.FC<PickCardProps> = ({ match, bet, onEdit, onViewSt
           <Clock className="w-4 h-4" />
           <span className="text-sm font-medium">{formatKickoff(match.kickoffTime)}</span>
         </div>
-        <span className={`text-xs px-3 py-1 rounded-full font-semibold whitespace-nowrap ${badge.cls}`}>
-          {badge.text}
-        </span>
+        {isLive ? (
+          <span className="text-white text-xs px-3 py-1 rounded-full font-semibold whitespace-nowrap bg-gradient-to-r from-hot-red to-electric-blue animate-pulse">
+            {liveLabel(match.rawStatus)}
+          </span>
+        ) : (
+          <span className="bg-disabled text-text-secondary text-xs px-3 py-1 rounded-full font-semibold whitespace-nowrap">
+            Upcoming
+          </span>
+        )}
       </div>
 
       {/* Teams (same layout as the Today match card) */}
@@ -132,14 +144,18 @@ export const PickCard: React.FC<PickCardProps> = ({ match, bet, onEdit, onViewSt
 
       {/* Actions at the bottom */}
       <div className="flex gap-2">
-        {canEdit && (
+        {showEdit ? (
           <button
             onClick={onEdit}
             className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-navy-accent rounded-lg text-sm font-semibold text-text-secondary hover:text-electric-blue transition-colors"
           >
             <Pencil size={14} /> Edit
           </button>
-        )}
+        ) : showLocked ? (
+          <div className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-navy-accent/50 rounded-lg text-sm font-semibold text-text-disabled cursor-not-allowed">
+            <Lock size={14} /> Locked
+          </div>
+        ) : null}
         <button
           onClick={onViewStats}
           className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-navy-accent rounded-lg text-sm font-semibold text-text-secondary hover:text-electric-blue transition-colors"
@@ -147,10 +163,6 @@ export const PickCard: React.FC<PickCardProps> = ({ match, bet, onEdit, onViewSt
           <BarChart2 size={14} /> Stats
         </button>
       </div>
-
-      {started && !isSettled && (
-        <p className="text-[11px] text-text-disabled text-center -mt-1">Match in progress — bet locked.</p>
-      )}
     </div>
   );
 };
