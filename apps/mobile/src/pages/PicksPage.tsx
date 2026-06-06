@@ -18,7 +18,7 @@ const PicksPage: React.FC<PicksPageProps> = ({
   onBet,
   orderedLeagues,
 }) => {
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   const { picks, isLoading, hasMore, loadMore, stats } = useUserPicks(bets);
 
@@ -50,29 +50,26 @@ const PicksPage: React.FC<PicksPageProps> = ({
     return [...ordered, ...unordered];
   }, [groupedPicks, orderedLeagues]);
 
-  // Infinite scroll detection
+  // Infinite scroll via a sentinel — works with the app's single scroll region.
   useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container || !hasMore || isLoading) return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasMore || isLoading) return;
 
-    const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      const isNearBottom = scrollHeight - scrollTop - clientHeight < 200;
-
-      if (isNearBottom) {
-        loadMore();
-      }
-    };
-
-    container.addEventListener('scroll', handleScroll);
-    return () => container.removeEventListener('scroll', handleScroll);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) loadMore();
+      },
+      { rootMargin: '200px' },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
   }, [hasMore, isLoading, loadMore]);
 
   const hasPicks = activePicks.length > 0;
   const showEmptyState = !isLoading && !hasPicks;
 
   return (
-    <div ref={scrollContainerRef} className="space-y-4 max-h-screen overflow-y-auto">
+    <div className="space-y-4">
       {/* Stats Header - 3 columns: Pending | Successful Picks | Winnings */}
       <div className="grid grid-cols-3 gap-2 text-xs">
         <div className="bg-navy-accent p-2 rounded-lg flex items-center gap-2">
@@ -146,6 +143,9 @@ const PicksPage: React.FC<PicksPageProps> = ({
             </LeagueMatchGroup>
           );
         })}
+
+      {/* Infinite-scroll sentinel */}
+      <div ref={sentinelRef} className="h-px" />
 
       {/* Loading More Indicator */}
       {isLoading && picks.length > 0 && (

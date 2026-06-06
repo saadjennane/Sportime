@@ -1417,9 +1417,11 @@ function App() {
   }
 
   return (
-    <div className="main-background">
+    <div className="main-background fixed inset-0 flex flex-col overflow-hidden">
       <ToastContainer toasts={toasts} removeToast={removeToast} />
-      <div className="max-w-md mx-auto px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[calc(7rem+env(safe-area-inset-bottom))] space-y-4">
+
+      {/* Fixed top header (profile / coins) — never scrolls */}
+      <div className="flex-shrink-0 w-full max-w-md mx-auto px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2">
         <Header
           profile={profile}
           coinBalance={coinBalance}
@@ -1432,7 +1434,13 @@ function App() {
           onGoToShop={() => setIsCoinShopModalOpen(true)}
           onOpenPremiumModal={() => setIsPremiumModalOpen(true)}
         />
-        <Suspense fallback={<PageLoader />}>{renderPage()}</Suspense>
+      </div>
+
+      {/* Single scroll region for page content */}
+      <div id="app-scroll" className="flex-1 overflow-y-auto overscroll-y-contain">
+        <div className="w-full max-w-md mx-auto px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] space-y-4">
+          <Suspense fallback={<PageLoader />}>{renderPage()}</Suspense>
+        </div>
       </div>
 
       <FooterNav activePage={page} onPageChange={handlePageChange} />

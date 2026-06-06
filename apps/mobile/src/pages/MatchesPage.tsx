@@ -212,6 +212,8 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
   return (
     <PullToRefresh onRefresh={refresh}>
     <div className="space-y-4">
+      {/* Sticky date + tabs — stay fixed while the lists scroll */}
+      <div className="sticky top-0 z-20 -mx-4 px-4 pt-2 pb-3 bg-deep-navy space-y-3">
       {/* 1. Date */}
       <div className="flex items-center justify-center">
         <div className="flex items-center gap-2 text-lg font-bold text-text-primary">
@@ -251,6 +253,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
         <button onClick={() => setIsOrderModalOpen(true)} className="p-3 bg-navy-accent rounded-xl text-text-secondary hover:text-electric-blue">
           <Settings size={20} />
         </button>
+      </div>
       </div>
 
       {/* 3. Header Stats */}

@@ -19,7 +19,7 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
   onViewStats,
   orderedLeagues,
 }) => {
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const [pickedOnly, setPickedOnly] = useState(false);
 
   const { matches, isLoading, hasMore, loadMore } = useFinishedMatches(
@@ -57,22 +57,19 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
     return [...ordered, ...unordered];
   }, [groupedMatches, orderedLeagues]);
 
-  // Infinite scroll detection
+  // Infinite scroll via a sentinel — works with the app's single scroll region.
   useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container || !hasMore || isLoading) return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasMore || isLoading) return;
 
-    const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      const isNearBottom = scrollHeight - scrollTop - clientHeight < 200;
-
-      if (isNearBottom) {
-        loadMore();
-      }
-    };
-
-    container.addEventListener('scroll', handleScroll);
-    return () => container.removeEventListener('scroll', handleScroll);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) loadMore();
+      },
+      { rootMargin: '200px' },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
   }, [hasMore, isLoading, loadMore]);
 
   const hasMatches = displayedMatches.length > 0;
@@ -104,7 +101,7 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
   }, [bets, matches]);
 
   return (
-    <div ref={scrollContainerRef} className="space-y-4 max-h-screen overflow-y-auto">
+    <div className="space-y-4">
       {/* Header with stats */}
       <DailySummaryHeader
         picksCount={headerStats.successfulPicks}
@@ -173,6 +170,9 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
             </LeagueMatchGroup>
           );
         })}
+
+      {/* Infinite-scroll sentinel */}
+      <div ref={sentinelRef} className="h-px" />
 
       {/* Loading More Indicator */}
       {isLoading && matches.length > 0 && (

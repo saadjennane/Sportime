@@ -11,31 +11,45 @@ interface PullToRefreshProps {
 }
 
 /**
- * Lightweight pull-to-refresh that works with the page's normal (window)
- * scroll — no fixed-height container, so it drops into the existing layout
- * without changing the scroll model. Only engages when scrolled to the top.
+ * Pull-to-refresh that engages only when its scroll container is at the top.
+ * It locates the nearest scrollable ancestor (e.g. the app's #app-scroll region)
+ * and reads its scrollTop, so it works whether the page scrolls via the window
+ * or an inner overflow container.
  */
 export const PullToRefresh: React.FC<PullToRefreshProps> = ({ onRefresh, children }) => {
   const [pull, setPull] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
   const startY = useRef<number | null>(null);
   const passedThreshold = useRef(false);
 
+  const getScrollTop = (): number => {
+    let el: HTMLElement | null = rootRef.current?.parentElement ?? null;
+    while (el) {
+      const oy = getComputedStyle(el).overflowY;
+      if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight) {
+        return el.scrollTop;
+      }
+      el = el.parentElement;
+    }
+    return window.scrollY;
+  };
+
   const onTouchStart = (e: React.TouchEvent) => {
     if (refreshing) return;
-    startY.current = window.scrollY <= 0 ? e.touches[0].clientY : null;
+    startY.current = getScrollTop() <= 0 ? e.touches[0].clientY : null;
     passedThreshold.current = false;
   };
 
   const onTouchMove = (e: React.TouchEvent) => {
     if (startY.current === null || refreshing) return;
     const dy = e.touches[0].clientY - startY.current;
-    if (dy > 0 && window.scrollY <= 0) {
+    if (dy > 0 && getScrollTop() <= 0) {
       const dist = Math.min(dy * 0.5, MAX_PULL); // rubber-band damping
       setPull(dist);
       if (!passedThreshold.current && dist >= THRESHOLD) {
         passedThreshold.current = true;
-        hapticImpact('light'); // tactile cue that releasing will refresh
+        hapticImpact('light');
       }
     } else {
       setPull(0);
@@ -63,7 +77,7 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({ onRefresh, childre
   const indicatorHeight = refreshing ? 40 : pull;
 
   return (
-    <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+    <div ref={rootRef} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
       <div
         className="flex items-center justify-center overflow-hidden"
         style={{
