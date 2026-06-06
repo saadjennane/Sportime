@@ -1402,7 +1402,7 @@ function App() {
   return (
     <div className="main-background">
       <ToastContainer toasts={toasts} removeToast={removeToast} />
-      <div className="max-w-md mx-auto px-4 pt-4 pb-28 space-y-4">
+      <div className="max-w-md mx-auto px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[calc(7rem+env(safe-area-inset-bottom))] space-y-4">
         <Header
           profile={profile}
           coinBalance={coinBalance}

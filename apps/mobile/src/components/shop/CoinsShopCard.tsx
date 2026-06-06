@@ -10,7 +10,7 @@ interface CoinsShopCardProps {
   onClick: () => void;
 }
 
-export const CoinsShopCard: React.FC<CoinsShopCardProps> = ({ name, coins, price, bonus, isBestValue, onClick }) => {
+export const CoinsShopCard: React.FC<CoinsShopCardProps> = ({ name, coins, bonus, isBestValue, onClick }) => {
   return (
     <div className={`card-base p-3 flex flex-col justify-between text-center relative overflow-hidden transition-all duration-300 ${isBestValue ? 'border-warm-yellow' : 'hover:border-electric-blue/50'}`}>
       {isBestValue && (
@@ -27,7 +27,7 @@ export const CoinsShopCard: React.FC<CoinsShopCardProps> = ({ name, coins, price
         {bonus > 0 && <p className="text-xs font-semibold text-lime-glow">+{bonus}% Bonus</p>}
       </div>
       <button onClick={onClick} className="w-full primary-button py-2 text-sm">
-        Buy for {price.toFixed(2)} €
+        Claim Pack
       </button>
     </div>
   );

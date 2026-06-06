@@ -41,10 +41,10 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({ isOpen, onClose, onS
 
         <div className="space-y-3 pt-2">
           <button onClick={() => onSubscribe('monthly')} className="w-full primary-button">
-            Subscribe – €7.99/month
+            Unlock Premium
           </button>
           <button onClick={() => onSubscribe('seasonal')} className="w-full secondary-button">
-            Subscribe – €39.99 / 6 months
+            Unlock Premium — Season Pass
           </button>
         </div>
       </div>

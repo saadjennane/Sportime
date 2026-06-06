@@ -7,6 +7,7 @@ import { mockTeams } from '../../data/mockTeams';
 import { mockCountries } from '../../data/mockCountries';
 import { UsernameInput } from '../auth/UsernameInput';
 import { DisplayNamePreview } from '../auth/DisplayNamePreview';
+import { canUseNativeCamera, pickProfileImageNative } from '../../native/pickImage';
 
 interface ProfileSettingsModalProps {
   isOpen: boolean;
@@ -61,14 +62,33 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({ isOp
     }
   };
   
+  const applyPickedFile = (file: File) => {
+    setNewProfilePicFile(file);
+    if (previewUrl && previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setPreviewUrl(URL.createObjectURL(file));
+  };
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-        setNewProfilePicFile(file);
-        if (previewUrl && previewUrl.startsWith('blob:')) {
-          URL.revokeObjectURL(previewUrl);
-        }
-        setPreviewUrl(URL.createObjectURL(file));
+      applyPickedFile(file);
+    }
+  };
+
+  // On device, open the native camera/gallery picker; on web, fall back to the
+  // hidden <input type="file">.
+  const handlePickPhoto = async () => {
+    if (!canUseNativeCamera()) {
+      fileInputRef.current?.click();
+      return;
+    }
+    try {
+      const file = await pickProfileImageNative();
+      if (file) applyPickedFile(file);
+    } catch (err) {
+      console.warn('[camera] photo pick failed', err);
     }
   };
 
@@ -92,7 +112,7 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({ isOp
               
               <div className="flex flex-col items-center">
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/png, image/jpeg" />
-                <button type="button" onClick={() => fileInputRef.current?.click()} className="relative w-24 h-24 rounded-full group">
+                <button type="button" onClick={handlePickPhoto} className="relative w-24 h-24 rounded-full group">
                     <img src={previewUrl || `https://api.dicebear.com/8.x/bottts/svg?seed=${profile.id}`} alt="Profile Preview" className="w-full h-full rounded-full object-cover bg-gray-200" />
                     <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <Camera className="text-white" size={32} />
