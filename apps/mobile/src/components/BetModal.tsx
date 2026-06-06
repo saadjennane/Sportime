@@ -31,9 +31,9 @@ const renderTeamIcon = (
 };
 
 // PredictionOption component - EXTRACTED OUTSIDE to prevent React Error #300
+// Clean name + odds button, matching the Today match card (no duplicate flags).
 interface PredictionOptionProps {
   label: string;
-  team?: Match['teamA'];
   currentOdds: number;
   predictionKey: 'teamA' | 'draw' | 'teamB';
   isActive: boolean;
@@ -42,35 +42,25 @@ interface PredictionOptionProps {
 
 const PredictionOption: React.FC<PredictionOptionProps> = ({
   label,
-  team,
   currentOdds,
   predictionKey,
   isActive,
   onSelect,
 }) => {
   const safeOdds = typeof currentOdds === 'number' && Number.isFinite(currentOdds) ? currentOdds : 0;
-  const icon =
-    team !== undefined ? (
-      renderTeamIcon(team, { wrapperClass: 'mb-1', sizeClass: 'w-12 h-12' })
-    ) : (
-      <div className="mb-1 flex items-center justify-center">
-        <span className="w-12 h-12 rounded-full bg-deep-navy flex items-center justify-center text-2xl font-bold text-electric-blue">
-          🤝
-        </span>
-      </div>
-    );
   return (
     <button
       onClick={() => onSelect(predictionKey, safeOdds)}
-      className={`flex-1 flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all duration-200 ${
+      className={`flex-1 p-3 rounded-xl border-2 text-center transition-all duration-200 ${
         isActive
-          ? 'bg-electric-blue/10 border-electric-blue shadow-inner'
+          ? 'bg-electric-blue/10 border-electric-blue'
           : 'bg-deep-navy border-disabled hover:border-electric-blue/50'
       }`}
     >
-      {icon}
-      <span className="text-xs font-bold text-text-primary">{label}</span>
-      <span className="text-sm font-semibold text-electric-blue">@{safeOdds.toFixed(2)}</span>
+      <div className="text-xs text-text-secondary mb-1 font-medium truncate">{label}</div>
+      <div className={`text-xl font-bold ${isActive ? 'text-electric-blue' : 'text-text-primary'}`}>
+        {safeOdds.toFixed(2)}x
+      </div>
     </button>
   );
 };
@@ -217,7 +207,6 @@ export const BetModal: React.FC<BetModalProps> = ({
           <div className="flex gap-2">
             <PredictionOption
               label={match.teamA.name.split(' ')[0]}
-              team={match.teamA}
               currentOdds={match.odds.teamA}
               predictionKey="teamA"
               isActive={selectedPrediction === 'teamA'}
@@ -225,7 +214,6 @@ export const BetModal: React.FC<BetModalProps> = ({
             />
             <PredictionOption
               label="Draw"
-              team={undefined}
               currentOdds={match.odds.draw}
               predictionKey="draw"
               isActive={selectedPrediction === 'draw'}
@@ -233,7 +221,6 @@ export const BetModal: React.FC<BetModalProps> = ({
             />
             <PredictionOption
               label={match.teamB.name.split(' ')[0]}
-              team={match.teamB}
               currentOdds={match.odds.teamB}
               predictionKey="teamB"
               isActive={selectedPrediction === 'teamB'}
