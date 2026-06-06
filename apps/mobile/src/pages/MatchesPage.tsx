@@ -3,6 +3,7 @@ import { Match, Bet } from '../types';
 import UpcomingPage from './Upcoming';
 import FinishedMatchesPage from './FinishedMatches';
 import PicksPage from './PicksPage';
+import { BetHistoryPage } from './BetHistoryPage';
 import { DailySummaryHeader } from '../components/matches/DailySummaryHeader';
 import { format } from 'date-fns';
 import { Settings, Calendar, Target } from 'lucide-react';
@@ -25,6 +26,7 @@ interface MatchesPageProps {
 
 const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayGame }) => {
   const [activeTab, setActiveTab] = useState<Tab>('today');
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [selectedMatchForStats, setSelectedMatchForStats] = useState<Match | null>(null);
 
@@ -209,6 +211,16 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
     return result;
   }, [groupedUpcoming, pickedMatchIds]);
 
+  // Finished tab (daily) = today's matches that are finished.
+  const groupedFinished = useMemo(() => {
+    const result: Record<string, Match[]> = {};
+    for (const [league, leagueMatches] of Object.entries(groupedUpcoming)) {
+      const filtered = leagueMatches.filter(m => m.status === 'played');
+      if (filtered.length) result[league] = filtered;
+    }
+    return result;
+  }, [groupedUpcoming]);
+
   return (
     <PullToRefresh onRefresh={refresh}>
     <div className="space-y-4">
@@ -264,6 +276,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
           totalBets={upcomingHeaderData.totalBets}
           potentialWinnings={upcomingHeaderData.potentialWinnings}
           isPlayedTab={false}
+          onOpenHistory={() => setIsHistoryOpen(true)}
         />
       )}
 
@@ -298,10 +311,11 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
         />
       ) : (
         <FinishedMatchesPage
-          userId={undefined}
+          groupedMatches={groupedFinished}
           bets={bets}
           onViewStats={setSelectedMatchForStats}
           orderedLeagues={effectiveOrderedLeagues}
+          onOpenHistory={() => setIsHistoryOpen(true)}
         />
       )}
 
@@ -316,6 +330,14 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
         match={selectedMatchForStats}
         onClose={() => setSelectedMatchForStats(null)}
       />
+
+      {isHistoryOpen && (
+        <BetHistoryPage
+          bets={bets}
+          onClose={() => setIsHistoryOpen(false)}
+          onViewStats={setSelectedMatchForStats}
+        />
+      )}
     </div>
     </PullToRefresh>
   );

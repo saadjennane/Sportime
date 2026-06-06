@@ -12,7 +12,7 @@ interface FinishedCardProps {
 function formatFinished(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return format(d, 'd MMMM · HH:mm');
+  return format(d, 'HH:mm');
 }
 
 function statusLabel(raw?: string): string {
