@@ -36,7 +36,7 @@ export const FinishedCard: React.FC<FinishedCardProps> = ({ match, bet, onViewSt
   ] as const;
 
   return (
-    <div className="card-base p-4 space-y-3">
+    <div className="card-base p-3 space-y-3">
       <MatchHeaderRow match={match} center={center} badge={{ text: statusLabel(match.rawStatus), variant: 'finished' }} />
 
       {/* Three odds — actual result in green, lost pick in red */}

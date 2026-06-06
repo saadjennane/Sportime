@@ -76,7 +76,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
   const badge = isLive ? ({ text: liveLabel(), variant: 'live' } as const) : undefined;
 
   return (
-    <div className="card-base p-4 space-y-3">
+    <div className="card-base p-3 space-y-3">
       <MatchHeaderRow match={match} center={center} badge={badge} />
 
       {/* Odds */}
