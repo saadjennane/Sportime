@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import { Match, Bet } from '../types';
-import { MatchCard } from '../components/MatchCard';
+import { PickCard } from '../components/matches/PickCard';
 import { LeagueMatchGroup } from '../components/matches/LeagueMatchGroup';
 import { useUserPicks } from '../features/matches/useUserPicks';
 import { Loader, Clock, CheckCircle2, Coins } from 'lucide-react';
@@ -8,12 +8,14 @@ import { Loader, Clock, CheckCircle2, Coins } from 'lucide-react';
 interface PicksPageProps {
   bets: Bet[];
   onViewStats: (match: Match) => void;
+  onBet: (match: Match, prediction: 'teamA' | 'draw' | 'teamB', odds: number) => void;
   orderedLeagues: string[];
 }
 
 const PicksPage: React.FC<PicksPageProps> = ({
   bets,
   onViewStats,
+  onBet,
   orderedLeagues,
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -133,11 +135,12 @@ const PicksPage: React.FC<PicksPageProps> = ({
               initialOpen={index < 5}
             >
               {picksForLeague.map(({ match, bet }) => (
-                <MatchCard
+                <PickCard
                   key={`${match.id}-${bet.prediction}`}
                   match={match}
+                  bet={bet}
+                  onEdit={() => onBet(match, bet.prediction, bet.odds)}
                   onViewStats={() => onViewStats(match)}
-                  userBet={bet}
                 />
               ))}
             </LeagueMatchGroup>

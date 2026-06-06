@@ -196,7 +196,9 @@ export function useUserPicks(userBets: Bet[] = []): UseUserPicksReturn {
           const oddsData = fixture.odds?.[0];
 
           const match: Match = {
-            id: String(fixture.api_id || fixture.id),
+            // Use the fixture UUID so it matches bet.matchId (match_bets.fixture_id)
+            // — required for Edit (BetModal + place_match_bet expect the UUID).
+            id: String(fixture.id),
             leagueName: fixture.league?.name || 'Unknown League',
             leagueLogo: fixture.league?.logo || null,
             teamA: {

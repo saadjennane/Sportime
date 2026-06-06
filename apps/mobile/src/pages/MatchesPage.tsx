@@ -290,6 +290,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
         <PicksPage
           bets={bets}
           onViewStats={setSelectedMatchForStats}
+          onBet={onBet}
           orderedLeagues={effectiveOrderedLeagues}
         />
       ) : (
