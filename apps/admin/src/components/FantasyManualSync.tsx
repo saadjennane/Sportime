@@ -21,8 +21,6 @@ export default function FantasyManualSync() {
   const [leagues, setLeagues] = useState<League[]>([]);
   const [selectedLeagueId, setSelectedLeagueId] = useState<string>('');
 
-  const SUPABASE_URL = 'https://crypuzduplbzbmvefvzr.supabase.co';
-
   useEffect(() => {
     fetchLeagues();
   }, []);
@@ -52,18 +50,6 @@ export default function FantasyManualSync() {
     }
   };
 
-  // Get service key from environment variables or prompt if not configured
-  const getServiceKey = () => {
-    const envKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
-
-    if (envKey && envKey !== 'your_service_role_key_here') {
-      return envKey;
-    }
-
-    // Fallback to prompt if not configured in .env
-    return prompt('Enter Supabase Service Role Key (ou configurez VITE_SUPABASE_SERVICE_ROLE_KEY dans .env):');
-  };
-
   const addLog = (functionName: string, status: SyncLog['status'], message: string, duration?: number) => {
     const log: SyncLog = {
       timestamp: new Date().toISOString(),
@@ -75,10 +61,12 @@ export default function FantasyManualSync() {
     setLogs((prev) => [log, ...prev]);
   };
 
+  // Invoke the edge function through the Supabase client: it sends the public
+  // anon key (and the signed-in admin's JWT) as auth. The function uses its own
+  // service-role key SERVER-SIDE — the privileged key never touches the client.
   const callEdgeFunction = async (functionName: string, payload: any = {}) => {
-    const serviceKey = getServiceKey();
-    if (!serviceKey) {
-      addLog(functionName, 'error', 'Service key not provided');
+    if (!supabase) {
+      addLog(functionName, 'error', 'Supabase client not initialized');
       return;
     }
 
@@ -88,27 +76,16 @@ export default function FantasyManualSync() {
     try {
       addLog(functionName, 'loading', `Calling ${functionName}...`);
 
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/${functionName}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${serviceKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
+      const { data, error } = await supabase.functions.invoke(functionName, { body: payload });
 
       const duration = Date.now() - startTime;
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
+      if (error) throw error;
 
-      const result = await response.json();
-      addLog(functionName, 'success', JSON.stringify(result, null, 2), duration);
+      addLog(functionName, 'success', JSON.stringify(data, null, 2), duration);
     } catch (err: any) {
       const duration = Date.now() - startTime;
-      addLog(functionName, 'error', err.message, duration);
+      addLog(functionName, 'error', err?.message ?? String(err), duration);
     } finally {
       setLoading((prev) => ({ ...prev, [functionName]: false }));
     }
