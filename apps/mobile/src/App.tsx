@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
 import { AuthApiError } from '@supabase/supabase-js';
 import ErrorBoundary from './components/ErrorBoundary';
 import { Header } from './components/Header';
@@ -8,14 +8,15 @@ import { mockMatches } from './data/mockMatches';
 import { mockChallengeMatches } from './data/mockChallenges';
 import { mockFantasyPlayers } from './data/mockFantasy.tsx';
 import { Match, Bet, UserChallengeEntry, Profile, LevelConfig, Badge, UserBadge, UserFantasyTeam, UserTicket, SportimeGame, SpinTier, SwipeMatchDay, FantasyGame, ActiveSession, ContextualPromptType, DailyChallengeEntry, ChallengeMatch, ChallengeBet, Challenge } from './types';
-import AdminPage from './pages/Admin';
+const AdminPage = lazy(() => import('./pages/Admin'));
 import GamesListPage from './pages/GamesListPage';
-import ChallengeRoomPage from './pages/ChallengeRoomPage';
-import LeaderboardPage from './pages/LeaderboardPage';
+const ChallengeRoomPage = lazy(() => import('./pages/ChallengeRoomPage'));
+const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage'));
 import { ChooseEntryMethodModal } from './components/ChooseEntryMethodModal';
-import { SwipeFlowPage } from './pages/SwipeFlowPage';
+const SwipeFlowPage = lazy(() => import('./pages/SwipeFlowPage').then(m => ({ default: m.SwipeFlowPage })));
 import { JoinSwipeGameConfirmationModal } from './components/JoinSwipeGameConfirmationModal';
 import { supabase } from './services/supabase';
+import { hideSplash } from './native/initNative';
 import { useToast } from './hooks/useToast';
 import { useUserStreak } from './hooks/useUserStreak';
 import { ToastContainer } from './components/Toast';
@@ -23,14 +24,14 @@ import ProfilePage from './pages/ProfilePage';
 import { mockBadges, mockLevelsConfig, mockUserBadges } from './data/mockProgression';
 import { getLevelBetLimit } from './config/constants';
 import MatchesPage from './pages/MatchesPage';
-import { FantasyGameWeekPage } from './pages/FantasyGameWeekPage';
+const FantasyGameWeekPage = lazy(() => import('./pages/FantasyGameWeekPage').then(m => ({ default: m.FantasyGameWeekPage })));
 import { USE_SUPABASE } from './config/env';
 import { OnboardingPage, OnboardingCompletePayload } from './pages/OnboardingPage';
 import { SignUpPromptModal } from './components/SignUpPromptModal';
 import { SignUpStep } from './pages/onboarding/SignUpStep';
 import LeaguesListPage from './pages/LeaguesListPage';
-import LeaguePage from './pages/LeaguePage';
-import LeagueJoinPage from './pages/LeagueJoinPage';
+const LeaguePage = lazy(() => import('./pages/LeaguePage'));
+const LeagueJoinPage = lazy(() => import('./pages/LeagueJoinPage'));
 import { CreateLeagueModal } from './components/leagues/CreateLeagueModal';
 import { ConfirmationModal } from './components/leagues/ConfirmationModal';
 import { NoLeaguesModal } from './components/leagues/NoLeaguesModal';
@@ -44,16 +45,17 @@ if (import.meta.env.DEV) {
   import('./utils/spinDiagnostic');
   import('./utils/spinTestHelper');
 }
-import LiveGameSetupPage from './pages/live-game/LiveGameSetupPage';
-import LiveGamePlayPage from './pages/live-game/LiveGamePlayPage';
-import LiveGameResultsPage from './pages/live-game/LiveGameResultsPage';
-import LiveGameBettingSetupPage from './pages/live-game/betting/LiveGameBettingSetupPage';
-import LiveGameBettingPlayPage from './pages/live-game/betting/LiveGameBettingPlayPage';
-import LiveGameBettingResultsPage from './pages/live-game/betting/LiveGameBettingResultsPage';
-import PredictionChallengeOverviewPage from './pages/prediction/PredictionChallengeOverviewPage';
-import FantasyLiveTeamSelectionPage from './pages/live-game/FantasyLiveTeamSelectionPage';
-import FantasyLiveGamePage from './pages/live-game/FantasyLiveGamePage';
-import LiveGameLobbyPage from './pages/live-game/LiveGameLobbyPage';
+// Heavy, rarely-entry pages — lazy-loaded so they stay out of the initial bundle.
+const LiveGameSetupPage = lazy(() => import('./pages/live-game/LiveGameSetupPage'));
+const LiveGamePlayPage = lazy(() => import('./pages/live-game/LiveGamePlayPage'));
+const LiveGameResultsPage = lazy(() => import('./pages/live-game/LiveGameResultsPage'));
+const LiveGameBettingSetupPage = lazy(() => import('./pages/live-game/betting/LiveGameBettingSetupPage'));
+const LiveGameBettingPlayPage = lazy(() => import('./pages/live-game/betting/LiveGameBettingPlayPage'));
+const LiveGameBettingResultsPage = lazy(() => import('./pages/live-game/betting/LiveGameBettingResultsPage'));
+const PredictionChallengeOverviewPage = lazy(() => import('./pages/prediction/PredictionChallengeOverviewPage'));
+const FantasyLiveTeamSelectionPage = lazy(() => import('./pages/live-game/FantasyLiveTeamSelectionPage'));
+const FantasyLiveGamePage = lazy(() => import('./pages/live-game/FantasyLiveGamePage'));
+const LiveGameLobbyPage = lazy(() => import('./pages/live-game/LiveGameLobbyPage'));
 import { OnboardingFlow } from './components/OnboardingFlow';
 import { isBefore, parseISO, differenceInHours } from 'date-fns';
 import { TicketWalletModal } from './components/TicketWalletModal';
@@ -102,8 +104,23 @@ function createEmptyChallengeEntry(challengeId: string, userId: string, matches:
 export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'squads' | 'funzone';
 type AuthFlowState = 'guest' | 'authenticated' | 'signing_up' | 'onboarding';
 
+// Fallback shown while a lazy-loaded page chunk is being fetched.
+function PageLoader() {
+  return (
+    <div className="min-h-[50vh] flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-electric-blue/30 border-t-electric-blue rounded-full animate-spin" />
+    </div>
+  );
+}
+
 function App() {
   const [loading, setLoading] = useState(true);
+
+  // Hide the native splash only once the first real screen is ready, so the
+  // user goes straight from splash to UI (no "Loading..." flash in between).
+  useEffect(() => {
+    if (!loading) hideSplash();
+  }, [loading]);
   const { toasts, addToast, removeToast } = useToast();
   const [authFlow, setAuthFlow] = useState<AuthFlowState>('guest');
   const [pendingSignupEmail, setPendingSignupEmail] = useState<string | null>(null);
@@ -1371,12 +1388,14 @@ function App() {
   // Show Live Game Lobby if active
   if (activeLiveGameSupabase) {
     return (
-      <LiveGameLobbyPage
-        gameId={activeLiveGameSupabase.id}
-        fixtureId={activeLiveGameSupabase.fixtureId}
-        mode={activeLiveGameSupabase.mode}
-        onBack={() => setActiveLiveGameSupabase(null)}
-      />
+      <Suspense fallback={<PageLoader />}>
+        <LiveGameLobbyPage
+          gameId={activeLiveGameSupabase.id}
+          fixtureId={activeLiveGameSupabase.fixtureId}
+          mode={activeLiveGameSupabase.mode}
+          onBack={() => setActiveLiveGameSupabase(null)}
+        />
+      </Suspense>
     );
   }
 
@@ -1396,7 +1415,7 @@ function App() {
           onGoToShop={() => setIsCoinShopModalOpen(true)}
           onOpenPremiumModal={() => setIsPremiumModalOpen(true)}
         />
-        {renderPage()}
+        <Suspense fallback={<PageLoader />}>{renderPage()}</Suspense>
       </div>
 
       <FooterNav activePage={page} onPageChange={handlePageChange} />
