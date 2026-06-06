@@ -13,6 +13,7 @@ import type { SwipePredictionRecord } from '../../services/swipeGameService';
 import { SwipeCard } from '../../components/SwipeCard';
 import { SwipeTutorialModal } from '../../components/SwipeTutorialModal';
 import { mapPredictionToOutcome } from '../../features/swipe/swipeMappers';
+import { hapticImpact } from '../../native/haptics';
 
 interface SwipeCardStackProps {
   matches: SwipeMatch[];
@@ -66,6 +67,9 @@ export const SwipeCardStack = memo<SwipeCardStackProps>(function SwipeCardStack(
       return;
     }
 
+    // Tactile feedback at the moment a prediction is committed (native only).
+    hapticImpact('medium');
+
     // Call parent handler
     onSwipe(matchId, prediction);
 
@@ -84,7 +88,7 @@ export const SwipeCardStack = memo<SwipeCardStackProps>(function SwipeCardStack(
       <div className="fixed inset-0 bg-deep-navy flex flex-col items-center justify-center z-40">
         <button
           onClick={onExit}
-          className="absolute top-4 right-4 z-50 bg-navy-accent backdrop-blur-sm p-2 rounded-full text-text-secondary hover:bg-white/10 hover:scale-110 transition-all"
+          className="absolute top-[max(1rem,env(safe-area-inset-top))] right-4 z-50 bg-navy-accent backdrop-blur-sm p-2 rounded-full text-text-secondary hover:bg-white/10 hover:scale-110 transition-all"
         >
           <X size={24} />
         </button>
@@ -110,7 +114,7 @@ export const SwipeCardStack = memo<SwipeCardStackProps>(function SwipeCardStack(
       <div className="fixed inset-0 bg-deep-navy flex flex-col items-center justify-center z-40">
         <button
           onClick={onExit}
-          className="absolute top-4 right-4 z-50 bg-navy-accent backdrop-blur-sm p-2 rounded-full text-text-secondary hover:bg-white/10 hover:scale-110 transition-all"
+          className="absolute top-[max(1rem,env(safe-area-inset-top))] right-4 z-50 bg-navy-accent backdrop-blur-sm p-2 rounded-full text-text-secondary hover:bg-white/10 hover:scale-110 transition-all"
         >
           <X size={24} />
         </button>
@@ -147,7 +151,7 @@ export const SwipeCardStack = memo<SwipeCardStackProps>(function SwipeCardStack(
         <X size={24} />
       </button>
 
-      <div className="relative w-[90vw] max-w-sm h-[60vh] flex items-center justify-center">
+      <div className="relative w-[90vw] max-w-sm h-[60vh] flex items-center justify-center" style={{ touchAction: 'none' }}>
         {isSaving && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm rounded-3xl z-50">
             <Loader2 className="animate-spin text-electric-blue" size={32} />

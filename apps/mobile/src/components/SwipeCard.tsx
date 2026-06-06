@@ -1,7 +1,8 @@
-import React, { useState, memo } from 'react';
+import React, { useState, useRef, memo } from 'react';
 import { motion, PanInfo, useMotionValue, useTransform } from 'framer-motion';
 import { SwipeMatch, SwipePredictionOutcome } from '../types';
 import { flushSync } from 'react-dom';
+import { hapticImpact } from '../native/haptics';
 
 interface SwipeCardProps {
   match: SwipeMatch;
@@ -67,8 +68,24 @@ export const SwipeCard = memo<SwipeCardProps>(function SwipeCard({ match, onSwip
   const opacityRight = useTransform(x, [70, 120], [0, 1]);
   const opacityUp = useTransform(y, [-120, -70], [1, 0]);
 
+  // Light tactile cue the first time a drag crosses the commit threshold, so
+  // the user feels "release now". Does not affect the swipe decision below.
+  const passedThreshold = useRef(false);
+  const handleDrag = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    if (!isTop) return;
+    const past =
+      Math.abs(info.offset.x) > swipeThreshold || info.offset.y < -swipeThreshold;
+    if (past && !passedThreshold.current) {
+      passedThreshold.current = true;
+      hapticImpact('light');
+    } else if (!past && passedThreshold.current) {
+      passedThreshold.current = false;
+    }
+  };
+
   const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     if (!isTop) return;
+    passedThreshold.current = false;
 
     const { offset, velocity } = info;
     let direction: 'left' | 'right' | 'up' | null = null;
@@ -108,6 +125,7 @@ export const SwipeCard = memo<SwipeCardProps>(function SwipeCard({ match, onSwip
       custom={exitDirection}
       drag={isTop}
       dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
+      onDrag={handleDrag}
       onDragEnd={handleDragEnd}
       style={{ x, y, rotate }}
       whileTap={{ scale: 0.98, cursor: 'grabbing' }}

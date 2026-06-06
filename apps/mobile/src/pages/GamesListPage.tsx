@@ -4,6 +4,8 @@ import { GameCard } from '../components/GameCard';
 import { RewardsPreviewModal } from '../components/RewardsPreviewModal';
 import { GameInfoModal } from '../components/GameInfoModal';
 import { GamesFilterPanel } from '../components/filters/GamesFilterPanel';
+import { PullToRefresh } from '../components/PullToRefresh';
+import { hapticImpact } from '../native/haptics';
 import { checkEligibility } from '../lib/eligibility';
 import { GameSection } from '../components/GameSection';
 import { parseISO } from 'date-fns';
@@ -118,10 +120,11 @@ interface GamesListPageProps {
   myGamesCount: number;
   profile: Profile | null;
   userTickets: UserTicket[];
+  onRefresh?: () => void | Promise<void>;
 }
 
 const GamesListPage: React.FC<GamesListPageProps> = (props) => {
-  const { games, userChallengeEntries, userSwipeEntries, userFantasyTeams, onJoinChallenge, onViewChallenge, onJoinSwipeGame, onPlaySwipeGame, onViewFantasyGame, profile, userTickets } = props;
+  const { games, userChallengeEntries, userSwipeEntries, userFantasyTeams, onJoinChallenge, onViewChallenge, onJoinSwipeGame, onPlaySwipeGame, onViewFantasyGame, profile, userTickets, onRefresh } = props;
 
   const [activeTab, setActiveTab] = useState<GamesTab>('my-games');
   const [filters, setFilters] = useState<GameFilters>({
@@ -364,8 +367,11 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
         key={game.id}
         game={game}
         ctaState={ctaState}
-        onJoinClick={() => game.game_type === 'betting' ? onJoinChallenge(game) : onJoinSwipeGame(game.id)}
-        onPlay={onPlayAction}
+        onJoinClick={() => {
+          hapticImpact('medium');
+          game.game_type === 'betting' ? onJoinChallenge(game) : onJoinSwipeGame(game.id);
+        }}
+        onPlay={() => { hapticImpact('light'); onPlayAction(); }}
         onShowRewards={() => setViewingRewardsFor(game)}
         onShowInfo={(game) => setViewingInfoFor(game)}
         onViewLeaderboard={handleViewLeaderboard}
@@ -378,11 +384,12 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
   };
 
   return (
+    <PullToRefresh onRefresh={onRefresh ?? (() => {})}>
     <div className="space-y-4">
       {/* Tab Switcher */}
       <div className="flex bg-navy-accent rounded-xl p-1">
         <button
-          onClick={() => setActiveTab('my-games')}
+          onClick={() => { hapticImpact('light'); setActiveTab('my-games'); }}
           className={`flex-1 p-3 rounded-lg font-semibold transition-all text-sm ${
             activeTab === 'my-games'
               ? 'bg-electric-blue text-white shadow'
@@ -392,7 +399,7 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
           My Games
         </button>
         <button
-          onClick={() => setActiveTab('browse')}
+          onClick={() => { hapticImpact('light'); setActiveTab('browse'); }}
           className={`flex-1 p-3 rounded-lg font-semibold transition-all text-sm ${
             activeTab === 'browse'
               ? 'bg-electric-blue text-white shadow'
@@ -511,6 +518,7 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
         game={viewingInfoFor}
       />
     </div>
+    </PullToRefresh>
   );
 };
 

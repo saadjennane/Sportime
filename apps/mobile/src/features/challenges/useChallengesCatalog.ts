@@ -7,6 +7,7 @@ import type {
   ChallengeBet,
 } from '../../types'
 import { fetchChallengeCatalog } from '../../services/challengeService'
+import { useResumeRefresh } from '../../native/useResumeRefresh'
 
 type CatalogState = {
   games: SportimeGame[]
@@ -96,6 +97,9 @@ export function useChallengesCatalog(userId: string | null, enabled: boolean) {
       }),
     }));
   }, []);
+
+  // Refresh the catalog when the app returns to the foreground (native).
+  useResumeRefresh(loadCatalog)
 
   return {
     games: state.games,
