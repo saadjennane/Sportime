@@ -11,6 +11,7 @@ import { useImportedLeagues } from '../hooks/useImportedLeagues';
 import { LeagueOrderModal } from '../components/matches/LeagueOrderModal';
 import { MatchStatsDrawer } from '../components/matches/stats/MatchStatsDrawer';
 import { useMatchesOfTheDay } from '../features/matches/useMatchesOfTheDay';
+import { PullToRefresh } from '../components/PullToRefresh';
 import type { UiMatch } from '../features/matches/useMatchesOfTheDay';
 
 type Tab = 'today' | 'picks' | 'finished';
@@ -27,7 +28,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [selectedMatchForStats, setSelectedMatchForStats] = useState<Match | null>(null);
 
-  const { data: groups, isLoading: loading, error } = useMatchesOfTheDay();
+  const { data: groups, isLoading: loading, error, refresh } = useMatchesOfTheDay();
   const { leagues: importedLeagues, isLoading: leaguesLoading, error: leaguesError } = useImportedLeagues();
 
 
@@ -193,6 +194,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
   }, [bets, upcomingMatches]);
 
   return (
+    <PullToRefresh onRefresh={refresh}>
     <div className="space-y-4">
       {/* 1. Date */}
       <div className="flex items-center justify-center">
@@ -291,6 +293,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
         onClose={() => setSelectedMatchForStats(null)}
       />
     </div>
+    </PullToRefresh>
   );
 };
 

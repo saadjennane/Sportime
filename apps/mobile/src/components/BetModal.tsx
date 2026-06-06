@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Coins, TrendingUp } from 'lucide-react';
 import { Match, Bet } from '../types';
+import { hapticImpact, hapticSuccess } from '../native/haptics';
 
 // Helper function to render team icon (extracted to avoid inline function issues)
 const renderTeamIcon = (
@@ -153,6 +154,7 @@ export const BetModal: React.FC<BetModalProps> = ({
 
   const handleConfirm = () => {
     if (!isConfirmDisabled) {
+      hapticSuccess();
       onConfirm(numAmount, selectedPrediction, safeSelectedOdds);
       onClose();
     }
@@ -171,12 +173,13 @@ export const BetModal: React.FC<BetModalProps> = ({
   };
 
   const handlePredictionChange = (newPrediction: 'teamA' | 'draw' | 'teamB', newOdds: number) => {
+    hapticImpact('light');
     setSelectedPrediction(newPrediction);
     setSelectedOdds(newOdds);
   };
 
   return (
-    <div className="fixed inset-0 bg-deep-navy/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-scale-in">
+    <div className="modal-kb fixed inset-0 bg-deep-navy/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-scale-in overflow-y-auto">
       <div className="modal-base max-w-sm w-full p-6 space-y-5">
 
         <div className="flex items-center justify-between">
@@ -247,8 +250,10 @@ export const BetModal: React.FC<BetModalProps> = ({
             <Coins className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-warm-yellow" />
             <input
               type="number"
+              inputMode="numeric"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
+              onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
               placeholder="0"
               className="input-base pl-12 text-lg"
               min="0"

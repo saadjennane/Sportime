@@ -78,6 +78,11 @@ body,
   min-height: 100dvh;
 }
 
+/* Keep the browser's own overscroll bounce from fighting our pull-to-refresh. */
+body {
+  overscroll-behavior-y: contain;
+}
+
 /* Single-side padding helpers */
 .pt-safe { padding-top: env(safe-area-inset-top); }
 .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
@@ -111,4 +116,10 @@ body,
 body.keyboard-open .screen-safe {
   align-items: flex-start;
   overflow-y: auto;
+}
+
+/* Centred modal overlays: when the keyboard is open, align to the top so the
+   modal (and its focused input) stays visible above the keyboard. */
+body.keyboard-open .modal-kb {
+  align-items: flex-start;
 }

@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../services/supabase'
+import { useResumeRefresh } from '../../native/useResumeRefresh'
 import { apiFootball } from '../../lib/apiFootballService'
 import { useUserTimezone } from '../../hooks/useUserTimezone'
 import { getLocalDayBounds as getLocalDayBoundsUtil, formatMatchTime as formatMatchTimeUtil } from '../../utils/timezoneUtils'
@@ -407,6 +408,9 @@ export function useMatchesOfTheDay(): HookState {
       window.clearInterval(intervalId)
     }
   }, [baseGroups])
+
+  // Refresh immediately when the app returns to the foreground (native).
+  useResumeRefresh(refresh)
 
     return {
       data: mergedGroups,
