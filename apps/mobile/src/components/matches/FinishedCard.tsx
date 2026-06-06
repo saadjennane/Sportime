@@ -37,7 +37,7 @@ export const FinishedCard: React.FC<FinishedCardProps> = ({ match, bet, onViewSt
 
   return (
     <div className="card-base p-3 space-y-3">
-      <MatchHeaderRow match={match} center={center} badge={{ text: statusLabel(match.rawStatus), variant: 'finished' }} />
+      <MatchHeaderRow match={match} center={center} status={{ text: statusLabel(match.rawStatus), variant: 'finished' }} />
 
       {/* Three odds — actual result in green, lost pick in red */}
       <div className="flex gap-2">
@@ -73,7 +73,7 @@ export const FinishedCard: React.FC<FinishedCardProps> = ({ match, bet, onViewSt
               won ? 'bg-lime-glow/15 text-lime-glow' : 'bg-hot-red/15 text-hot-red'
             }`}
           >
-            {won ? `WON +${(bet.winAmount ?? 0).toLocaleString()}` : `LOST −${bet.amount.toLocaleString()}`}
+            {won ? `WON +${((bet.winAmount ?? 0) - bet.amount).toLocaleString()}` : `LOST −${bet.amount.toLocaleString()}`}
           </div>
         )}
         {onPlayGame && (

@@ -53,7 +53,7 @@ export const PickCard: React.FC<PickCardProps> = ({ match, bet, onEdit, onViewSt
 
   return (
     <div className="card-base p-3 space-y-3">
-      <MatchHeaderRow match={match} center={center} badge={badge} />
+      <MatchHeaderRow match={match} center={center} status={badge} />
 
       {/* Three odds, user's pick highlighted */}
       <div className="flex gap-2">

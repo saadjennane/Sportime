@@ -16,57 +16,55 @@ interface MatchHeaderRowProps {
   match: Match;
   /** Centre: heure (à venir) ou score "1 - 0" (live/terminé). */
   center: string;
-  /** Badge à gauche (statut). Absent = match à venir. */
-  badge?: { text: string; variant: 'live' | 'finished' };
+  /** Statut affiché SOUS le score (live: 1H/HT…, terminé: FT/CANC…). */
+  status?: { text: string; variant: 'live' | 'finished' };
   centerClass?: string;
 }
 
 /**
  * Single-line match header (FotMob style):
- * [badge]  HomeName (logo)   time/score   (logo) AwayName
+ * HomeName (logo)   score/time   (logo) AwayName
  *
- * Grid 1fr / auto / 1fr keeps the score geometrically centred whatever the team
- * names. The status badge is absolutely positioned on the left (out of flow) so
- * it never shifts the score; the side columns reserve room for it (pl/pr).
- * Names wrap on word boundaries (never mid-word) when too long.
+ * Grid 1fr / auto / 1fr keeps the score geometrically centred. The status
+ * (live minute / FT…) sits UNDER the score so it never overlaps the team names,
+ * which get the full side columns and wrap on word boundaries when too long.
  */
 export const MatchHeaderRow: React.FC<MatchHeaderRowProps> = ({
   match,
   center,
-  badge,
+  status,
   centerClass,
 }) => (
-  <div className="relative">
-    {badge && (
-      <span
-        className={`absolute left-0 top-1/2 -translate-y-1/2 z-10 text-[10px] px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap ${
-          badge.variant === 'live'
-            ? 'text-white bg-gradient-to-r from-hot-red to-electric-blue animate-pulse'
-            : 'bg-disabled text-text-disabled'
-        }`}
-      >
-        {badge.text}
+  <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+    <div className="flex items-center justify-end gap-1.5 min-w-0">
+      <span className="text-sm font-semibold text-text-primary text-right leading-tight break-words">
+        {match.teamA.name}
       </span>
-    )}
+      <TeamLogo team={match.teamA} />
+    </div>
 
-    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5">
-      <div className="flex items-center justify-end gap-1.5 min-w-0 pl-8">
-        <span className="text-[13px] font-semibold text-text-primary text-right leading-tight break-words">
-          {match.teamA.name}
-        </span>
-        <TeamLogo team={match.teamA} />
-      </div>
-
-      <span className={`px-1 text-base font-bold whitespace-nowrap ${centerClass ?? 'text-text-primary'}`}>
+    <div className="flex flex-col items-center px-1">
+      <span className={`text-base font-bold whitespace-nowrap ${centerClass ?? 'text-text-primary'}`}>
         {center}
       </span>
-
-      <div className="flex items-center justify-start gap-1.5 min-w-0 pr-8">
-        <TeamLogo team={match.teamB} />
-        <span className="text-[13px] font-semibold text-text-primary text-left leading-tight break-words">
-          {match.teamB.name}
+      {status && (
+        <span
+          className={`mt-0.5 text-[9px] leading-none px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap ${
+            status.variant === 'live'
+              ? 'text-white bg-gradient-to-r from-hot-red to-electric-blue animate-pulse'
+              : 'bg-disabled text-text-disabled'
+          }`}
+        >
+          {status.text}
         </span>
-      </div>
+      )}
+    </div>
+
+    <div className="flex items-center justify-start gap-1.5 min-w-0">
+      <TeamLogo team={match.teamB} />
+      <span className="text-sm font-semibold text-text-primary text-left leading-tight break-words">
+        {match.teamB.name}
+      </span>
     </div>
   </div>
 );

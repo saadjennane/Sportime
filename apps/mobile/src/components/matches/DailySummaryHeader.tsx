@@ -54,7 +54,7 @@ export const DailySummaryHeader: React.FC<DailySummaryHeaderProps> = ({
         <Coins size={24} className="text-warm-yellow" />
         <div>
           <p className="font-bold text-text-primary">
-            {isPlayedTab ? 'Earnings' : 'Potential Win'}
+            {isPlayedTab ? 'Results' : 'Potential Win'}
           </p>
           {isPlayedTab ? (
             <p className={potentialWinnings >= 0 ? 'text-lime-glow' : 'text-hot-red'}>

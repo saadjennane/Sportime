@@ -77,7 +77,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
 
   return (
     <div className="card-base p-3 space-y-3">
-      <MatchHeaderRow match={match} center={center} badge={badge} />
+      <MatchHeaderRow match={match} center={center} status={badge} />
 
       {/* Odds */}
       <div className="flex gap-2">

@@ -206,8 +206,14 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
     const todayIds = new Set(upcomingMatches.map(m => m.id));
     const todayBets = bets.filter(b => todayIds.has(b.matchId));
     const won = todayBets.filter(b => b.status === 'won').length;
+    // Net balance: win => profit (payout − stake), loss => −stake.
     const net = todayBets.reduce(
-      (t, b) => (b.status === 'won' ? t + (b.winAmount ?? 0) : b.status === 'lost' ? t - b.amount : t),
+      (t, b) =>
+        b.status === 'won'
+          ? t + ((b.winAmount ?? 0) - b.amount)
+          : b.status === 'lost'
+            ? t - b.amount
+            : t,
       0,
     );
     return { won, totalPicks: todayBets.length, net };
