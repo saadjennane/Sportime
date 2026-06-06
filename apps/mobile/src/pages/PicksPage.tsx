@@ -3,7 +3,7 @@ import { Match, Bet } from '../types';
 import { PickCard } from '../components/matches/PickCard';
 import { LeagueMatchGroup } from '../components/matches/LeagueMatchGroup';
 import { useUserPicks } from '../features/matches/useUserPicks';
-import { Loader, Target } from 'lucide-react';
+import { Loader } from 'lucide-react';
 
 interface PicksPageProps {
   bets: Bet[];
@@ -72,15 +72,6 @@ const PicksPage: React.FC<PicksPageProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Header — Active Picks only */}
-      <div className="bg-navy-accent p-3 rounded-lg flex items-center gap-3">
-        <Target size={22} className="text-electric-blue" />
-        <div>
-          <p className="font-bold text-text-primary text-sm">Active Picks</p>
-          <p className="text-text-secondary text-sm">{activePicks.length}</p>
-        </div>
-      </div>
-
       {isLoading && picks.length === 0 && (
         <div className="text-center text-sm text-text-disabled">Loading your picks…</div>
       )}

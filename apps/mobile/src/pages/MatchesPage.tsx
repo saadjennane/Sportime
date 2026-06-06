@@ -33,6 +33,9 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
   const { data: groups, isLoading: loading, error, refresh } = useMatchesOfTheDay();
   const { leagues: importedLeagues, isLoading: leaguesLoading, error: leaguesError } = useImportedLeagues();
 
+  // Picks tab badge = active (unsettled) picks only — settled ones live in Finished.
+  const activePicksCount = useMemo(() => bets.filter(b => b.status === 'pending').length, [bets]);
+
   // Unread badge for settled bets the user hasn't seen; cleared on opening Finished.
   const { unreadCount, markAllSeen } = useUnreadSettled(bets);
   useEffect(() => {
@@ -254,9 +257,9 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
           >
             <Target size={14} />
             Picks
-            {bets.length > 0 && (
+            {activePicksCount > 0 && (
               <span className={`text-xs px-1.5 py-0.5 rounded-full ${activeTab === 'picks' ? 'bg-white/20' : 'bg-electric-blue/20 text-electric-blue'}`}>
-                {bets.length}
+                {activePicksCount}
               </span>
             )}
           </button>
