@@ -185,6 +185,14 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
   const lostDraw = userBet?.status === 'lost' && isSelectedDraw;
   const lostTeamB = userBet?.status === 'lost' && isSelectedTeamB;
 
+  const hasAnyOdds = teamAOdds !== undefined || drawOdds !== undefined || teamBOdds !== undefined;
+  // "Bet" opens the modal on the first available outcome; the user switches inside.
+  const handleBetClick = () => {
+    if (teamAOdds !== undefined) onBet?.('teamA', teamAOdds);
+    else if (drawOdds !== undefined) onBet?.('draw', drawOdds);
+    else if (teamBOdds !== undefined) onBet?.('teamB', teamBOdds);
+  };
+
   return (
     <div className={`card-base p-5 transition-all duration-300 ${cardHoverClass}`}>
       <div className="flex items-center justify-between mb-4">
@@ -201,7 +209,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
           <div className="text-sm font-semibold text-text-primary">{match.teamA.name}</div>
         </div>
 
-        <div className="px-4 text-center">
+        <div className="px-4 text-center flex flex-col items-center gap-2">
           {showScore ? (
             <div className="flex flex-col items-center">
               <div className={`text-2xl font-bold ${isLive ? 'text-hot-red' : 'text-text-primary'}`}>
@@ -216,6 +224,14 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
           ) : (
             <div className="text-2xl font-bold text-disabled">VS</div>
           )}
+          {onPlayGame && (isUpcoming || isLive) && (
+            <button
+              onClick={() => onPlayGame(match.id, `${match.teamA.name} vs ${match.teamB.name}`)}
+              className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-md whitespace-nowrap ${isLive ? 'text-hot-red bg-hot-red/10 hover:bg-hot-red/20 animate-pulse' : 'text-warm-yellow bg-warm-yellow/10 hover:bg-warm-yellow/20'}`}
+            >
+              <Zap size={14} /> Live Game
+            </button>
+          )}
         </div>
 
         <div className="flex-1 text-center">
@@ -224,76 +240,74 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
         </div>
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-electric-blue" />
-            <span className="text-xs font-semibold text-text-secondary uppercase">
-              {isUpcoming ? 'Place Your Bet' : isLive ? 'Match In Progress' : 'Final Odds'}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            {onViewStats && (
-              <button onClick={onViewStats} className="relative flex items-center gap-1.5 text-xs font-semibold text-text-secondary hover:text-electric-blue">
-                <BarChart2 size={16} />
-                Stats
-                {match.hasLineup && (
-                  <span className="absolute -top-1 -right-1 flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime-glow opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-lime-glow"></span>
-                  </span>
-                )}
-              </button>
+      {/* Odds */}
+      <div className="flex gap-2 mb-3">
+        <BetButton
+          prediction="teamA"
+          odds={teamAOdds}
+          label={match.teamA.name.split(' ')[0]}
+          isSelected={isSelectedTeamA}
+          won={wonTeamA}
+          lost={lostTeamA}
+          isDisabled={isDisabled || teamAOdds === undefined}
+          styling={getResultStyling('teamA')}
+          onBet={onBet}
+          winAmount={userBet?.winAmount}
+          lostAmount={userBet?.amount}
+        />
+        <BetButton
+          prediction="draw"
+          odds={drawOdds}
+          label="Draw"
+          isSelected={isSelectedDraw}
+          won={wonDraw}
+          lost={lostDraw}
+          isDisabled={isDisabled || drawOdds === undefined}
+          styling={getResultStyling('draw')}
+          onBet={onBet}
+          winAmount={userBet?.winAmount}
+          lostAmount={userBet?.amount}
+        />
+        <BetButton
+          prediction="teamB"
+          odds={teamBOdds}
+          label={match.teamB.name.split(' ')[0]}
+          isSelected={isSelectedTeamB}
+          won={wonTeamB}
+          lost={lostTeamB}
+          isDisabled={isDisabled || teamBOdds === undefined}
+          styling={getResultStyling('teamB')}
+          onBet={onBet}
+          winAmount={userBet?.winAmount}
+          lostAmount={userBet?.amount}
+        />
+      </div>
+
+      {/* Actions: Bet + Stats (same shape as Pick/Finished cards) */}
+      <div className="flex gap-2">
+        {isUpcoming && (
+          <button
+            onClick={handleBetClick}
+            disabled={!hasAnyOdds}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-electric-blue rounded-lg text-sm font-bold text-white hover:bg-electric-blue/90 transition-colors disabled:opacity-50"
+          >
+            <TrendingUp size={16} /> Bet
+          </button>
+        )}
+        {onViewStats && (
+          <button
+            onClick={onViewStats}
+            className="relative flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-navy-accent rounded-lg text-sm font-semibold text-text-secondary hover:text-electric-blue transition-colors"
+          >
+            <BarChart2 size={16} /> Stats
+            {match.hasLineup && (
+              <span className="absolute top-1.5 right-3 flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime-glow opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-lime-glow"></span>
+              </span>
             )}
-             {onPlayGame && (isUpcoming || isLive) && (
-              <button onClick={() => onPlayGame(match.id, `${match.teamA.name} vs ${match.teamB.name}`)} className={`flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-md ${isLive ? 'text-hot-red bg-hot-red/10 hover:bg-hot-red/20 animate-pulse' : 'text-warm-yellow bg-warm-yellow/10 hover:bg-warm-yellow/20'}`}>
-                <Zap size={16} />
-                Live Game
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <BetButton
-            prediction="teamA"
-            odds={teamAOdds}
-            label={match.teamA.name.split(' ')[0]}
-            isSelected={isSelectedTeamA}
-            won={wonTeamA}
-            lost={lostTeamA}
-            isDisabled={isDisabled || teamAOdds === undefined}
-            styling={getResultStyling('teamA')}
-            onBet={onBet}
-            winAmount={userBet?.winAmount}
-            lostAmount={userBet?.amount}
-          />
-          <BetButton
-            prediction="draw"
-            odds={drawOdds}
-            label="Draw"
-            isSelected={isSelectedDraw}
-            won={wonDraw}
-            lost={lostDraw}
-            isDisabled={isDisabled || drawOdds === undefined}
-            styling={getResultStyling('draw')}
-            onBet={onBet}
-            winAmount={userBet?.winAmount}
-            lostAmount={userBet?.amount}
-          />
-          <BetButton
-            prediction="teamB"
-            odds={teamBOdds}
-            label={match.teamB.name.split(' ')[0]}
-            isSelected={isSelectedTeamB}
-            won={wonTeamB}
-            lost={lostTeamB}
-            isDisabled={isDisabled || teamBOdds === undefined}
-            styling={getResultStyling('teamB')}
-            onBet={onBet}
-            winAmount={userBet?.winAmount}
-            lostAmount={userBet?.amount}
-          />
-        </div>
+          </button>
+        )}
       </div>
     </div>
   );
