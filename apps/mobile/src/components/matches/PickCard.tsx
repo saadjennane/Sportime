@@ -15,7 +15,7 @@ function formatKickoff(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   const time = format(d, 'HH:mm');
-  if (isToday(d)) return `Today · ${time}`;
+  if (isToday(d)) return time; // date already shown in the page header
   if (isTomorrow(d)) return `Tomorrow · ${time}`;
   return format(d, 'MMM d · HH:mm');
 }
@@ -35,13 +35,6 @@ export const PickCard: React.FC<PickCardProps> = ({ match, bet, onEdit, onViewSt
   const started = new Date(match.kickoffTime).getTime() <= Date.now();
   const safeOdds = typeof bet.odds === 'number' && Number.isFinite(bet.odds) ? bet.odds : 0;
   const potential = Math.ceil(bet.amount * safeOdds);
-
-  const predictionLabel =
-    bet.prediction === 'teamA'
-      ? match.teamA.name
-      : bet.prediction === 'teamB'
-        ? match.teamB.name
-        : 'Draw';
 
   const badge =
     bet.status === 'won'
@@ -88,27 +81,39 @@ export const PickCard: React.FC<PickCardProps> = ({ match, bet, onEdit, onViewSt
         </div>
       </div>
 
-      {/* Selected pick with its locked odds */}
-      <div
-        className={`rounded-xl border-2 p-3 flex items-center justify-between ${
-          bet.status === 'won'
-            ? 'border-lime-glow bg-lime-glow/10'
-            : bet.status === 'lost'
-              ? 'border-hot-red bg-hot-red/10'
-              : 'border-electric-blue bg-electric-blue/10'
-        }`}
-      >
-        <div className="min-w-0">
-          <p className="text-[10px] uppercase font-semibold text-text-disabled tracking-wide">Your pick</p>
-          <p className="text-base font-bold text-text-primary truncate">{predictionLabel}</p>
-        </div>
-        <span
-          className={`text-2xl font-bold whitespace-nowrap ${
-            bet.status === 'won' ? 'text-lime-glow' : bet.status === 'lost' ? 'text-hot-red' : 'text-electric-blue'
-          }`}
-        >
-          {safeOdds.toFixed(2)}x
-        </span>
+      {/* The three outcomes, with the user's pick highlighted (read-only) */}
+      <div className="flex gap-2">
+        {([
+          { key: 'teamA', label: match.teamA.name.split(' ')[0], odds: match.odds?.teamA },
+          { key: 'draw', label: 'Draw', odds: match.odds?.draw },
+          { key: 'teamB', label: match.teamB.name.split(' ')[0], odds: match.odds?.teamB },
+        ] as const).map((o) => {
+          const selected = bet.prediction === o.key;
+          // Full class names (no interpolation) so Tailwind keeps them.
+          const containerCls = !selected
+            ? 'border-disabled bg-deep-navy opacity-50'
+            : bet.status === 'won'
+              ? 'border-lime-glow bg-lime-glow/10'
+              : bet.status === 'lost'
+                ? 'border-hot-red bg-hot-red/10'
+                : 'border-electric-blue bg-electric-blue/10';
+          const oddsCls = !selected
+            ? 'text-text-primary'
+            : bet.status === 'won'
+              ? 'text-lime-glow'
+              : bet.status === 'lost'
+                ? 'text-hot-red'
+                : 'text-electric-blue';
+          const hasOdds = typeof o.odds === 'number' && o.odds > 0;
+          return (
+            <div key={o.key} className={`flex-1 p-3 rounded-xl border-2 text-center ${containerCls}`}>
+              <div className="text-xs text-text-secondary mb-1 font-medium truncate">{o.label}</div>
+              <div className={`text-xl font-bold ${oddsCls}`}>
+                {hasOdds ? `${(o.odds as number).toFixed(2)}x` : '--'}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Stake + Potential / Winnings */}
