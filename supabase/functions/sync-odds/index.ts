@@ -149,16 +149,21 @@ async function syncUpcomingOdds(
 
   console.log(`[sync-odds] Fetching fixtures with status NS until ${toDate.split('T')[0]}`)
 
-  // Récupérer tous les matchs avec statut NS (pas encore joués)
-  // On ne filtre pas sur la date minimum car certains matchs peuvent avoir des dates passées
-  // mais un statut NS (en attente de mise à jour par sync-live-scores)
+  // Rule: matches FROM today onward (date >= start of today), regardless of
+  // status, up to the look-ahead window. Flooring at start-of-today (not "now")
+  // keeps today's already-kicked-off matches in scope, while excluding the stale
+  // past-dated NS fixtures that were filling the window and starving today's
+  // matches of odds.
+  const todayStart = new Date()
+  todayStart.setUTCHours(0, 0, 0, 0)
+
   const { data: fixtures, error: fixturesError } = await supabase
     .from('fb_fixtures')
-    .select('id, api_id, date')
-    .eq('status', 'NS')
+    .select('id, api_id, date, status')
+    .gte('date', todayStart.toISOString())
     .lte('date', toDate)
     .order('date', { ascending: true })
-    .limit(100)
+    .limit(200)
 
   if (fixturesError) {
     console.error('[sync-odds] Error fetching fixtures:', fixturesError)
