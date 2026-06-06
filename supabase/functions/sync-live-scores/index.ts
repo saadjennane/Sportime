@@ -425,6 +425,24 @@ serve(async (req) => {
       })
     }
 
+    // Settle betting-challenge bets on any fixture that just finished (idempotent).
+    let betsSettled = 0
+    if (finishedUpdates.length > 0) {
+      const { data: settledCount, error: settleError } = await supabase.rpc('settle_finished_unsettled_bets')
+      if (settleError) {
+        console.error('[sync-live-scores] Settle error:', settleError.message)
+      } else {
+        betsSettled = settledCount ?? 0
+        console.log(`[sync-live-scores] Settled ${betsSettled} challenge bet(s)`)
+      }
+
+      // Finalize betting challenges whose window has ended (final ranks + prizes).
+      const { error: finalizeError } = await supabase.rpc('finalize_due_challenges')
+      if (finalizeError) {
+        console.error('[sync-live-scores] Finalize error:', finalizeError.message)
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -432,6 +450,7 @@ serve(async (req) => {
         updated: result.updated,
         api_calls: result.calls || 1,
         stuck_fixed: result.stuckFixed || 0,
+        bets_settled: betsSettled,
         updates: result.updates,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

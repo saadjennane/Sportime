@@ -37,7 +37,7 @@ const calculateChallengePoints = (entry: UserChallengeEntry, matches: ChallengeM
       const isWin = match.result === bet.prediction;
       const isBoosted = booster?.matchId === bet.challengeMatchId;
       if (isWin) {
-        let gain = (bet.amount * match.odds[bet.prediction]);
+        let gain = (bet.amount * (bet.oddsSnapshot?.[bet.prediction] ?? match.odds[bet.prediction]));
         if (isBoosted) {
           if (booster?.type === 'x2') gain *= 2;
           else if (booster?.type === 'x3') gain *= 3;
@@ -410,7 +410,7 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
       { username: 'TopPlayer', entry: mockEntry },
       { username: 'SmartBettor', entry: { ...mockEntry, dailyEntries: [{ day: 1, bets: [{ challengeMatchId: 'cm-new-2', prediction: 'teamA', amount: 1000 }] }, { day: 2, bets: [] }] } },
     ];
-    const userPoints = calculateChallengePoints(userEntry, matches);
+    const userPoints = userEntry.serverPoints ?? calculateChallengePoints(userEntry, matches);
     const allEntries: Omit<LeaderboardEntry, 'rank'>[] = [
       { username: 'You', finalCoins: 0, points: userPoints },
       ...otherPlayers.map(player => ({ username: player.username, finalCoins: 0, points: calculateChallengePoints(player.entry, matches) }))
@@ -434,30 +434,31 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
     const isDayFinished = groupMatches.every(m => m.status === 'played');
 
     if (isDayFinished) {
+      // Server is authoritative: sum the settled points_earned per bet.
       let finalPoints = 0;
       groupBets.forEach(bet => {
+        if (typeof bet.pointsEarned === 'number') {
+          finalPoints += bet.pointsEarned;
+          return;
+        }
+        // Fallback (locked odds, loss = 0)
         const match = groupMatches.find(m => m.id === bet.challengeMatchId);
-        if (match && match.result) {
-          if (match.result === bet.prediction) {
-            let gain = (bet.amount * match.odds[bet.prediction]);
-            if (groupBooster?.matchId === bet.challengeMatchId) {
-              if (groupBooster.type === 'x2') gain *= 2;
-              if (groupBooster.type === 'x3') gain *= 3;
-            }
-            finalPoints += gain;
-          } else {
-            if (groupBooster?.matchId === bet.challengeMatchId && groupBooster.type === 'x3') {
-              finalPoints -= 200;
-            }
+        if (match && match.result && match.result === bet.prediction) {
+          let gain = bet.amount * (bet.oddsSnapshot?.[bet.prediction] ?? match.odds[bet.prediction]);
+          if (groupBooster?.matchId === bet.challengeMatchId) {
+            if (groupBooster.type === 'x2') gain *= 2;
+            if (groupBooster.type === 'x3') gain *= 3;
           }
+          finalPoints += gain;
         }
       });
       return { points: Math.round(finalPoints), pointsLabel: 'Final Points' };
     } else {
+      // Potential uses the LOCKED odds (snapshot) for placed bets.
       const potentialPoints = groupBets.reduce((total, bet) => {
         const match = groupMatches.find(m => m.id === bet.challengeMatchId);
         if (match) {
-          total += (bet.amount * match.odds[bet.prediction]);
+          total += bet.amount * (bet.oddsSnapshot?.[bet.prediction] ?? match.odds[bet.prediction]);
         }
         return total;
       }, 0);
@@ -466,8 +467,8 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   }, [currentGroup, groupBets, groupBooster]);
 
 
-  // Calculate total challenge points for header display
-  const challengeTotalPoints = calculateChallengePoints(userEntry, matches);
+  // Calculate total challenge points for header display (server-authoritative).
+  const challengeTotalPoints = userEntry.serverPoints ?? calculateChallengePoints(userEntry, matches);
 
   return (
     <div className="space-y-6">

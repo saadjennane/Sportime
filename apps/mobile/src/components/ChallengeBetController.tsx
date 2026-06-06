@@ -21,6 +21,10 @@ export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ 
   const selectedPrediction = bet?.prediction;
   const amount = bet?.amount || '';
 
+  // Once a bet is locked (match played), show the odds snapshotted at bet time
+  // so the displayed odds always match what the server actually scored.
+  const displayOdds = match.status === 'played' && bet?.oddsSnapshot ? bet.oddsSnapshot : odds;
+
   // No level-based bet limits in betting games - only the daily 1000 coins limit applies
   const effectiveMaxAmount = maxAmount;
 
@@ -48,7 +52,7 @@ export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ 
 
   const potentialGain = useMemo(() => {
     if (bet && bet.amount > 0 && bet.prediction) {
-      let gain = (bet.amount * match.odds[bet.prediction]);
+      let gain = (bet.amount * displayOdds[bet.prediction]);
       if (isBoosted) {
           if (boosterType === 'x2') gain *= 2;
           if (boosterType === 'x3') gain *= 3;
@@ -56,7 +60,7 @@ export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ 
       return gain;
     }
     return 0;
-  }, [bet, match.odds, isBoosted, boosterType]);
+  }, [bet, displayOdds, isBoosted, boosterType]);
 
   const quickBetAmounts = useMemo(() => {
     const defaults = [100, 200, 500];
@@ -113,9 +117,9 @@ export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ 
         </div>
       </div>
       <div className="flex gap-2">
-        <BetOption label={teamA.name} odd={odds.teamA} prediction="teamA" />
-        <BetOption label="Draw" odd={odds.draw} prediction="draw" />
-        <BetOption label={teamB.name} odd={odds.teamB} prediction="teamB" />
+        <BetOption label={teamA.name} odd={displayOdds.teamA} prediction="teamA" />
+        <BetOption label="Draw" odd={displayOdds.draw} prediction="draw" />
+        <BetOption label={teamB.name} odd={displayOdds.teamB} prediction="teamB" />
       </div>
       <div>
         <input

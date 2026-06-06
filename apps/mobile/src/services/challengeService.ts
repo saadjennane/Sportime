@@ -56,6 +56,9 @@ type ChallengeBetRow = {
   challenge_match_id: string
   prediction: 'teamA' | 'draw' | 'teamB'
   amount: number
+  odds_snapshot: { teamA: number; draw: number; teamB: number } | null
+  status: 'pending' | 'won' | 'lost' | 'void' | null
+  points_earned: number | null
 }
 
 type ChallengeDailyEntryRow = {
@@ -1165,6 +1168,9 @@ function mapEntryRowToUserChallengeEntry(row: ChallengeEntryRow, userId: string)
         challengeMatchId: bet.challenge_match_id,
         prediction: bet.prediction,
         amount: bet.amount ?? 0,
+        oddsSnapshot: bet.odds_snapshot ?? null,
+        status: bet.status ?? undefined,
+        pointsEarned: bet.points_earned ?? undefined,
       }))
 
       const booster =
@@ -1209,7 +1215,10 @@ async function fetchUserChallengeEntries(userId: string) {
         bets:challenge_bets(
           challenge_match_id,
           prediction,
-          amount
+          amount,
+          odds_snapshot,
+          status,
+          points_earned
         )
       )
     `)
@@ -1223,6 +1232,16 @@ async function fetchUserChallengeEntries(userId: string) {
   for (const row of (data as ChallengeEntryRow[]) ?? []) {
     const entry = mapEntryRowToUserChallengeEntry(row, userId)
     entriesByChallenge.set(entry.challengeId, entry)
+  }
+
+  // Attach authoritative server points (challenge_participants.points)
+  const { data: parts } = await supabase
+    .from('challenge_participants')
+    .select('challenge_id, points')
+    .eq('user_id', userId)
+  for (const p of (parts as Array<{ challenge_id: string; points: number | null }>) ?? []) {
+    const e = entriesByChallenge.get(p.challenge_id)
+    if (e) e.serverPoints = p.points ?? 0
   }
 
   return entriesByChallenge

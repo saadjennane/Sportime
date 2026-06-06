@@ -54,6 +54,12 @@ export interface ChallengeBet {
   challengeMatchId: string;
   prediction: 'teamA' | 'draw' | 'teamB';
   amount: number;
+  /** Odds locked at bet time — the single source of truth for scoring/display. */
+  oddsSnapshot?: { teamA: number; draw: number; teamB: number } | null;
+  /** Server settlement: pending | won | lost | void. */
+  status?: 'pending' | 'won' | 'lost' | 'void';
+  /** Server-computed points for this bet. */
+  pointsEarned?: number;
 }
 
 export interface BoosterSelection {
@@ -73,6 +79,8 @@ export interface UserChallengeEntry {
   dailyEntries: DailyChallengeEntry[];
   entryMethod: 'coins' | 'ticket';
   ticketId?: string;
+  /** Authoritative total points from the server (challenge_participants.points). */
+  serverPoints?: number;
 }
 
 export interface Challenge {
