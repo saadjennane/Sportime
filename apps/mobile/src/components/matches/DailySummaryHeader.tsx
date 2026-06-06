@@ -54,9 +54,16 @@ export const DailySummaryHeader: React.FC<DailySummaryHeaderProps> = ({
         <Coins size={24} className="text-warm-yellow" />
         <div>
           <p className="font-bold text-text-primary">
-            {isPlayedTab ? 'Winnings' : 'Potential Win'}
+            {isPlayedTab ? 'Earnings' : 'Potential Win'}
           </p>
-          <p className="text-text-secondary">{potentialWinnings.toLocaleString()} coins</p>
+          {isPlayedTab ? (
+            <p className={potentialWinnings >= 0 ? 'text-lime-glow' : 'text-hot-red'}>
+              {potentialWinnings > 0 ? '+' : ''}
+              {potentialWinnings.toLocaleString()} coins
+            </p>
+          ) : (
+            <p className="text-text-secondary">{potentialWinnings.toLocaleString()} coins</p>
+          )}
         </div>
       </div>
     </div>

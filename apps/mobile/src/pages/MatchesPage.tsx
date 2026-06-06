@@ -4,7 +4,6 @@ import UpcomingPage from './Upcoming';
 import FinishedMatchesPage from './FinishedMatches';
 import PicksPage from './PicksPage';
 import { BetHistoryPage } from './BetHistoryPage';
-import { DailySummaryHeader } from '../components/matches/DailySummaryHeader';
 import { format } from 'date-fns';
 import { Settings, Calendar, Target } from 'lucide-react';
 import { useLeagueOrder } from '../hooks/useLeagueOrder';
@@ -175,26 +174,6 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
     return allLeagues;
   }, [importedLeagues, orderedLeagues]);
 
-  // Header data for Upcoming tab
-  const upcomingHeaderData = useMemo(() => {
-    const todayBets = bets.filter(bet => upcomingMatches.some(m => m.id === bet.matchId));
-    const picksCount = todayBets.length;
-    const totalBets = todayBets.reduce((total, bet) => total + bet.amount, 0);
-    const potentialWinnings = todayBets.reduce((total, bet) => {
-      // Validate odds to prevent NaN calculations
-      const safeOdds = typeof bet.odds === 'number' && Number.isFinite(bet.odds) ? bet.odds : 0;
-      // Round up each bet's potential win to nearest whole coin
-      return total + Math.ceil(bet.amount * safeOdds);
-    }, 0);
-
-    return {
-      picksCount,
-      totalMatches: upcomingMatches.length,
-      totalBets,
-      potentialWinnings
-    };
-  }, [bets, upcomingMatches]);
-
   // Ids of matches the user has a pick on.
   const pickedMatchIds = useMemo(() => new Set(bets.map(b => b.matchId)), [bets]);
 
@@ -220,6 +199,19 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
     }
     return result;
   }, [groupedUpcoming]);
+
+  // Finished header stats over ALL of today's picks (finished + pending):
+  // won count, total picks, and the day's net earnings (+won / −lost stakes).
+  const finishedHeaderStats = useMemo(() => {
+    const todayIds = new Set(upcomingMatches.map(m => m.id));
+    const todayBets = bets.filter(b => todayIds.has(b.matchId));
+    const won = todayBets.filter(b => b.status === 'won').length;
+    const net = todayBets.reduce(
+      (t, b) => (b.status === 'won' ? t + (b.winAmount ?? 0) : b.status === 'lost' ? t - b.amount : t),
+      0,
+    );
+    return { won, totalPicks: todayBets.length, net };
+  }, [upcomingMatches, bets]);
 
   return (
     <PullToRefresh onRefresh={refresh}>
@@ -268,18 +260,6 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
       </div>
       </div>
 
-      {/* 3. Header Stats */}
-      {activeTab === 'today' && (
-        <DailySummaryHeader
-          picksCount={upcomingHeaderData.picksCount}
-          totalMatches={upcomingHeaderData.totalMatches}
-          totalBets={upcomingHeaderData.totalBets}
-          potentialWinnings={upcomingHeaderData.potentialWinnings}
-          isPlayedTab={false}
-          onOpenHistory={() => setIsHistoryOpen(true)}
-        />
-      )}
-
       {/* 4. Liste des matchs */}
       {activeTab === 'today' ? (
         loading ? (
@@ -313,6 +293,9 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
         <FinishedMatchesPage
           groupedMatches={groupedFinished}
           bets={bets}
+          successfulPicks={finishedHeaderStats.won}
+          totalPicks={finishedHeaderStats.totalPicks}
+          earnings={finishedHeaderStats.net}
           onViewStats={setSelectedMatchForStats}
           orderedLeagues={effectiveOrderedLeagues}
           onOpenHistory={() => setIsHistoryOpen(true)}

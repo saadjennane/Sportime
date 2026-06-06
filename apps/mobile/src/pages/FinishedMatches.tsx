@@ -8,6 +8,10 @@ interface FinishedMatchesPageProps {
   /** Today's finished matches, grouped by league. */
   groupedMatches: Record<string, Match[]>;
   bets: Bet[];
+  /** Header stats over all of today's picks (computed by MatchesPage). */
+  successfulPicks: number;
+  totalPicks: number;
+  earnings: number;
   onViewStats: (match: Match) => void;
   orderedLeagues: string[];
   /** Opens the full bet history (all dates). */
@@ -17,6 +21,9 @@ interface FinishedMatchesPageProps {
 const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
   groupedMatches,
   bets,
+  successfulPicks,
+  totalPicks,
+  earnings,
   onViewStats,
   orderedLeagues,
   onOpenHistory,
@@ -46,27 +53,15 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
     return [...ordered, ...unordered];
   }, [displayedGrouped, orderedLeagues]);
 
-  // Header stats from today's finished bets.
-  const headerStats = useMemo(() => {
-    const todayFinishedIds = new Set(Object.values(groupedMatches).flat().map((m) => m.id));
-    const finishedBets = bets.filter((b) => todayFinishedIds.has(b.matchId));
-    const successfulPicks = finishedBets.filter((b) => b.status === 'won').length;
-    const totalWinnings = finishedBets.reduce(
-      (t, b) => (b.status === 'won' && b.winAmount ? t + b.winAmount : t),
-      0,
-    );
-    return { successfulPicks, totalBets: finishedBets.length, totalWinnings };
-  }, [groupedMatches, bets]);
-
   const hasMatches = Object.keys(displayedGrouped).length > 0;
 
   return (
     <div className="space-y-4">
-      {/* Header with stats + history button */}
+      {/* Header: Successful Picks (won / today's picks) + Earnings (net) + history */}
       <DailySummaryHeader
-        picksCount={headerStats.successfulPicks}
-        totalMatches={headerStats.totalBets}
-        potentialWinnings={headerStats.totalWinnings}
+        picksCount={successfulPicks}
+        totalMatches={totalPicks}
+        potentialWinnings={earnings}
         isPlayedTab={true}
         onOpenHistory={onOpenHistory}
       />

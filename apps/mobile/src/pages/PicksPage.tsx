@@ -3,7 +3,7 @@ import { Match, Bet } from '../types';
 import { PickCard } from '../components/matches/PickCard';
 import { LeagueMatchGroup } from '../components/matches/LeagueMatchGroup';
 import { useUserPicks } from '../features/matches/useUserPicks';
-import { Loader, Clock, CheckCircle2, Coins } from 'lucide-react';
+import { Loader, Target, CircleDollarSign, Coins } from 'lucide-react';
 
 interface PicksPageProps {
   bets: Bet[];
@@ -20,7 +20,7 @@ const PicksPage: React.FC<PicksPageProps> = ({
 }) => {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  const { picks, isLoading, hasMore, loadMore, stats } = useUserPicks(bets);
+  const { picks, isLoading, hasMore, loadMore } = useUserPicks(bets);
 
   // Picks tab only shows picks whose match is still upcoming or ongoing.
   // Finished picked matches move to the Finished tab.
@@ -68,31 +68,39 @@ const PicksPage: React.FC<PicksPageProps> = ({
   const hasPicks = activePicks.length > 0;
   const showEmptyState = !isLoading && !hasPicks;
 
+  // Stats relevant to ACTIVE picks (settled results live in Finished).
+  const picksSummary = useMemo(() => {
+    const staked = activePicks.reduce((t, p) => t + p.bet.amount, 0);
+    const potential = activePicks.reduce(
+      (t, p) => t + Math.ceil(p.bet.amount * (Number.isFinite(p.bet.odds) ? p.bet.odds : 0)),
+      0,
+    );
+    return { count: activePicks.length, staked, potential };
+  }, [activePicks]);
+
   return (
     <div className="space-y-4">
-      {/* Stats Header - 3 columns: Pending | Successful Picks | Winnings */}
+      {/* Stats Header - Active Picks | Staked | Potential Win */}
       <div className="grid grid-cols-3 gap-2 text-xs">
         <div className="bg-navy-accent p-2 rounded-lg flex items-center gap-2">
-          <Clock size={24} className="text-warm-yellow" />
+          <Target size={24} className="text-electric-blue" />
           <div>
-            <p className="font-bold text-text-primary">Pending</p>
-            <p className="text-text-secondary">{stats.pending}</p>
+            <p className="font-bold text-text-primary">Active Picks</p>
+            <p className="text-text-secondary">{picksSummary.count}</p>
           </div>
         </div>
         <div className="bg-navy-accent p-2 rounded-lg flex items-center gap-2">
-          <CheckCircle2 size={24} className="text-lime-glow" />
+          <CircleDollarSign size={24} className="text-electric-blue" />
           <div>
-            <p className="font-bold text-text-primary">Successful Picks</p>
-            <p className="text-text-secondary">{stats.won} / {stats.won + stats.lost}</p>
+            <p className="font-bold text-text-primary">Staked</p>
+            <p className="text-text-secondary">{picksSummary.staked.toLocaleString()} coins</p>
           </div>
         </div>
         <div className="bg-navy-accent p-2 rounded-lg flex items-center gap-2">
           <Coins size={24} className="text-warm-yellow" />
           <div>
-            <p className="font-bold text-text-primary">Winnings</p>
-            <p className={`text-text-secondary ${stats.totalWinnings >= 0 ? 'text-lime-glow' : 'text-hot-red'}`}>
-              {stats.totalWinnings >= 0 ? '+' : ''}{stats.totalWinnings.toLocaleString()} coins
-            </p>
+            <p className="font-bold text-text-primary">Potential Win</p>
+            <p className="text-text-secondary">{picksSummary.potential.toLocaleString()} coins</p>
           </div>
         </div>
       </div>
