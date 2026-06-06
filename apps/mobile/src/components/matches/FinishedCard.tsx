@@ -1,18 +1,13 @@
 import React from 'react';
+import { BarChart2, Zap } from 'lucide-react';
 import { Match, Bet } from '../../types';
-import { Clock, BarChart2 } from 'lucide-react';
-import { format } from 'date-fns';
+import { MatchHeaderRow } from './MatchHeaderRow';
 
 interface FinishedCardProps {
   match: Match;
   bet?: Bet;
   onViewStats?: () => void;
-}
-
-function formatFinished(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return format(d, 'HH:mm');
+  onPlayGame?: (matchId: string, matchName: string) => void;
 }
 
 function statusLabel(raw?: string): string {
@@ -27,21 +22,12 @@ function statusLabel(raw?: string): string {
   return 'FT';
 }
 
-const TeamAvatar: React.FC<{ team: Match['teamA'] }> = ({ team }) =>
-  team.logo ? (
-    <div className="mx-auto w-14 h-14 mb-2 rounded-full bg-white/10 flex items-center justify-center">
-      <img src={team.logo} alt={team.name} className="w-12 h-12 object-contain" />
-    </div>
-  ) : (
-    <div className="mx-auto w-14 h-14 mb-2 flex items-center justify-center rounded-full bg-white/10 text-2xl font-bold text-electric-blue">
-      {team.emoji && team.emoji.length === 1 ? team.emoji : team.name?.charAt(0).toUpperCase() || '?'}
-    </div>
-  );
-
-export const FinishedCard: React.FC<FinishedCardProps> = ({ match, bet, onViewStats }) => {
-  const result = match.result; // 'teamA' | 'draw' | 'teamB' | undefined
+export const FinishedCard: React.FC<FinishedCardProps> = ({ match, bet, onViewStats, onPlayGame }) => {
+  const result = match.result;
   const won = bet?.status === 'won';
   const lost = bet?.status === 'lost';
+
+  const center = `${match.score?.teamA ?? 0} - ${match.score?.teamB ?? 0}`;
 
   const outcomes = [
     { key: 'teamA', label: match.teamA.name.split(' ')[0], odds: match.odds?.teamA },
@@ -50,42 +36,15 @@ export const FinishedCard: React.FC<FinishedCardProps> = ({ match, bet, onViewSt
   ] as const;
 
   return (
-    <div className="card-base p-5 space-y-4">
-      {/* Date + status badge */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-text-secondary">
-          <Clock className="w-4 h-4" />
-          <span className="text-sm font-medium">{formatFinished(match.kickoffTime)}</span>
-        </div>
-        <span className="bg-disabled text-text-disabled text-xs px-3 py-1 rounded-full font-semibold whitespace-nowrap">
-          {statusLabel(match.rawStatus)}
-        </span>
-      </div>
-
-      {/* Teams + final score */}
-      <div className="flex items-center justify-between">
-        <div className="flex-1 text-center">
-          <TeamAvatar team={match.teamA} />
-          <div className="text-sm font-semibold text-text-primary">{match.teamA.name}</div>
-        </div>
-        <div className="px-4 text-center">
-          <div className="text-2xl font-bold text-text-primary">
-            {match.score?.teamA ?? 0} - {match.score?.teamB ?? 0}
-          </div>
-        </div>
-        <div className="flex-1 text-center">
-          <TeamAvatar team={match.teamB} />
-          <div className="text-sm font-semibold text-text-primary">{match.teamB.name}</div>
-        </div>
-      </div>
+    <div className="card-base p-4 space-y-3">
+      <MatchHeaderRow match={match} center={center} badge={{ text: statusLabel(match.rawStatus), variant: 'finished' }} />
 
       {/* Three odds — actual result in green, lost pick in red */}
       <div className="flex gap-2">
         {outcomes.map((o) => {
           const isResult = result === o.key;
           const isPick = bet?.prediction === o.key;
-          // Full class names (no interpolation) so Tailwind keeps them.
-          const containerCls = isResult
+          const cls = isResult
             ? 'border-lime-glow bg-lime-glow/10'
             : isPick
               ? 'border-hot-red bg-hot-red/10'
@@ -93,43 +52,41 @@ export const FinishedCard: React.FC<FinishedCardProps> = ({ match, bet, onViewSt
           const oddsCls = isResult ? 'text-lime-glow' : isPick ? 'text-hot-red' : 'text-text-primary';
           const hasOdds = typeof o.odds === 'number' && o.odds > 0;
           return (
-            <div key={o.key} className={`flex-1 p-3 rounded-xl border-2 text-center ${containerCls}`}>
-              <div className="text-xs text-text-secondary mb-1 font-medium truncate">{o.label}</div>
-              <div className={`text-xl font-bold ${oddsCls}`}>{hasOdds ? `${(o.odds as number).toFixed(2)}x` : '--'}</div>
-              {isPick && (
-                <div className={`text-[10px] font-semibold mt-1 ${isResult ? 'text-lime-glow' : 'text-hot-red'}`}>
-                  {isResult ? '✓ Your pick' : '✗ Your pick'}
-                </div>
-              )}
+            <div key={o.key} className={`flex-1 p-2 rounded-lg border text-center ${cls}`}>
+              <div className="text-[11px] text-text-secondary font-medium truncate">
+                {o.label}
+                {isPick && <span className="ml-0.5">{isResult ? '✓' : '✗'}</span>}
+              </div>
+              <div className={`text-base font-bold ${oddsCls}`}>
+                {hasOdds ? `${(o.odds as number).toFixed(2)}x` : '--'}
+              </div>
             </div>
           );
         })}
       </div>
 
-      {/* Result of the bet (only if the user bet on this match) */}
-      {bet && (
-        <div className="flex items-center justify-between text-sm">
-          <div>
-            <span className="text-text-disabled">Stake </span>
-            <span className="font-semibold text-warm-yellow">{bet.amount.toLocaleString()} coins</span>
+      {/* Actions: WON/LOST · Play · Stats */}
+      <div className="flex gap-2">
+        {bet && (won || lost) && (
+          <div
+            className={`flex-1 flex items-center justify-center py-2 rounded-lg text-sm font-bold ${
+              won ? 'bg-lime-glow/15 text-lime-glow' : 'bg-hot-red/15 text-hot-red'
+            }`}
+          >
+            {won ? `WON +${(bet.winAmount ?? 0).toLocaleString()}` : `LOST −${bet.amount.toLocaleString()}`}
           </div>
-          <div>
-            {won ? (
-              <span className="font-semibold text-lime-glow">Won +{(bet.winAmount ?? 0).toLocaleString()}</span>
-            ) : lost ? (
-              <span className="font-semibold text-hot-red">Lost −{bet.amount.toLocaleString()}</span>
-            ) : (
-              <span className="font-semibold text-text-secondary">Pending</span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Stats — for every finished match */}
-      <div className="flex">
+        )}
+        {onPlayGame && (
+          <button
+            onClick={() => onPlayGame(match.id, `${match.teamA.name} vs ${match.teamB.name}`)}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-navy-accent rounded-lg text-sm font-semibold text-warm-yellow hover:text-warm-yellow/80 transition-colors"
+          >
+            <Zap size={14} /> Play
+          </button>
+        )}
         <button
           onClick={onViewStats}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-navy-accent rounded-lg text-sm font-semibold text-text-secondary hover:text-electric-blue transition-colors"
+          className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-navy-accent rounded-lg text-sm font-semibold text-text-secondary hover:text-electric-blue transition-colors"
         >
           <BarChart2 size={14} /> Stats
         </button>

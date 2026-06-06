@@ -9,6 +9,7 @@ interface PicksPageProps {
   bets: Bet[];
   onViewStats: (match: Match) => void;
   onBet: (match: Match, prediction: 'teamA' | 'draw' | 'teamB', odds: number) => void;
+  onPlayGame?: (matchId: string, matchName: string) => void;
   orderedLeagues: string[];
 }
 
@@ -16,6 +17,7 @@ const PicksPage: React.FC<PicksPageProps> = ({
   bets,
   onViewStats,
   onBet,
+  onPlayGame,
   orderedLeagues,
 }) => {
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -146,6 +148,7 @@ const PicksPage: React.FC<PicksPageProps> = ({
                   bet={bet}
                   onEdit={() => onBet(match, bet.prediction, bet.odds)}
                   onViewStats={() => onViewStats(match)}
+                  onPlayGame={onPlayGame}
                 />
               ))}
             </LeagueMatchGroup>

@@ -13,6 +13,7 @@ interface FinishedMatchesPageProps {
   totalPicks: number;
   earnings: number;
   onViewStats: (match: Match) => void;
+  onPlayGame?: (matchId: string, matchName: string) => void;
   orderedLeagues: string[];
   /** Opens the full bet history (all dates). */
   onOpenHistory?: () => void;
@@ -25,6 +26,7 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
   totalPicks,
   earnings,
   onViewStats,
+  onPlayGame,
   orderedLeagues,
   onOpenHistory,
 }) => {
@@ -112,6 +114,7 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
                   match={match}
                   bet={betByMatchId.get(match.id)}
                   onViewStats={() => onViewStats(match)}
+                  onPlayGame={onPlayGame}
                 />
               ))}
             </LeagueMatchGroup>

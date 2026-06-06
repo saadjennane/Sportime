@@ -287,6 +287,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
           bets={bets}
           onViewStats={setSelectedMatchForStats}
           onBet={onBet}
+          onPlayGame={onPlayGame}
           orderedLeagues={effectiveOrderedLeagues}
         />
       ) : (
@@ -297,6 +298,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
           totalPicks={finishedHeaderStats.totalPicks}
           earnings={finishedHeaderStats.net}
           onViewStats={setSelectedMatchForStats}
+          onPlayGame={onPlayGame}
           orderedLeagues={effectiveOrderedLeagues}
           onOpenHistory={() => setIsHistoryOpen(true)}
         />
