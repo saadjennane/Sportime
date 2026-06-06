@@ -105,6 +105,14 @@ serve(async (req) => {
 
     console.log(`[sync-fixture-schedules] Date range: ${fromDate} to ${toDate}`)
 
+    // API-Football requires a `season` when querying by date range, and seasons
+    // are labelled by their STARTING year (a 2026/27 season = season 2026) while
+    // calendar-year competitions (friendlies, internationals) use the running
+    // year. To be robust regardless of how a league is marked, we always query
+    // BOTH the current and next year — never relying on fb_leagues.season.
+    const currentYear = today.getFullYear()
+    const seasonsToQuery = [currentYear, currentYear + 1]
+
     // Récupérer toutes les leagues depuis la DB
     const { data: leagues, error: leaguesError } = await supabase
       .from('fb_leagues')
@@ -130,15 +138,23 @@ serve(async (req) => {
 
       console.log(`[sync-fixture-schedules] Processing ${league.name} (API ID: ${league.api_league_id})`)
 
-      // Récupérer les fixtures depuis l'API
-      const apiFixtures = await fetchFixturesFromAPI(
-        league.api_league_id,
-        fromDate,
-        toDate,
-        league.season
-      )
+      // Fetch upcoming fixtures for BOTH the current and next season, then
+      // dedupe by fixture id — covers every season-labelling convention.
+      // Sequential (not Promise.all) to respect the API rate limit.
+      const seenFixtureIds = new Set<number>()
+      const apiFixtures: any[] = []
+      for (const season of seasonsToQuery) {
+        const fx = await fetchFixturesFromAPI(league.api_league_id, fromDate, toDate, season)
+        for (const f of fx) {
+          const fid = f?.fixture?.id
+          if (fid && !seenFixtureIds.has(fid)) {
+            seenFixtureIds.add(fid)
+            apiFixtures.push(f)
+          }
+        }
+      }
 
-      console.log(`[sync-fixture-schedules] Found ${apiFixtures.length} fixtures from API for ${league.name}`)
+      console.log(`[sync-fixture-schedules] Found ${apiFixtures.length} fixtures from API for ${league.name} (seasons ${seasonsToQuery.join(', ')})`)
 
       // Mettre à jour chaque fixture
       for (const apiFixture of apiFixtures) {
