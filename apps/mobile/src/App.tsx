@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import { AuthApiError } from '@supabase/supabase-js';
 import ErrorBoundary from './components/ErrorBoundary';
 import { Header } from './components/Header';
@@ -116,6 +116,9 @@ function PageLoader() {
 
 function App() {
   const [loading, setLoading] = useState(true);
+  // True once the app has finished its first load — used to keep background
+  // refreshes (e.g. on app resume) from re-showing the full-screen loader.
+  const initialLoadDoneRef = useRef(false);
 
   // Hide the native splash only once the first real screen is ready, so the
   // user goes straight from splash to UI (no "Loading..." flash in between).
@@ -434,7 +437,9 @@ function App() {
       return;
     }
 
-    if (shouldUseSupabaseChallenges && challengesLoading) {
+    // Only block on the full-screen loader for the FIRST load. Later refreshes
+    // (app resume, polling) update data silently without reloading the screen.
+    if (shouldUseSupabaseChallenges && challengesLoading && !initialLoadDoneRef.current) {
       setLoading(true);
       return;
     }
@@ -462,6 +467,7 @@ function App() {
     }
 
     setLoading(false);
+    initialLoadDoneRef.current = true;
   }, [profile, isGuest, initializeUserSpinState, challengesLoading, shouldUseSupabaseChallenges]);
 
   // Base balance from profile. Match bets are now deducted server-side
