@@ -1247,6 +1247,46 @@ async function fetchUserChallengeEntries(userId: string) {
   return entriesByChallenge
 }
 
+export interface ChallengeLeaderboardRow {
+  userId: string
+  username: string
+  points: number
+  rank: number
+}
+
+/**
+ * Authoritative leaderboard for a challenge: ranked participants (server points/rank)
+ * joined with their display name. No client-side recompute.
+ */
+export async function fetchChallengeLeaderboard(challengeId: string): Promise<ChallengeLeaderboardRow[]> {
+  if (!supabase) return []
+  const { data: parts, error } = await supabase
+    .from('challenge_participants')
+    .select('user_id, points, rank')
+    .eq('challenge_id', challengeId)
+    .order('points', { ascending: false })
+
+  if (error || !parts?.length) return []
+
+  const ids = (parts as Array<{ user_id: string }>).map(p => p.user_id)
+  const { data: profs } = await supabase
+    .from('profiles')
+    .select('id, username, display_name')
+    .in('id', ids)
+
+  const nameById = new Map<string, string>(
+    ((profs as Array<{ id: string; username: string | null; display_name: string | null }>) ?? [])
+      .map(p => [p.id, p.username || p.display_name || 'Player'] as [string, string])
+  )
+
+  return (parts as Array<{ user_id: string; points: number | null; rank: number | null }>).map((p, i) => ({
+    userId: p.user_id,
+    username: nameById.get(p.user_id) ?? 'Player',
+    points: p.points ?? 0,
+    rank: p.rank ?? i + 1,
+  }))
+}
+
 type RawMatchday = {
   id: string
   date: string | null

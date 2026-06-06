@@ -5,8 +5,9 @@ import { ArrowLeft, Info, Trophy } from 'lucide-react';
 import { LeaderboardLeagueSwitcher } from '../components/leagues/LeaderboardLeagueSwitcher';
 import { useMockStore } from '../store/useMockStore';
 import { LeaderboardPeriodFilter } from '../components/leagues/LeaderboardPeriodFilter';
-import { format, parseISO, isWithinInterval, addDays } from 'date-fns';
+import { format, parseISO, addDays } from 'date-fns';
 import { CelebrationModal } from '../components/leagues/CelebrationModal';
+import { useChallengeLeaderboard } from '../features/challenges/useChallengeLeaderboard';
 
 interface LeaderboardPageProps {
   challenge: Challenge;
@@ -21,32 +22,11 @@ interface LeaderboardPageProps {
   currentUserId: string;
 }
 
-const calculateChallengePoints = (entry: UserChallengeEntry, matches: ChallengeMatch[]): number => {
-  let totalPoints = 0;
-  entry.dailyEntries.forEach(dailyEntry => {
-    const booster = dailyEntry.booster;
-    dailyEntry.bets.forEach(bet => {
-      const match = matches.find(m => m.id === bet.challengeMatchId);
-      if (!match || match.status !== 'played' || !match.result) return;
-      const isWin = match.result === bet.prediction;
-      const isBoosted = booster?.matchId === bet.challengeMatchId;
-      if (isWin) {
-        let gain = (bet.amount * match.odds[bet.prediction]);
-        if (isBoosted) {
-          if (booster?.type === 'x2') gain *= 2;
-          else if (booster?.type === 'x3') gain *= 3;
-        }
-        totalPoints += gain;
-      } else if (isBoosted && booster?.type === 'x3') {
-        totalPoints -= 200;
-      }
-    });
-  });
-  return Math.round(totalPoints);
-};
-
 const LeaderboardPage: React.FC<LeaderboardPageProps> = (props) => {
-  const { challenge, matches, userEntry, onBack, initialLeagueContext, allUsers, userLeagues, leagueMembers, leagueGames, currentUserId } = props;
+  const { challenge, matches, onBack, initialLeagueContext, userLeagues, leagueMembers, leagueGames, currentUserId } = props;
+
+  // Authoritative leaderboard from the server (settle-computed points/ranks).
+  const { rows: serverRows } = useChallengeLeaderboard(challenge.id);
   
   const { updateLeagueGameLeaderboardPeriod, celebrateWinners } = useMockStore();
   const [loading, setLoading] = useState(false);
@@ -78,53 +58,15 @@ const LeaderboardPage: React.FC<LeaderboardPageProps> = (props) => {
     };
   }, [leagueGame, currentLeague, challenge]);
 
-  const filteredMatches = useMemo(() => {
-    // Guard against invalid dates to prevent crash
-    if (!activePeriod.start_date || !activePeriod.end_date || !challenge.startDate) {
-      return matches;
-    }
-
-    try {
-      const interval = { start: parseISO(activePeriod.start_date), end: parseISO(activePeriod.end_date) };
-      return matches.filter(match => {
-        const matchDate = addDays(parseISO(challenge.startDate), match.day - 1);
-        return isWithinInterval(matchDate, interval);
-      });
-    } catch (e) {
-      console.error('[LeaderboardPage] Date parsing error:', e);
-      return matches;
-    }
-  }, [matches, activePeriod, challenge.startDate]);
-
   const fullLeaderboard = useMemo(() => {
-    const otherUsers = allUsers.filter(u => u.id !== currentUserId);
-    const allEntries: Omit<LeaderboardEntry, 'rank'>[] = [];
-
-    if (userEntry) {
-      const userPoints = calculateChallengePoints(userEntry, filteredMatches);
-      const userFinalCoins = challenge.challengeBalance + userPoints;
-      allEntries.push({ username: 'You', finalCoins: userFinalCoins, points: userPoints, userId: currentUserId });
-    }
-
-    otherUsers.forEach(user => {
-        const mockDailyEntries: DailyChallengeEntry[] = challenge.status === 'Finished'
-            ? filteredMatches.map(m => ({ day: m.day, bets: [{ challengeMatchId: m.id, prediction: 'teamA', amount: 100 }] }))
-            : [];
-        
-        const mockEntry: UserChallengeEntry = {
-            challengeId: challenge.id,
-            dailyEntries: mockDailyEntries.filter((value, index, self) => self.findIndex(t => t.day === value.day) === index)
-        };
-
-        const points = calculateChallengePoints(mockEntry, filteredMatches) + Math.floor(Math.random() * 500 - 250);
-        const finalCoins = challenge.challengeBalance + points;
-        allEntries.push({ username: user.username || 'Player', finalCoins, points, userId: user.id });
-    });
-
-    return allEntries
-      .sort((a, b) => b.points - a.points)
-      .map((entry, index) => ({ ...entry, rank: index + 1 }));
-  }, [userEntry, filteredMatches, challenge, allUsers, currentUserId]);
+    return serverRows.map(r => ({
+      username: r.userId === currentUserId ? 'You' : r.username,
+      points: r.points,
+      finalCoins: challenge.challengeBalance + r.points,
+      rank: r.rank,
+      userId: r.userId,
+    }));
+  }, [serverRows, currentUserId, challenge.challengeBalance]);
 
   const displayedLeaderboard = useMemo(() => {
     if (activeFilterLeagueId) {

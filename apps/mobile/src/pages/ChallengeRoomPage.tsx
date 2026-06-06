@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Challenge, ChallengeMatch, UserChallengeEntry, ChallengeBet, BoosterSelection, DailyChallengeEntry, LeaderboardEntry, Profile, UserLeague, LeagueMember, LeagueGame, Game } from '../types';
 import { ArrowLeft, Coins, Trophy, Info, Clock, Lock } from 'lucide-react';
 import { ChallengeBetController } from '../components/ChallengeBetController';
+import { useChallengeLeaderboard } from '../features/challenges/useChallengeLeaderboard';
 import { BoosterSelector } from '../components/BoosterSelector';
 import { BoosterInfoModal } from '../components/BoosterInfoModal';
 import { MatchDaySwitcher } from '../components/fantasy/MatchDaySwitcher';
@@ -399,26 +400,15 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
     setArmingBooster(null);
   };
 
+  // Authoritative rank from the server leaderboard (settle-computed).
+  const { rows: leaderboardRows } = useChallengeLeaderboard(challenge.id);
   const { rank, totalPlayers } = useMemo(() => {
-    const mockDailyEntries: DailyChallengeEntry[] = [
-      { day: 1, bets: [{ challengeMatchId: 'cm-new-1', prediction: 'draw', amount: 1000 }], booster: { type: 'x2', matchId: 'cm-new-1' } },
-      { day: 2, bets: [{ challengeMatchId: 'cm-new-3', prediction: 'teamA', amount: 1000 }] }
-    ];
-    const mockEntry: UserChallengeEntry = { challengeId: challenge.id, dailyEntries: mockDailyEntries, user_id: 'mock-user', entryMethod: 'coins' };
-
-    const otherPlayers = [
-      { username: 'TopPlayer', entry: mockEntry },
-      { username: 'SmartBettor', entry: { ...mockEntry, dailyEntries: [{ day: 1, bets: [{ challengeMatchId: 'cm-new-2', prediction: 'teamA', amount: 1000 }] }, { day: 2, bets: [] }] } },
-    ];
-    const userPoints = userEntry.serverPoints ?? calculateChallengePoints(userEntry, matches);
-    const allEntries: Omit<LeaderboardEntry, 'rank'>[] = [
-      { username: 'You', finalCoins: 0, points: userPoints },
-      ...otherPlayers.map(player => ({ username: player.username, finalCoins: 0, points: calculateChallengePoints(player.entry, matches) }))
-    ];
-    const sortedLeaderboard = allEntries.sort((a, b) => b.points - a.points).map((entry, index) => ({ ...entry, rank: index + 1 }));
-    const userRank = sortedLeaderboard.find(e => e.username === 'You')?.rank || 0;
-    return { rank: userRank, totalPlayers: challenge.totalPlayers };
-  }, [userEntry, matches, challenge]);
+    const me = leaderboardRows.find(r => r.userId === userEntry.user_id);
+    return {
+      rank: me?.rank ?? 0,
+      totalPlayers: leaderboardRows.length || challenge.totalPlayers,
+    };
+  }, [leaderboardRows, userEntry.user_id, challenge.totalPlayers]);
 
   const dailyBalance = 1000;
 
