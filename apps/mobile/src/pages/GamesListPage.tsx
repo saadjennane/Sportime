@@ -196,6 +196,16 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
         continue;
       }
 
+      // Server marked the challenge finished (end_date passed) -> Recently Finished / Past.
+      if (game.status === 'Finished') {
+        const lastTs = game.matches && game.matches.length > 0
+          ? Math.max(...game.matches.map(m => new Date(m.kickoffTime).getTime()))
+          : new Date(game.end_date).getTime();
+        if (lastTs > sevenDaysAgo.getTime()) recentlyFinished.push(game);
+        else past.push(game);
+        continue;
+      }
+
       // UNIFIED CATEGORIZATION for ALL game types (betting, prediction, fantasy)
       // Supports BOTH period_types (matchdays and calendar)
       const userEntry = userChallengeEntries.find(e => e.challengeId === game.id);

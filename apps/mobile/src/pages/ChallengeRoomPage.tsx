@@ -65,6 +65,11 @@ const getGroupKeyForMatch = (match: ChallengeMatch, periodType: 'matchdays' | 'c
 const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   const { challenge, matches, userEntry, onUpdateDailyBets, onSetDailyBooster, onBack, onViewLeaderboard, boosterInfoPreferences, onUpdateBoosterPreferences, onLinkGame, profile, userLeagues, leagueMembers, leagueGames, onRefreshMatches } = props;
 
+  // Open the room scrolled to the top (the shared scroll region keeps its position).
+  useEffect(() => {
+    document.getElementById('app-scroll')?.scrollTo({ top: 0 });
+  }, []);
+
   // Auto-refresh match scores every 20 seconds while there are live matches
   useEffect(() => {
     if (!onRefreshMatches) return;
@@ -462,8 +467,8 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
 
   return (
     <div className="space-y-6">
-      {/* Header with Back, Total Points (centered), and Actions */}
-      <header className="flex items-center justify-between">
+      {/* Header with Back, Total Points (centered), and Actions — stays fixed on scroll */}
+      <header className="sticky top-0 z-20 -mx-4 px-4 py-3 bg-deep-navy flex items-center justify-between">
         <button onClick={onBack} className="flex items-center gap-2 text-text-secondary font-semibold hover:text-electric-blue">
           <ArrowLeft size={20} /> Back
         </button>
