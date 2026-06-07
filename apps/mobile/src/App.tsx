@@ -57,6 +57,7 @@ const FantasyLiveTeamSelectionPage = lazy(() => import('./pages/live-game/Fantas
 const FantasyLiveGamePage = lazy(() => import('./pages/live-game/FantasyLiveGamePage'));
 const LiveGameLobbyPage = lazy(() => import('./pages/live-game/LiveGameLobbyPage'));
 const LiveScorePredictionGame = lazy(() => import('./pages/live-game/LiveScorePredictionGame'));
+const LiveGamesListPage = lazy(() => import('./pages/live-game/LiveGamesListPage'));
 import { OnboardingFlow } from './components/OnboardingFlow';
 import { isBefore, parseISO, differenceInHours } from 'date-fns';
 import { TicketWalletModal } from './components/TicketWalletModal';
@@ -153,6 +154,7 @@ function App() {
     fixtureId: string;
     mode: 'free' | 'ranked';
   } | null>(null);
+  const [showLiveGames, setShowLiveGames] = useState(false);
 
   // --- Store State ---
   const {
@@ -1341,7 +1343,7 @@ function App() {
           </ErrorBoundary>
         );
       case 'challenges':
-        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} onRefresh={refreshChallenges} />;
+        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} onRefresh={refreshChallenges} onShowLiveGames={() => setShowLiveGames(true)} />;
       case 'squads':
           return <LeaguesListPage
               leagues={myLeagues}
@@ -1360,7 +1362,7 @@ function App() {
         }
         return null;
       default:
-        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} onRefresh={refreshChallenges} />;
+        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} onRefresh={refreshChallenges} onShowLiveGames={() => setShowLiveGames(true)} />;
     }
   }
   
@@ -1386,6 +1388,18 @@ function App() {
           gameId={activeLiveGameSupabase.id}
           userId={profile.id}
           onBack={() => setActiveLiveGameSupabase(null)}
+        />
+      </Suspense>
+    );
+  }
+
+  if (showLiveGames && profile) {
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <LiveGamesListPage
+          userId={profile.id}
+          onOpenGame={(id, fixtureId, mode) => { setShowLiveGames(false); setActiveLiveGameSupabase({ id, fixtureId, mode }); }}
+          onBack={() => setShowLiveGames(false)}
         />
       </Suspense>
     );

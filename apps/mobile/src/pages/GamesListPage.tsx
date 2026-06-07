@@ -122,10 +122,11 @@ interface GamesListPageProps {
   profile: Profile | null;
   userTickets: UserTicket[];
   onRefresh?: () => void | Promise<void>;
+  onShowLiveGames?: () => void;
 }
 
 const GamesListPage: React.FC<GamesListPageProps> = (props) => {
-  const { games, userChallengeEntries, userSwipeEntries, userFantasyTeams, onJoinChallenge, onViewChallenge, onJoinSwipeGame, onPlaySwipeGame, onViewFantasyGame, profile, userTickets, onRefresh } = props;
+  const { games, userChallengeEntries, userSwipeEntries, userFantasyTeams, onJoinChallenge, onViewChallenge, onJoinSwipeGame, onPlaySwipeGame, onViewFantasyGame, profile, userTickets, onRefresh, onShowLiveGames } = props;
 
   const [activeTab, setActiveTab] = useState<GamesTab>('my-games');
   const [filters, setFilters] = useState<GameFilters>({
@@ -402,7 +403,7 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
     <PullToRefresh onRefresh={onRefresh ?? (() => {})}>
     <div className="space-y-4">
       {/* Tab Switcher */}
-      <div className="flex bg-navy-accent rounded-xl p-1">
+      <div className="flex items-center gap-1 bg-navy-accent rounded-xl p-1">
         <button
           onClick={() => { hapticImpact('light'); setActiveTab('my-games'); }}
           className={`flex-1 p-3 rounded-lg font-semibold transition-all text-sm ${
@@ -423,6 +424,15 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
         >
           Browse Games
         </button>
+        {onShowLiveGames && (
+          <button
+            onClick={() => { hapticImpact('light'); onShowLiveGames(); }}
+            title="Live Games"
+            className="flex-shrink-0 w-11 p-3 rounded-lg text-warm-yellow hover:bg-warm-yellow/10 transition-all flex items-center justify-center"
+          >
+            <Zap size={18} />
+          </button>
+        )}
       </div>
 
       {/* My Games Tab */}
