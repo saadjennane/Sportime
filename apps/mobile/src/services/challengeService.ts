@@ -1142,11 +1142,24 @@ export async function joinChallenge(challengeId: string, userId: string, method:
   })
 
   if (error) {
-    if (error.message === 'INSUFFICIENT_COINS') {
+    const msg = error.message || ''
+    if (msg === 'INSUFFICIENT_COINS') {
       return { alreadyJoined: false, insufficientCoins: true, coinsBalance: null }
     }
     if (error.code === 'PGRST116') {
       return { alreadyJoined: true }
+    }
+    const ELIGIBILITY_MESSAGES: Record<string, string> = {
+      level_too_low: 'Your level is too low for this challenge.',
+      subscription_required: 'This challenge is for subscribers only.',
+      missing_badge: 'You need a required badge to join this challenge.',
+      ticket_invalid: 'No valid ticket for this challenge tier.',
+      ticket_used: 'This ticket has already been used.',
+      ticket_expired: 'This ticket has expired.',
+      ticket_wrong_tier: 'This ticket is for a different tier.',
+    }
+    if (ELIGIBILITY_MESSAGES[msg]) {
+      return { alreadyJoined: false, ineligible: ELIGIBILITY_MESSAGES[msg] }
     }
     console.error('[challengeService] Failed to join challenge', error)
     throw error

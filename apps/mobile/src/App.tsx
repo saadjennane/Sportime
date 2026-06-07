@@ -975,6 +975,10 @@ function App() {
           addToast('Not enough coins to join this challenge.', 'error');
           return;
         }
+        if (result.ineligible) {
+          addToast(result.ineligible, 'error');
+          return;
+        }
 
         if (result.alreadyJoined) {
           addToast('You already joined this challenge.', 'info');
