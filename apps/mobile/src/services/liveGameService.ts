@@ -159,54 +159,65 @@ export async function joinLiveGame(gameId: string): Promise<LiveGameEntry | null
     throw new Error(`You have reached your maximum of ${limits.slotsMax} active games.`);
   }
 
-  // Check if already joined
-  const { data: existing } = await supabase
+  // Eligibility (coin deduction for ranked, unique entry) is enforced SERVER-SIDE
+  // by join_live_game. The limits check above is just a friendly pre-check.
+  const { data, error } = await supabase.rpc('join_live_game', {
+    p_game_id: gameId,
+    p_user_id: user.user.id,
+  });
+  if (error) throw error;
+
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row?.entry_id) return null;
+
+  const { data: entry } = await supabase
     .from('live_game_entries')
-    .select('id')
-    .eq('live_game_id', gameId)
-    .eq('user_id', user.user.id)
+    .select('*')
+    .eq('id', row.entry_id)
     .single();
 
-  if (existing) throw new Error('You have already joined this game');
+  return entry ? mapEntryFromDb(entry) : null;
+}
 
-  // Deduct entry cost if ranked
-  if (game.mode === 'ranked' && game.entry_cost > 0) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('coins')
-      .eq('id', user.user.id)
-      .single();
+/**
+ * Submit (or re-submit before kickoff) a score prediction + bonus answers.
+ * Returns the server-generated bonus questions. Validation + bonus generation
+ * happen server-side in submit_live_prediction.
+ */
+export async function submitLivePrediction(
+  gameId: string,
+  home: number,
+  away: number,
+  bonusAnswers: Record<string, string>
+): Promise<any> {
+  if (!supabase) return null;
+  const { data: user } = await supabase.auth.getUser();
+  if (!user.user) throw new Error('Not authenticated');
 
-    if (!profile || profile.coins < game.entry_cost) {
-      throw new Error(`Not enough coins. You need ${game.entry_cost} coins to join.`);
-    }
+  const { data, error } = await supabase.rpc('submit_live_prediction', {
+    p_game_id: gameId,
+    p_user_id: user.user.id,
+    p_home: home,
+    p_away: away,
+    p_bonus_answers: bonusAnswers,
+  });
+  if (error) throw error;
+  return data; // generated bonus questions
+}
 
-    // Deduct coins
-    const { error: deductError } = await supabase
-      .from('profiles')
-      .update({ coins: profile.coins - game.entry_cost })
-      .eq('id', user.user.id);
+/** Edit the predicted scoreline once the match is live (halftime) -> -40% malus. */
+export async function editLivePrediction(gameId: string, home: number, away: number): Promise<void> {
+  if (!supabase) return;
+  const { data: user } = await supabase.auth.getUser();
+  if (!user.user) throw new Error('Not authenticated');
 
-    if (deductError) throw deductError;
-  }
-
-  // Create entry
-  const { data: entry, error: entryError } = await supabase
-    .from('live_game_entries')
-    .insert({
-      live_game_id: gameId,
-      user_id: user.user.id,
-      balance: game.entry_cost || 1000, // Free mode gets 1000 virtual coins
-    })
-    .select()
-    .single();
-
-  if (entryError) {
-    console.error('[liveGameService] Error joining game:', entryError);
-    throw entryError;
-  }
-
-  return mapEntryFromDb(entry);
+  const { error } = await supabase.rpc('edit_live_prediction', {
+    p_game_id: gameId,
+    p_user_id: user.user.id,
+    p_home: home,
+    p_away: away,
+  });
+  if (error) throw error;
 }
 
 /**
@@ -803,6 +814,8 @@ export const liveGameService = {
   getLeaderboard,
   getUserActiveGames,
   fetchLiveMarkets,
+  submitLivePrediction,
+  editLivePrediction,
 };
 
 export default liveGameService;
