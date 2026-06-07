@@ -153,7 +153,7 @@ export const SwipeCard = memo<SwipeCardProps>(function SwipeCard({ match, onSwip
           <motion.div style={{ opacity: opacityRight }} className="absolute top-1/2 right-4 -translate-y-1/2 text-lime-glow font-bold text-3xl border-4 border-lime-glow px-4 py-2 rounded-xl rotate-[15deg] pointer-events-none bg-lime-glow/10">
             {match.teamB.name.split(' ')[0].toUpperCase()}
           </motion.div>
-          <motion.div style={{ opacity: opacityUp }} className="absolute top-10 left-1/2 -translate-x-1/2 text-electric-blue font-bold text-3xl border-4 border-electric-blue px-4 py-2 rounded-xl pointer-events-none bg-electric-blue/10">
+          <motion.div style={{ opacity: opacityUp }} className="absolute top-28 left-1/2 -translate-x-1/2 text-electric-blue font-bold text-3xl border-4 border-electric-blue px-4 py-2 rounded-xl pointer-events-none bg-electric-blue/10">
             DRAW
           </motion.div>
         </>
