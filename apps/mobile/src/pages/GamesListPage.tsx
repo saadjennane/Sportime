@@ -385,7 +385,13 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
         ctaState={ctaState}
         onJoinClick={() => {
           hapticImpact('medium');
-          game.game_type === 'betting' ? onJoinChallenge(game) : onJoinSwipeGame(game.id);
+          // Betting + fantasy use the entry-method modal (onJoinChallenge);
+          // only prediction/swipe games use onJoinSwipeGame.
+          if (game.game_type === 'prediction') {
+            onJoinSwipeGame(game.id);
+          } else {
+            onJoinChallenge(game);
+          }
         }}
         onPlay={() => { hapticImpact('light'); onPlayAction(); }}
         onShowRewards={() => setViewingRewardsFor(game)}
