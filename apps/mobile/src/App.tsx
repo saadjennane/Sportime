@@ -73,6 +73,8 @@ import { ContextualPremiumPrompt } from './components/premium/ContextualPremiumP
 import { useActivityTracker } from './hooks/useActivityTracker';
 import { useAuth } from './contexts/AuthContext';
 import { useChallengesCatalog } from './features/challenges/useChallengesCatalog';
+import { useSquads } from './hooks/useSquads';
+import * as squadService from './services/squadService';
 import { useMatchBets } from './features/matches/useMatchBets';
 import { useChallengeMatches } from './features/challenges/useChallengeMatches';
 import { useUserTickets } from './hooks/useUserTickets';
@@ -815,33 +817,41 @@ function App() {
     setActiveFantasyGameId(gameId);
   };
   
-  const handleCreateLeague = (name: string, description: string, image_url: string | null) => {
+  const handleCreateLeague = async (name: string, description: string, image_url: string | null) => {
       if (!profile || isGuest) {
           handleTriggerSignUp();
           return;
       }
-      const newLeague = createLeague(name, description, profile);
-      addToast(`Squad "${name}" created!`, 'success');
-      setShowCreateLeagueModal(false);
-      setActiveLeagueId(newLeague.id);
-      return newLeague;
+      try {
+        const squad = await squadService.createSquad(profile.id, {
+          name,
+          description: description || undefined,
+          image_url: image_url || undefined,
+        });
+        addToast(`Squad "${name}" created!`, 'success');
+        setShowCreateLeagueModal(false);
+        await refetchSquads();
+        setActiveLeagueId(squad.id);
+      } catch (e: any) {
+        addToast(e?.message || 'Failed to create squad', 'error');
+      }
   };
 
-  const handleJoinLeague = (inviteCode: string) => {
+  const handleJoinLeague = async (inviteCode: string) => {
       if (!profile || isGuest) {
           handleTriggerSignUp();
           return;
       }
-      useMockStore.getState().joinLeague(inviteCode, profile.id, (league) => {
-        if (league) {
-          addToast(`Welcome to ${league.name}!`, 'success');
-          setActiveLeagueId(league.id);
-          setJoinLeagueCode(null);
-        } else {
-          addToast('Invalid invite code.', 'error');
-          setJoinLeagueCode(null);
-        }
-      });
+      try {
+        const member = await squadService.joinSquad(profile.id, inviteCode.trim().toUpperCase());
+        addToast('Welcome to the squad!', 'success');
+        setJoinLeagueCode(null);
+        await refetchSquads();
+        setActiveLeagueId(member.squad_id);
+      } catch (e: any) {
+        addToast('Invalid invite code.', 'error');
+        setJoinLeagueCode(null);
+      }
   };
 
   const handleLeaveLeague = (leagueId: string) => { /* ... */ };
@@ -1072,11 +1082,20 @@ function App() {
 
   const linkableGames = useMemo(() => games.filter(g => g.is_linkable), [games]);
 
-  const myLeagues = useMemo(() => {
-    if (!profile) return [];
-    const userMemberOf = leagueMembers.filter(m => m.user_id === profile.id).map(m => m.league_id);
-    return userLeagues.filter(l => userMemberOf.includes(l.id));
-  }, [profile, leagueMembers, userLeagues]);
+  // Squads (real, Supabase) — replaces the mock leagues for list/create/join.
+  const { squads: realSquads, refetch: refetchSquads } = useSquads(profile?.id ?? null);
+  const myLeagues = realSquads as unknown as typeof userLeagues;
+
+  // Members of the squad currently open (real).
+  const [activeSquadMembers, setActiveSquadMembers] = useState<any[]>([]);
+  useEffect(() => {
+    if (!activeLeagueId) { setActiveSquadMembers([]); return; }
+    let cancelled = false;
+    squadService.getSquadMembers(activeLeagueId)
+      .then(m => { if (!cancelled) setActiveSquadMembers(m); })
+      .catch(() => { if (!cancelled) setActiveSquadMembers([]); });
+    return () => { cancelled = true; };
+  }, [activeLeagueId]);
   
   const ticketCount = useMemo(() => {
     if (!profile) return 0;
@@ -1329,11 +1348,21 @@ function App() {
     }
 
     if (activeLeagueId) {
-        const league = userLeagues.find(l => l.id === activeLeagueId);
+        const league = (realSquads as any[]).find(l => l.id === activeLeagueId);
         if (league && profile) {
-            const membersOfLeague = leagueMembers.filter(m => m.league_id === league.id);
-            const memberProfiles = membersOfLeague.map(m => allUsers.find(u => u.id === m.user_id)).filter(Boolean) as Profile[];
-            const currentUserMembership = membersOfLeague.find(m => m.user_id === profile.id);
+            const membersOfLeague = activeSquadMembers.map((m: any) => ({
+              league_id: league.id,
+              user_id: m.user_id,
+              role: m.role,
+            }));
+            const memberProfiles = activeSquadMembers.map((m: any) => ({
+              id: m.user?.id ?? m.user_id,
+              username: m.user?.username ?? 'Player',
+              avatar_url: m.user?.avatar_url ?? null,
+              level: m.user?.level,
+              total_xp: m.user?.total_xp,
+            })) as unknown as Profile[];
+            const currentUserMembership = activeSquadMembers.find((m: any) => m.user_id === profile.id);
             return <LeaguePage 
                 league={league}
                 members={memberProfiles}
