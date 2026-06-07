@@ -31,6 +31,7 @@ interface LeaguePageProps {
   onViewGame: (gameId: string, gameType: 'Fantasy' | 'Prediction' | 'Betting') => void;
   onViewLiveGame: (gameId: string, status: 'Upcoming' | 'Ongoing' | 'Finished') => void;
   onLinkGame: (leagueId: string, game: Game) => void;
+  onUnlinkGame?: (gameId: string) => void;
   leagueGames: LeagueGame[];
   allGames: Game[];
   linkableGames: Game[];
@@ -51,7 +52,7 @@ const TabButton: React.FC<{ icon: React.ReactNode, label: string, isActive: bool
 );
 
 const LeaguePage: React.FC<LeaguePageProps> = (props) => {
-  const { league, members, memberRoles, currentUserRole, currentUserId, onBack, onUpdateDetails, onRemoveMember, onResetInviteCode, onLeave, onDelete, onViewGame, onViewLiveGame, onLinkGame, leagueGames, allGames, linkableGames, addToast } = props;
+  const { league, members, memberRoles, currentUserRole, currentUserId, onBack, onUpdateDetails, onRemoveMember, onResetInviteCode, onLeave, onDelete, onViewGame, onViewLiveGame, onLinkGame, onUnlinkGame, leagueGames, allGames, linkableGames, addToast } = props;
   
   const { unlinkGameFromLeague, leagueFeed, toggleFeedPostLike, createPrivateLeagueGame, liveGames, createLiveGame, privateLeagueGames } = useMockStore();
   const [activeTab, setActiveTab] = useState<LeagueTab>('live');
@@ -69,7 +70,7 @@ const LeaguePage: React.FC<LeaguePageProps> = (props) => {
 
   const { activeLinkedGames, finishedLinkedGames } = useMemo(() => {
     const allLinkedGames = leagueGames
-      .filter(lg => lg.league_id === league.id)
+      .filter(lg => lg.league_id === league.id && (lg as any).type !== 'Live')
       .map(lg => {
         let gameDetails: Game | PrivateLeagueGame | undefined;
         if (lg.type === 'Private') {
@@ -92,7 +93,8 @@ const LeaguePage: React.FC<LeaguePageProps> = (props) => {
 
   const handleConfirmUnlink = () => {
     if (gameToUnlink) {
-      unlinkGameFromLeague(gameToUnlink.game_id, league.id);
+      if (onUnlinkGame) onUnlinkGame(gameToUnlink.game_id);
+      else unlinkGameFromLeague(gameToUnlink.game_id, league.id);
       addToast(`"${gameToUnlink.game_name}" unlinked from ${league.name}`, 'success');
       setGameToUnlink(null);
     }

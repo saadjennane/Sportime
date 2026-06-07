@@ -860,11 +860,14 @@ function App() {
   const handleRemoveLeagueMember = (leagueId: string, userId: string) => { /* ... */ };
   const handleResetInviteCode = (leagueId: string) => { /* ... */ };
 
-  const handleLinkGameToLeague = (leagueId: string, game: Game) => {
+  const handleLinkGameToLeague = async (leagueId: string, game: Game) => {
     if (!profile) return;
-    const { linkedLeagueNames } = linkGameToLeagues(game, [leagueId]);
-    if (linkedLeagueNames.length > 0) {
+    try {
+      await squadService.linkGameToSquads(game.id, game.game_type, [leagueId], profile.id);
       addToast(`"${game.name}" linked to your squad!`, 'success');
+      await refetchActiveSquadGames();
+    } catch (e: any) {
+      addToast(e?.message || 'Failed to link game', 'error');
     }
   };
 
@@ -883,11 +886,8 @@ function App() {
     setActiveLiveGame({ id: gameId, status });
   };
 
-  const myAdminLeagues = useMemo(() => {
-    if (!profile) return [];
-    const adminOfLeagueIds = new Set(leagueMembers.filter(m => m.user_id === profile.id && m.role === 'admin').map(m => m.league_id));
-    return userLeagues.filter(l => adminOfLeagueIds.has(l.id));
-  }, [profile, leagueMembers, userLeagues]);
+  // Any squad I belong to can have games linked (the RPC validates membership).
+  const myAdminLeagues = realSquads as unknown as typeof userLeagues;
 
   const handleOpenLinkGameFlow = (game: Game) => {
     if (isGuest) {
@@ -912,25 +912,32 @@ function App() {
   const handleCreateLeagueAndLink = async (name: string, description: string) => {
     if (!profile || isGuest || !linkingGame) return;
     setIsLinkingLoading(true);
-    
-    createLeagueAndLink(name, description, linkingGame, profile);
-    
-    addToast(`Squad "${name}" created and linked successfully! 🎉`, 'success');
-    handleCloseLinkGameModals();
-    setIsLinkingLoading(false);
+    try {
+      const squad = await squadService.createSquad(profile.id, { name, description: description || undefined });
+      await squadService.linkGameToSquads(linkingGame.id, linkingGame.game_type, [squad.id], profile.id);
+      await refetchSquads();
+      addToast(`Squad "${name}" created and linked successfully! 🎉`, 'success');
+      handleCloseLinkGameModals();
+    } catch (e: any) {
+      addToast(e?.message || 'Failed to create & link', 'error');
+    } finally {
+      setIsLinkingLoading(false);
+    }
   };
 
-  const handleLinkToSelectedLeagues = (leagueIds: string[]) => {
+  const handleLinkToSelectedLeagues = async (leagueIds: string[]) => {
     if (!linkingGame || !profile) return;
     setIsLinkingLoading(true);
-
-    const { linkedLeagueNames } = linkGameToLeagues(linkingGame, leagueIds);
-
-    if(linkedLeagueNames.length > 0) {
-        addToast(`Game linked to ${linkedLeagueNames.join(', ')} ✅`, 'success');
+    try {
+      await squadService.linkGameToSquads(linkingGame.id, linkingGame.game_type, leagueIds, profile.id);
+      addToast(`Game linked to ${leagueIds.length} squad${leagueIds.length > 1 ? 's' : ''} ✅`, 'success');
+      await refetchActiveSquadGames();
+      handleCloseLinkGameModals();
+    } catch (e: any) {
+      addToast(e?.message || 'Failed to link game', 'error');
+    } finally {
+      setIsLinkingLoading(false);
     }
-    handleCloseLinkGameModals();
-    setIsLinkingLoading(false);
   };
 
   const handleConfirmJoinChallenge = async (challengeId: string, method: 'coins' | 'ticket') => {
@@ -1086,17 +1093,51 @@ function App() {
   const { squads: realSquads, refetch: refetchSquads } = useSquads(profile?.id ?? null);
   const myLeagues = realSquads as unknown as typeof userLeagues;
 
-  // Members of the squad currently open (real).
+  // Members + linked games of the squad currently open (real).
   const [activeSquadMembers, setActiveSquadMembers] = useState<any[]>([]);
+  const [activeSquadGames, setActiveSquadGames] = useState<any[]>([]);
+  const refetchActiveSquadGames = useCallback(async () => {
+    if (!activeLeagueId) { setActiveSquadGames([]); return; }
+    try { setActiveSquadGames(await squadService.getSquadGames(activeLeagueId)); }
+    catch { setActiveSquadGames([]); }
+  }, [activeLeagueId]);
   useEffect(() => {
-    if (!activeLeagueId) { setActiveSquadMembers([]); return; }
+    if (!activeLeagueId) { setActiveSquadMembers([]); setActiveSquadGames([]); return; }
     let cancelled = false;
     squadService.getSquadMembers(activeLeagueId)
       .then(m => { if (!cancelled) setActiveSquadMembers(m); })
       .catch(() => { if (!cancelled) setActiveSquadMembers([]); });
+    squadService.getSquadGames(activeLeagueId)
+      .then(g => { if (!cancelled) setActiveSquadGames(g); })
+      .catch(() => { if (!cancelled) setActiveSquadGames([]); });
     return () => { cancelled = true; };
   }, [activeLeagueId]);
   
+  // Linked games of the active squad, resolved to the shape LeaguePage expects.
+  const resolvedActiveSquadGames = useMemo(() => {
+    const typeMap: Record<string, string> = { fantasy: 'Fantasy', prediction: 'Prediction', betting: 'Betting', live: 'Live' };
+    return activeSquadGames.map((sg: any) => {
+      const g = (games as any[]).find(x => x.id === sg.game_id);
+      return {
+        id: sg.id,
+        league_id: sg.squad_id,
+        game_id: sg.game_id,
+        game_name: g?.name ?? 'Game',
+        type: typeMap[sg.game_type] ?? 'Betting',
+      };
+    });
+  }, [activeSquadGames, games]);
+
+  const handleUnlinkSquadGame = useCallback(async (gameId: string) => {
+    if (!profile || !activeLeagueId) return;
+    try {
+      await squadService.unlinkGame(activeLeagueId, gameId, profile.id);
+      await refetchActiveSquadGames();
+    } catch (e: any) {
+      addToast(e?.message || 'Failed to unlink', 'error');
+    }
+  }, [profile, activeLeagueId, refetchActiveSquadGames]);
+
   const ticketCount = useMemo(() => {
     if (!profile) return 0;
     return userTickets.filter(t => 
@@ -1377,8 +1418,10 @@ function App() {
                 onDelete={() => setModalAction({type: 'delete', leagueId: league.id})}
                 onViewGame={(gameId, gameType) => handleViewLeagueGame(gameId, gameType as any, league.id, league.name)}
                 onViewLiveGame={handleViewLiveGame}
+                onLinkGame={handleLinkGameToLeague}
+                onUnlinkGame={handleUnlinkSquadGame}
                 addToast={addToast}
-                leagueGames={leagueGames}
+                leagueGames={resolvedActiveSquadGames as any}
                 allGames={games}
                 linkableGames={linkableGames}
             />;

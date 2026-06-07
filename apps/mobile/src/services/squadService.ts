@@ -280,37 +280,35 @@ export async function leaveSquad(squadId: string, userId: string): Promise<void>
  */
 export async function linkGameToSquads(
   gameId: string,
+  gameType: string,
   squadIds: string[],
   linkedBy: string
-): Promise<SquadGame[]> {
-  const inserts = squadIds.map(squadId => ({
-    squad_id: squadId,
-    game_id: gameId,
-    linked_by: linkedBy,
-  }));
-
-  const { data: links, error } = await supabase
-    .from('squad_games')
-    .insert(inserts)
-    .select();
+): Promise<number> {
+  // Via SECURITY DEFINER RPC (validates membership, bypasses RLS, polymorphic game_type).
+  const { data, error } = await supabase.rpc('link_game_to_squads', {
+    p_user_id: linkedBy,
+    p_game_id: gameId,
+    p_game_type: gameType,
+    p_squad_ids: squadIds,
+  });
 
   if (error) {
     console.error('[squadService] Failed to link game to squads:', error);
     throw error;
   }
 
-  return links;
+  return (data as number) ?? 0;
 }
 
 /**
  * Unlink a game from a squad
  */
-export async function unlinkGame(squadId: string, gameId: string): Promise<void> {
-  const { error } = await supabase
-    .from('squad_games')
-    .delete()
-    .eq('squad_id', squadId)
-    .eq('game_id', gameId);
+export async function unlinkGame(squadId: string, gameId: string, userId: string): Promise<void> {
+  const { error } = await supabase.rpc('unlink_squad_game', {
+    p_user_id: userId,
+    p_squad_id: squadId,
+    p_game_id: gameId,
+  });
 
   if (error) {
     console.error('[squadService] Failed to unlink game:', error);
@@ -319,15 +317,13 @@ export async function unlinkGame(squadId: string, gameId: string): Promise<void>
 }
 
 /**
- * Get all games linked to a squad
+ * Get all games linked to a squad (raw rows; the client resolves each game from
+ * its catalog / live-games source by game_type).
  */
 export async function getSquadGames(squadId: string): Promise<any[]> {
   const { data: games, error } = await supabase
     .from('squad_games')
-    .select(`
-      *,
-      challenges (*)
-    `)
+    .select('id, squad_id, game_id, game_type, linked_by, linked_at')
     .eq('squad_id', squadId)
     .order('linked_at', { ascending: false });
 
