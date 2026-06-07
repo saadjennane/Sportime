@@ -926,6 +926,24 @@ function App() {
   const handleConfirmJoinChallenge = async (challengeId: string, method: 'coins' | 'ticket') => {
     if (!profile) return;
 
+    // Fantasy games use their own secure join (server coin deduction).
+    const joiningGame = games.find(g => g.id === challengeId);
+    if (joiningGame?.game_type === 'fantasy' || joiningGame?.game_type === 'fantasy-live') {
+      try {
+        const { joinFantasyGame } = await import('./services/fantasyService');
+        const result = await joinFantasyGame(challengeId, profile.id, method);
+        if (result.ineligible) { addToast(result.ineligible, 'error'); return; }
+        addToast(result.alreadyJoined ? "You've already joined this game!" : 'Joined! Build your team.', result.alreadyJoined ? 'info' : 'success');
+        setChallengeToJoin(null);
+        await reloadProfile();
+        await refreshChallenges();
+        handleViewFantasyGame(challengeId);
+      } catch (err: any) {
+        addToast(err?.message || 'Failed to join', 'error');
+      }
+      return;
+    }
+
     if (shouldUseSupabaseChallenges) {
       try {
         const result = await joinChallengeOnSupabase(challengeId, profile.id, method);

@@ -512,3 +512,34 @@ export async function getFantasyCatalogGames(): Promise<any[]> {
   }
   return out;
 }
+
+/** Secure join for a fantasy game (server deducts coins / consumes a ticket). */
+export async function joinFantasyGame(
+  gameId: string,
+  userId: string,
+  method: 'coins' | 'ticket' = 'coins'
+): Promise<{ alreadyJoined: boolean; ineligible?: string }> {
+  if (!supabase) return { alreadyJoined: false };
+  const { error } = await supabase.rpc('join_fantasy_game', {
+    p_game_id: gameId,
+    p_user_id: userId,
+    p_method: method,
+    p_ticket_id: null,
+  });
+  if (error) {
+    const msg = error.message || '';
+    const MESSAGES: Record<string, string> = {
+      level_too_low: 'Your level is too low for this game.',
+      subscription_required: 'This game is for subscribers only.',
+      missing_badge: 'You need a required badge to join.',
+      ticket_invalid: 'No valid ticket for this tier.',
+      ticket_used: 'This ticket has already been used.',
+      ticket_expired: 'This ticket has expired.',
+      ticket_wrong_tier: 'This ticket is for a different tier.',
+    };
+    if (MESSAGES[msg]) return { alreadyJoined: false, ineligible: MESSAGES[msg] };
+    if ((error as any).code === '23505') return { alreadyJoined: true };
+    throw error;
+  }
+  return { alreadyJoined: false };
+}
