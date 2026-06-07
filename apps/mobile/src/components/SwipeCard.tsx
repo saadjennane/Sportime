@@ -147,7 +147,7 @@ export const SwipeCard = memo<SwipeCardProps>(function SwipeCard({ match, onSwip
     >
       {isTop && (
         <>
-          <motion.div style={{ opacity: opacityLeft }} className="absolute top-1/2 left-4 -translate-y-1/2 text-hot-red font-bold text-3xl border-4 border-hot-red px-4 py-2 rounded-xl rotate-[-15deg] pointer-events-none bg-hot-red/10">
+          <motion.div style={{ opacity: opacityLeft }} className="absolute top-1/2 left-4 -translate-y-1/2 text-lime-glow font-bold text-3xl border-4 border-lime-glow px-4 py-2 rounded-xl rotate-[-15deg] pointer-events-none bg-lime-glow/10">
             {match.teamA.name.split(' ')[0].toUpperCase()}
           </motion.div>
           <motion.div style={{ opacity: opacityRight }} className="absolute top-1/2 right-4 -translate-y-1/2 text-lime-glow font-bold text-3xl border-4 border-lime-glow px-4 py-2 rounded-xl rotate-[15deg] pointer-events-none bg-lime-glow/10">
