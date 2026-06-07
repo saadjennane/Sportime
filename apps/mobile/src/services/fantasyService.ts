@@ -459,3 +459,21 @@ export function processGameWeek(
     updatedTeam,
   };
 }
+
+/**
+ * Real per-player match stats for a game week (server-resolved), keyed by
+ * player_id, in the engine's PlayerGameWeekStats shape. Replaces the mock stats.
+ */
+export async function getFantasyGameWeekStats(
+  gameWeekId: string
+): Promise<Record<string, any>> {
+  if (!supabase) return {};
+  const { data, error } = await supabase.rpc('get_fantasy_gameweek_player_stats', {
+    p_game_week_id: gameWeekId,
+  });
+  if (error) {
+    console.error('[fantasyService] getFantasyGameWeekStats failed', error);
+    return {};
+  }
+  return (data as Record<string, any>) || {};
+}
