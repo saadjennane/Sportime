@@ -571,3 +571,20 @@ export async function updatePrivateGameStatus(
 
   return game;
 }
+
+/** Live games linked to a squad, mapped to the LeaguePage LiveGameCard shape. */
+export async function getSquadLiveGames(squadId: string): Promise<any[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase.rpc('get_squad_live_games', { p_squad_id: squadId });
+  if (error) {
+    console.error('[squadService] Failed to get squad live games:', error);
+    return [];
+  }
+  const cap = (s: string) => (s === 'live' ? 'Ongoing' : s === 'finished' ? 'Finished' : 'Upcoming');
+  return ((data as any[]) || []).map((g) => ({
+    id: g.id,
+    status: cap(g.status),
+    match_details: { teamA: { name: g.home_team }, teamB: { name: g.away_team } },
+    players: Array.from({ length: g.players || 0 }),
+  }));
+}

@@ -32,6 +32,7 @@ interface LeaguePageProps {
   onViewLiveGame: (gameId: string, status: 'Upcoming' | 'Ongoing' | 'Finished') => void;
   onLinkGame: (leagueId: string, game: Game) => void;
   onUnlinkGame?: (gameId: string) => void;
+  linkedLiveGames?: any[];
   leagueGames: LeagueGame[];
   allGames: Game[];
   linkableGames: Game[];
@@ -52,7 +53,7 @@ const TabButton: React.FC<{ icon: React.ReactNode, label: string, isActive: bool
 );
 
 const LeaguePage: React.FC<LeaguePageProps> = (props) => {
-  const { league, members, memberRoles, currentUserRole, currentUserId, onBack, onUpdateDetails, onRemoveMember, onResetInviteCode, onLeave, onDelete, onViewGame, onViewLiveGame, onLinkGame, onUnlinkGame, leagueGames, allGames, linkableGames, addToast } = props;
+  const { league, members, memberRoles, currentUserRole, currentUserId, onBack, onUpdateDetails, onRemoveMember, onResetInviteCode, onLeave, onDelete, onViewGame, onViewLiveGame, onLinkGame, onUnlinkGame, linkedLiveGames, leagueGames, allGames, linkableGames, addToast } = props;
   
   const { unlinkGameFromLeague, leagueFeed, toggleFeedPostLike, createPrivateLeagueGame, liveGames, createLiveGame, privateLeagueGames } = useMockStore();
   const [activeTab, setActiveTab] = useState<LeagueTab>('live');
@@ -88,8 +89,10 @@ const LeaguePage: React.FC<LeaguePageProps> = (props) => {
   }, [leagueGames, league.id, allGames, privateLeagueGames]);
 
   const liveGamesForThisLeague = useMemo(() => {
+    // Real linked live games when provided; fall back to the mock store otherwise.
+    if (linkedLiveGames) return linkedLiveGames;
     return liveGames.filter(lg => lg.league_id === league.id);
-  }, [liveGames, league.id]);
+  }, [linkedLiveGames, liveGames, league.id]);
 
   const handleConfirmUnlink = () => {
     if (gameToUnlink) {

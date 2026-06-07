@@ -1087,22 +1087,34 @@ function App() {
     joinedChallengeSet,
   ]);
 
-  const linkableGames = useMemo(() => games.filter(g => g.is_linkable), [games]);
+  const linkableGames = useMemo(() => {
+    const catalog = games.filter(g => g.is_linkable);
+    const live = myLiveGames.map((lg: any) => ({
+      id: lg.id,
+      name: `${lg.fixture?.homeTeam?.name ?? 'TBD'} vs ${lg.fixture?.awayTeam?.name ?? 'TBD'}`,
+      game_type: 'live',
+      is_linkable: true,
+      status: lg.status === 'live' ? 'Ongoing' : lg.status === 'finished' ? 'Finished' : 'Upcoming',
+      sport: 'football',
+    }));
+    return [...catalog, ...(live as any[])] as typeof games;
+  }, [games, myLiveGames]);
 
   // Squads (real, Supabase) — replaces the mock leagues for list/create/join.
   const { squads: realSquads, refetch: refetchSquads } = useSquads(profile?.id ?? null);
   const myLeagues = realSquads as unknown as typeof userLeagues;
 
-  // Members + linked games of the squad currently open (real).
+  // Members + linked games (catalog + live) of the squad currently open (real).
   const [activeSquadMembers, setActiveSquadMembers] = useState<any[]>([]);
   const [activeSquadGames, setActiveSquadGames] = useState<any[]>([]);
+  const [activeSquadLiveGames, setActiveSquadLiveGames] = useState<any[]>([]);
   const refetchActiveSquadGames = useCallback(async () => {
-    if (!activeLeagueId) { setActiveSquadGames([]); return; }
-    try { setActiveSquadGames(await squadService.getSquadGames(activeLeagueId)); }
-    catch { setActiveSquadGames([]); }
+    if (!activeLeagueId) { setActiveSquadGames([]); setActiveSquadLiveGames([]); return; }
+    try { setActiveSquadGames(await squadService.getSquadGames(activeLeagueId)); } catch { setActiveSquadGames([]); }
+    try { setActiveSquadLiveGames(await squadService.getSquadLiveGames(activeLeagueId)); } catch { setActiveSquadLiveGames([]); }
   }, [activeLeagueId]);
   useEffect(() => {
-    if (!activeLeagueId) { setActiveSquadMembers([]); setActiveSquadGames([]); return; }
+    if (!activeLeagueId) { setActiveSquadMembers([]); setActiveSquadGames([]); setActiveSquadLiveGames([]); return; }
     let cancelled = false;
     squadService.getSquadMembers(activeLeagueId)
       .then(m => { if (!cancelled) setActiveSquadMembers(m); })
@@ -1110,8 +1122,23 @@ function App() {
     squadService.getSquadGames(activeLeagueId)
       .then(g => { if (!cancelled) setActiveSquadGames(g); })
       .catch(() => { if (!cancelled) setActiveSquadGames([]); });
+    squadService.getSquadLiveGames(activeLeagueId)
+      .then(g => { if (!cancelled) setActiveSquadLiveGames(g); })
+      .catch(() => { if (!cancelled) setActiveSquadLiveGames([]); });
     return () => { cancelled = true; };
   }, [activeLeagueId]);
+
+  // The user's active live games (upcoming/live) — used to make them linkable to squads.
+  const [myLiveGames, setMyLiveGames] = useState<any[]>([]);
+  useEffect(() => {
+    if (!profile?.id || isGuest) { setMyLiveGames([]); return; }
+    let cancelled = false;
+    import('./services/liveGameService')
+      .then(s => s.getUserActiveGames(profile.id))
+      .then(g => { if (!cancelled) setMyLiveGames(g); })
+      .catch(() => { if (!cancelled) setMyLiveGames([]); });
+    return () => { cancelled = true; };
+  }, [profile?.id, isGuest]);
   
   // Linked games of the active squad, resolved to the shape LeaguePage expects.
   const resolvedActiveSquadGames = useMemo(() => {
@@ -1421,6 +1448,7 @@ function App() {
                 onLinkGame={handleLinkGameToLeague}
                 onUnlinkGame={handleUnlinkSquadGame}
                 addToast={addToast}
+                linkedLiveGames={activeSquadLiveGames as any}
                 leagueGames={resolvedActiveSquadGames as any}
                 allGames={games}
                 linkableGames={linkableGames}
