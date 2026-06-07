@@ -47,6 +47,9 @@ export const SwipeCardStack = memo<SwipeCardStackProps>(function SwipeCardStack(
     return matchesToShow.length - 1;
   });
   const [isSaving, setIsSaving] = useState(false);
+  // True while the last card is flying off, before we switch to the recap —
+  // keeps the AnimatePresence mounted so the exit animation actually plays.
+  const [exiting, setExiting] = useState(false);
 
   function handleCloseTutorial(dontShowAgain: boolean) {
     setShowTutorial(false);
@@ -75,7 +78,10 @@ export const SwipeCardStack = memo<SwipeCardStackProps>(function SwipeCardStack(
 
     // Move to next card
     if (currentIndex <= 0) {
-      // All done
+      // Last card: remove it so AnimatePresence plays its exit (fly-off), keep the
+      // stack mounted via `exiting`, then go to the recap once it has flown off.
+      setExiting(true);
+      setCurrentIndex(-1);
       setTimeout(() => onComplete(), 350);
     } else {
       setCurrentIndex(prev => prev - 1);
@@ -108,8 +114,8 @@ export const SwipeCardStack = memo<SwipeCardStackProps>(function SwipeCardStack(
     );
   }
 
-  // All cards swiped through
-  if (matchesToShow.length === 0 || currentIndex < 0) {
+  // All cards swiped through (but not while the last card is still flying off)
+  if (!exiting && (matchesToShow.length === 0 || currentIndex < 0)) {
     return (
       <div className="fixed inset-0 bg-deep-navy flex flex-col items-center justify-center z-40">
         <button
@@ -146,7 +152,7 @@ export const SwipeCardStack = memo<SwipeCardStackProps>(function SwipeCardStack(
     <div className="fixed inset-0 bg-deep-navy flex flex-col items-center justify-center z-40 overflow-hidden">
       <button
         onClick={onExit}
-        className="absolute top-4 right-4 z-50 bg-navy-accent backdrop-blur-sm p-2 rounded-full text-text-secondary hover:bg-white/10 hover:scale-110 transition-all"
+        className="absolute top-[max(1rem,calc(env(safe-area-inset-top)+0.5rem))] right-4 z-50 bg-navy-accent backdrop-blur-sm p-2 rounded-full text-text-secondary hover:bg-white/10 hover:scale-110 transition-all"
       >
         <X size={24} />
       </button>

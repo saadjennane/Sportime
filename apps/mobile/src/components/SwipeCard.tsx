@@ -64,9 +64,10 @@ export const SwipeCard = memo<SwipeCardProps>(function SwipeCard({ match, onSwip
   const [exitDirection, setExitDirection] = useState<'left' | 'right' | 'up' | null>(null);
 
   const rotate = useTransform(x, [-200, 200], [-25, 25]);
-  const opacityLeft = useTransform(x, [-120, -70], [1, 0]);
-  const opacityRight = useTransform(x, [70, 120], [0, 1]);
-  const opacityUp = useTransform(y, [-120, -70], [1, 0]);
+  // Reveal the choice indicator as soon as the drag starts (~12px), full by ~50px.
+  const opacityLeft = useTransform(x, [-50, -12], [1, 0]);
+  const opacityRight = useTransform(x, [12, 50], [0, 1]);
+  const opacityUp = useTransform(y, [-50, -12], [1, 0]);
 
   // Light tactile cue the first time a drag crosses the commit threshold, so
   // the user feels "release now". Does not affect the swipe decision below.
