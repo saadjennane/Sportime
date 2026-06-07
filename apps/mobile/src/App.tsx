@@ -1362,7 +1362,7 @@ function App() {
       case 'matches':
         return (
           <ErrorBoundary>
-            <MatchesPage matches={matches} bets={bets} onBet={handleBetClick} onPlayGame={handlePlayGameClick} />
+            <MatchesPage matches={matches} bets={bets} onBet={handleBetClick} onPlayGame={handlePlayGameClick} onBrowseGames={() => handlePageChange('challenges')} />
           </ErrorBoundary>
         );
       case 'challenges':

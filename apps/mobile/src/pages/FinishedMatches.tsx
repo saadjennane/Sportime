@@ -3,6 +3,7 @@ import { Match, Bet } from '../types';
 import { FinishedCard } from '../components/matches/FinishedCard';
 import { LeagueMatchGroup } from '../components/matches/LeagueMatchGroup';
 import { DailySummaryHeader } from '../components/matches/DailySummaryHeader';
+import { EmptyState } from '../components/EmptyState';
 
 interface FinishedMatchesPageProps {
   /** Today's finished matches, grouped by league. */
@@ -89,13 +90,17 @@ const FinishedMatchesPage: React.FC<FinishedMatchesPageProps> = ({
       </button>
 
       {!hasMatches ? (
-        <div className="card-base p-8 text-center">
-          <div className="text-6xl mb-4">🏆</div>
-          <p className="text-text-secondary font-medium">
-            {pickedOnly ? 'No picked games finished today' : 'No finished matches today'}
-          </p>
-          <p className="text-sm text-text-disabled mt-2">Results will appear here as matches end.</p>
-        </div>
+        <EmptyState
+          glyph="🏁"
+          title={pickedOnly ? 'No picked games finished' : 'No results yet'}
+          subtitle={
+            pickedOnly
+              ? "None of your picked games have finished today."
+              : 'Finished matches and your settled bets will land here.'
+          }
+          cta={onOpenHistory ? { label: '🕘 View History', onClick: onOpenHistory } : undefined}
+          secondaryCta
+        />
       ) : (
         sortedLeagueNames.map((leagueName, index) => {
           const matchesForLeague = displayedGrouped[leagueName] || [];

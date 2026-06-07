@@ -4,12 +4,14 @@ import { PickCard } from '../components/matches/PickCard';
 import { LeagueMatchGroup } from '../components/matches/LeagueMatchGroup';
 import { useUserPicks } from '../features/matches/useUserPicks';
 import { Loader } from 'lucide-react';
+import { EmptyState } from '../components/EmptyState';
 
 interface PicksPageProps {
   bets: Bet[];
   onViewStats: (match: Match) => void;
   onBet: (match: Match, prediction: 'teamA' | 'draw' | 'teamB', odds: number) => void;
   onPlayGame?: (matchId: string, matchName: string) => void;
+  onGoToToday?: () => void;
   orderedLeagues: string[];
 }
 
@@ -18,6 +20,7 @@ const PicksPage: React.FC<PicksPageProps> = ({
   onViewStats,
   onBet,
   onPlayGame,
+  onGoToToday,
   orderedLeagues,
 }) => {
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -78,13 +81,12 @@ const PicksPage: React.FC<PicksPageProps> = ({
 
       {/* Empty State */}
       {showEmptyState && (
-        <div className="card-base p-8 text-center">
-          <div className="text-6xl mb-4">🎯</div>
-          <p className="text-text-secondary font-medium">No picks yet</p>
-          <p className="text-sm text-text-disabled mt-2">
-            Start betting on matches to see your picks here!
-          </p>
-        </div>
+        <EmptyState
+          glyph="🎯"
+          title="No active picks"
+          subtitle="Call a winner on today's matches and they'll show up here."
+          cta={onGoToToday ? { label: '⚡ Go to Today', onClick: onGoToToday } : undefined}
+        />
       )}
 
       {/* Picks Grouped by League */}

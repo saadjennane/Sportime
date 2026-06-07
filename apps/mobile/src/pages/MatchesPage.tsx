@@ -4,6 +4,7 @@ import UpcomingPage from './Upcoming';
 import FinishedMatchesPage from './FinishedMatches';
 import PicksPage from './PicksPage';
 import { BetHistoryPage } from './BetHistoryPage';
+import { EmptyState } from '../components/EmptyState';
 import { format } from 'date-fns';
 import { Settings, Calendar, Target } from 'lucide-react';
 import { useLeagueOrder } from '../hooks/useLeagueOrder';
@@ -22,9 +23,10 @@ interface MatchesPageProps {
   bets: Bet[];
   onBet: (match: Match, prediction: 'teamA' | 'draw' | 'teamB', odds: number) => void;
   onPlayGame: (matchId: string, matchName: string) => void;
+  onBrowseGames?: () => void;
 }
 
-const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayGame }) => {
+const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayGame, onBrowseGames }) => {
   const [activeTab, setActiveTab] = useState<Tab>('today');
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
@@ -288,11 +290,21 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
         ) : error ? (
           <div className="card-base p-6 text-center text-hot-red text-sm">Failed to load matches: {error}</div>
         ) : Object.keys(groupedToday).length === 0 ? (
-          <div className="card-base p-6 text-center text-text-secondary text-sm">
-            {Object.keys(groupedUpcoming).length === 0
-              ? 'No matches scheduled for today.'
-              : 'No matches left here — check Picks and Finished.'}
-          </div>
+          Object.keys(groupedUpcoming).length === 0 ? (
+            <EmptyState
+              glyph="⚽"
+              title="No kickoff today"
+              subtitle="Nothing on the pitch right now. Browse challenges or come back tomorrow."
+              cta={onBrowseGames ? { label: '🎮 Browse Games', onClick: onBrowseGames } : undefined}
+            />
+          ) : (
+            <EmptyState
+              glyph="👏"
+              title="All caught up"
+              subtitle="You've handled today's matches — check your Picks and the results in Finished."
+              cta={{ label: '→ View Picks', onClick: () => setActiveTab('picks') }}
+            />
+          )
         ) : (
           <UpcomingPage
             groupedMatches={groupedToday}
@@ -307,6 +319,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
         <PicksPage
           bets={bets}
           onViewStats={setSelectedMatchForStats}
+          onGoToToday={() => setActiveTab('today')}
           onBet={onBet}
           onPlayGame={onPlayGame}
           orderedLeagues={effectiveOrderedLeagues}

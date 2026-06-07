@@ -8,6 +8,7 @@ import { PullToRefresh } from '../components/PullToRefresh';
 import { hapticImpact } from '../native/haptics';
 import { checkEligibility } from '../lib/eligibility';
 import { GameSection } from '../components/GameSection';
+import { EmptyState } from '../components/EmptyState';
 import { parseISO } from 'date-fns';
 import { Zap, Clock, Flag, Trophy, Flame } from 'lucide-react';
 import { calculateBettingGameState, safeParseISO, parseEndDateLocal, getBettingGameDeadline, calculateGameState, getGameDeadline, areAllMatchesFinished } from '../services/gameStateService';
@@ -426,6 +427,14 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
 
       {/* My Games Tab */}
       {activeTab === 'my-games' && (
+        (playNowGames.length === 0 && awaitingGames.length === 0 && recentlyFinishedGames.length === 0 && pastGamesSection.length === 0) ? (
+          <EmptyState
+            glyph="🚀"
+            title="You're not in any game"
+            subtitle="Join a Game, and climb the leaderboard."
+            cta={{ label: '🔍 Browse Games', onClick: () => { hapticImpact('light'); setActiveTab('browse'); } }}
+          />
+        ) : (
         <>
           <GameSection
             title="Play Now"
@@ -466,14 +475,8 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
           >
             {pastGamesSection.map(game => renderGameCard(game, true))}
           </GameSection>
-
-          {playNowGames.length === 0 && awaitingGames.length === 0 && recentlyFinishedGames.length === 0 && pastGamesSection.length === 0 && (
-            <div className="card-base p-8 text-center">
-              <p className="text-text-secondary text-sm">You haven't joined any games yet.</p>
-              <p className="text-text-secondary text-xs mt-2">Switch to Browse Games to discover available games!</p>
-            </div>
-          )}
         </>
+        )
       )}
 
       {/* Browse Games Tab */}
