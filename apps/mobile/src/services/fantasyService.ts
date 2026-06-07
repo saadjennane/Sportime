@@ -477,3 +477,38 @@ export async function getFantasyGameWeekStats(
   }
   return (data as Record<string, any>) || {};
 }
+
+/**
+ * Fantasy games (separate fantasy_games table) mapped as catalog games so they
+ * appear in the Games list. Each carries its gameWeeks (for FantasyGameWeekPage).
+ */
+export async function getFantasyCatalogGames(): Promise<any[]> {
+  if (!supabase) return [];
+  const { data: fgames, error } = await supabase.from('fantasy_games').select('*');
+  if (error || !fgames) return [];
+  const out: any[] = [];
+  for (const fg of fgames as any[]) {
+    const gameWeeks = await getGameWeeks(fg.id);
+    if (gameWeeks.length === 0) continue; // skip games without playable weeks
+    out.push({
+      id: fg.id,
+      name: fg.name,
+      game_type: 'fantasy',
+      start_date: fg.start_date,
+      end_date: fg.end_date,
+      entry_cost: fg.entry_cost ?? 0,
+      tier: fg.tier ?? 'amateur',
+      status: 'Open',
+      format: 'leaderboard',
+      sport: 'football',
+      totalPlayers: fg.total_players ?? 0,
+      participants: [],
+      rewards: [],
+      gameWeeks,
+      minimum_level: fg.minimum_level ?? 'Rookie',
+      requires_subscription: fg.requires_subscription ?? false,
+      required_badges: fg.required_badges ?? [],
+    });
+  }
+  return out;
+}

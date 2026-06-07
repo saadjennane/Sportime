@@ -14,6 +14,7 @@ import type {
 import type { Challenge, ChallengeMatch } from '../types'
 import { normalizeTournamentTier, normalizeDurationType } from '../config/constants'
 import { detectAndSyncMissingOdds, type FixtureForOddsCheck } from './oddsSyncService'
+import { getFantasyCatalogGames } from './fantasyService'
 
 type ChallengeConfigRow = {
   config_type: string
@@ -1112,6 +1113,17 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
   }
 
   catalog.games = Array.from(challengesById.values())
+
+  // Surface fantasy games (stored in the separate fantasy_games table) into the catalog.
+  try {
+    const fantasyGames = await getFantasyCatalogGames()
+    if (fantasyGames.length > 0) {
+      catalog.games = [...catalog.games, ...(fantasyGames as unknown as SportimeGame[])]
+    }
+  } catch (e) {
+    console.warn('[challengeService] Failed to load fantasy catalog games', e)
+  }
+
   catalog.userChallengeEntries = finalParticipation.userChallengeEntries
   catalog.userSwipeEntries = swipeEntriesWithPredictions
   catalog.userFantasyTeams = finalParticipation.userFantasyTeams
