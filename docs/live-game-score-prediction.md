@@ -15,7 +15,12 @@ Jeu temps réel sur **un match** (bouton **Play** d'une carte match). Tu pronost
 
 ## Questions bonus — **par situation** (orthogonales au score)
 
-Les questions portent sur des **stats du match** (indépendantes du score exact). Les 3 questions sont **tirées au hasard dans le sous‑pool de la situation** du pronostic (20/10/10). Différents joueurs peuvent avoir des questions différentes (selon leur pronostic), résolues sur le **même match**.
+Les questions portent sur des **stats du match** (indépendantes du score exact). Les 3 questions sont tirées dans le sous‑pool de la **situation** du pronostic (20/10/10). **Quand des buts sont pronostiqués, on favorise toujours les questions de buts** :
+- **Les 2 marquent** → « qui marque en premier ? » (**20**) + « 1er but en 1ʳᵉ MT ? » (**10**) + 1 aléatoire (10)
+- **Clean sheet** → « 1er but en 1ʳᵉ MT ? » (**20**) + 2 aléatoires (10/10) *(pas de « qui marque en premier » : forcé)*
+- **Nul vierge** → 3 aléatoires du sous‑pool (aucune question de but)
+
+Différents joueurs peuvent avoir des questions différentes (selon leur pronostic), résolues sur le **même match**.
 
 ### Détection de la situation (depuis le score pronostiqué)
 | Situation | Condition |

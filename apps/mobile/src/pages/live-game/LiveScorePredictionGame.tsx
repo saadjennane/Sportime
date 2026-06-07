@@ -33,14 +33,30 @@ const SUBPOOL: Record<string, string[]> = {
 const situationOf = (h: number, a: number) =>
   h === 0 && a === 0 ? 'goalless' : (h === 0 || a === 0 ? 'clean_sheet' : 'both_score');
 
-function draw3(sit: string): DrawnQ[] {
-  const keys = [...(SUBPOOL[sit] || [])];
-  for (let i = keys.length - 1; i > 0; i--) {
+const mkQ = (k: string, p: number): DrawnQ => ({ key: k, points: p, label: POOL[k].label, format: POOL[k].fmt });
+function pickRandom(pool: string[], n: number, exclude: string[] = []): string[] {
+  const avail = pool.filter(k => !exclude.includes(k));
+  for (let i = avail.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [keys[i], keys[j]] = [keys[j], keys[i]];
+    [avail[i], avail[j]] = [avail[j], avail[i]];
   }
-  const pts = [20, 10, 10];
-  return keys.slice(0, 3).map((k, i) => ({ key: k, points: pts[i], label: POOL[k].label, format: POOL[k].fmt }));
+  return avail.slice(0, n);
+}
+// When goals are predicted, always favour the goal questions:
+//  - both_score -> "who scores first" (20) + "first goal in 1st half" (10) + 1 random
+//  - clean_sheet -> "first goal in 1st half" (20) + 2 random  (no "who scores first": forced)
+//  - goalless   -> 3 random (no goal questions)
+function draw3(sit: string): DrawnQ[] {
+  if (sit === 'both_score') {
+    const other = pickRandom(SUBPOOL.both_score, 1, ['first_scorer', 'first_goal_1h'])[0];
+    return [mkQ('first_scorer', 20), mkQ('first_goal_1h', 10), mkQ(other, 10)];
+  }
+  if (sit === 'clean_sheet') {
+    const o = pickRandom(SUBPOOL.clean_sheet, 2, ['first_goal_1h']);
+    return [mkQ('first_goal_1h', 20), mkQ(o[0], 10), mkQ(o[1], 10)];
+  }
+  const k = pickRandom(SUBPOOL.goalless, 3);
+  return [mkQ(k[0], 20), mkQ(k[1], 10), mkQ(k[2], 10)];
 }
 
 const FINISHED = ['FT', 'AET', 'PEN'];
