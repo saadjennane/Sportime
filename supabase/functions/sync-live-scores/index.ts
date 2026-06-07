@@ -442,6 +442,12 @@ serve(async (req) => {
         console.error('[sync-live-scores] Swipe settle error:', swipeError.message)
       }
 
+      // Score Live Game A (score prediction) on the same finished fixtures.
+      const { error: liveScoreError } = await supabase.rpc('settle_finished_live_score_games')
+      if (liveScoreError) {
+        console.error('[sync-live-scores] Live score settle error:', liveScoreError.message)
+      }
+
       // Finalize betting challenges whose window has ended (final ranks + prizes).
       const { error: finalizeError } = await supabase.rpc('finalize_due_challenges')
       if (finalizeError) {
