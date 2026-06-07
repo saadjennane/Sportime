@@ -927,12 +927,12 @@ function App() {
     if (!profile) return;
 
     // Fantasy games use their own secure join (server coin deduction).
-    const joiningGame: any = (challengeToJoin && challengeToJoin.id === challengeId)
-      ? challengeToJoin
-      : games.find(g => g.id === challengeId);
-    const isFantasy = joiningGame?.game_type === 'fantasy'
-      || joiningGame?.game_type === 'fantasy-live'
-      || Array.isArray(joiningGame?.gameWeeks);
+    // Authoritative check: is this id a fantasy game?
+    let isFantasy = false;
+    if (supabase) {
+      const { data: fg } = await supabase.from('fantasy_games').select('id').eq('id', challengeId).maybeSingle();
+      isFantasy = !!fg;
+    }
     if (isFantasy) {
       try {
         const { joinFantasyGame } = await import('./services/fantasyService');
