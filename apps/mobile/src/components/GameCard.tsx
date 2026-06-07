@@ -218,10 +218,16 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
     : progressStatus === 'partial' ? 'Finish your bets'
     : 'Place your bets';
 
+  // Prediction CTA: 'Edit' once every fixture is predicted, otherwise 'Make'.
+  const makePredictionsText =
+    progressStatus === 'complete' ? 'Edit your predictions' : 'Make your predictions';
+  // For prediction, the locked/in-progress state shows results (nothing to do but watch).
+  const awaitingText = game.game_type === 'prediction' ? 'View Results' : 'View Game';
+
   const ctaConfig = {
     JOIN: { onClick: onJoinClick, disabled: isJoinDisabled, style: 'primary', content: joinButtonContent() },
     PLACE_BETS: { text: placeBetsText, onClick: onPlay, disabled: false, style: 'primary', icon: <ArrowRight size={16} /> },
-    MAKE_PREDICTIONS: { text: 'Make your predictions', onClick: onPlay, disabled: false, style: 'primary', icon: <ArrowRight size={16} /> },
+    MAKE_PREDICTIONS: { text: makePredictionsText, onClick: onPlay, disabled: false, style: 'primary', icon: <ArrowRight size={16} /> },
     SELECT_TEAM: { text: 'Select your team', onClick: onPlay, disabled: false, style: 'primary', icon: <ArrowRight size={16} /> },
     COMPLETE_TEAM: { text: 'Complete your team', onClick: onPlay, disabled: false, style: 'primary', icon: <ArrowRight size={16} /> },
     AWAITING: { text: 'View Game', onClick: onPlay, disabled: false, style: 'secondary', icon: <Clock size={16} /> },
@@ -353,14 +359,14 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
           )}
 
           <div className="flex items-center gap-2">
-            {/* Progress badge — only for non-betting (betting conveys state via the button text) */}
-            {game.game_type !== 'betting' && ['MAKE_PREDICTIONS', 'SELECT_TEAM', 'COMPLETE_TEAM'].includes(ctaState) && progressStatus === 'complete' && (
+            {/* Progress badge — only for fantasy (betting & prediction convey state via the button text) */}
+            {['SELECT_TEAM', 'COMPLETE_TEAM'].includes(ctaState) && progressStatus === 'complete' && (
               <span className="flex items-center gap-1 text-xs font-medium text-lime-glow bg-lime-glow/10 px-2 py-1 rounded-lg">
                 <CheckCircle2 size={14} />
                 Ready
               </span>
             )}
-            {game.game_type !== 'betting' && ['MAKE_PREDICTIONS', 'SELECT_TEAM', 'COMPLETE_TEAM'].includes(ctaState) && progressStatus === 'partial' && (
+            {['SELECT_TEAM', 'COMPLETE_TEAM'].includes(ctaState) && progressStatus === 'partial' && (
               <span className="flex items-center gap-1 text-xs font-medium text-warm-yellow bg-warm-yellow/10 px-2 py-1 rounded-lg">
                 <CircleDot size={14} />
                 In progress
