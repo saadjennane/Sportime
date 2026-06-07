@@ -926,27 +926,25 @@ function App() {
   const handleConfirmJoinChallenge = async (challengeId: string, method: 'coins' | 'ticket') => {
     if (!profile) return;
 
-    // Fantasy games use their own secure join (server coin deduction).
-    // Authoritative check: is this id a fantasy game?
-    let isFantasy = false;
-    if (supabase) {
-      const { data: fg } = await supabase.from('fantasy_games').select('id').eq('id', challengeId).maybeSingle();
-      isFantasy = !!fg;
-    }
-    if (isFantasy) {
-      try {
-        const { joinFantasyGame } = await import('./services/fantasyService');
-        const result = await joinFantasyGame(challengeId, profile.id, method);
-        if (result.ineligible) { addToast(result.ineligible, 'error'); return; }
-        addToast(result.alreadyJoined ? "You've already joined this game!" : 'Joined! Build your team.', result.alreadyJoined ? 'info' : 'success');
-        setChallengeToJoin(null);
-        await reloadProfile();
-        await refreshChallenges();
-        handleViewFantasyGame(challengeId);
-      } catch (err: any) {
-        addToast(err?.message || 'Failed to join', 'error');
-      }
+    // Try the fantasy join first: join_fantasy_game (SECURITY DEFINER) authoritatively
+    // checks fantasy_games and bypasses RLS. If it's not a fantasy game, it raises
+    // 'Fantasy game not found' and we fall through to the betting/challenge join.
+    try {
+      const { joinFantasyGame } = await import('./services/fantasyService');
+      const result = await joinFantasyGame(challengeId, profile.id, method);
+      if (result.ineligible) { addToast(result.ineligible, 'error'); return; }
+      addToast(result.alreadyJoined ? "You've already joined this game!" : 'Joined! Build your team.', result.alreadyJoined ? 'info' : 'success');
+      setChallengeToJoin(null);
+      await reloadProfile();
+      await refreshChallenges();
+      handleViewFantasyGame(challengeId);
       return;
+    } catch (err: any) {
+      if (err?.message !== 'Fantasy game not found') {
+        addToast(err?.message || 'Failed to join', 'error');
+        return;
+      }
+      // Not a fantasy game — continue to the betting/challenge join below.
     }
 
     if (shouldUseSupabaseChallenges) {
