@@ -383,39 +383,18 @@ export async function savePrediction(params: {
   userId: string;
   fixtureId: string;
   prediction: 'home' | 'draw' | 'away';
-  odds: { home: number; draw: number; away: number };
+  odds?: { home: number; draw: number; away: number }; // ignored — server snapshots the odds
 }) {
-  // Backend validation: Check if match has already started
-  const { data: fixture, error: fixtureError } = await supabase
-    .from('fb_fixtures')
-    .select('date')
-    .eq('id', params.fixtureId)
-    .single();
-
-  if (fixtureError) {
-    console.warn('[savePrediction] Could not verify fixture kickoff time:', fixtureError);
-    // Continue anyway - the frontend should have already validated
-  } else if (fixture && new Date(fixture.date) <= new Date()) {
-    throw new Error('Cannot save prediction - match has already started');
-  }
-
-  const { data, error } = await supabase
-    .from('swipe_predictions')
-    .upsert({
-      challenge_id: params.challengeId,
-      matchday_id: params.matchdayId,
-      user_id: params.userId,
-      fixture_id: params.fixtureId,
-      prediction: params.prediction,
-      odds_at_prediction: params.odds,
-    }, {
-      onConflict: 'challenge_id,user_id,fixture_id'
-    })
-    .select()
-    .single();
-
+  // All validation (challenge active, joined, fixture in matchday, kickoff not
+  // started) AND the odds snapshot happen server-side in place_swipe_prediction.
+  const { error } = await supabase.rpc('place_swipe_prediction', {
+    p_challenge_id: params.challengeId,
+    p_matchday_id: params.matchdayId,
+    p_user_id: params.userId,
+    p_fixture_id: params.fixtureId,
+    p_prediction: params.prediction,
+  });
   if (error) throw error;
-  return data;
 }
 
 /**
