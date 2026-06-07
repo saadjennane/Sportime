@@ -212,8 +212,10 @@ serve(async (req) => {
     // 3. Get all player match stats for this game week's fixtures.
     // player_match_stats has no match_date column -> resolve the league's fixtures
     // in the game-week window, then read the stats by fixture_id.
+    // NOTE: fantasy lives in the legacy `fixtures` table (id/league_id/date),
+    // which is what player_match_stats.fixture_id references — NOT fb_fixtures.
     const { data: gwFixtures, error: fxError } = await supabase
-      .from('fb_fixtures')
+      .from('fixtures')
       .select('id')
       .eq('league_id', leagueId)
       .gte('date', gameWeek.start_date)
