@@ -1064,7 +1064,26 @@ function App() {
     ).length;
   }, [userTickets, profile]);
 
-  const handlePlayGameClick = (matchId: string, matchName: string) => {
+  const handlePlayGameClick = async (matchId: string, matchName: string) => {
+    // If the user already joined a live game for this fixture, re-open it directly
+    // so they can find their prediction again — instead of the create modal.
+    if (profile && !isGuest && supabase) {
+      try {
+        const existing = await getLiveGameByFixture(matchId);
+        if (existing && existing.status !== 'finished') {
+          const { data } = await supabase.rpc('get_live_game_state', { p_game_id: existing.id });
+          const joined = ((data as any)?.entries || []).some((e: any) => e.user_id === profile.id);
+          if (joined) {
+            setActiveLiveGameSupabase({
+              id: existing.id,
+              fixtureId: existing.fixtureId,
+              mode: existing.mode as 'free' | 'ranked',
+            });
+            return;
+          }
+        }
+      } catch { /* fall through to the create modal */ }
+    }
     setLiveGameModalState({ isOpen: true, matchId, matchName, isLoading: false });
   };
 

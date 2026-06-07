@@ -78,12 +78,12 @@ export const LiveGameModal: React.FC<LiveGameModalProps> = ({
         <div className="text-left space-y-3">
           <div className="flex items-center gap-2">
             <Gift className="text-lime-glow" size={20} />
-            <h3 className="font-bold text-text-primary">Free Betting Game</h3>
+            <h3 className="font-bold text-text-primary">Free Prediction Game</h3>
           </div>
           <p className="text-text-secondary text-sm">Play without risking your coins!</p>
           <ul className="text-sm text-text-secondary space-y-1">
             <li>• Start with 1000 virtual coins</li>
-            <li>• Bet on live match events</li>
+            <li>• Predict the final score + bonus questions</li>
             <li>• Top 3 players win real rewards:</li>
             <li className="pl-3">🥇 1st: 500 coins + Apex Ticket</li>
             <li className="pl-3">🥈 2nd: 300 coins</li>
@@ -97,13 +97,13 @@ export const LiveGameModal: React.FC<LiveGameModalProps> = ({
       <div className="text-left space-y-3">
         <div className="flex items-center gap-2">
           <Coins className="text-warm-yellow" size={20} />
-          <h3 className="font-bold text-text-primary">Stakes Betting Game</h3>
+          <h3 className="font-bold text-text-primary">Stakes Prediction Game</h3>
         </div>
         <p className="text-text-secondary text-sm">Play for real coins!</p>
         <ul className="text-sm text-text-secondary space-y-1">
           <li>• Choose your entry (limited by your level)</li>
           <li>• Your entry becomes your starting balance</li>
-          <li>• Bet on live match events</li>
+          <li>• Predict the final score + bonus questions</li>
           <li>• All your winnings go to your wallet</li>
         </ul>
         <p className="text-xs text-warm-yellow">Higher risk, higher reward!</p>
@@ -166,7 +166,7 @@ export const LiveGameModal: React.FC<LiveGameModalProps> = ({
           <div className="text-center pt-4">
             <div className="flex items-center justify-center gap-2 mb-2">
               <Coins className="text-warm-yellow" size={24} />
-              <h2 className="text-xl font-bold text-text-primary">Stakes Betting Game</h2>
+              <h2 className="text-xl font-bold text-text-primary">Stakes Prediction Game</h2>
             </div>
             {matchName && <p className="text-text-secondary text-sm">{matchName}</p>}
           </div>
@@ -288,7 +288,7 @@ export const LiveGameModal: React.FC<LiveGameModalProps> = ({
               <div className="flex items-center gap-3">
                 <Gift className="text-lime-glow flex-shrink-0" size={24} />
                 <div>
-                  <h4 className="font-bold text-text-primary">Free Betting Game</h4>
+                  <h4 className="font-bold text-text-primary">Free Prediction Game</h4>
                   <p className="text-sm text-text-secondary">No coins at risk • Win rewards!</p>
                 </div>
               </div>
@@ -311,7 +311,7 @@ export const LiveGameModal: React.FC<LiveGameModalProps> = ({
               <div className="flex items-center gap-3">
                 <Coins className="text-warm-yellow flex-shrink-0" size={24} />
                 <div>
-                  <h4 className="font-bold text-text-primary">Stakes Betting Game</h4>
+                  <h4 className="font-bold text-text-primary">Stakes Prediction Game</h4>
                   <p className="text-sm text-text-secondary">Bet real coins • Keep winnings!</p>
                 </div>
               </div>
