@@ -886,8 +886,6 @@ function App() {
     setActiveLiveGame({ id: gameId, status });
   };
 
-  // Any squad I belong to can have games linked (the RPC validates membership).
-  const myAdminLeagues = realSquads as unknown as typeof userLeagues;
 
   const handleOpenLinkGameFlow = (game: Game) => {
     if (isGuest) {
@@ -1087,6 +1085,9 @@ function App() {
     joinedChallengeSet,
   ]);
 
+  // The user's active live games (upcoming/live) — used to make them linkable to squads.
+  const [myLiveGames, setMyLiveGames] = useState<any[]>([]);
+
   const linkableGames = useMemo(() => {
     const catalog = games.filter(g => g.is_linkable);
     const live = myLiveGames.map((lg: any) => ({
@@ -1103,6 +1104,8 @@ function App() {
   // Squads (real, Supabase) — replaces the mock leagues for list/create/join.
   const { squads: realSquads, refetch: refetchSquads } = useSquads(profile?.id ?? null);
   const myLeagues = realSquads as unknown as typeof userLeagues;
+  // Any squad I belong to can have games linked (the RPC validates membership).
+  const myAdminLeagues = realSquads as unknown as typeof userLeagues;
 
   // Members + linked games (catalog + live) of the squad currently open (real).
   const [activeSquadMembers, setActiveSquadMembers] = useState<any[]>([]);
@@ -1128,8 +1131,7 @@ function App() {
     return () => { cancelled = true; };
   }, [activeLeagueId]);
 
-  // The user's active live games (upcoming/live) — used to make them linkable to squads.
-  const [myLiveGames, setMyLiveGames] = useState<any[]>([]);
+  // Fetch the user's active live games (state declared above) for squad linking.
   useEffect(() => {
     if (!profile?.id || isGuest) { setMyLiveGames([]); return; }
     let cancelled = false;
