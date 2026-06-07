@@ -219,8 +219,9 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
     : 'Place your bets';
 
   // Prediction CTA: 'Edit' once every fixture is predicted, otherwise 'Make'.
+  // Kept short so it fits on one line.
   const makePredictionsText =
-    progressStatus === 'complete' ? 'Edit your predictions' : 'Make your predictions';
+    progressStatus === 'complete' ? 'Edit predictions' : 'Make predictions';
   // For prediction, the locked/in-progress state shows results (nothing to do but watch).
   const awaitingText = game.game_type === 'prediction' ? 'View Results' : 'View Game';
 

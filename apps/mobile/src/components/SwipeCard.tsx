@@ -2,6 +2,7 @@ import React, { useState, useRef, memo } from 'react';
 import { motion, PanInfo, useMotionValue, useTransform } from 'framer-motion';
 import { SwipeMatch, SwipePredictionOutcome } from '../types';
 import { flushSync } from 'react-dom';
+import { format, parseISO } from 'date-fns';
 import { hapticImpact } from '../native/haptics';
 
 interface SwipeCardProps {
@@ -13,26 +14,25 @@ interface SwipeCardProps {
 
 const swipeThreshold = 50;
 
-// TeamLogo component defined OUTSIDE SwipeCard to prevent recreation on each render
+// TeamLogo component defined OUTSIDE SwipeCard to prevent recreation on each render.
+// No surrounding circle — just the centered logo (or initial fallback).
 const TeamLogo = memo(({ team }: { team: { name: string; logo?: string; emoji: string } }) => {
   const [imageError, setImageError] = useState(false);
 
   if (team.logo && !imageError) {
     return (
-      <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
-        <img
-          src={team.logo}
-          alt={team.name}
-          className="w-16 h-16 object-contain"
-          onError={() => setImageError(true)}
-        />
-      </div>
+      <img
+        src={team.logo}
+        alt={team.name}
+        className="w-20 h-20 object-contain mx-auto"
+        onError={() => setImageError(true)}
+      />
     );
   }
 
   // Fallback: Initial letter
   return (
-    <div className="w-16 h-16 bg-deep-navy rounded-full flex items-center justify-center text-2xl font-bold text-text-secondary">
+    <div className="w-20 h-20 mx-auto flex items-center justify-center text-4xl font-bold text-text-secondary">
       {team.name.charAt(0)}
     </div>
   );
@@ -115,6 +115,19 @@ export const SwipeCard = memo<SwipeCardProps>(function SwipeCard({ match, onSwip
     }
   };
 
+  const selectedClass = (key: SwipePredictionOutcome) =>
+    currentPrediction === key
+      ? 'border-electric-blue bg-electric-blue/20 shadow-[0_0_14px_rgba(59,130,246,0.45)]'
+      : 'border-transparent';
+
+  const kickoffLabel = (() => {
+    try {
+      return format(parseISO(match.kickoffTime), 'd-M-yyyy - HH:mm');
+    } catch {
+      return match.kickoffTime;
+    }
+  })();
+
   return (
     <motion.div
       key={match.id}
@@ -145,27 +158,29 @@ export const SwipeCard = memo<SwipeCardProps>(function SwipeCard({ match, onSwip
         </>
       )}
 
-      <div className="text-center">
-        <p className="text-sm text-text-secondary font-semibold">{match.kickoffTime}</p>
+      {/* Draw on top — visually cues "swipe up = draw" */}
+      <div className={`text-center px-4 py-2.5 rounded-2xl border-2 transition-all ${selectedClass('draw')}`}>
+        <p className="font-bold text-lg text-text-primary">Draw</p>
+        <p className="font-semibold text-electric-blue">@{match.odds.draw.toFixed(2)}</p>
       </div>
 
-      <div className="flex items-center justify-around">
-        <div className={`text-center p-3 rounded-xl transition-colors ${currentPrediction === 'teamA' ? 'bg-electric-blue/20' : ''}`}>
+      <div className="flex items-center justify-center gap-3">
+        <div className={`flex-1 text-center p-3 rounded-2xl border-2 transition-all ${selectedClass('teamA')}`}>
           <TeamLogo team={match.teamA} />
-          <p className="font-bold text-lg text-text-primary mt-2">{match.teamA.name}</p>
+          <p className="font-bold text-base text-text-primary mt-2 truncate">{match.teamA.name}</p>
           <p className="font-semibold text-electric-blue">@{match.odds.teamA.toFixed(2)}</p>
         </div>
-        <p className="text-2xl font-bold text-text-disabled">VS</p>
-        <div className={`text-center p-3 rounded-xl transition-colors ${currentPrediction === 'teamB' ? 'bg-electric-blue/20' : ''}`}>
+        <p className="text-xl font-bold text-text-disabled flex-shrink-0">VS</p>
+        <div className={`flex-1 text-center p-3 rounded-2xl border-2 transition-all ${selectedClass('teamB')}`}>
           <TeamLogo team={match.teamB} />
-          <p className="font-bold text-lg text-text-primary mt-2">{match.teamB.name}</p>
+          <p className="font-bold text-base text-text-primary mt-2 truncate">{match.teamB.name}</p>
           <p className="font-semibold text-electric-blue">@{match.odds.teamB.toFixed(2)}</p>
         </div>
       </div>
 
-      <div className={`text-center p-3 rounded-xl transition-colors ${currentPrediction === 'draw' ? 'bg-electric-blue/20' : ''}`}>
-        <p className="font-bold text-lg text-text-primary">Draw</p>
-        <p className="font-semibold text-electric-blue">@{match.odds.draw.toFixed(2)}</p>
+      {/* Kickoff date at the bottom — formatted d-M-yyyy - HH:mm */}
+      <div className="text-center">
+        <p className="text-sm text-text-secondary font-semibold">{kickoffLabel}</p>
       </div>
     </motion.div>
   );
