@@ -408,6 +408,16 @@ export async function savePrediction(params: {
     p_prediction: params.prediction,
   });
   if (error) throw error;
+
+  // Return the persisted row (with the server-snapshotted odds) for the caller.
+  const { data } = await supabase
+    .from('swipe_predictions')
+    .select('*')
+    .eq('challenge_id', params.challengeId)
+    .eq('user_id', params.userId)
+    .eq('fixture_id', params.fixtureId)
+    .maybeSingle();
+  return data as SwipePredictionRecord | null;
 }
 
 /**

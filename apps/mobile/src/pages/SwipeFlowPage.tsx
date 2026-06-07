@@ -390,7 +390,8 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
         },
       })
       .then(savedRecord => {
-        // Update with real record
+        if (!savedRecord) return; // keep the optimistic record
+        // Update with the real persisted record
         setState(prev => ({
           ...prev,
           predictions: {
