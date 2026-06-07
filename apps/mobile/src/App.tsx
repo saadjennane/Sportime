@@ -927,8 +927,13 @@ function App() {
     if (!profile) return;
 
     // Fantasy games use their own secure join (server coin deduction).
-    const joiningGame = games.find(g => g.id === challengeId);
-    if (joiningGame?.game_type === 'fantasy' || joiningGame?.game_type === 'fantasy-live') {
+    const joiningGame: any = (challengeToJoin && challengeToJoin.id === challengeId)
+      ? challengeToJoin
+      : games.find(g => g.id === challengeId);
+    const isFantasy = joiningGame?.game_type === 'fantasy'
+      || joiningGame?.game_type === 'fantasy-live'
+      || Array.isArray(joiningGame?.gameWeeks);
+    if (isFantasy) {
       try {
         const { joinFantasyGame } = await import('./services/fantasyService');
         const result = await joinFantasyGame(challengeId, profile.id, method);
