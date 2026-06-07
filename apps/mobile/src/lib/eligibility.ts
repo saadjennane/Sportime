@@ -1,14 +1,6 @@
 import { Profile, SportimeGame, UserTicket } from '../types';
 import { isBefore, parseISO } from 'date-fns';
-
-const LEVEL_HIERARCHY: Record<string, number> = {
-  Amateur: 0,
-  Pro: 1,
-  Expert: 2,
-  Master: 3,
-  Legend: 4,
-  GOAT: 5,
-};
+import { levelRank } from '../config/levels';
 
 export const checkEligibility = (profile: Profile | null, game: SportimeGame, userTickets: UserTicket[]) => {
   if (!profile || profile.is_guest) {
@@ -40,10 +32,8 @@ export const checkEligibility = (profile: Profile | null, game: SportimeGame, us
     reasons.push('subscription');
   }
 
-  // Check level
-  const userLevel = LEVEL_HIERARCHY[profile.level || 'Amateur'];
-  const requiredLevel = LEVEL_HIERARCHY[game.minimum_level || 'Amateur'];
-  if (userLevel < requiredLevel) {
+  // Check level (canonical hierarchy: Rookie … GOAT)
+  if (levelRank(profile.level) < levelRank(game.minimum_level)) {
     reasons.push('level');
   }
 
