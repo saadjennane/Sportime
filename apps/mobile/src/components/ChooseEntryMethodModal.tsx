@@ -7,6 +7,8 @@ interface ChooseEntryMethodModalProps {
   onClose: () => void;
   onSelectMethod: (method: 'coins' | 'ticket') => void;
   challenge: BettingChallenge;
+  hasCoins?: boolean;
+  hasTicket?: boolean;
 }
 
 const tierDetails: Record<TournamentType, { label: string; color: string }> = {
@@ -20,6 +22,8 @@ export const ChooseEntryMethodModal: React.FC<ChooseEntryMethodModalProps> = ({
   onClose,
   onSelectMethod,
   challenge,
+  hasCoins = true,
+  hasTicket = true,
 }) => {
   if (!isOpen) return null;
 
@@ -35,13 +39,14 @@ export const ChooseEntryMethodModal: React.FC<ChooseEntryMethodModalProps> = ({
           <X className="w-6 h-6" />
         </button>
 
-        <h2 className="text-2xl font-bold text-center text-text-primary">How do you want to join?</h2>
-        <p className="text-center text-sm text-text-secondary -mt-3">You have multiple ways to enter this challenge.</p>
+        <h2 className="text-2xl font-bold text-center text-text-primary">Confirm your entry</h2>
+        <p className="text-center text-sm text-text-secondary -mt-3">Choose how you want to enter this challenge.</p>
 
         <div className="space-y-3 pt-2">
           <button
-            onClick={() => onSelectMethod('coins')}
-            className="w-full flex items-center justify-between p-4 bg-deep-navy hover:bg-navy-accent rounded-xl border-2 border-disabled hover:border-electric-blue transition-all"
+            onClick={() => hasCoins && onSelectMethod('coins')}
+            disabled={!hasCoins}
+            className="w-full flex items-center justify-between p-4 bg-deep-navy rounded-xl border-2 border-disabled transition-all enabled:hover:bg-navy-accent enabled:hover:border-electric-blue disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <span className="font-bold text-lg text-text-primary">Use Coins</span>
             <div className="flex items-center gap-2 font-semibold text-warm-yellow">
@@ -50,13 +55,14 @@ export const ChooseEntryMethodModal: React.FC<ChooseEntryMethodModalProps> = ({
             </div>
           </button>
           <button
-            onClick={() => onSelectMethod('ticket')}
-            className="w-full flex items-center justify-between p-4 bg-deep-navy hover:bg-navy-accent rounded-xl border-2 border-disabled hover:border-electric-blue transition-all"
+            onClick={() => hasTicket && onSelectMethod('ticket')}
+            disabled={!hasTicket}
+            className="w-full flex items-center justify-between p-4 bg-deep-navy rounded-xl border-2 border-disabled transition-all enabled:hover:bg-navy-accent enabled:hover:border-electric-blue disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <span className="font-bold text-lg text-text-primary">Use Ticket</span>
             <div className={`flex items-center gap-2 font-semibold ${tier.color}`}>
               <Ticket size={20} />
-              <span className="capitalize">{tier.label}</span>
+              <span className="capitalize">{hasTicket ? tier.label : 'None'}</span>
             </div>
           </button>
         </div>

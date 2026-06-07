@@ -1022,12 +1022,9 @@ function App() {
     );
     const hasEnoughCoins = profile.coins_balance >= game.entry_cost;
 
-    if (validTicket && hasEnoughCoins) {
+    // Always show the confirmation modal before spending coins / consuming a ticket.
+    if (validTicket || hasEnoughCoins) {
       setChallengeToJoin(game);
-    } else if (validTicket) {
-      void handleConfirmJoinChallenge(game.id, 'ticket');
-    } else if (hasEnoughCoins) {
-      void handleConfirmJoinChallenge(game.id, 'coins');
     } else {
       addToast("You don't have enough coins or a valid ticket to join.", 'error');
     }
@@ -1469,6 +1466,13 @@ function App() {
           onClose={() => setChallengeToJoin(null)}
           onSelectMethod={(method) => handleConfirmJoinChallenge(challengeToJoin.id, method)}
           challenge={challengeToJoin}
+          hasCoins={!!profile && profile.coins_balance >= challengeToJoin.entry_cost}
+          hasTicket={!!profile && userTickets.some(t =>
+            t.user_id === profile.id &&
+            t.type === challengeToJoin.tier &&
+            !t.is_used &&
+            isBefore(new Date(), parseISO(t.expires_at))
+          )}
         />
       )}
       {swipeGameToJoin && (

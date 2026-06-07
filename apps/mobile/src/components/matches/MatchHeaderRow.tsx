@@ -1,7 +1,12 @@
 import React from 'react';
-import { Match } from '../../types';
 
-const TeamLogo: React.FC<{ team: Match['teamA'] }> = ({ team }) =>
+interface TeamInfo {
+  name: string;
+  emoji?: string;
+  logo?: string | null;
+}
+
+const TeamLogo: React.FC<{ team: TeamInfo }> = ({ team }) =>
   team.logo ? (
     <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
       <img src={team.logo} alt={team.name} className="w-5 h-5 object-contain" />
@@ -13,7 +18,7 @@ const TeamLogo: React.FC<{ team: Match['teamA'] }> = ({ team }) =>
   );
 
 interface MatchHeaderRowProps {
-  match: Match;
+  match: { teamA: TeamInfo; teamB: TeamInfo };
   /** Centre: heure (à venir) ou score "1 - 0" (live/terminé). */
   center: string;
   /** Statut affiché SOUS le score (live: 1H/HT…, terminé: FT/CANC…). */
