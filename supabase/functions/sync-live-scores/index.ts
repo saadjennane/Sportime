@@ -379,6 +379,89 @@ async function syncDailyCorrectionMode(supabase: any): Promise<{
 }
 
 /**
+ * Generic API-Football GET -> response array.
+ */
+async function apiGet(path: string): Promise<any[]> {
+  const res = await fetch(`https://v3.football.api-sports.io${path}`, {
+    headers: { 'x-rapidapi-key': API_FOOTBALL_KEY, 'x-rapidapi-host': 'v3.football.api-sports.io' },
+  })
+  if (!res.ok) return []
+  const d = await res.json()
+  return d.response || []
+}
+
+function statValue(arr: any[], type: string): any {
+  return arr?.find((x: any) => x.type === type)?.value
+}
+function toInt(v: any): number {
+  if (v == null) return 0
+  if (typeof v === 'string') return parseInt(v.replace('%', '')) || 0
+  return Number(v) || 0
+}
+
+/**
+ * Capture match statistics + first goal for finished fixtures that host a live
+ * score-prediction game, into fb_fixture_stats (used to resolve bonus questions).
+ */
+async function captureLiveGameStats(supabase: any): Promise<number> {
+  const { data: rows } = await supabase
+    .from('live_games')
+    .select('fixture_id, fb_fixtures!inner(api_id, status)')
+    .in('status', ['upcoming', 'live'])
+  if (!rows || rows.length === 0) return 0
+
+  const FIN = ['FT', 'AET', 'PEN']
+  const seen = new Set<string>()
+  let n = 0
+
+  for (const r of rows) {
+    const fx = (r as any).fb_fixtures
+    if (!fx || !FIN.includes(fx.status) || seen.has(r.fixture_id)) continue
+    seen.add(r.fixture_id)
+
+    const { data: existing } = await supabase
+      .from('fb_fixture_stats').select('fixture_id').eq('fixture_id', r.fixture_id).maybeSingle()
+    if (existing) continue
+
+    try {
+      const stats = await apiGet(`/fixtures/statistics?fixture=${fx.api_id}`)
+      if (!stats || stats.length < 2) continue
+      const home = stats[0], away = stats[1] // API-Football returns home first
+      const hStat = home.statistics || [], aStat = away.statistics || []
+
+      const events = await apiGet(`/fixtures/events?fixture=${fx.api_id}`)
+      const firstGoal = events.find((e: any) => e.type === 'Goal')
+      let firstGoalTeam = 'none'
+      let firstGoalHalf: number | null = null
+      if (firstGoal) {
+        firstGoalTeam = firstGoal.team?.id === home.team?.id ? 'home'
+          : firstGoal.team?.id === away.team?.id ? 'away' : 'none'
+        firstGoalHalf = (firstGoal.time?.elapsed ?? 0) <= 45 ? 1 : 2
+      }
+
+      await supabase.from('fb_fixture_stats').upsert({
+        fixture_id: r.fixture_id,
+        possession_home: toInt(statValue(hStat, 'Ball Possession')),
+        possession_away: toInt(statValue(aStat, 'Ball Possession')),
+        yellow_home: toInt(statValue(hStat, 'Yellow Cards')),
+        yellow_away: toInt(statValue(aStat, 'Yellow Cards')),
+        red_home: toInt(statValue(hStat, 'Red Cards')),
+        red_away: toInt(statValue(aStat, 'Red Cards')),
+        corners_home: toInt(statValue(hStat, 'Corner Kicks')),
+        corners_away: toInt(statValue(aStat, 'Corner Kicks')),
+        first_goal_team: firstGoalTeam,
+        first_goal_half: firstGoalHalf,
+        updated_at: new Date().toISOString(),
+      })
+      n++
+    } catch (e) {
+      console.error('[sync-live-scores] stats capture failed for', fx.api_id, (e as Error).message)
+    }
+  }
+  return n
+}
+
+/**
  * Fonction principale
  */
 serve(async (req) => {
@@ -440,6 +523,15 @@ serve(async (req) => {
       const { error: swipeError } = await supabase.rpc('settle_finished_unsettled_predictions')
       if (swipeError) {
         console.error('[sync-live-scores] Swipe settle error:', swipeError.message)
+      }
+
+      // Capture match stats (possession/cards/corners/first goal) for finished
+      // fixtures hosting a live game, so the bonus questions can be resolved.
+      try {
+        const captured = await captureLiveGameStats(supabase)
+        if (captured > 0) console.log(`[sync-live-scores] Captured stats for ${captured} live-game fixture(s)`)
+      } catch (e) {
+        console.error('[sync-live-scores] captureLiveGameStats error:', (e as Error).message)
       }
 
       // Score Live Game A (score prediction) on the same finished fixtures.
