@@ -188,21 +188,22 @@ export async function submitLivePrediction(
   gameId: string,
   home: number,
   away: number,
-  bonusAnswers: Record<string, string>
-): Promise<any> {
-  if (!supabase) return null;
+  questions: Array<{ key: string; points: number; label: string; format: string }>,
+  answers: Record<string, string>
+): Promise<void> {
+  if (!supabase) return;
   const { data: user } = await supabase.auth.getUser();
   if (!user.user) throw new Error('Not authenticated');
 
-  const { data, error } = await supabase.rpc('submit_live_prediction', {
+  const { error } = await supabase.rpc('submit_live_prediction', {
     p_game_id: gameId,
     p_user_id: user.user.id,
     p_home: home,
     p_away: away,
-    p_bonus_answers: bonusAnswers,
+    p_questions: questions,
+    p_answers: answers,
   });
   if (error) throw error;
-  return data; // generated bonus questions
 }
 
 /** Edit the predicted scoreline once the match is live (halftime) -> -40% malus. */

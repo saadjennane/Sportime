@@ -10,22 +10,37 @@ interface Props {
   onBack: () => void;
 }
 
-type BonusQ = { key: string; points: number; prompt: string };
+type Fmt = 'team' | 'yesno';
+type DrawnQ = { key: string; points: number; label: string; format: Fmt };
 
-// Same rule as the server (submit_live_prediction): questions depend on the pick.
-function buildBonusQuestions(home: number, away: number): BonusQ[] {
-  if (home !== away) {
-    return [
-      { key: 'clean_sheet_winner', points: 20, prompt: 'Clean sheet for your pick?' },
-      { key: 'btts', points: 10, prompt: 'Both teams to score?' },
-      { key: 'over25', points: 10, prompt: 'Over 2.5 goals?' },
-    ];
+// Pool + sub-pools per situation — must mirror the server (live_bonus_subpool).
+const POOL: Record<string, { label: string; fmt: Fmt }> = {
+  possession_most: { label: 'Most possession?', fmt: 'team' },
+  both_carded:     { label: 'Both teams get a card?', fmt: 'yesno' },
+  cards_4plus:     { label: '4 or more cards?', fmt: 'yesno' },
+  cards_most:      { label: 'Most cards?', fmt: 'team' },
+  red_card:        { label: 'A red card in the match?', fmt: 'yesno' },
+  first_scorer:    { label: 'Which team scores first?', fmt: 'team' },
+  first_goal_1h:   { label: 'First goal in the 1st half?', fmt: 'yesno' },
+  corners_9plus:   { label: 'Over 9 total corners?', fmt: 'yesno' },
+  corners_most:    { label: 'Most corners?', fmt: 'team' },
+};
+const SUBPOOL: Record<string, string[]> = {
+  goalless:    ['possession_most','both_carded','cards_4plus','cards_most','red_card','corners_9plus','corners_most'],
+  clean_sheet: ['possession_most','both_carded','cards_4plus','cards_most','red_card','first_goal_1h','corners_9plus','corners_most'],
+  both_score:  ['first_scorer','first_goal_1h','possession_most','both_carded','cards_4plus','cards_most','red_card','corners_9plus','corners_most'],
+};
+const situationOf = (h: number, a: number) =>
+  h === 0 && a === 0 ? 'goalless' : (h === 0 || a === 0 ? 'clean_sheet' : 'both_score');
+
+function draw3(sit: string): DrawnQ[] {
+  const keys = [...(SUBPOOL[sit] || [])];
+  for (let i = keys.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [keys[i], keys[j]] = [keys[j], keys[i]];
   }
-  return [
-    { key: 'btts', points: 20, prompt: 'Both teams to score?' },
-    { key: 'over25', points: 10, prompt: 'Over 2.5 goals?' },
-    { key: 'nil_nil', points: 10, prompt: 'Will it be 0-0?' },
-  ];
+  const pts = [20, 10, 10];
+  return keys.slice(0, 3).map((k, i) => ({ key: k, points: pts[i], label: POOL[k].label, format: POOL[k].fmt }));
 }
 
 const FINISHED = ['FT', 'AET', 'PEN'];
@@ -38,18 +53,16 @@ export const LiveScorePredictionGame: React.FC<Props> = ({ gameId, userId, onBac
   const [entries, setEntries] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
 
-  // Local setup state (default 0-0)
   const [home, setHome] = useState(0);
   const [away, setAway] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [drawn, setDrawn] = useState<DrawnQ[]>([]);
   const [editing, setEditing] = useState(false);
 
   const myEntry = useMemo(() => entries.find(e => e.user_id === userId), [entries, userId]);
 
   const fetchAll = useCallback(async () => {
-    if (!supabase) return;
-    // Single SECURITY DEFINER read: game + fixture (with logos) + entries (with
-    // usernames) — avoids RLS / embed issues on live_game_entries & profiles.
+    if (!supabase) return { g: null, es: [] };
     const { data, error: e } = await supabase.rpc('get_live_game_state', { p_game_id: gameId });
     if (e) { setError(e.message); return { g: null, es: [] }; }
     const g = (data as any)?.game ?? null;
@@ -59,17 +72,13 @@ export const LiveScorePredictionGame: React.FC<Props> = ({ gameId, userId, onBac
     return { g, es };
   }, [gameId]);
 
-  // Ensure the user has an entry, then load.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const res = await fetchAll();
         const mine = res?.es.find((e: any) => e.user_id === userId);
-        if (!mine && !cancelled) {
-          await joinLiveGame(gameId);
-          await fetchAll();
-        }
+        if (!mine && !cancelled) { await joinLiveGame(gameId); await fetchAll(); }
       } catch (e: any) {
         if (!cancelled) setError(e?.message || 'Failed to load game');
       } finally {
@@ -79,39 +88,48 @@ export const LiveScorePredictionGame: React.FC<Props> = ({ gameId, userId, onBac
     return () => { cancelled = true; };
   }, [gameId, userId, fetchAll]);
 
-  // Seed setup steppers from an existing prediction.
+  // Seed steppers + answers from an existing submission.
   useEffect(() => {
     if (myEntry?.predicted_score) {
-      setHome(myEntry.predicted_score.home ?? 1);
+      setHome(myEntry.predicted_score.home ?? 0);
       setAway(myEntry.predicted_score.away ?? 0);
       setAnswers(myEntry.bonus_answers ?? {});
     }
-  }, [myEntry?.predicted_score]);
+  }, [myEntry?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const sit = useMemo(() => situationOf(home, away), [home, away]);
+
+  // Reuse saved questions when the situation matches; otherwise draw fresh 3.
+  useEffect(() => {
+    const savedQs: DrawnQ[] | undefined = myEntry?.bonus_questions;
+    const savedSit = myEntry?.predicted_score
+      ? situationOf(myEntry.predicted_score.home, myEntry.predicted_score.away) : null;
+    if (savedQs?.length && savedSit === sit) setDrawn(savedQs);
+    else setDrawn(draw3(sit));
+  }, [sit, myEntry?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fx = game?.fixture;
   const phase: 'setup' | 'live' | 'results' = useMemo(() => {
     if (!fx) return 'setup';
     if (FINISHED.includes(fx.status) || CANCELLED.includes(fx.status) || game?.status === 'finished') return 'results';
-    const started = fx.date && new Date(fx.date) <= new Date();
-    return started ? 'live' : 'setup';
+    return fx.date && new Date(fx.date) <= new Date() ? 'live' : 'setup';
   }, [fx, game?.status]);
 
-  // Poll while the match is live.
   useEffect(() => {
     if (phase !== 'live') return;
     const t = setInterval(fetchAll, 30000);
     return () => clearInterval(t);
   }, [phase, fetchAll]);
 
-  const bonusQuestions = useMemo(() => buildBonusQuestions(home, away), [home, away]);
-
   const handleSubmit = async () => {
+    if (drawn.some(q => !answers[q.key])) { setError('Answer all 3 bonus questions.'); return; }
     setBusy(true);
+    setError(null);
     try {
-      // default unanswered questions to "no"
+      const questions = drawn.map(q => ({ key: q.key, points: q.points, label: q.label, format: q.format }));
       const finalAnswers: Record<string, string> = {};
-      bonusQuestions.forEach(q => { finalAnswers[q.key] = answers[q.key] === 'yes' ? 'yes' : 'no'; });
-      await submitLivePrediction(gameId, home, away, finalAnswers);
+      drawn.forEach(q => { finalAnswers[q.key] = answers[q.key]; });
+      await submitLivePrediction(gameId, home, away, questions, finalAnswers);
       await fetchAll();
     } catch (e: any) {
       setError(e?.message === 'match_started' ? 'Kickoff passed — predictions are locked.' : (e?.message || 'Failed to submit'));
@@ -139,6 +157,7 @@ export const LiveScorePredictionGame: React.FC<Props> = ({ gameId, userId, onBac
       : fx?.date ? new Date(fx.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'VS';
 
   const teamMatch = fx ? { teamA: { name: fx.home?.name ?? 'Home', logo: fx.home?.logo }, teamB: { name: fx.away?.name ?? 'Away', logo: fx.away?.logo } } : null;
+  const teamLabel = (val: string) => (val === 'home' ? (fx?.home?.name ?? 'Home') : (fx?.away?.name ?? 'Away'));
 
   if (loading) {
     return (
@@ -151,11 +170,8 @@ export const LiveScorePredictionGame: React.FC<Props> = ({ gameId, userId, onBac
   return (
     <div className="fixed inset-0 bg-deep-navy z-40 overflow-y-auto">
       <div className="max-w-md mx-auto px-4 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] space-y-4">
-        {/* Header */}
         <div className="flex items-center gap-3 sticky top-0 bg-deep-navy py-2 z-10">
-          <button onClick={onBack} className="p-2 -ml-2 text-text-secondary hover:text-text-primary">
-            <ChevronLeft size={24} />
-          </button>
+          <button onClick={onBack} className="p-2 -ml-2 text-text-secondary hover:text-text-primary"><ChevronLeft size={24} /></button>
           <h1 className="font-bold text-lg text-text-primary">Score Prediction</h1>
           {game?.mode === 'free' && <span className="ml-auto text-xs font-bold text-lime-glow bg-lime-glow/10 px-2 py-1 rounded-lg">FREE</span>}
         </div>
@@ -166,14 +182,13 @@ export const LiveScorePredictionGame: React.FC<Props> = ({ gameId, userId, onBac
           </div>
         )}
 
-        {/* Match */}
         {teamMatch && (
           <div className="card-base p-4">
             <MatchHeaderRow match={teamMatch} center={center} centerClass="text-2xl" />
           </div>
         )}
 
-        {/* SETUP — predict the score + bonus before kickoff */}
+        {/* SETUP */}
         {phase === 'setup' && (
           <div className="card-base p-4 space-y-5">
             <p className="text-sm font-bold text-text-primary text-center">Predict the final score</p>
@@ -192,16 +207,23 @@ export const LiveScorePredictionGame: React.FC<Props> = ({ gameId, userId, onBac
 
             <div className="space-y-3">
               <p className="text-xs font-bold text-text-secondary uppercase tracking-wide">Bonus (40 pts)</p>
-              {bonusQuestions.map(q => (
-                <div key={q.key} className="flex items-center justify-between gap-2">
-                  <span className="text-sm text-text-primary flex-1">{q.prompt} <span className="text-text-disabled">(+{q.points})</span></span>
-                  <div className="flex gap-1">
-                    {['yes', 'no'].map(opt => (
-                      <button key={opt} onClick={() => setAnswers(a => ({ ...a, [q.key]: opt }))}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-colors ${answers[q.key] === opt ? 'bg-electric-blue text-white' : 'bg-navy-accent text-text-secondary'}`}>
-                        {opt}
-                      </button>
-                    ))}
+              {drawn.map(q => (
+                <div key={q.key} className="space-y-1.5">
+                  <p className="text-sm text-text-primary">{q.label} <span className="text-text-disabled">(+{q.points})</span></p>
+                  <div className="flex gap-2">
+                    {q.format === 'team'
+                      ? ['home', 'away'].map(val => (
+                          <button key={val} onClick={() => setAnswers(a => ({ ...a, [q.key]: val }))}
+                            className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold truncate transition-colors ${answers[q.key] === val ? 'bg-electric-blue text-white' : 'bg-navy-accent text-text-secondary'}`}>
+                            {teamLabel(val)}
+                          </button>
+                        ))
+                      : ['yes', 'no'].map(opt => (
+                          <button key={opt} onClick={() => setAnswers(a => ({ ...a, [q.key]: opt }))}
+                            className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold capitalize transition-colors ${answers[q.key] === opt ? 'bg-electric-blue text-white' : 'bg-navy-accent text-text-secondary'}`}>
+                            {opt}
+                          </button>
+                        ))}
                   </div>
                 </div>
               ))}
@@ -214,7 +236,7 @@ export const LiveScorePredictionGame: React.FC<Props> = ({ gameId, userId, onBac
           </div>
         )}
 
-        {/* LIVE — show prediction + allow halftime edit */}
+        {/* LIVE */}
         {phase === 'live' && (
           <div className="card-base p-4 space-y-4">
             {myEntry?.predicted_score ? (
@@ -226,11 +248,11 @@ export const LiveScorePredictionGame: React.FC<Props> = ({ gameId, userId, onBac
                 </div>
                 {!editing ? (
                   <button onClick={() => setEditing(true)} className="w-full py-2.5 bg-warm-yellow/15 text-warm-yellow rounded-xl font-bold text-sm flex items-center justify-center gap-2">
-                    <Pencil size={15} /> Edit prediction (−40% malus)
+                    <Pencil size={15} /> Edit score (−40% malus)
                   </button>
                 ) : (
                   <div className="space-y-3">
-                    <p className="text-xs text-hot-red text-center bg-hot-red/10 p-2 rounded-lg">Editing now applies a −40% malus to your result + écart points.</p>
+                    <p className="text-xs text-hot-red text-center bg-hot-red/10 p-2 rounded-lg">Editing applies a −40% malus to your result + écart points.</p>
                     <div className="flex items-center justify-center gap-6">
                       {[{ v: home, set: setHome }, { v: away, set: setAway }].map((s, i) => (
                         <div key={i} className="flex items-center gap-3">
@@ -253,7 +275,6 @@ export const LiveScorePredictionGame: React.FC<Props> = ({ gameId, userId, onBac
           </div>
         )}
 
-        {/* Leaderboard (always visible) */}
         <Leaderboard entries={entries} phase={phase} userId={userId} />
       </div>
     </div>
