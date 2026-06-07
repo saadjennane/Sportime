@@ -48,24 +48,15 @@ export const LiveScorePredictionGame: React.FC<Props> = ({ gameId, userId, onBac
 
   const fetchAll = useCallback(async () => {
     if (!supabase) return;
-    const { data: g } = await supabase
-      .from('live_games')
-      .select(`id, mode, entry_cost, status,
-        fixture:fb_fixtures(id, date, status, goals_home, goals_away,
-          home:fb_teams!fb_fixtures_home_team_id_fkey(name, logo),
-          away:fb_teams!fb_fixtures_away_team_id_fkey(name, logo))`)
-      .eq('id', gameId)
-      .single();
+    // Single SECURITY DEFINER read: game + fixture (with logos) + entries (with
+    // usernames) — avoids RLS / embed issues on live_game_entries & profiles.
+    const { data, error: e } = await supabase.rpc('get_live_game_state', { p_game_id: gameId });
+    if (e) { setError(e.message); return { g: null, es: [] }; }
+    const g = (data as any)?.game ?? null;
+    const es = (data as any)?.entries ?? [];
     setGame(g);
-
-    const { data: es } = await supabase
-      .from('live_game_entries')
-      .select(`id, user_id, predicted_score, bonus_questions, bonus_answers, midtime_edit,
-        total_points, goal_diff_error, rank, submitted_at, profile:profiles(username, display_name)`)
-      .eq('live_game_id', gameId)
-      .order('total_points', { ascending: false });
-    setEntries(es ?? []);
-    return { g, es: es ?? [] };
+    setEntries(es);
+    return { g, es };
   }, [gameId]);
 
   // Ensure the user has an entry, then load.
@@ -281,7 +272,7 @@ const Leaderboard: React.FC<{ entries: any[]; phase: string; userId: string }> =
         <div className="space-y-1.5">
           {sorted.map((p, i) => {
             const me = p.user_id === userId;
-            const name = me ? 'You' : (p.profile?.display_name || p.profile?.username || `Player ${String(p.user_id).slice(0, 4)}`);
+            const name = me ? 'You' : (p.username || `Player ${String(p.user_id).slice(0, 4)}`);
             return (
               <div key={p.id} className={`flex items-center gap-3 p-2 rounded-lg ${me ? 'bg-electric-blue/10' : 'bg-deep-navy'}`}>
                 <span className="w-5 text-center font-bold text-text-secondary text-sm">{i + 1}</span>
