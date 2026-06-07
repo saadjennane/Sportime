@@ -742,81 +742,37 @@ function App() {
   const handleConfirmJoinSwipeGame = async () => {
     const { game } = joinSwipeGameModalState;
     if (!game || !profile || isGuest) return;
-
-    if (coinBalance >= game.entry_cost) {
-        try {
-          // Import service dynamically to use it
-          const { joinSwipeChallenge } = await import('./services/swipeGameService');
-
-          handleSetCoinBalance(coinBalance - game.entry_cost);
-          const result = await joinSwipeChallenge(game.id, profile.id);
-
-          if (result.alreadyJoined) {
-            addToast(`You've already joined "${game.name}"!`, 'info');
-          } else {
-            addToast(`Successfully joined "${game.name}"!`, 'success');
-          }
-
-          setJoinSwipeGameModalState({ isOpen: false, game: null });
-          setSwipeGameViewMode('swiping');
-          setActiveSwipeGameId(game.id);
-        } catch (err: any) {
-          addToast(err.message || 'Failed to join game', 'error');
-          handleSetCoinBalance(coinBalance); // Refund
-        }
-    } else {
-        addToast('Insufficient funds to join this game.', 'error');
-    }
+    await joinSwipeGame(game, 'coins', () => setJoinSwipeGameModalState({ isOpen: false, game: null }));
   };
 
-  // Handle joining swipe game with ticket or coins
+  // Handle joining swipe game with ticket or coins (server-validated)
   const handleConfirmJoinSwipeGameWithMethod = async (game: Game, method: 'coins' | 'ticket') => {
-    if (!profile || isGuest) return;
+    await joinSwipeGame(game, method, () => setSwipeGameToJoin(null));
+  };
 
+  // Shared join routine: the server (join_swipe_challenge) validates eligibility,
+  // deducts coins / consumes the ticket; the client just reflects the result.
+  const joinSwipeGame = async (game: Game, method: 'coins' | 'ticket', closeModal: () => void) => {
+    if (!profile || isGuest) return;
     try {
       const { joinSwipeChallenge } = await import('./services/swipeGameService');
-
-      if (method === 'ticket') {
-        // Find and use the ticket
-        const validTicket = userTickets.find(t =>
-          t.user_id === profile.id &&
-          t.type === game.tier &&
-          !t.is_used &&
-          isBefore(new Date(), parseISO(t.expires_at))
-        );
-        if (!validTicket) {
-          addToast('No valid ticket found.', 'error');
-          return;
-        }
-        // Mark ticket as used (in real app, this should be done server-side)
-        useTicket(validTicket.id);
-      } else {
-        // Deduct coins
-        handleSetCoinBalance(coinBalance - game.entry_cost);
+      const result = await joinSwipeChallenge(game.id, profile.id, method);
+      if (result.ineligible) {
+        addToast(result.ineligible, 'error');
+        return;
       }
-
-      const result = await joinSwipeChallenge(game.id, profile.id);
-
       if (result.alreadyJoined) {
         addToast(`You've already joined "${game.name}"!`, 'info');
-        // Refund if they already joined
-        if (method === 'coins') {
-          handleSetCoinBalance(coinBalance);
-        }
       } else {
         const methodText = method === 'ticket' ? 'ticket' : `${game.entry_cost} coins`;
         addToast(`Successfully joined "${game.name}" using ${methodText}!`, 'success');
       }
-
-      setSwipeGameToJoin(null);
+      await reloadProfile();
+      closeModal();
       setSwipeGameViewMode('swiping');
       setActiveSwipeGameId(game.id);
     } catch (err: any) {
       addToast(err.message || 'Failed to join game', 'error');
-      // Refund coins if payment was made
-      if (method === 'coins') {
-        handleSetCoinBalance(coinBalance);
-      }
     }
   };
 

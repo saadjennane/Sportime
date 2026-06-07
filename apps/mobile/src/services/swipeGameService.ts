@@ -175,27 +175,40 @@ export async function getSwipeChallenge(challengeId: string) {
 /**
  * Join a swipe challenge
  */
-export async function joinSwipeChallenge(challengeId: string, userId: string) {
-  const { data, error } = await supabase
-    .from('challenge_participants')
-    .insert({
-      challenge_id: challengeId,
-      user_id: userId,
-      points: 0,
-      rank: null,
-    })
-    .select()
-    .single();
+export async function joinSwipeChallenge(
+  challengeId: string,
+  userId: string,
+  method: 'coins' | 'ticket' = 'coins'
+): Promise<{ alreadyJoined: boolean; ineligible?: string }> {
+  // Server validates eligibility + deducts coins / consumes a ticket.
+  const { error } = await supabase.rpc('join_swipe_challenge', {
+    p_challenge_id: challengeId,
+    p_user_id: userId,
+    p_method: method,
+    p_ticket_id: null,
+  });
 
   if (error) {
-    // Check if already joined
+    const msg = error.message || '';
+    const ELIGIBILITY_MESSAGES: Record<string, string> = {
+      level_too_low: 'Your level is too low for this challenge.',
+      subscription_required: 'This challenge is for subscribers only.',
+      missing_badge: 'You need a required badge to join this challenge.',
+      ticket_invalid: 'No valid ticket for this challenge tier.',
+      ticket_used: 'This ticket has already been used.',
+      ticket_expired: 'This ticket has expired.',
+      ticket_wrong_tier: 'This ticket is for a different tier.',
+    };
+    if (ELIGIBILITY_MESSAGES[msg]) {
+      return { alreadyJoined: false, ineligible: ELIGIBILITY_MESSAGES[msg] };
+    }
     if (error.code === '23505') {
       return { alreadyJoined: true };
     }
     throw error;
   }
 
-  return { data, alreadyJoined: false };
+  return { alreadyJoined: false };
 }
 
 /**
