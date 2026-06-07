@@ -13,7 +13,7 @@ import { Zap, Clock, Flag, Trophy, Flame } from 'lucide-react';
 import { calculateBettingGameState, safeParseISO, parseEndDateLocal, getBettingGameDeadline, calculateGameState, getGameDeadline, areAllMatchesFinished } from '../services/gameStateService';
 import { hasViewedResults, markResultsViewed } from '../services/resultsViewedService';
 
-export type CtaState = 'JOIN' | 'PLACE_BETS' | 'MAKE_PREDICTIONS' | 'SELECT_TEAM' | 'COMPLETE_TEAM' | 'AWAITING' | 'RESULTS' | 'IN_PROGRESS' | 'LOCKED';
+export type CtaState = 'JOIN' | 'PLACE_BETS' | 'MAKE_PREDICTIONS' | 'SELECT_TEAM' | 'COMPLETE_TEAM' | 'AWAITING' | 'RESULTS' | 'IN_PROGRESS' | 'LOCKED' | 'INELIGIBLE';
 type GamesTab = 'my-games' | 'browse';
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -314,6 +314,10 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       // until 30 minutes before the first match kickoff (entry deadline)
       if (!entryOpen) {
         return 'LOCKED';
+      }
+      // Entry open but the user doesn't meet the requirements
+      if (!game.isEligible) {
+        return 'INELIGIBLE';
       }
       // Entry still open
       return 'JOIN';

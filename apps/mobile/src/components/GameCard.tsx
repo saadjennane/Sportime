@@ -210,6 +210,7 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
     RESULTS: { text: 'View Results', onClick: onPlay, disabled: false, style: 'primary', icon: <ArrowRight size={16} /> },
     IN_PROGRESS: { text: 'Live Now (Can\'t Join)', onClick: () => {}, disabled: true, style: 'disabled', icon: <Flame size={16} /> },
     LOCKED: { text: 'Locked', onClick: () => {}, disabled: true, style: 'locked', icon: <Lock size={16} /> },
+    INELIGIBLE: { text: "You're not eligible", onClick: () => {}, disabled: true, style: 'disabled', icon: <Lock size={16} /> },
   };
 
   const currentCta = ctaConfig[ctaState];
