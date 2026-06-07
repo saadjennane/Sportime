@@ -490,12 +490,17 @@ export async function getFantasyCatalogGames(): Promise<any[]> {
   for (const fg of fgames as any[]) {
     const gameWeeks = await getGameWeeks(fg.id);
     if (gameWeeks.length === 0) continue; // skip games without playable weeks
+    // Span the game over its game weeks so it isn't wrongly flagged "Finished".
+    const starts = gameWeeks.map(w => new Date(w.startDate).getTime()).filter(n => !isNaN(n));
+    const ends = gameWeeks.map(w => new Date(w.endDate).getTime()).filter(n => !isNaN(n));
+    const start_date = starts.length ? new Date(Math.min(...starts)).toISOString() : fg.start_date;
+    const end_date = ends.length ? new Date(Math.max(...ends)).toISOString() : fg.end_date;
     out.push({
       id: fg.id,
       name: fg.name,
       game_type: 'fantasy',
-      start_date: fg.start_date,
-      end_date: fg.end_date,
+      start_date,
+      end_date,
       entry_cost: fg.entry_cost ?? 0,
       tier: fg.tier ?? 'amateur',
       status: 'Open',
