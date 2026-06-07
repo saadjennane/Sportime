@@ -56,12 +56,13 @@ const PredictionChallengeOverviewPage = lazy(() => import('./pages/prediction/Pr
 const FantasyLiveTeamSelectionPage = lazy(() => import('./pages/live-game/FantasyLiveTeamSelectionPage'));
 const FantasyLiveGamePage = lazy(() => import('./pages/live-game/FantasyLiveGamePage'));
 const LiveGameLobbyPage = lazy(() => import('./pages/live-game/LiveGameLobbyPage'));
+const LiveScorePredictionGame = lazy(() => import('./pages/live-game/LiveScorePredictionGame'));
 import { OnboardingFlow } from './components/OnboardingFlow';
 import { isBefore, parseISO, differenceInHours } from 'date-fns';
 import { TicketWalletModal } from './components/TicketWalletModal';
 import { SpinWheel } from './components/SpinWheel';
 import { LiveGameModal } from './components/modals/LiveGameModal';
-import { createLiveGame as createLiveGameSupabase } from './services/liveGameService';
+import { createLiveGame as createLiveGameSupabase, getGameByFixture as getLiveGameByFixture } from './services/liveGameService';
 import { NotificationCenter } from './components/notifications/NotificationCenter';
 import FunZonePage from './pages/FunZonePage';
 import { PremiumModal } from './components/premium/PremiumModal';
@@ -403,13 +404,12 @@ function App() {
 
     try {
       const cost = mode === 'ranked' ? (entryCost ?? 1000) : 0;
-      console.log('[App] Creating live game via Supabase:', { matchId: liveGameModalState.matchId, mode, entryCost: cost });
-      const game = await createLiveGameSupabase({
-        fixtureId: liveGameModalState.matchId,
-        mode,
-        entryCost: cost,
-      });
-      console.log('[App] Live game created:', game);
+      // Players who join the same match compete together: reuse an existing
+      // (non-finished) game for this fixture instead of creating a duplicate.
+      const existing = await getLiveGameByFixture(liveGameModalState.matchId).catch(() => null);
+      const game = (existing && existing.status !== 'finished')
+        ? existing
+        : await createLiveGameSupabase({ fixtureId: liveGameModalState.matchId, mode, entryCost: cost });
 
       if (game) {
         addToast(`${mode === 'free' ? 'Free' : 'Stakes'} game created!`, 'success');
@@ -1360,13 +1360,12 @@ function App() {
   }
 
   // Show Live Game Lobby if active
-  if (activeLiveGameSupabase) {
+  if (activeLiveGameSupabase && profile) {
     return (
       <Suspense fallback={<PageLoader />}>
-        <LiveGameLobbyPage
+        <LiveScorePredictionGame
           gameId={activeLiveGameSupabase.id}
-          fixtureId={activeLiveGameSupabase.fixtureId}
-          mode={activeLiveGameSupabase.mode}
+          userId={profile.id}
           onBack={() => setActiveLiveGameSupabase(null)}
         />
       </Suspense>
