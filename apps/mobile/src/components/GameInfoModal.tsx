@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Calendar, Users, Coins, Target, Hourglass, ScrollText, CalendarDays, Trophy } from 'lucide-react';
+import { X, Calendar, Users, Coins, Target, Hourglass, ScrollText, CalendarDays, Trophy, ShieldCheck, Star, Award, Crown, Ticket } from 'lucide-react';
 import { SportimeGame, GameType, Challenge } from '../types';
 import { format, parseISO, differenceInDays } from 'date-fns';
 
@@ -39,6 +39,9 @@ function normalizeGame(game: GameInfo): {
   fixtures_played?: number;
   total_matchdays?: number;
   matchdays_finished?: number;
+  minimum_level?: string;
+  required_badges?: string[];
+  requires_subscription?: boolean;
 } {
   // Check if it's a Challenge from ChallengeRoomPage (has startDate in camelCase)
   if ('startDate' in game) {
@@ -77,6 +80,9 @@ function normalizeGame(game: GameInfo): {
     fixtures_played: g.fixtures_played,
     total_matchdays: g.total_matchdays,
     matchdays_finished: g.matchdays_finished,
+    minimum_level: g.minimum_level,
+    required_badges: g.required_badges,
+    requires_subscription: g.requires_subscription,
   };
 }
 
@@ -240,6 +246,35 @@ export const GameInfoModal: React.FC<GameInfoModalProps> = ({ isOpen, onClose, g
               <Coins size={18} className="flex-shrink-0" />
               <span>Entry: {normalizedGame.entry_cost.toLocaleString()} coins</span>
             </div>
+          </div>
+
+          {/* Requirements / eligibility */}
+          <div className="p-4 border-t border-white/10">
+            <h3 className="text-sm font-bold text-text-primary mb-3 flex items-center gap-2">
+              <ShieldCheck size={16} /> Requirements
+            </h3>
+            <ul className="space-y-2 text-sm text-text-secondary">
+              <li className="flex items-center gap-2">
+                <Coins size={14} className="text-warm-yellow flex-shrink-0" />
+                <span>{normalizedGame.entry_cost.toLocaleString()} coins{normalizedGame.tier ? <> <span className="text-text-disabled">or</span> a <span className="capitalize text-text-primary font-semibold">{normalizedGame.tier}</span> <Ticket size={13} className="inline -mt-0.5" /> ticket</> : ''}</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <Star size={14} className="text-electric-blue flex-shrink-0" />
+                <span>Min. level: <span className="font-semibold text-text-primary">{normalizedGame.minimum_level || 'Rookie'}</span></span>
+              </li>
+              {(normalizedGame.required_badges?.length ?? 0) > 0 && (
+                <li className="flex items-center gap-2">
+                  <Award size={14} className="text-lime-glow flex-shrink-0" />
+                  <span>{normalizedGame.required_badges!.length} badge{normalizedGame.required_badges!.length > 1 ? 's' : ''} required</span>
+                </li>
+              )}
+              {normalizedGame.requires_subscription && (
+                <li className="flex items-center gap-2">
+                  <Crown size={14} className="text-warm-yellow flex-shrink-0" />
+                  <span>Subscribers only</span>
+                </li>
+              )}
+            </ul>
           </div>
 
           {/* Rules */}

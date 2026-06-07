@@ -195,6 +195,18 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
   // Calculate entry deadline for countdown display
   const entryDeadline = useMemo(() => calculateEntryDeadline(game), [game]);
 
+  // Number of matchdays (distinct days) for the date-row period label.
+  const matchdayCount = useMemo(
+    () => new Set((game.matches ?? []).map(m => m.day)).size,
+    [game.matches]
+  );
+  const periodInfoLabel =
+    game.period_type === 'calendar'
+      ? 'Calendar'
+      : matchdayCount > 0
+        ? `${matchdayCount} matchday${matchdayCount > 1 ? 's' : ''}`
+        : 'Matchdays';
+
   // Get the matchday-specific deadline for all game types (betting, prediction, fantasy)
   const gameDeadline = useMemo(() => {
     return getGameDeadline(game, undefined, undefined, new Date());
@@ -267,11 +279,6 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
                 {tierDetails.label}
               </span>
             )}
-            {periodDetails && (
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${periodDetails.color}`}>
-                {periodDetails.tag}
-              </span>
-            )}
             {accessConditionIcons.length > 0 && (
               <div className="flex items-center gap-1 text-warm-yellow" title="Access conditions apply">
                 {accessConditionIcons}
@@ -289,11 +296,19 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
 
       {/* Middle Section - Date & Players */}
       <div className="flex items-center justify-between text-sm text-text-secondary border-t border-white/10 pt-3">
-        <div className="flex items-center gap-2">
-          <Calendar size={14} />
-          <span>
+        <div className="flex items-center gap-2 min-w-0">
+          <Calendar size={14} className="flex-shrink-0" />
+          <span className="truncate">
             {game.start_date ? format(parseISO(game.start_date), 'MMM d') : 'TBD'} - {game.end_date ? format(parseISO(game.end_date), 'MMM d') : 'TBD'}
           </span>
+          {periodDetails && (
+            <>
+              <span className="text-text-disabled">·</span>
+              <span className={`text-xs font-semibold ${periodDetails.color.replace(/bg-[^ ]+/g, '').trim()}`}>
+                {periodInfoLabel}
+              </span>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-1 text-xs">
           <Users size={14} />
