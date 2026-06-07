@@ -32,25 +32,20 @@ export async function createSquad(
     season_end_date?: string;
   }
 ): Promise<Squad> {
-  const { data: squad, error } = await supabase
-    .from('squads')
-    .insert({
-      name: data.name,
-      description: data.description,
-      image_url: data.image_url,
-      created_by: userId,
-      season_start_date: data.season_start_date,
-      season_end_date: data.season_end_date,
-    })
-    .select()
-    .single();
+  // Via SECURITY DEFINER RPC (direct insert is blocked by RLS in the app context).
+  const { data: squad, error } = await supabase.rpc('create_squad', {
+    p_user_id: userId,
+    p_name: data.name,
+    p_description: data.description ?? null,
+    p_image_url: data.image_url ?? null,
+  });
 
   if (error) {
     console.error('[squadService] Failed to create squad:', error);
     throw error;
   }
 
-  return squad;
+  return squad as Squad;
 }
 
 /**
@@ -172,48 +167,20 @@ export async function deleteSquad(squadId: string): Promise<void> {
 /**
  * Join a squad using invite code
  */
-export async function joinSquad(userId: string, inviteCode: string): Promise<SquadMember> {
-  // First, find the squad by invite code
-  const { data: squad, error: squadError } = await supabase
-    .from('squads')
-    .select('id')
-    .eq('invite_code', inviteCode)
-    .single();
+export async function joinSquad(userId: string, inviteCode: string): Promise<{ squad_id: string }> {
+  // Via SECURITY DEFINER RPC (find squad by code + insert membership, bypassing RLS).
+  const { data: squadId, error } = await supabase.rpc('join_squad', {
+    p_user_id: userId,
+    p_invite_code: inviteCode,
+  });
 
-  if (squadError) {
-    console.error('[squadService] Failed to find squad:', squadError);
-    throw new Error('Invalid invite code');
+  if (error) {
+    if (error.message === 'invalid_code') throw new Error('Invalid invite code');
+    console.error('[squadService] Failed to join squad:', error);
+    throw error;
   }
 
-  // Check if user is already a member
-  const { data: existingMember } = await supabase
-    .from('squad_members')
-    .select('id')
-    .eq('squad_id', squad.id)
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (existingMember) {
-    throw new Error('Already a member of this squad');
-  }
-
-  // Add user as member
-  const { data: member, error: memberError } = await supabase
-    .from('squad_members')
-    .insert({
-      squad_id: squad.id,
-      user_id: userId,
-      role: 'member',
-    })
-    .select()
-    .single();
-
-  if (memberError) {
-    console.error('[squadService] Failed to join squad:', memberError);
-    throw memberError;
-  }
-
-  return member;
+  return { squad_id: squadId as string };
 }
 
 /**
