@@ -38,8 +38,8 @@ export const LiveScorePredictionGame: React.FC<Props> = ({ gameId, userId, onBac
   const [entries, setEntries] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
 
-  // Local setup state
-  const [home, setHome] = useState(1);
+  // Local setup state (default 0-0)
+  const [home, setHome] = useState(0);
   const [away, setAway] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState(false);
