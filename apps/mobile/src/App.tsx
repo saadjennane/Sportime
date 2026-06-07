@@ -1439,7 +1439,7 @@ function App() {
 
       {/* Single scroll region for page content */}
       <div id="app-scroll" className="flex-1 overflow-y-auto overscroll-y-contain">
-        <div className="w-full max-w-md mx-auto px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] space-y-4">
+        <div className="w-full max-w-md mx-auto px-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] space-y-4">
           <Suspense fallback={<PageLoader />}>{renderPage()}</Suspense>
         </div>
       </div>

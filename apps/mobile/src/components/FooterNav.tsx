@@ -35,8 +35,8 @@ const NavItem: React.FC<{
 
 export const FooterNav: React.FC<FooterNavProps> = ({ activePage, onPageChange }) => {
   return (
-    <div className="fixed bottom-[max(14px,env(safe-area-inset-bottom))] left-4 right-4 h-[68px] max-w-md mx-auto">
-      <nav className="w-full h-full bg-deep-navy/80 backdrop-blur-md rounded-[18px] border border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.45)] flex justify-around items-center">
+    <div className="fixed bottom-0 left-0 right-0 z-40 bg-deep-navy/95 backdrop-blur-md border-t border-white/10 pb-[env(safe-area-inset-bottom)]">
+      <nav className="w-full max-w-md mx-auto h-[58px] flex justify-around items-center">
         <NavItem
           icon={<Calendar />}
           label="Matches"
