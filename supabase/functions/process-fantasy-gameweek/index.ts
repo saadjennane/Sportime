@@ -2,6 +2,16 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 // Helper function to calculate age from birthdate
+// players.position is a short API code (G/D/M/F) — map to the scoring positions.
+function mapPosition(p: string): string {
+  switch ((p || 'M').charAt(0).toUpperCase()) {
+    case 'G': return 'Goalkeeper'
+    case 'D': return 'Defender'
+    case 'M': return 'Midfielder'
+    default: return 'Attacker'
+  }
+}
+
 function calculateAge(birthdate: string): number {
   const birth = new Date(birthdate)
   const today = new Date()
@@ -199,15 +209,31 @@ serve(async (req) => {
 
     console.log(`[process-fantasy-gameweek] Found ${userTeams?.length || 0} teams to process`)
 
-    // 3. Get all player match stats for this game week's fixtures
-    const { data: matchStats, error: statsError } = await supabase
-      .from('player_match_stats')
-      .select('*')
-      .gte('match_date', gameWeek.start_date)
-      .lte('match_date', gameWeek.end_date)
+    // 3. Get all player match stats for this game week's fixtures.
+    // player_match_stats has no match_date column -> resolve the league's fixtures
+    // in the game-week window, then read the stats by fixture_id.
+    const { data: gwFixtures, error: fxError } = await supabase
+      .from('fb_fixtures')
+      .select('id')
+      .eq('league_id', leagueId)
+      .gte('date', gameWeek.start_date)
+      .lte('date', gameWeek.end_date)
 
-    if (statsError) {
-      throw new Error(`Failed to fetch match stats: ${statsError.message}`)
+    if (fxError) {
+      throw new Error(`Failed to fetch game-week fixtures: ${fxError.message}`)
+    }
+
+    const fixtureIds = (gwFixtures || []).map((f: any) => f.id)
+    let matchStats: any[] = []
+    if (fixtureIds.length > 0) {
+      const { data: statsData, error: statsError } = await supabase
+        .from('player_match_stats')
+        .select('*')
+        .in('fixture_id', fixtureIds)
+      if (statsError) {
+        throw new Error(`Failed to fetch match stats: ${statsError.message}`)
+      }
+      matchStats = statsData || []
     }
 
     console.log(`[process-fantasy-gameweek] Found ${matchStats?.length || 0} player match stats`)
@@ -215,6 +241,7 @@ serve(async (req) => {
     // Create a map of player stats by player_id (UUID)
     const statsMap = new Map<string, PlayerMatchStats>()
     matchStats?.forEach((stat: any) => {
+      // Map the REAL player_match_stats columns onto the scoring shape.
       statsMap.set(stat.player_id, {
         minutes_played: stat.minutes_played || 0,
         goals: stat.goals || 0,
@@ -222,18 +249,18 @@ serve(async (req) => {
         clean_sheet: stat.clean_sheet || false,
         shots_on_target: stat.shots_on_target || 0,
         saves: stat.saves || 0,
-        penalties_scored: stat.penalties_scored || 0,
+        penalties_scored: 0, // not tracked in player_match_stats
         penalties_missed: stat.penalties_missed || 0,
-        yellow_cards: stat.yellow_cards || 0,
-        red_cards: stat.red_cards || 0,
+        yellow_cards: stat.yellow_card ? 1 : 0,
+        red_cards: stat.red_card ? 1 : 0,
         goals_conceded: stat.goals_conceded || 0,
         interceptions: stat.interceptions || 0,
-        tackles: stat.tackles || 0,
+        tackles: stat.tackles_total || 0,
         duels_won: stat.duels_won || 0,
-        duels_lost: stat.duels_lost || 0,
-        dribbles_succeeded: stat.dribbles_succeeded || 0,
+        duels_lost: Math.max(0, (stat.duels_total || 0) - (stat.duels_won || 0)),
+        dribbles_succeeded: stat.dribbles_success || 0,
         fouls_committed: stat.fouls_committed || 0,
-        fouls_suffered: stat.fouls_suffered || 0,
+        fouls_suffered: stat.fouls_drawn || 0,
         penalties_saved: stat.penalties_saved || 0,
         rating: stat.rating || 0,
       })
@@ -320,7 +347,7 @@ serve(async (req) => {
         if (stats) {
           const points = computePlayerPoints(
             stats,
-            player.position as PlayerPosition,
+            mapPosition(player.position) as PlayerPosition,
             fatigue,
             isCaptain,
             isDoubleImpactActive
