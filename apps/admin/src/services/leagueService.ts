@@ -2,6 +2,19 @@ import { supabase } from './supabase';
 import type { League, LeagueInput, LeagueWithTeamCount } from '../types/football';
 
 export const leagueService = {
+  /** One-call server import: league -> teams -> players -> fixtures (edge function). */
+  async importFull(leagueApiId: number, season: number): Promise<{ data: any; error: any }> {
+    if (!supabase) return { data: null, error: new Error('Supabase not initialized') };
+    return await supabase.functions.invoke('import-league-full', { body: { league_api_id: leagueApiId, season } });
+  },
+
+  /** Show/hide a league in the app. */
+  async setVisibility(leagueId: string, isVisible: boolean): Promise<{ error: any }> {
+    if (!supabase) return { error: new Error('Supabase not initialized') };
+    const { error } = await supabase.from('fb_leagues').update({ is_visible: isVisible }).eq('id', leagueId);
+    return { error };
+  },
+
   /**
    * Get all leagues with optional team count
    */
