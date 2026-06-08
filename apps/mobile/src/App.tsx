@@ -25,6 +25,7 @@ import { mockBadges, mockLevelsConfig, mockUserBadges } from './data/mockProgres
 import { getLevelBetLimit } from './config/constants';
 import MatchesPage from './pages/MatchesPage';
 const FantasyGameWeekPage = lazy(() => import('./pages/FantasyGameWeekPage').then(m => ({ default: m.FantasyGameWeekPage })));
+const TournamentQuestPage = lazy(() => import('./pages/TournamentQuestPage').then(m => ({ default: m.TournamentQuestPage })));
 import { USE_SUPABASE } from './config/env';
 import { OnboardingPage, OnboardingCompletePayload } from './pages/OnboardingPage';
 import { SignUpPromptModal } from './components/SignUpPromptModal';
@@ -334,6 +335,7 @@ function App() {
   const [activeSwipeGameId, setActiveSwipeGameId] = useState<string | null>(null);
   const [viewingSwipeLeaderboardFor, setViewingSwipeLeaderboardFor] = useState<string | null>(null);
   const [activeFantasyGameId, setActiveFantasyGameId] = useState<string | null>(null);
+  const [activeTournamentId, setActiveTournamentId] = useState<string | null>(null);
   const [activeLiveGame, setActiveLiveGame] = useState<{ id: string; status: 'Upcoming' | 'Ongoing' | 'Finished' } | null>(null);
   const [boosterInfoPreferences, setBoosterInfoPreferences] = useState<{ x2: boolean, x3: boolean }>({ x2: false, x3: false });
   const [challengeToJoin, setChallengeToJoin] = useState<SportimeGame | null>(null);
@@ -816,6 +818,13 @@ function App() {
   const handleViewFantasyGame = (gameId: string) => {
     setActiveFantasyGameId(gameId);
   };
+
+  const handleViewTournament = (competitionId: string) => {
+    if (!profile || isGuest) { handleTriggerSignUp(); return; }
+    // create the entry (free) so it shows in My Games; ignore if it already exists
+    import('./services/tournamentService').then(m => m.joinTournament(profile.id, competitionId)).catch(() => {});
+    setActiveTournamentId(competitionId);
+  };
   
   const handleCreateLeague = async (name: string, description: string, image_url: string | null) => {
       if (!profile || isGuest) {
@@ -1036,6 +1045,7 @@ function App() {
     setActiveSwipeGameId(null);
     setViewingSwipeLeaderboardFor(null);
     setActiveFantasyGameId(null);
+    setActiveTournamentId(null);
     setActiveLeagueId(null);
     setJoinLeagueCode(null);
     setLeaderboardContext(null);
@@ -1048,6 +1058,7 @@ function App() {
     setViewingLeaderboardFor(null);
     setViewingSwipeLeaderboardFor(null);
     setActiveFantasyGameId(null);
+    setActiveTournamentId(null);
     setLeaderboardContext(null);
     setViewingPredictionChallenge(null);
     if (fromLeagueId) {
@@ -1399,6 +1410,12 @@ function App() {
       );
     }
     
+    if (activeTournamentId && profile) {
+      return <Suspense fallback={<PageLoader />}>
+        <TournamentQuestPage competitionId={activeTournamentId} userId={profile.id} onBack={() => setActiveTournamentId(null)} />
+      </Suspense>;
+    }
+
     if (activeFantasyGameId) {
       const game = games.find(g => g.id === activeFantasyGameId && g.game_type === 'fantasy');
       if (game && profile) {
@@ -1505,7 +1522,7 @@ function App() {
           </ErrorBoundary>
         );
       case 'challenges':
-        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} onRefresh={refreshChallenges} onShowLiveGames={() => setShowLiveGames(true)} />;
+        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} onViewTournament={handleViewTournament} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} onRefresh={refreshChallenges} onShowLiveGames={() => setShowLiveGames(true)} />;
       case 'squads':
           return <LeaguesListPage
               leagues={myLeagues}
@@ -1524,7 +1541,7 @@ function App() {
         }
         return null;
       default:
-        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} onRefresh={refreshChallenges} onShowLiveGames={() => setShowLiveGames(true)} />;
+        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} onViewTournament={handleViewTournament} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} onRefresh={refreshChallenges} onShowLiveGames={() => setShowLiveGames(true)} />;
     }
   }
   

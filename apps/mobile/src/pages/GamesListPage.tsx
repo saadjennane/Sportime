@@ -118,6 +118,7 @@ interface GamesListPageProps {
   onJoinSwipeGame: (gameId: string) => void;
   onPlaySwipeGame: (matchDayId: string) => void;
   onViewFantasyGame: (gameId: string) => void;
+  onViewTournament: (gameId: string) => void;
   myGamesCount: number;
   profile: Profile | null;
   userTickets: UserTicket[];
@@ -126,7 +127,7 @@ interface GamesListPageProps {
 }
 
 const GamesListPage: React.FC<GamesListPageProps> = (props) => {
-  const { games, userChallengeEntries, userSwipeEntries, userFantasyTeams, onJoinChallenge, onViewChallenge, onJoinSwipeGame, onPlaySwipeGame, onViewFantasyGame, profile, userTickets, onRefresh, onShowLiveGames } = props;
+  const { games, userChallengeEntries, userSwipeEntries, userFantasyTeams, onJoinChallenge, onViewChallenge, onJoinSwipeGame, onPlaySwipeGame, onViewFantasyGame, onViewTournament, profile, userTickets, onRefresh, onShowLiveGames } = props;
 
   const [activeTab, setActiveTab] = useState<GamesTab>('my-games');
   const [filters, setFilters] = useState<GameFilters>({
@@ -366,12 +367,14 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
     if (game.game_type === 'betting') onPlayAction = wrapWithResultsViewed(() => onViewChallenge(game.id));
     if (game.game_type === 'prediction') onPlayAction = wrapWithResultsViewed(() => onPlaySwipeGame(game.id));
     if (game.game_type === 'fantasy') onPlayAction = wrapWithResultsViewed(() => onViewFantasyGame(game.id));
+    if (game.game_type === 'tournament') onPlayAction = wrapWithResultsViewed(() => onViewTournament(game.id));
 
     // For live games not joined, show leaderboard in read-only mode
     const handleViewLeaderboard = () => {
       if (game.game_type === 'betting') onViewChallenge(game.id);
       if (game.game_type === 'prediction') onPlaySwipeGame(game.id);
       if (game.game_type === 'fantasy') onViewFantasyGame(game.id);
+      if (game.game_type === 'tournament') onViewTournament(game.id);
     };
 
     // Find user's entry for this game (for progress indicator)
@@ -389,6 +392,8 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
           // only prediction/swipe games use onJoinSwipeGame.
           if (game.game_type === 'prediction') {
             onJoinSwipeGame(game.id);
+          } else if (game.game_type === 'tournament') {
+            onViewTournament(game.id); // joining = opening; entry is created on first pick
           } else {
             onJoinChallenge(game);
           }

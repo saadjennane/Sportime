@@ -15,6 +15,7 @@ import type { Challenge, ChallengeMatch } from '../types'
 import { normalizeTournamentTier, normalizeDurationType } from '../config/constants'
 import { detectAndSyncMissingOdds, type FixtureForOddsCheck } from './oddsSyncService'
 import { getFantasyCatalogGames } from './fantasyService'
+import { getTournamentCatalogGames } from './tournamentService'
 
 type ChallengeConfigRow = {
   config_type: string
@@ -1113,6 +1114,24 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
   }
 
   catalog.games = Array.from(challengesById.values())
+
+  // Surface Tournament Quest competitions into the catalog.
+  try {
+    const tournamentGames = await getTournamentCatalogGames()
+    if (tournamentGames.length > 0) {
+      catalog.games = [...catalog.games, ...(tournamentGames as unknown as SportimeGame[])]
+      if (userId) {
+        const tIds = tournamentGames.map(g => g.id)
+        const { data: tEntries } = await supabase
+          .from('tq_entries').select('competition_id').eq('user_id', userId).in('competition_id', tIds)
+        for (const e of (tEntries ?? []) as { competition_id: string }[]) {
+          finalParticipation.joinedIds.add(e.competition_id)
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[challengeService] tournament catalog merge failed', e)
+  }
 
   // Surface fantasy games (stored in the separate fantasy_games table) into the catalog.
   try {

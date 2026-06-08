@@ -521,7 +521,7 @@ export interface UserStreak {
   total_cycles_completed: number;
 }
 
-export type GameType = 'betting' | 'prediction' | 'fantasy' | 'fantasy-live';
+export type GameType = 'betting' | 'prediction' | 'fantasy' | 'fantasy-live' | 'tournament';
 export type GameFormat = 'leaderboard' | 'championship' | 'knockout' | 'battle-royale';
 export type RewardTier = 'tier1' | 'tier2' | 'tier3';
 export type ConditionsLogic = 'and' | 'or';
