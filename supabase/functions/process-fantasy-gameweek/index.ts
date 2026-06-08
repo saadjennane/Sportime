@@ -306,6 +306,7 @@ serve(async (req) => {
 
       // Calculate points for each starter
       let teamTotalPoints = 0
+      const playerPoints: Record<string, number> = {}
       const starterPlayers = players?.filter(p => team.starters.includes(p.id)) || []
       const isDoubleImpactActive = team.booster_used === 1
       const isGoldenGameActive = team.booster_used === 2
@@ -355,13 +356,15 @@ serve(async (req) => {
             isDoubleImpactActive
           )
           teamTotalPoints += points
+          playerPoints[player.id] = Math.round(points * 10) / 10
 
           // Calculate new fatigue
           const played = stats.minutes_played > 0
           const newFatigue = calculateFatigue(fatigue, playerStatus, played)
           newFatigueState[player.id] = newFatigue
         } else {
-          // Player didn't play - increase fatigue (rested)
+          // Player didn't play - 0 points, increase fatigue (rested)
+          playerPoints[player.id] = 0
           const newFatigue = calculateFatigue(fatigue, playerStatus, false)
           newFatigueState[player.id] = newFatigue
         }
@@ -399,6 +402,7 @@ serve(async (req) => {
       teamUpdates.push({
         id: team.id,
         total_points: Math.round(teamTotalPoints * 10) / 10,
+        player_points: playerPoints,
         fatigue_state: newFatigueState,
         booster_used: shouldRefundBooster ? null : team.booster_used, // Refund if needed
         booster_target_id: shouldRefundBooster ? null : team.booster_target_id, // Clear target if refunded
@@ -422,6 +426,7 @@ serve(async (req) => {
         .from('user_fantasy_teams')
         .update({
           total_points: update.total_points,
+          player_points: update.player_points,
           fatigue_state: update.fatigue_state,
           booster_used: update.booster_used,
           booster_target_id: update.booster_target_id

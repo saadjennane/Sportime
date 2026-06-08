@@ -221,6 +221,8 @@ export interface UserFantasyTeam {
   booster_used: number | null;
   booster_target_id?: string;
   fatigue_state: Record<string, number>;
+  total_points?: number;
+  player_points?: Record<string, number>;
 }
 
 export interface Booster {

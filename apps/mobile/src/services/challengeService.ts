@@ -1119,21 +1119,25 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
     const fantasyGames = await getFantasyCatalogGames()
     if (fantasyGames.length > 0) {
       catalog.games = [...catalog.games, ...(fantasyGames as unknown as SportimeGame[])]
-      // Mark fantasy games the user joined (challenge_participants). mapParticipantEntries
-      // skips them because they live in fantasy_games, not the `challenges` table.
-      const fantasyGameIds = new Set(fantasyGames.map(g => g.id))
-      if (userId) {
-        for (const p of participants) {
-          if (p.user_id === userId && fantasyGameIds.has(p.challenge_id)) {
-            finalParticipation.joinedIds.add(p.challenge_id)
-            if (!finalParticipation.userFantasyTeams.some(t => t.gameId === p.challenge_id)) {
-              finalParticipation.userFantasyTeams.push({
-                userId: p.user_id,
-                gameId: p.challenge_id,
-                gameWeekId: p.challenge_id,
-                starters: [], substitutes: [], captain_id: '', booster_used: null, fatigue_state: {},
-              } as unknown as UserFantasyTeam)
-            }
+      // Mark fantasy games the user joined. The main participants query filters by
+      // `challengeIds` (the `challenges` table only), so fantasy joins are fetched
+      // here directly against the fantasy game ids.
+      const fantasyGameIds = fantasyGames.map(g => g.id)
+      if (userId && fantasyGameIds.length > 0) {
+        const { data: fpRows } = await supabase
+          .from('challenge_participants')
+          .select('challenge_id')
+          .eq('user_id', userId)
+          .in('challenge_id', fantasyGameIds)
+        for (const p of (fpRows ?? []) as { challenge_id: string }[]) {
+          finalParticipation.joinedIds.add(p.challenge_id)
+          if (!finalParticipation.userFantasyTeams.some(t => t.gameId === p.challenge_id)) {
+            finalParticipation.userFantasyTeams.push({
+              userId,
+              gameId: p.challenge_id,
+              gameWeekId: p.challenge_id,
+              starters: [], substitutes: [], captain_id: '', booster_used: null, fatigue_state: {},
+            } as unknown as UserFantasyTeam)
           }
         }
       }

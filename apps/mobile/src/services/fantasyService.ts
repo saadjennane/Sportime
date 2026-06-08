@@ -298,6 +298,8 @@ function mapTeamRowToTeam(row: UserFantasyTeamRow): UserFantasyTeam {
     captain_id: row.captain_id || '',
     booster_used: row.booster_used,
     fatigue_state: row.fatigue_state || {},
+    total_points: row.total_points != null ? parseFloat(row.total_points as any) : undefined,
+    player_points: (row as any).player_points || {},
   };
 }
 
@@ -391,7 +393,10 @@ export function processGameWeek(
     const stats = gameWeekStats[playerId];
     if (!player || !stats) return;
 
-    const initialFatigue = fatigueState[playerId] || 1.0;
+    // fatigue_state may be stored on the server's 0-100 scale; this engine expects a
+    // 0-1 multiplier (1.0 = fresh). Normalize so we don't multiply points by ~100.
+    const rawFatigue = fatigueState[playerId];
+    const initialFatigue = rawFatigue == null ? 1.0 : (rawFatigue > 1 ? rawFatigue / 100 : rawFatigue);
     const isCaptain = player.id === teamForProcessing.captain_id;
     const isDoubleImpactActive = teamForProcessing.booster_used === 1; // 1 = Double Impact
 
@@ -422,7 +427,10 @@ export function processGameWeek(
       const player = allPlayers.find(p => p.id === playerId);
       if (!player) return;
 
-      const initialFatigue = fatigueState[playerId] || 1.0;
+      // fatigue_state may be stored on the server's 0-100 scale; this engine expects a
+    // 0-1 multiplier (1.0 = fresh). Normalize so we don't multiply points by ~100.
+    const rawFatigue = fatigueState[playerId];
+    const initialFatigue = rawFatigue == null ? 1.0 : (rawFatigue > 1 ? rawFatigue / 100 : rawFatigue);
       const finalFatigue = calculateFatigue(initialFatigue, player.status, false);
       fatigueState[playerId] = finalFatigue;
       

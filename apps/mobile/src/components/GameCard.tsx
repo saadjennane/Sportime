@@ -306,7 +306,13 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
         <div className="flex items-center gap-2 min-w-0">
           <Calendar size={14} className="flex-shrink-0" />
           <span className="truncate">
-            {game.start_date ? format(parseISO(game.start_date), 'MMM d') : 'TBD'} - {game.end_date ? format(parseISO(game.end_date), 'MMM d') : 'TBD'}
+            {(() => {
+              const s = game.start_date ? parseISO(game.start_date) : null;
+              const e = game.end_date ? parseISO(game.end_date) : null;
+              // Show the year on both ends only when they differ (e.g. Aug 1 '25 - Jun 17 '26).
+              const fmt = s && e && s.getFullYear() !== e.getFullYear() ? "MMM d ''yy" : 'MMM d';
+              return `${s ? format(s, fmt) : 'TBD'} - ${e ? format(e, fmt) : 'TBD'}`;
+            })()}
           </span>
           {periodDetails && (
             <>
