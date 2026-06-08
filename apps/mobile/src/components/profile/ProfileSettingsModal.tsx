@@ -3,8 +3,7 @@ import { Profile } from '../../types';
 import { X, Mail, LogOut, Trash2, Loader2, Camera } from 'lucide-react';
 import { DeleteAccountModal } from '../DeleteAccountModal';
 import { SearchableSelect } from '../SearchableSelect';
-import { mockTeams } from '../../data/mockTeams';
-import { mockCountries } from '../../data/mockCountries';
+import { supabase } from '../../services/supabase';
 import { UsernameInput } from '../auth/UsernameInput';
 import { DisplayNamePreview } from '../auth/DisplayNamePreview';
 import { canUseNativeCamera, pickProfileImageNative } from '../../native/pickImage';
@@ -92,8 +91,20 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({ isOp
     }
   };
 
-  const clubOptions = mockTeams.map(team => ({ value: team.id, label: team.name, icon: team.logo }));
-  const countryOptions = mockCountries.map(country => ({ value: country.name, label: country.name, icon: country.flag }));
+  // Real catalogs (fb_teams / countries), loaded when the modal opens.
+  const [clubOptions, setClubOptions] = useState<{ value: string; label: string; icon?: string }[]>([]);
+  const [countryOptions, setCountryOptions] = useState<{ value: string; label: string; icon?: string }[]>([]);
+  useEffect(() => {
+    if (!isOpen || !supabase) return;
+    let cancelled = false;
+    supabase.from('fb_teams').select('id, name, logo, logo_url').order('name').then(({ data }: any) => {
+      if (!cancelled && data) setClubOptions(data.map((t: any) => ({ value: t.id, label: t.name, icon: t.logo_url || t.logo || undefined })));
+    });
+    supabase.from('countries').select('id, flag').order('id').then(({ data }: any) => {
+      if (!cancelled && data) setCountryOptions(data.map((c: any) => ({ value: c.id, label: c.id, icon: c.flag || undefined })));
+    });
+    return () => { cancelled = true; };
+  }, [isOpen]);
 
   return (
     <>

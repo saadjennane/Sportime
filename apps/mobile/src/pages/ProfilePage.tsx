@@ -1,21 +1,22 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Profile, LevelConfig, Badge, UserBadge, UserStreak, SpinTier } from '../types';
-import { User, Star, Shield, Settings, Flame, Edit, Globe, Award, Target, Gift, BarChart2, List, Users as SquadIcon } from 'lucide-react';
+import { User, Shield, Settings, Flame, Edit, Globe, Award, Target, Gift, BarChart2, List } from 'lucide-react';
 import { ProfileSettingsModal } from '../components/profile/ProfileSettingsModal';
-import { mockTeams } from '../data/mockTeams';
-import { mockCountries } from '../data/mockCountries';
-import { DailyStreakTracker } from '../components/DailyStreakTracker';
 import { getLevelBetLimit } from '../config/constants';
 import { useSpinStore } from '../store/useSpinStore';
 import { UserProfileStats } from '../components/profile/UserProfileStats';
-import { FrequentPlayersList } from '../components/squad/FrequentPlayersList';
-import { useMockStore } from '../store/useMockStore';
 import { DisplayName } from '../components/shared/DisplayName';
 import { PremiumUnlockCard } from '../components/premium/PremiumUnlockCard';
 import { PremiumStatusCard } from '../components/premium/PremiumStatusCard';
 import { XPProgressBar } from '../components/progression/XPProgressBar';
 import { BadgeDisplay } from '../components/progression/BadgeDisplay';
-import RewardHistoryPage from './RewardHistoryPage';
+import { useProgression } from '../hooks/useProgression';
+import { supabase } from '../services/supabase';
+
+// Level name -> icon (real levels_config has no icon column).
+const LEVEL_ICONS: Record<string, string> = {
+  'Rookie': '🌱', 'Rising Star': '⭐', 'Pro': '🎯', 'Elite': '💎', 'Legend': '🔥', 'GOAT': '🐐',
+};
 
 interface ProfilePageProps {
   profile: Profile;
@@ -32,28 +33,35 @@ interface ProfilePageProps {
 }
 
 const ProfilePage: React.FC<ProfilePageProps> = (props) => {
-  const { profile, levels, allBadges, userBadges, userStreaks, onOpenSpinWheel, onOpenPremiumModal } = props;
+  const { profile, onOpenSpinWheel, onOpenPremiumModal } = props;
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'stats' | 'squad' | 'rewards'>('overview');
-  
+  const [activeTab, setActiveTab] = useState<'overview' | 'stats'>('overview');
+
   const userSpinState = useSpinStore(state => state.userSpinStates[profile.id]);
-  const { addNotification } = useMockStore();
 
-  const currentLevel = levels.find(l => l.level_name === (profile.level ?? 'Amateur')) || levels[0];
-  const nextLevel = levels.find(l => l.min_xp > (currentLevel?.min_xp || 0));
-  
-  const xpForNextLevel = nextLevel && currentLevel ? nextLevel.min_xp - currentLevel.min_xp : 0;
-  const currentXpInLevel = currentLevel ? (profile.xp ?? 0) - currentLevel.min_xp : 0;
-  const progressPercentage = xpForNextLevel > 0 ? (currentXpInLevel / xpForNextLevel) * 100 : 100;
+  // Real progression — single source of truth for level + XP.
+  const { progression } = useProgression(profile.id);
+  const levelName = progression?.level_name ?? 'Rookie';
+  const levelIcon = LEVEL_ICONS[levelName] ?? '🌱';
 
-  const earnedBadges = userBadges.map(ub => allBadges.find(b => b.id === ub.badge_id)).filter(Boolean) as Badge[];
+  // Favorite club / national team — resolved from real catalogs (fb_teams / countries).
+  const [favoriteClub, setFavoriteClub] = useState<{ name: string; logo: string | null } | null>(null);
+  const [favoriteNationalTeam, setFavoriteNationalTeam] = useState<{ name: string; flag: string | null } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    if (profile.favorite_club && supabase) {
+      supabase.from('fb_teams').select('name, logo, logo_url').eq('id', profile.favorite_club).maybeSingle()
+        .then(({ data }: any) => { if (!cancelled && data) setFavoriteClub({ name: data.name, logo: data.logo_url || data.logo }); });
+    } else setFavoriteClub(null);
+    if (profile.favorite_national_team && supabase) {
+      supabase.from('countries').select('id, flag').eq('id', profile.favorite_national_team).maybeSingle()
+        .then(({ data }: any) => { if (!cancelled && data) setFavoriteNationalTeam({ name: data.id, flag: data.flag }); });
+    } else setFavoriteNationalTeam(null);
+    return () => { cancelled = true; };
+  }, [profile.favorite_club, profile.favorite_national_team]);
 
-  const favoriteClub = profile.favorite_club ? mockTeams.find(t => t.id === profile.favorite_club) : null;
-  const favoriteNationalTeam = profile.favorite_national_team ? mockCountries.find(c => c.name === profile.favorite_national_team) : null;
   const preferencesSkipped = !profile.is_guest && !profile.favorite_club && !profile.favorite_national_team;
-  
-  const userStreak = userStreaks.find(s => s.user_id === profile.id);
-  const levelBetLimit = getLevelBetLimit(profile.level ?? currentLevel?.level_name);
+  const levelBetLimit = getLevelBetLimit(levelName);
   const maxBetLabel =
     levelBetLimit === null ? 'No Limit' : `${levelBetLimit.toLocaleString()} coins`;
 
@@ -127,12 +135,12 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
                 </div>
               )}
             </div>
-            {currentLevel && <span className="absolute bottom-0 right-0 bg-navy-accent p-1.5 rounded-full text-2xl shadow-md border-2 border-neon-cyan/50">{currentLevel.level_icon_url}</span>}
+            <span className="absolute bottom-0 right-0 bg-navy-accent p-1.5 rounded-full text-2xl shadow-md border-2 border-neon-cyan/50">{levelIcon}</span>
           </div>
           <div className="text-center">
             <DisplayName profile={profile} className="text-2xl font-bold text-text-primary" />
             <p className="text-sm text-text-disabled">@{profile.username}</p>
-            {currentLevel && <p className="text-sm font-semibold text-electric-blue mt-1">{currentLevel.level_name}</p>}
+            <p className="text-sm font-semibold text-electric-blue mt-1">{levelName}</p>
           </div>
         </div>
 
@@ -140,8 +148,6 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
         <div className="flex bg-navy-accent rounded-xl p-1 gap-1">
           <TabButton label="Overview" icon={<List size={16} />} isActive={activeTab === 'overview'} onClick={() => setActiveTab('overview')} />
           <TabButton label="Stats" icon={<BarChart2 size={16} />} isActive={activeTab === 'stats'} onClick={() => setActiveTab('stats')} />
-          <TabButton label="Squad" icon={<SquadIcon size={16} />} isActive={activeTab === 'squad'} onClick={() => setActiveTab('squad')} />
-          <TabButton label="Rewards" icon={<Gift size={16} />} isActive={activeTab === 'rewards'} onClick={() => setActiveTab('rewards')} />
         </div>
 
         {activeTab === 'overview' && (
@@ -182,11 +188,13 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
                   valueIcon={favoriteClub?.logo}
                   onClick={() => setIsSettingsOpen(true)}
               />
-              <PreferenceItem 
+              <PreferenceItem
                   icon={<Globe size={16} />}
                   label="Favorite National Team"
                   value={favoriteNationalTeam?.name}
-                  valueIcon={<span className="text-2xl">{favoriteNationalTeam?.flag}</span>}
+                  valueIcon={favoriteNationalTeam?.flag
+                    ? <img src={favoriteNationalTeam.flag} alt={favoriteNationalTeam.name} className="w-6 h-6 object-contain" />
+                    : undefined}
                   onClick={() => setIsSettingsOpen(true)}
               />
             </div>
@@ -203,7 +211,7 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
                       {maxBetLabel}
                   </p>
               </div>
-              {nextLevel && (
+              {levelName !== 'GOAT' && (
                   <p className="text-xs text-text-disabled text-center mt-2">
                       Next level unlocks higher limits!
                   </p>
@@ -224,24 +232,7 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
           <UserProfileStats userId={profile.id} />
         )}
 
-        {activeTab === 'squad' && (
-          <FrequentPlayersList
-            currentUserId={profile.id}
-            onInvite={(username) => {
-              addNotification({
-                type: 'squad',
-                title: 'Invite Sent',
-                message: `You invited ${username} to a game.`,
-              });
-            }}
-          />
-        )}
-
-        {activeTab === 'rewards' && (
-          <RewardHistoryPage profile={profile} />
-        )}
-        
-        <ProfileSettingsModal 
+        <ProfileSettingsModal
           isOpen={isSettingsOpen} 
           onClose={() => setIsSettingsOpen(false)} 
           {...props}
