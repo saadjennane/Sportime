@@ -10,6 +10,7 @@ import { FixturesPage } from './pages/FixturesPage';
 import { SwipePage } from './pages/SwipePage';
 import { FantasyPage } from './pages/FantasyPage';
 import { ProgressionPage } from './pages/ProgressionPage';
+import { SpinwheelPage } from './pages/SpinwheelPage';
 import { DataSyncPage } from './pages/DataSyncPage';
 import { CelebrationsPage } from './pages/CelebrationsPage';
 import { ConfigPage } from './pages/ConfigPage';
@@ -30,6 +31,7 @@ function App() {
         <Route path="/swipe" element={<SwipePage />} />
         <Route path="/fantasy" element={<FantasyPage />} />
         <Route path="/progression" element={<ProgressionPage />} />
+        <Route path="/spinwheel" element={<SpinwheelPage />} />
         <Route path="/data-sync" element={<DataSyncPage />} />
         <Route path="/bookmaker" element={<BookmakerPage />} />
         <Route path="/celebrations" element={<CelebrationsPage />} />
