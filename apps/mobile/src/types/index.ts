@@ -224,7 +224,8 @@ export interface UserFantasyTeam {
   fatigue_state: Record<string, number>;
   total_points?: number;
   player_points?: Record<string, number>;
-  playerPositions?: Record<string, PlayerPosition>; // assigned slot per starter
+  playerPositions?: Record<string, PlayerPosition>; // assigned position per starter
+  playerSlots?: Record<string, number>; // exact slot index within the position row
 }
 
 export interface Booster {

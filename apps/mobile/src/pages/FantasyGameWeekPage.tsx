@@ -41,8 +41,8 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
   
   const [selectedMatchDayId, setSelectedMatchDayId] = useState(initialLeagueContext ? game.gameWeeks[game.gameWeeks.length - 1].id : (game.gameWeeks.find(gw => gw.status === 'live')?.id || game.gameWeeks.find(gw => gw.status === 'upcoming')?.id || game.gameWeeks[0].id));
   
-  const [editingSlot, setEditingSlot] = useState<{ position: PlayerPosition; playerToReplaceId: string | null; isBench?: boolean } | null>(null);
-  const [actionSheet, setActionSheet] = useState<{ player: FantasyPlayer; position: PlayerPosition } | null>(null);
+  const [editingSlot, setEditingSlot] = useState<{ position: PlayerPosition; playerToReplaceId: string | null; isBench?: boolean; slotIndex?: number } | null>(null);
+  const [actionSheet, setActionSheet] = useState<{ player: FantasyPlayer; position: PlayerPosition; slotIndex?: number } | null>(null);
   const [statsPlayer, setStatsPlayer] = useState<FantasyPlayer | null>(null);
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(!!initialLeagueContext);
   const [isBoosterModalOpen, setIsBoosterModalOpen] = useState(false);
@@ -144,7 +144,7 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
     setIsTeamConfirmed(false); // Re-enable confirmation on any edit
   };
 
-  const handlePitchSlotClick = (position: PlayerPosition, player: FantasyPlayer | null) => {
+  const handlePitchSlotClick = (position: PlayerPosition, player: FantasyPlayer | null, slotIndex: number = 0) => {
     if (isLiveOrFinished) {
         if (isLive && player && dnpStarters.some(p => p.id === player.id)) {
             setSubstitutingPlayer(player);
@@ -165,22 +165,25 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
       }
     } else if (player) {
       // Filled pitch slot -> action sheet (Stats / Replace / Remove).
-      setActionSheet({ player, position });
+      setActionSheet({ player, position, slotIndex });
     } else {
-      setEditingSlot({ position, playerToReplaceId: null, isBench: false });
+      setEditingSlot({ position, playerToReplaceId: null, isBench: false, slotIndex });
     }
   };
 
   const handleRemoveFromFormation = (p: FantasyPlayer) => {
     if (isLiveOrFinished) return;
     const newPositions = { ...(userTeam.playerPositions || {}) };
+    const newSlots = { ...(userTeam.playerSlots || {}) };
     delete newPositions[p.id];
+    delete newSlots[p.id];
     handleUpdateUserTeam({
       ...userTeam,
       starters: userTeam.starters.filter(id => id !== p.id),
       substitutes: userTeam.substitutes.filter(id => id !== p.id),
       captain_id: userTeam.captain_id === p.id ? '' : userTeam.captain_id,
       playerPositions: newPositions,
+      playerSlots: newSlots,
     });
   };
 
@@ -206,31 +209,40 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
         return;
     }
 
-    // Record the slot the player was assigned to (for multi-position players).
+    // Record the assigned position (multi-position players) and the exact slot.
     const newPositions = { ...(userTeam.playerPositions || {}) };
-    if (playerToReplaceId) delete newPositions[playerToReplaceId];
+    const newSlots = { ...(userTeam.playerSlots || {}) };
+    if (playerToReplaceId) {
+        delete newPositions[playerToReplaceId];
+        // the new player inherits the replaced player's slot
+        if (newSlots[playerToReplaceId] != null) newSlots[selectedPlayer.id] = newSlots[playerToReplaceId];
+        else if (editingSlot.slotIndex != null) newSlots[selectedPlayer.id] = editingSlot.slotIndex;
+        delete newSlots[playerToReplaceId];
+    } else if (!editingSlot.isBench && editingSlot.slotIndex != null) {
+        newSlots[selectedPlayer.id] = editingSlot.slotIndex;
+    }
     newPositions[selectedPlayer.id] = editingSlot.position;
 
     if (playerToReplaceId) {
         const starterIndex = newStartersIds.indexOf(playerToReplaceId);
         if (starterIndex > -1) {
             newStartersIds[starterIndex] = selectedPlayer.id;
-            handleUpdateUserTeam({ ...userTeam, starters: newStartersIds, playerPositions: newPositions });
+            handleUpdateUserTeam({ ...userTeam, starters: newStartersIds, playerPositions: newPositions, playerSlots: newSlots });
         } else {
             const subIndex = newSubstitutesIds.indexOf(playerToReplaceId);
             if (subIndex > -1) {
                 newSubstitutesIds[subIndex] = selectedPlayer.id;
-                handleUpdateUserTeam({ ...userTeam, substitutes: newSubstitutesIds, playerPositions: newPositions });
+                handleUpdateUserTeam({ ...userTeam, substitutes: newSubstitutesIds, playerPositions: newPositions, playerSlots: newSlots });
             }
         }
     } else {
         // Empty slot -> add the player to the formation.
         if (editingSlot.isBench) {
             newSubstitutesIds.push(selectedPlayer.id);
-            handleUpdateUserTeam({ ...userTeam, substitutes: newSubstitutesIds, playerPositions: newPositions });
+            handleUpdateUserTeam({ ...userTeam, substitutes: newSubstitutesIds, playerPositions: newPositions, playerSlots: newSlots });
         } else {
             newStartersIds.push(selectedPlayer.id);
-            handleUpdateUserTeam({ ...userTeam, starters: newStartersIds, playerPositions: newPositions });
+            handleUpdateUserTeam({ ...userTeam, starters: newStartersIds, playerPositions: newPositions, playerSlots: newSlots });
         }
     }
     setEditingSlot(null);
@@ -308,7 +320,7 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
         <LivePointsBreakdown playerResults={simulationResult.playerResults} teamResult={simulationResult.teamResult} teamPlayers={liveStarters} captainId={captainId} isFinished={isFinished} />
       )}
 
-      <FantasyPitch starters={liveStarters} onSlotClick={handlePitchSlotClick} captainId={captainId} selectedForSwap={selectedForSwap} formation={selectedGameWeek.formationConstraint || '2-3-1'} isLive={isLiveOrFinished} />
+      <FantasyPitch starters={liveStarters} onSlotClick={handlePitchSlotClick} captainId={captainId} selectedForSwap={selectedForSwap} formation={selectedGameWeek.formationConstraint || '2-3-1'} isLive={isLiveOrFinished} playerSlots={userTeam.playerSlots} />
 
       <Bench substitutes={substitutes} onSlotClick={handleBenchSlotClick} captainId={captainId} selectedForSwap={selectedForSwap} isLive={isLiveOrFinished} />
       
@@ -343,7 +355,7 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
             </div>
             <button onClick={() => { setStatsPlayer(actionSheet.player); setActionSheet(null); }} className="w-full text-left px-3 py-3 rounded-lg hover:bg-white/5 text-text-primary font-semibold flex items-center gap-3"><Info size={18} /> Stats</button>
             {!isLiveOrFinished && (
-              <button onClick={() => { setEditingSlot({ position: actionSheet.position, playerToReplaceId: actionSheet.player.id, isBench: false }); setActionSheet(null); }} className="w-full text-left px-3 py-3 rounded-lg hover:bg-white/5 text-text-primary font-semibold flex items-center gap-3"><Replace size={18} /> Replace</button>
+              <button onClick={() => { setEditingSlot({ position: actionSheet.position, playerToReplaceId: actionSheet.player.id, isBench: false, slotIndex: actionSheet.slotIndex }); setActionSheet(null); }} className="w-full text-left px-3 py-3 rounded-lg hover:bg-white/5 text-text-primary font-semibold flex items-center gap-3"><Replace size={18} /> Replace</button>
             )}
             {!isLiveOrFinished && (
               <button onClick={() => { handleRemoveFromFormation(actionSheet.player); setActionSheet(null); }} className="w-full text-left px-3 py-3 rounded-lg hover:bg-hot-red/10 text-hot-red font-semibold flex items-center gap-3"><Trash2 size={18} /> Remove</button>

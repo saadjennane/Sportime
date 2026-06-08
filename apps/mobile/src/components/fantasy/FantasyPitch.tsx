@@ -4,14 +4,15 @@ import { PlayerCircle } from './PlayerCircle';
 
 interface FantasyPitchProps {
   starters: FantasyPlayer[];
-  onSlotClick: (position: PlayerPosition, player: FantasyPlayer | null) => void;
+  onSlotClick: (position: PlayerPosition, player: FantasyPlayer | null, slotIndex: number) => void;
   captainId: string | null;
   selectedForSwap: FantasyPlayer | null;
   formation: string; // e.g., "2-3-1" for DEF-MID-FWD
   isLive: boolean;
+  playerSlots?: Record<string, number>;
 }
 
-export const FantasyPitch: React.FC<FantasyPitchProps> = ({ starters, onSlotClick, captainId, selectedForSwap, formation, isLive }) => {
+export const FantasyPitch: React.FC<FantasyPitchProps> = ({ starters, onSlotClick, captainId, selectedForSwap, formation, isLive, playerSlots }) => {
   const formationMap: Record<string, Record<PlayerPosition, number>> = {
     "2-3-1": { Defender: 2, Midfielder: 3, Attacker: 1, Goalkeeper: 1 },
     "1-3-2": { Defender: 1, Midfielder: 3, Attacker: 2, Goalkeeper: 1 },
@@ -28,15 +29,29 @@ export const FantasyPitch: React.FC<FantasyPitchProps> = ({ starters, onSlotClic
   };
 
   const renderRow = (position: PlayerPosition, count: number) => {
-    const players = playersByPosition[position];
+    const groupPlayers = playersByPosition[position];
+    // Exact placement: a player with an explicit slot index goes there; any others
+    // fill the remaining slots left-to-right (robust to missing/old slot data).
+    const placed: (FantasyPlayer | null)[] = Array(count).fill(null);
+    const leftover: FantasyPlayer[] = [];
+    for (const p of groupPlayers) {
+      const idx = playerSlots?.[p.id];
+      if (idx != null && idx >= 0 && idx < count && placed[idx] == null) placed[idx] = p;
+      else leftover.push(p);
+    }
+    let free = 0;
+    for (const p of leftover) {
+      while (free < count && placed[free] != null) free++;
+      if (free < count) placed[free] = p;
+    }
     const slots = [];
     for (let i = 0; i < count; i++) {
-      const player = players[i] || null;
+      const player = placed[i];
       slots.push(
         <PlayerCircle
           key={`${position}-${i}`}
           player={player}
-          onClick={() => onSlotClick(position, player)}
+          onClick={() => onSlotClick(position, player, i)}
           isCaptain={player?.id === captainId}
           isSelectedForSwap={player?.id === selectedForSwap?.id}
           isLive={isLive}

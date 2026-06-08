@@ -197,6 +197,7 @@ export async function saveUserFantasyTeam(team: UserFantasyTeam): Promise<boolea
     booster_used: team.booster_used,
     fatigue_state: team.fatigue_state,
     ...(team.playerPositions ? { player_positions: team.playerPositions } : {}),
+    ...(team.playerSlots ? { player_slots: team.playerSlots } : {}),
   } as any;
 
   const { error } = await supabase
@@ -306,6 +307,7 @@ function mapTeamRowToTeam(row: UserFantasyTeamRow): UserFantasyTeam {
     total_points: row.total_points != null ? parseFloat(row.total_points as any) : undefined,
     player_points: (row as any).player_points || {},
     playerPositions: (row as any).player_positions || {},
+    playerSlots: (row as any).player_slots || {},
   };
 }
 
