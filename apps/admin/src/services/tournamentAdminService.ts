@@ -59,11 +59,7 @@ export async function resolveCompetition(competitionId: string) {
 }
 
 // ── Game Builder ─────────────────────────────────────────────────────────────
-export async function createFromLeague(p: {
-  name: string; league_api_id: number; season: number; entry_cost: number;
-  min_players: number | null; max_players: number | null; minimum_level: string;
-  is_visible: boolean; opens_at: string | null;
-}) {
+export async function createFromLeague(p: any) {
   return supabase.functions.invoke('tq-create-from-league', { body: p });
 }
 
@@ -121,13 +117,13 @@ export async function createFantasyGame(p: any) {
 }
 export async function listChallenges() {
   const { data } = await supabase.from('challenges')
-    .select('id, name, status, start_date, end_date, entry_cost, is_visible, rules, game_type')
+    .select('id, name, status, start_date, end_date, entry_cost, is_visible, rules, game_type, source_league_id')
     .in('game_type', ['betting', 'prediction']).order('created_at', { ascending: false });
   return data ?? [];
 }
 export async function listFantasyGames() {
   const { data } = await supabase.from('fantasy_games')
-    .select('id, name, status, entry_cost, is_visible, min_players, max_players')
+    .select('id, name, status, entry_cost, is_visible, min_players, max_players, tier, duration_type, source_league_id')
     .order('created_at', { ascending: false });
   return data ?? [];
 }

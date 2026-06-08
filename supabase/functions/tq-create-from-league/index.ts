@@ -35,7 +35,8 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json()
     const { name, league_api_id, season, entry_cost = 0, min_players = null, max_players = null,
-      minimum_level = 'Rookie', required_badges = [], is_visible = true, opens_at = null, qualified_per_group = 2 } = body
+      minimum_level = 'Rookie', required_badges = [], is_visible = true, opens_at = null, qualified_per_group = 2,
+      tier = 'amateur', duration_type = 'season' } = body
     if (!name || !league_api_id || !season) throw new Error('name, league_api_id and season are required')
 
     const asCaller = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } })
@@ -56,10 +57,11 @@ Deno.serve(async (req) => {
     const bestThirds = Math.min(pow - directQ, groups.length)
 
     // 2) Competition
+    const { data: srcLeague } = await db.from('fb_leagues').select('id').eq('api_id', league_api_id).maybeSingle()
     const comp = (await db.from('tq_competitions').insert({
       name, slug: slugify(name) + '-' + Date.now().toString(36),
-      status: 'draft', entry_cost, min_players, max_players, minimum_level,
-      required_badges, is_visible, source_league_id: null, source_season: season, opens_at,
+      status: 'draft', entry_cost, min_players, max_players, minimum_level, tier, duration_type,
+      required_badges, is_visible, source_league_id: srcLeague?.id ?? null, source_season: season, opens_at,
       config_json: { format: { best_thirds_count: bestThirds, third_place_match: true }, scoring: DEFAULT_SCORING },
     }).select('id').single()).data!
     const compId = comp.id
