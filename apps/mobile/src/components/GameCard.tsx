@@ -325,7 +325,7 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
         </div>
         <div className="flex items-center gap-1 text-xs">
           <Users size={14} />
-          <span>{game.totalPlayers.toLocaleString()} players</span>
+          <span>{game.totalPlayers.toLocaleString()}</span>
         </div>
       </div>
       

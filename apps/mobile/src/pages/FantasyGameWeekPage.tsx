@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { FantasyGame, UserFantasyTeam, FantasyPlayer, PlayerPosition, Booster, Profile, UserLeague, LeagueMember, LeagueGame, Game } from '../../types';
-import { ScrollText, Trophy, X, Check, Target, ArrowLeft, Replace } from 'lucide-react';
+import { Info, Trophy, X, Check, Target, ArrowLeft, Replace } from 'lucide-react';
 import { FantasyPlayerModal } from '../components/FantasyPlayerModal';
 import { FantasyLeaderboardModal } from '../components/FantasyLeaderboardModal';
 import { mockBoosters } from '../data/mockFantasy.tsx';
@@ -69,8 +69,17 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
   const { simulationResult } = useMemo(() => {
     if (!userTeam || !isLiveOrFinished) return { simulationResult: null };
     const { simulationResult } = processGameWeek(userTeam, allPlayers, gwStats);
+    // For a FINISHED game week, display the server's stored points (source of truth)
+    // instead of the client recompute, so there is no client/server mismatch.
+    if (isFinished && simulationResult && userTeam.player_points && Object.keys(userTeam.player_points).length > 0) {
+      for (const pid of Object.keys(simulationResult.playerResults)) {
+        const sp = userTeam.player_points[pid];
+        if (sp != null) simulationResult.playerResults[pid].points = sp;
+      }
+      if (userTeam.total_points != null) simulationResult.teamResult.totalPoints = userTeam.total_points;
+    }
     return { simulationResult };
-  }, [userTeam, allPlayers, isLiveOrFinished, gwStats]);
+  }, [userTeam, allPlayers, isLiveOrFinished, isFinished, gwStats]);
 
   const { starters, substitutes, captainId } = useMemo(() => {
     if (!userTeam) return { starters: [], substitutes: [], captainId: null };
@@ -226,8 +235,8 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
         </div>
         <div className="flex items-center gap-2">
           <LinkGameButton game={game} userId={profile.id} userLeagues={userLeagues} leagueMembers={leagueMembers} leagueGames={leagueGames} onLink={onLinkGame} loading={false} />
-          <button onClick={() => setIsRulesModalOpen(true)} className="p-2 bg-navy-accent rounded-lg shadow-sm text-text-secondary hover:text-electric-blue"><ScrollText size={20} /></button>
-          <button onClick={() => setIsLeaderboardOpen(true)} className="flex items-center gap-1.5 p-2 bg-navy-accent rounded-lg shadow-sm text-text-secondary hover:text-electric-blue"><Trophy size={20} /><span className="text-xs font-bold">3k/12k</span></button>
+          <button onClick={() => setIsRulesModalOpen(true)} className="p-2 bg-navy-accent rounded-lg shadow-sm text-text-secondary hover:text-electric-blue"><Info size={20} /></button>
+          <button onClick={() => setIsLeaderboardOpen(true)} className="p-2 bg-navy-accent rounded-lg shadow-sm text-text-secondary hover:text-electric-blue"><Trophy size={20} /></button>
         </div>
       </div>
 

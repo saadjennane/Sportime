@@ -498,6 +498,11 @@ export async function getFantasyCatalogGames(): Promise<any[]> {
   for (const fg of fgames as any[]) {
     const gameWeeks = await getGameWeeks(fg.id);
     if (gameWeeks.length === 0) continue; // skip games without playable weeks
+    // Real participant count (fg.total_players is a stale static value).
+    const { count: playerCount } = await supabase
+      .from('challenge_participants')
+      .select('*', { count: 'exact', head: true })
+      .eq('challenge_id', fg.id);
     // Span the game over its game weeks so it isn't wrongly flagged "Finished".
     const starts = gameWeeks.map(w => new Date(w.startDate).getTime()).filter(n => !isNaN(n));
     const ends = gameWeeks.map(w => new Date(w.endDate).getTime()).filter(n => !isNaN(n));
@@ -514,7 +519,7 @@ export async function getFantasyCatalogGames(): Promise<any[]> {
       status: 'Open',
       format: 'leaderboard',
       sport: 'football',
-      totalPlayers: fg.total_players ?? 0,
+      totalPlayers: playerCount ?? fg.total_players ?? 0,
       participants: [],
       rewards: [],
       gameWeeks,
