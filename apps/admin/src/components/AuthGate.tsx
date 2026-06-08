@@ -4,7 +4,7 @@ import { LogOut, ShieldAlert, Loader2 } from 'lucide-react';
 
 /**
  * Gates the whole admin panel behind a Supabase email/password login and an
- * admin role check (users.role IN ('admin','super_admin')).
+ * admin role check (is_admin / user_type admin). Dark theme to match the admin.
  */
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<any>(undefined); // undefined = loading
@@ -23,7 +23,6 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!session?.user) { setRole(undefined); return; }
     setRole(undefined);
-    // is_admin() (used by RLS/RPCs) reads the users.is_admin boolean — match it here.
     supabase.from('users').select('is_admin, role').eq('id', session.user.id).single()
       .then(({ data }) => setRole((data?.is_admin || data?.role === 'admin' || data?.role === 'super_admin') ? 'admin' : 'user'));
   }, [session]);
@@ -38,24 +37,24 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   // Loading
   if (session === undefined || (session?.user && role === undefined)) {
-    return <div className="min-h-screen flex items-center justify-center text-gray-500"><Loader2 className="animate-spin" /></div>;
+    return <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-gray-400"><Loader2 className="animate-spin" /></div>;
   }
 
   // Not logged in -> login form
   if (!session?.user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-        <form onSubmit={login} className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm space-y-4">
+      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] p-4">
+        <form onSubmit={login} className="bg-[#161616] rounded-2xl shadow-2xl border border-white/10 p-8 w-full max-w-sm space-y-4">
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-gray-900">Sportime Admin</h1>
-            <p className="text-gray-500 text-sm mt-1">Sign in to continue</p>
+            <h1 className="text-2xl font-bold text-white">Sportime Admin</h1>
+            <p className="text-gray-400 text-sm mt-1">Sign in to continue</p>
           </div>
           <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="Email"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            className="w-full bg-[#0a0a0a] border border-white/10 text-white placeholder-gray-500 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#2979FF]" />
           <input type="password" required value={pw} onChange={e => setPw(e.target.value)} placeholder="Password"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          {err && <p className="text-sm text-red-600">{err}</p>}
-          <button disabled={busy} type="submit" className="w-full bg-blue-600 text-white font-semibold py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-60">
+            className="w-full bg-[#0a0a0a] border border-white/10 text-white placeholder-gray-500 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#2979FF]" />
+          {err && <p className="text-sm text-[#FF1744]">{err}</p>}
+          <button disabled={busy} type="submit" className="w-full bg-[#2979FF] text-white font-semibold py-2.5 rounded-lg hover:brightness-110 disabled:opacity-60">
             {busy ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
@@ -66,11 +65,11 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   // Logged in but not an admin
   if (role !== 'admin' && role !== 'super_admin') {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-center p-4">
-        <ShieldAlert className="text-red-500 mb-3" size={40} />
-        <h1 className="text-xl font-bold text-gray-900">Not authorized</h1>
-        <p className="text-gray-500 text-sm mt-1">This account ({session.user.email}) is not an admin.</p>
-        <button onClick={logout} className="mt-4 flex items-center gap-2 text-blue-600 font-semibold"><LogOut size={16} /> Sign out</button>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#0a0a0a] text-center p-4">
+        <ShieldAlert className="text-[#FF1744] mb-3" size={40} />
+        <h1 className="text-xl font-bold text-white">Not authorized</h1>
+        <p className="text-gray-400 text-sm mt-1">This account ({session.user.email}) is not an admin.</p>
+        <button onClick={logout} className="mt-4 flex items-center gap-2 text-[#2979FF] font-semibold"><LogOut size={16} /> Sign out</button>
       </div>
     );
   }
@@ -80,7 +79,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     <>
       {children}
       <button onClick={logout} title="Sign out"
-        className="fixed bottom-4 right-4 z-50 flex items-center gap-2 bg-white border border-gray-200 shadow-lg rounded-full px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+        className="fixed bottom-4 right-4 z-50 flex items-center gap-2 bg-[#161616] border border-white/10 shadow-lg rounded-full px-4 py-2 text-sm font-semibold text-gray-200 hover:bg-white/5">
         <LogOut size={16} /> Sign out
       </button>
     </>
