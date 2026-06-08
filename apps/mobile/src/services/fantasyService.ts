@@ -499,10 +499,11 @@ export async function getFantasyCatalogGames(): Promise<any[]> {
     const gameWeeks = await getGameWeeks(fg.id);
     if (gameWeeks.length === 0) continue; // skip games without playable weeks
     // Real participant count (fg.total_players is a stale static value).
-    const { count: playerCount } = await supabase
+    const { data: partRows } = await supabase
       .from('challenge_participants')
-      .select('*', { count: 'exact', head: true })
+      .select('user_id')
       .eq('challenge_id', fg.id);
+    const playerCount = partRows?.length ?? 0;
     // Span the game over its game weeks so it isn't wrongly flagged "Finished".
     const starts = gameWeeks.map(w => new Date(w.startDate).getTime()).filter(n => !isNaN(n));
     const ends = gameWeeks.map(w => new Date(w.endDate).getTime()).filter(n => !isNaN(n));
@@ -519,7 +520,7 @@ export async function getFantasyCatalogGames(): Promise<any[]> {
       status: 'Open',
       format: 'leaderboard',
       sport: 'football',
-      totalPlayers: playerCount ?? fg.total_players ?? 0,
+      totalPlayers: playerCount,
       participants: [],
       rewards: [],
       gameWeeks,
@@ -560,4 +561,23 @@ export async function joinFantasyGame(
     throw error;
   }
   return { alreadyJoined: false };
+}
+
+/** Real fantasy leaderboard for a set of game weeks (aggregated per user). */
+export async function getFantasyLeaderboardForWeeks(
+  gameWeekIds: string[]
+): Promise<{ userId: string; username: string; avatar: string | null; totalPoints: number }[]> {
+  if (!supabase || gameWeekIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('fantasy_leaderboard')
+    .select('user_id, username, avatar, total_points')
+    .in('game_week_id', gameWeekIds);
+  if (error || !data) return [];
+  const map = new Map<string, { userId: string; username: string; avatar: string | null; totalPoints: number }>();
+  for (const r of data as any[]) {
+    const e = map.get(r.user_id) ?? { userId: r.user_id, username: r.username ?? 'Player', avatar: r.avatar ?? null, totalPoints: 0 };
+    e.totalPoints += Number(r.total_points) || 0;
+    map.set(r.user_id, e);
+  }
+  return Array.from(map.values());
 }

@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { X, Trophy, Medal, Award, Info } from 'lucide-react';
 import { FantasyLeaderboardEntry, Profile, UserLeague, LeagueMember, LeagueGame, FantasyGame, FantasyGameWeek, LeaderboardPeriod, Game } from '../types';
 import { LeaderboardLeagueSwitcher } from './leagues/LeaderboardLeagueSwitcher';
 import { useMockStore } from '../store/useMockStore';
+import { getFantasyLeaderboardForWeeks } from '../services/fantasyService';
 import { LeaderboardPeriodFilter } from './leagues/LeaderboardPeriodFilter';
 import { format, parseISO, isWithinInterval } from 'date-fns';
 import { CelebrationModal } from './leagues/CelebrationModal';
@@ -80,34 +81,33 @@ export const FantasyLeaderboardModal: React.FC<FantasyLeaderboardModalProps> = (
     return game.gameWeeks.filter(gw => isWithinInterval(parseISO(gw.startDate), interval));
   }, [game.gameWeeks, activePeriod]);
 
+  // Real leaderboard from the server (fantasy_leaderboard), for the active period.
+  const [serverEntries, setServerEntries] = useState<{ userId: string; username: string; avatar: string | null; totalPoints: number }[]>([]);
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    const ids = filteredGameWeeks.map(gw => gw.id);
+    getFantasyLeaderboardForWeeks(ids)
+      .then(rows => { if (!cancelled) setServerEntries(rows); })
+      .catch(() => { if (!cancelled) setServerEntries([]); });
+    return () => { cancelled = true; };
+  }, [isOpen, filteredGameWeeks]);
+
   const displayedLeaderboard = useMemo(() => {
-    const gameScores = leaderboardScores[game.id];
-    if (!gameScores) return [];
-
-    const userIdsToScore = activeFilterLeagueId 
+    const allowed = activeFilterLeagueId
       ? new Set(leagueMembers.filter(m => m.league_id === activeFilterLeagueId).map(m => m.user_id))
-      : new Set(allUsers.map(u => u.id));
-
-    const leaderboardEntries = Array.from(userIdsToScore).map(userId => {
-      const user = allUsers.find(u => u.id === userId);
-      if (!user) return null;
-
-      const userGameScores = gameScores[userId] || {};
-      const totalPoints = filteredGameWeeks.reduce((sum, gw) => sum + (userGameScores[gw.id] || 0), 0);
-      
-      return {
-        userId: user.id,
-        username: user.id === currentUserId ? 'You' : user.username || `Player ${user.id}`,
-        avatar: user.profile_picture_url || `https://api.dicebear.com/8.x/bottts/svg?seed=${user.id}`,
-        totalPoints,
-      };
-    }).filter(Boolean) as (Omit<FantasyLeaderboardEntry, 'rank' | 'boosterUsed'> & { totalPoints: number })[];
-
-    return leaderboardEntries
+      : null;
+    return serverEntries
+      .filter(e => !allowed || allowed.has(e.userId))
+      .map(e => ({
+        userId: e.userId,
+        username: e.userId === currentUserId ? 'You' : (e.username || 'Player'),
+        avatar: e.avatar || `https://api.dicebear.com/8.x/bottts/svg?seed=${e.userId}`,
+        totalPoints: e.totalPoints,
+      }))
       .sort((a, b) => b.totalPoints - a.totalPoints)
       .map((entry, index) => ({ ...entry, rank: index + 1, boosterUsed: null }));
-
-  }, [activeFilterLeagueId, leagueMembers, allUsers, currentUserId, leaderboardScores, game.id, filteredGameWeeks]);
+  }, [serverEntries, activeFilterLeagueId, leagueMembers, currentUserId]);
 
   const handleApplyFilter = (period: LeaderboardPeriod) => {
     if (leagueGame) {

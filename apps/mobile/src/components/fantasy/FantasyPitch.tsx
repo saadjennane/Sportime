@@ -52,9 +52,15 @@ export const FantasyPitch: React.FC<FantasyPitchProps> = ({ starters, onSlotClic
 
   return (
     <div
-      className="rounded-2xl p-4 space-y-2 shadow-inner bg-deep-navy relative overflow-hidden"
+      className="rounded-2xl p-4 space-y-2 shadow-inner relative overflow-hidden"
+      style={{ background: 'repeating-linear-gradient(to bottom, #15532e 0px, #15532e 28px, #176836 28px, #176836 56px)' }}
     >
-      <div className="absolute inset-0 bg-center bg-no-repeat bg-contain opacity-10" style={{backgroundImage: "url('https://i.imgur.com/sC4a7fD.png')"}}></div>
+      {/* Pitch markings (CSS-drawn) */}
+      <div className="absolute inset-2 rounded-xl border-2 border-white/15 pointer-events-none" />
+      <div className="absolute left-2 right-2 top-1/2 -translate-y-1/2 border-t-2 border-white/15 pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full border-2 border-white/15 pointer-events-none" />
+      <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-10 border-2 border-t-0 border-white/15 rounded-b-md pointer-events-none" />
+      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-32 h-10 border-2 border-b-0 border-white/15 rounded-t-md pointer-events-none" />
       <div className="relative">
         {renderRow('Attacker', currentFormation.Attacker)}
         {renderRow('Midfielder', currentFormation.Midfielder)}
