@@ -14,7 +14,8 @@ import {
   Calendar,
   Gamepad2,
   DollarSign,
-  Radio
+  Radio,
+  Disc3
 } from 'lucide-react';
 import { useState } from 'react';
 import packageJson from '../../package.json';
@@ -39,6 +40,7 @@ export function Sidebar({ className = '' }: SidebarProps) {
     { to: '/fantasy', icon: Gamepad2, label: 'Fantasy' },
     { to: '/tournament', icon: Trophy, label: 'Game Builder' },
     { to: '/progression', icon: Star, label: 'Progression' },
+    { to: '/spinwheel', icon: Disc3, label: 'Spinwheel' },
     { to: '/data-sync', icon: DatabaseZap, label: 'Data Sync' },
     { to: '/bookmaker', icon: DollarSign, label: 'Bookmakers' },
     { to: '/live-game', icon: Radio, label: 'Live Game' },
