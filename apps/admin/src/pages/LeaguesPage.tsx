@@ -4,7 +4,7 @@ import { leagueService } from '../services/leagueService';
 import type { LeagueWithTeamCount } from '../types/football';
 import { LeagueFormModal } from '../components/admin/LeagueFormModal';
 import { ConfirmationModal } from '../components/admin/ConfirmationModal';
-import { syncLeague, syncLeagueTeams, type SyncProgress } from '../services/footballSyncService';
+import { syncLeague, syncLeagueTeams, syncLeagueFull, type SyncProgress } from '../services/footballSyncService';
 
 const mockAddToast = (message: string, type: 'success' | 'error' | 'info') => {
   console.log(`[${type.toUpperCase()}]`, message);
@@ -120,12 +120,12 @@ export function LeaguesPage() {
     setSyncingLeague(leagueApiId);
     setSyncProgress(null);
 
-    const result = await syncLeague(leagueApiId, (season || 2025) as number, (progress) => {
+    const result = await syncLeagueFull(leagueApiId, (season || 2025) as number, (progress) => {
       setSyncProgress(progress);
     });
 
     if (result.success) {
-      mockAddToast(`${leagueName} imported successfully!`, 'success');
+      mockAddToast(`${leagueName}: ${result.teamsCount ?? 0} teams, ${result.playersCount ?? 0} players, ${result.fixturesCount ?? 0} fixtures imported`, 'success');
       await loadLeagues();
     } else {
       mockAddToast(`Failed to import ${leagueName}: ${result.error}`, 'error');
@@ -188,7 +188,7 @@ export function LeaguesPage() {
         message: `Importing league ${leagueId}...`
       });
 
-      const result = await syncLeague(leagueId, season as number, (progress) => {
+      const result = await syncLeagueFull(leagueId, season as number, (progress) => {
         setSyncProgress({
           ...progress,
           message: `[${i + 1}/${ids.length}] ${progress.message}`
