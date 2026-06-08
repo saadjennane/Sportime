@@ -17,6 +17,11 @@ export async function deleteRewardPack(id: string) {
   return supabase.from('reward_packs').delete().eq('id', id);
 }
 
+/** Distribute a game's assigned reward pack to its winners (idempotent server-side). */
+export async function distributeRewards(gameType: 'tq' | 'betting' | 'prediction' | 'fantasy', gameId: string) {
+  return supabase.rpc('gb_distribute_rewards', { p_type: gameType, p_id: gameId });
+}
+
 /** Assign a pack to a game: copies the resolved tiers into the game's rewards field + links the pack. */
 export async function assignPackToGame(gameType: 'tq' | 'betting' | 'prediction' | 'fantasy', gameId: string, packId: string | null, tiers: RewardTier[]) {
   if (gameType === 'tq') {
