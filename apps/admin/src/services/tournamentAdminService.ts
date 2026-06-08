@@ -116,11 +116,26 @@ export async function searchFixtures(leagueIds: string[], from: string, to: stri
 export async function createMatchdayChallenge(p: any) {
   return supabase.functions.invoke('create-matchday-challenge', { body: p });
 }
+export async function createFantasyGame(p: any) {
+  return supabase.functions.invoke('create-fantasy-game', { body: p });
+}
 export async function listChallenges() {
   const { data } = await supabase.from('challenges')
-    .select('id, name, status, start_date, end_date, entry_cost, is_visible, rules')
-    .eq('game_type', 'betting').order('created_at', { ascending: false });
+    .select('id, name, status, start_date, end_date, entry_cost, is_visible, rules, game_type')
+    .in('game_type', ['betting', 'prediction']).order('created_at', { ascending: false });
   return data ?? [];
+}
+export async function listFantasyGames() {
+  const { data } = await supabase.from('fantasy_games')
+    .select('id, name, status, entry_cost, is_visible, min_players, max_players')
+    .order('created_at', { ascending: false });
+  return data ?? [];
+}
+export async function setFantasyStatus(id: string, status: string) {
+  return supabase.from('fantasy_games').update({ status }).eq('id', id);
+}
+export async function setFantasyVisibility(id: string, isVisible: boolean) {
+  return supabase.from('fantasy_games').update({ is_visible: isVisible }).eq('id', id);
 }
 export async function setChallengeStatus(id: string, status: string) {
   return supabase.from('challenges').update({ status }).eq('id', id);
