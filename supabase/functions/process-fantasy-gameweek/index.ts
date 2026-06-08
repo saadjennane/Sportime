@@ -451,6 +451,24 @@ serve(async (req) => {
       if (leaderboardError) {
         throw new Error(`Failed to update leaderboard: ${leaderboardError.message}`)
       }
+
+      // 7b. Award XP by leaderboard percentile (server-authoritative, idempotent).
+      const totalPlayers = leaderboardEntries.length
+      for (const entry of leaderboardEntries) {
+        const percentile = totalPlayers > 1 ? (totalPlayers - entry.rank) / (totalPlayers - 1) : 1
+        let xp = Math.round(20 + percentile * 100) // 20..120 by rank
+        if (entry.rank === 1) xp += 40
+        else if (entry.rank === 2) xp += 25
+        else if (entry.rank === 3) xp += 15
+        const { error: xpErr } = await supabase.rpc('award_xp', {
+          p_user_id: entry.user_id,
+          p_amount: xp,
+          p_source_type: 'fantasy',
+          p_source_id: `${game_week_id}_${entry.user_id}`,
+          p_reason: 'Fantasy game week settled',
+        })
+        if (xpErr) console.error('[process-fantasy-gameweek] award_xp failed', entry.user_id, xpErr.message)
+      }
     }
 
     console.log(`[process-fantasy-gameweek] Successfully processed ${userTeams?.length || 0} teams`)
