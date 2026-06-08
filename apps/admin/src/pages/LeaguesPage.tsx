@@ -27,6 +27,7 @@ export function LeaguesPage() {
   const [syncingTeams, setSyncingTeams] = useState<string | null>(null);
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
   const [leagueIds, setLeagueIds] = useState<string>('');
+  const [season, setSeason] = useState<number | ''>('');
   const [isBulkImporting, setIsBulkImporting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
 
@@ -119,7 +120,7 @@ export function LeaguesPage() {
     setSyncingLeague(leagueApiId);
     setSyncProgress(null);
 
-    const result = await syncLeague(leagueApiId, 2024, (progress) => {
+    const result = await syncLeague(leagueApiId, (season || 2025) as number, (progress) => {
       setSyncProgress(progress);
     });
 
@@ -143,7 +144,7 @@ export function LeaguesPage() {
     setSyncingTeams(league.id);
     setSyncProgress(null);
 
-    const result = await syncLeagueTeams(league.id, league.api_id, 2024, (progress) => {
+    const result = await syncLeagueTeams(league.id, league.api_id, (season || 2025) as number, (progress) => {
       setSyncProgress(progress);
     });
 
@@ -187,7 +188,7 @@ export function LeaguesPage() {
         message: `Importing league ${leagueId}...`
       });
 
-      const result = await syncLeague(leagueId, 2024, (progress) => {
+      const result = await syncLeague(leagueId, season as number, (progress) => {
         setSyncProgress({
           ...progress,
           message: `[${i + 1}/${ids.length}] ${progress.message}`
@@ -295,13 +296,22 @@ export function LeaguesPage() {
             type="text"
             value={leagueIds}
             onChange={(e) => setLeagueIds(e.target.value)}
-            placeholder="e.g., 39,140,78,135"
+            placeholder="e.g., 39,140,78,135  ·  World Cup = 1"
             disabled={isBulkImporting}
             className="flex-1 px-4 py-2 bg-background-dark border border-border-subtle rounded-lg focus:outline-none focus:border-electric-blue disabled:opacity-50 text-text-primary placeholder:text-text-disabled"
           />
+          <input
+            type="number"
+            value={season}
+            onChange={(e) => setSeason(e.target.value === '' ? '' : (parseInt(e.target.value) || ''))}
+            placeholder="Season"
+            title="Season (World Cup = 2026 or 2022)"
+            disabled={isBulkImporting}
+            className="w-28 px-3 py-2 bg-background-dark border border-border-subtle rounded-lg focus:outline-none focus:border-electric-blue disabled:opacity-50 text-text-primary placeholder:text-text-disabled"
+          />
           <button
             onClick={handleBulkImport}
-            disabled={isBulkImporting || !leagueIds.trim()}
+            disabled={isBulkImporting || !leagueIds.trim() || !season}
             className="flex items-center gap-2 px-6 py-2 bg-electric-blue hover:bg-electric-blue/80 disabled:bg-surface-hover disabled:text-text-disabled text-white rounded-lg transition-colors"
           >
             <Download className="w-4 h-4" />
