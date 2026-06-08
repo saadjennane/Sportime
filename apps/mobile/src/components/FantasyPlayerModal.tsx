@@ -24,45 +24,51 @@ export const FantasyPlayerModal: React.FC<FantasyPlayerModalProps> = ({ isOpen, 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-scale-in">
-      <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full h-[80vh] flex flex-col p-6">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-scale-in">
+      <div className="bg-navy-accent rounded-3xl shadow-2xl max-w-sm w-full h-[80vh] flex flex-col p-5 border border-white/10">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold">Select a {position}</h2>
-          <button onClick={onClose} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full">
-            <X size={24} />
+          <h2 className="text-lg font-bold text-text-primary">Select a {position}</h2>
+          <button onClick={onClose} className="p-2 text-text-secondary hover:bg-white/10 rounded-full">
+            <X size={22} />
           </button>
         </div>
-        
+
         <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-disabled" />
           <input
             type="text"
             placeholder="Search player..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-3 py-2 bg-gray-100 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-purple-500"
+            className="w-full pl-10 pr-3 py-2.5 bg-deep-navy border border-white/10 rounded-lg text-text-primary placeholder:text-text-disabled focus:outline-none focus:ring-1 focus:ring-electric-blue"
           />
         </div>
 
-        <div className="flex-1 overflow-y-auto space-y-2 pr-2">
-          {availablePlayers.map(player => (
+        <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+          {availablePlayers.length === 0 ? (
+            <p className="text-center text-sm text-text-disabled mt-8">No players found.</p>
+          ) : availablePlayers.map(player => (
             <button
               key={player.id}
               onClick={() => { onSelectPlayer(player); onClose(); }}
-              className="w-full flex items-center gap-3 p-3 bg-gray-50 hover:bg-purple-50 rounded-xl transition-colors text-left"
+              className="w-full flex items-center gap-3 p-3 bg-deep-navy hover:bg-white/5 border border-white/5 rounded-xl transition-colors text-left"
             >
-              <img src={player.photo} alt={player.name} className="w-12 h-12 rounded-full object-cover bg-gray-200" />
-              <div className="flex-1">
-                <p className="font-bold text-sm">{player.name}</p>
-                <p className="text-xs text-gray-500">{player.teamName}</p>
+              <img
+                src={player.photo || `https://api.dicebear.com/8.x/bottts/svg?seed=${player.id}`}
+                alt={player.name}
+                className="w-11 h-11 rounded-full object-cover bg-navy-accent flex-shrink-0"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-sm text-text-primary truncate">{player.name}</p>
+                <p className="text-xs text-text-secondary truncate">{player.teamName}</p>
               </div>
-              <div className="text-center w-10">
+              <div className="text-center w-10 flex-shrink-0">
                 <CategoryIcon category={player.status} />
-                <p className="text-xs font-semibold">{player.pgs.toFixed(1)}</p>
+                <p className="text-xs font-semibold text-text-primary">{player.pgs.toFixed(1)}</p>
               </div>
-              <div className="text-center w-12">
-                <p className="text-xs text-gray-500">Fatigue</p>
-                <p className="font-bold text-sm">{player.fatigue}%</p>
+              <div className="text-center w-12 flex-shrink-0">
+                <p className="text-[10px] text-text-disabled">Fatigue</p>
+                <p className="font-bold text-sm text-text-primary">{player.fatigue}%</p>
               </div>
             </button>
           ))}
