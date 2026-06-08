@@ -97,3 +97,34 @@ export async function listSourceLeagues() {
   const { data } = await supabase.from('fb_leagues').select('api_id, name').order('name');
   return data ?? [];
 }
+
+// ── Match Day Challenge (game_type 'betting') ────────────────────────────────
+export async function listLeaguesFull() {
+  const { data } = await supabase.from('fb_leagues').select('id, name').order('name');
+  return data ?? [];
+}
+export async function searchFixtures(leagueIds: string[], from: string, to: string) {
+  if (leagueIds.length === 0) return [];
+  let q = supabase.from('fb_fixtures')
+    .select('id, date, round, home_team:fb_teams!fb_fixtures_home_team_id_fkey(name), away_team:fb_teams!fb_fixtures_away_team_id_fkey(name)')
+    .in('league_id', leagueIds).order('date');
+  if (from) q = q.gte('date', from);
+  if (to) q = q.lte('date', to + 'T23:59:59');
+  const { data } = await q.limit(300);
+  return data ?? [];
+}
+export async function createMatchdayChallenge(p: any) {
+  return supabase.functions.invoke('create-matchday-challenge', { body: p });
+}
+export async function listChallenges() {
+  const { data } = await supabase.from('challenges')
+    .select('id, name, status, start_date, end_date, entry_cost, is_visible, rules')
+    .eq('game_type', 'betting').order('created_at', { ascending: false });
+  return data ?? [];
+}
+export async function setChallengeStatus(id: string, status: string) {
+  return supabase.from('challenges').update({ status }).eq('id', id);
+}
+export async function setChallengeVisibility(id: string, isVisible: boolean) {
+  return supabase.from('challenges').update({ is_visible: isVisible }).eq('id', id);
+}

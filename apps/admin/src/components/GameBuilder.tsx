@@ -3,6 +3,8 @@ import {
   listCompetitions, getCompetitionDetail, createFromLeague, setStatus, updateCompetition,
   resolveCompetition, generateBracket, getLeaderboard, listSourceLeagues,
   listAnnouncements, createAnnouncement, deleteAnnouncement,
+  listLeaguesFull, searchFixtures, createMatchdayChallenge, listChallenges,
+  setChallengeStatus, setChallengeVisibility,
 } from '../services/tournamentAdminService';
 
 const STATUSES = ['draft', 'open', 'running', 'resolved', 'cancelled'];
@@ -15,14 +17,15 @@ const statusColor = (s: string) =>
 
 export default function GameBuilder() {
   const [comps, setComps] = useState<any[]>([]);
+  const [challenges, setChallenges] = useState<any[]>([]);
   const [leagues, setLeagues] = useState<any[]>([]);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState<null | 'tq' | 'mdc'>(null);
   const [msg, setMsg] = useState('');
   const [manageId, setManageId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', league_api_id: 0, season: 2026, entry_cost: 0, min_players: '', max_players: '', minimum_level: 'Rookie', is_visible: true, opens_at: '' });
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 5000); };
-  const reload = async () => setComps(await listCompetitions());
+  const reload = async () => { setComps(await listCompetitions()); setChallenges(await listChallenges()); };
   useEffect(() => { reload(); listSourceLeagues().then(setLeagues); }, []);
 
   const submit = async () => {
@@ -50,13 +53,20 @@ export default function GameBuilder() {
           <h1 className="text-3xl font-bold text-text-primary mb-1">Game Builder</h1>
           <p className="text-text-secondary">Create and run games — Tournament Quest, from any imported league.</p>
         </div>
-        <button onClick={() => setCreating(v => !v)} className="bg-electric-blue text-white px-4 py-2 rounded-lg font-semibold">
-          {creating ? 'Cancel' : '+ Create Tournament Quest'}
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setCreating(creating === 'tq' ? null : 'tq')} className={`px-4 py-2 rounded-lg font-semibold ${creating === 'tq' ? 'bg-surface-hover text-text-secondary' : 'bg-electric-blue text-white'}`}>
+            {creating === 'tq' ? 'Cancel' : '+ Tournament Quest'}
+          </button>
+          <button onClick={() => setCreating(creating === 'mdc' ? null : 'mdc')} className={`px-4 py-2 rounded-lg font-semibold ${creating === 'mdc' ? 'bg-surface-hover text-text-secondary' : 'bg-warm-yellow text-deep-navy'}`}>
+            {creating === 'mdc' ? 'Cancel' : '+ Match Day Challenge'}
+          </button>
+        </div>
       </div>
       {msg && <div className="bg-electric-blue/10 border border-electric-blue/30 text-electric-blue rounded-lg px-4 py-2 text-sm">{msg}</div>}
 
-      {creating && (
+      {creating === 'mdc' && <MatchDayCreate onCreated={() => { setCreating(null); reload(); }} flash={flash} />}
+
+      {creating === 'tq' && (
         <div className="bg-surface border border-border-subtle rounded-xl p-5 grid md:grid-cols-2 gap-4">
           <Field label="Name">
             <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="FIFA World Cup 2026" className="inp" />
@@ -107,7 +117,23 @@ export default function GameBuilder() {
                 </td>
               </tr>
             ))}
-            {comps.length === 0 && <tr><td colSpan={7} className="px-4 py-6 text-center text-text-disabled">No games yet. Create one from a league.</td></tr>}
+            {challenges.map(c => (
+              <tr key={c.id} className="border-b border-border-subtle/50">
+                <td className="px-4 py-3 font-medium text-text-primary">{c.name || '(untitled)'}</td>
+                <td className="text-text-secondary">Match Day Challenge <span className="text-text-disabled text-xs">({c.rules?.period_type === 'calendar' ? 'calendar' : 'matchday'})</span></td>
+                <td><span className={`text-xs px-2 py-0.5 rounded-full ${statusColor(c.status)}`}>{c.status}</span></td>
+                <td className="text-text-secondary">{c.entry_cost ?? 0}</td>
+                <td className="text-text-secondary">{c.rules?.minimum_players ?? 0} / {c.rules?.maximum_players || '∞'}</td>
+                <td>{c.is_visible === false ? <span className="text-text-disabled">Hidden</span> : <span className="text-lime-glow">Yes</span>}</td>
+                <td className="text-right pr-4 whitespace-nowrap">
+                  <select value={c.status} onChange={e => setChallengeStatus(c.id, e.target.value).then(reload)} className="inp inline-block w-28 mr-2">
+                    {['draft', 'open', 'running', 'resolved', 'cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <button onClick={() => setChallengeVisibility(c.id, c.is_visible === false).then(reload)} className="text-electric-blue text-xs">{c.is_visible === false ? 'Show' : 'Hide'}</button>
+                </td>
+              </tr>
+            ))}
+            {comps.length === 0 && challenges.length === 0 && <tr><td colSpan={7} className="px-4 py-6 text-center text-text-disabled">No games yet. Create one above.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -208,6 +234,85 @@ function ManagePanel({ id, onChange, flash }: { id: string; onChange: () => void
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function MatchDayCreate({ onCreated, flash }: { onCreated: () => void; flash: (m: string) => void }) {
+  const [leagues, setLeagues] = useState<any[]>([]);
+  const [sel, setSel] = useState<Set<string>>(new Set()); // league ids
+  const [from, setFrom] = useState(''); const [to, setTo] = useState('');
+  const [fixtures, setFixtures] = useState<any[]>([]);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [f, setF] = useState({ name: '', mode: 'matchdays', entry_cost: 0, min_players: '', max_players: '', minimum_level: 'Rookie', is_visible: true });
+
+  useEffect(() => { listLeaguesFull().then(setLeagues); }, []);
+  const toggleLeague = (id: string) => setSel(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const search = async () => {
+    if (sel.size === 0) return flash('Pick at least one league');
+    setFixtures(await searchFixtures([...sel], from, to));
+  };
+  const togglePick = (id: string) => setPicked(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  const submit = async () => {
+    if (!f.name || picked.size === 0) return flash('Name and at least one match are required');
+    const { data, error } = await createMatchdayChallenge({
+      name: f.name, league_ids: [...sel], fixture_ids: [...picked], mode: f.mode,
+      entry_cost: Number(f.entry_cost) || 0, min_players: Number(f.min_players) || 0,
+      max_players: Number(f.max_players) || 0, minimum_level: f.minimum_level, is_visible: f.is_visible,
+    });
+    if (error || !(data as any)?.ok) return flash(`Failed: ${error?.message || (data as any)?.error}`);
+    flash(`Created: ${(data as any).matchdays} matchdays, ${(data as any).fixtures} matches (${(data as any).mode})`);
+    onCreated();
+  };
+
+  return (
+    <div className="bg-surface border border-border-subtle rounded-xl p-5 space-y-4">
+      <h3 className="font-bold text-text-primary">New Match Day Challenge</h3>
+      <div className="grid md:grid-cols-3 gap-3">
+        <Field label="Name"><input value={f.name} onChange={e => setF({ ...f, name: e.target.value })} className="inp" /></Field>
+        <Field label="From"><input type="date" value={from} onChange={e => setFrom(e.target.value)} className="inp" /></Field>
+        <Field label="To"><input type="date" value={to} onChange={e => setTo(e.target.value)} className="inp" /></Field>
+      </div>
+      <Field label="Leagues (one or more)">
+        <div className="flex flex-wrap gap-2 max-h-28 overflow-y-auto">
+          {leagues.map(l => (
+            <button key={l.id} onClick={() => toggleLeague(l.id)} className={`px-2.5 py-1 rounded-lg text-xs font-semibold border ${sel.has(l.id) ? 'border-electric-blue bg-electric-blue/10 text-electric-blue' : 'border-border-subtle text-text-secondary'}`}>{l.name}</button>
+          ))}
+        </div>
+      </Field>
+      <button onClick={search} className="bg-electric-blue text-white px-4 py-2 rounded-lg text-sm font-semibold">Search matches</button>
+
+      {fixtures.length > 0 && (
+        <div className="border border-border-subtle rounded-lg max-h-72 overflow-y-auto">
+          {fixtures.map(fx => (
+            <button key={fx.id} onClick={() => togglePick(fx.id)} className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm border-b border-border-subtle/40 ${picked.has(fx.id) ? 'bg-electric-blue/10' : ''}`}>
+              <input type="checkbox" readOnly checked={picked.has(fx.id)} />
+              <span className="text-text-disabled text-xs w-32">{new Date(fx.date).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+              <span className="text-text-primary flex-1">{fx.home_team?.name} – {fx.away_team?.name}</span>
+              <span className="text-text-disabled text-xs">{fx.round}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="grid md:grid-cols-3 gap-3">
+        <Field label="Mode">
+          <select value={f.mode} onChange={e => setF({ ...f, mode: e.target.value })} className="inp">
+            <option value="matchdays">Matchday (bet on the whole matchday)</option>
+            <option value="calendar">Calendar (one bet per day)</option>
+          </select>
+        </Field>
+        <Field label="Entry cost"><input type="number" value={f.entry_cost} onChange={e => setF({ ...f, entry_cost: Number(e.target.value) })} className="inp" /></Field>
+        <Field label="Min level"><select value={f.minimum_level} onChange={e => setF({ ...f, minimum_level: e.target.value })} className="inp">{LEVELS.map(l => <option key={l}>{l}</option>)}</select></Field>
+        <Field label="Min players"><input type="number" value={f.min_players} onChange={e => setF({ ...f, min_players: e.target.value })} className="inp" /></Field>
+        <Field label="Max players"><input type="number" value={f.max_players} onChange={e => setF({ ...f, max_players: e.target.value })} className="inp" /></Field>
+        <label className="flex items-center gap-2 text-sm text-text-secondary mt-5"><input type="checkbox" checked={f.is_visible} onChange={e => setF({ ...f, is_visible: e.target.checked })} /> Visible in app</label>
+      </div>
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-text-disabled">{picked.size} match(es) selected.</p>
+        <button onClick={submit} className="bg-lime-glow text-deep-navy font-bold px-5 py-2 rounded-lg">Create challenge</button>
+      </div>
     </div>
   );
 }
