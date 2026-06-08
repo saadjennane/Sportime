@@ -3,9 +3,10 @@ import {
   listCompetitions, getCompetitionDetail, createFromLeague, setStatus, updateCompetition,
   resolveCompetition, generateBracket, getLeaderboard, listSourceLeagues,
   listAnnouncements, createAnnouncement, deleteAnnouncement,
-  listLeaguesFull, searchFixtures, createMatchdayChallenge, listChallenges,
-  setChallengeStatus, setChallengeVisibility,
+  listLeaguesFull, searchFixtures, createMatchdayChallenge, createFantasyGame, listChallenges,
+  setChallengeStatus, setChallengeVisibility, listFantasyGames, setFantasyStatus, setFantasyVisibility,
 } from '../services/tournamentAdminService';
+import { RichText } from './RichText';
 
 const STATUSES = ['draft', 'open', 'running', 'resolved', 'cancelled'];
 const LEVELS = ['Rookie', 'Rising', 'Pro', 'Elite', 'Legend', 'GOAT'];
@@ -18,14 +19,15 @@ const statusColor = (s: string) =>
 export default function GameBuilder() {
   const [comps, setComps] = useState<any[]>([]);
   const [challenges, setChallenges] = useState<any[]>([]);
+  const [fantasyGames, setFantasyGames] = useState<any[]>([]);
   const [leagues, setLeagues] = useState<any[]>([]);
-  const [creating, setCreating] = useState<null | 'tq' | 'mdc'>(null);
+  const [creating, setCreating] = useState<null | 'tq' | 'betting' | 'prediction' | 'fantasy'>(null);
   const [msg, setMsg] = useState('');
   const [manageId, setManageId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', league_api_id: 0, season: 2026, entry_cost: 0, min_players: '', max_players: '', minimum_level: 'Rookie', is_visible: true, opens_at: '' });
+  const [form, setForm] = useState({ name: '', league_api_id: 0, season: 2026, entry_cost: 0, min_players: '', max_players: '', minimum_level: 'Rookie', is_visible: true, opens_at: '', rules_html: '' });
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 5000); };
-  const reload = async () => { setComps(await listCompetitions()); setChallenges(await listChallenges()); };
+  const reload = async () => { setComps(await listCompetitions()); setChallenges(await listChallenges()); setFantasyGames(await listFantasyGames()); };
   useEffect(() => { reload(); listSourceLeagues().then(setLeagues); }, []);
 
   const submit = async () => {
@@ -40,8 +42,9 @@ export default function GameBuilder() {
       opens_at: form.opens_at || null,
     });
     if (error || !(data as any)?.ok) return flash(`Failed: ${error?.message || (data as any)?.error}`);
-    setCreating(false);
-    setForm({ ...form, name: '', league_api_id: 0 });
+    if (form.rules_html) await updateCompetition((data as any).competition_id, { rules_html: form.rules_html });
+    setCreating(null);
+    setForm({ ...form, name: '', league_api_id: 0, rules_html: '' });
     await reload();
     flash(`Created: ${(data as any).groups} groups, ${(data as any).teams} teams → ${((data as any).format?.knockout_rounds || []).join(' → ')}`);
   };
@@ -53,18 +56,22 @@ export default function GameBuilder() {
           <h1 className="text-3xl font-bold text-text-primary mb-1">Game Builder</h1>
           <p className="text-text-secondary">Create and run games — Tournament Quest, from any imported league.</p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={() => setCreating(creating === 'tq' ? null : 'tq')} className={`px-4 py-2 rounded-lg font-semibold ${creating === 'tq' ? 'bg-surface-hover text-text-secondary' : 'bg-electric-blue text-white'}`}>
-            {creating === 'tq' ? 'Cancel' : '+ Tournament Quest'}
-          </button>
-          <button onClick={() => setCreating(creating === 'mdc' ? null : 'mdc')} className={`px-4 py-2 rounded-lg font-semibold ${creating === 'mdc' ? 'bg-surface-hover text-text-secondary' : 'bg-warm-yellow text-deep-navy'}`}>
-            {creating === 'mdc' ? 'Cancel' : '+ Match Day Challenge'}
-          </button>
+        <div className="flex flex-wrap gap-2">
+          {([['tq', 'Tournament Quest', 'bg-electric-blue text-white'],
+             ['betting', 'Match Day', 'bg-warm-yellow text-deep-navy'],
+             ['prediction', 'Swipe', 'bg-neon-cyan text-deep-navy'],
+             ['fantasy', 'Fantasy', 'bg-[#D500F9] text-white']] as const).map(([t, label, cls]) => (
+            <button key={t} onClick={() => setCreating(creating === t ? null : t)}
+              className={`px-3 py-2 rounded-lg font-semibold text-sm ${creating === t ? 'bg-surface-hover text-text-secondary' : cls}`}>
+              {creating === t ? 'Cancel' : `+ ${label}`}
+            </button>
+          ))}
         </div>
       </div>
       {msg && <div className="bg-electric-blue/10 border border-electric-blue/30 text-electric-blue rounded-lg px-4 py-2 text-sm">{msg}</div>}
 
-      {creating === 'mdc' && <MatchDayCreate onCreated={() => { setCreating(null); reload(); }} flash={flash} />}
+      {(creating === 'betting' || creating === 'prediction' || creating === 'fantasy') &&
+        <MatchGameCreate gameType={creating} onCreated={() => { setCreating(null); reload(); }} flash={flash} />}
 
       {creating === 'tq' && (
         <div className="bg-surface border border-border-subtle rounded-xl p-5 grid md:grid-cols-2 gap-4">
@@ -90,6 +97,10 @@ export default function GameBuilder() {
           <label className="flex items-center gap-2 text-sm text-text-secondary">
             <input type="checkbox" checked={form.is_visible} onChange={e => setForm({ ...form, is_visible: e.target.checked })} /> Visible in app
           </label>
+          <div className="md:col-span-2">
+            <span className="text-xs text-text-secondary">Rules</span>
+            <div className="mt-1"><RichText value={form.rules_html} onChange={v => setForm({ ...form, rules_html: v })} placeholder="Tournament rules, scoring, prizes…" /></div>
+          </div>
           <div className="md:col-span-2 flex items-center justify-between">
             <p className="text-xs text-text-disabled">Groups + bracket are auto‑detected from the league standings. Rewards: configured later (Reward Builder).</p>
             <button onClick={submit} className="bg-lime-glow text-deep-navy font-bold px-5 py-2 rounded-lg">Create</button>
@@ -120,7 +131,7 @@ export default function GameBuilder() {
             {challenges.map(c => (
               <tr key={c.id} className="border-b border-border-subtle/50">
                 <td className="px-4 py-3 font-medium text-text-primary">{c.name || '(untitled)'}</td>
-                <td className="text-text-secondary">Match Day Challenge <span className="text-text-disabled text-xs">({c.rules?.period_type === 'calendar' ? 'calendar' : 'matchday'})</span></td>
+                <td className="text-text-secondary">{c.game_type === 'prediction' ? 'Swipe Prediction' : 'Match Day Challenge'} <span className="text-text-disabled text-xs">({c.rules?.period_type === 'calendar' ? 'calendar' : 'matchday'})</span></td>
                 <td><span className={`text-xs px-2 py-0.5 rounded-full ${statusColor(c.status)}`}>{c.status}</span></td>
                 <td className="text-text-secondary">{c.entry_cost ?? 0}</td>
                 <td className="text-text-secondary">{c.rules?.minimum_players ?? 0} / {c.rules?.maximum_players || '∞'}</td>
@@ -133,7 +144,23 @@ export default function GameBuilder() {
                 </td>
               </tr>
             ))}
-            {comps.length === 0 && challenges.length === 0 && <tr><td colSpan={7} className="px-4 py-6 text-center text-text-disabled">No games yet. Create one above.</td></tr>}
+            {fantasyGames.map(g => (
+              <tr key={g.id} className="border-b border-border-subtle/50">
+                <td className="px-4 py-3 font-medium text-text-primary">{g.name || '(untitled)'}</td>
+                <td className="text-text-secondary">Sportime Fantasy</td>
+                <td><span className={`text-xs px-2 py-0.5 rounded-full ${statusColor(g.status?.toLowerCase())}`}>{g.status}</span></td>
+                <td className="text-text-secondary">{g.entry_cost ?? 0}</td>
+                <td className="text-text-secondary">{g.min_players ?? '—'} / {g.max_players ?? '∞'}</td>
+                <td>{g.is_visible === false ? <span className="text-text-disabled">Hidden</span> : <span className="text-lime-glow">Yes</span>}</td>
+                <td className="text-right pr-4 whitespace-nowrap">
+                  <select value={g.status} onChange={e => setFantasyStatus(g.id, e.target.value).then(reload)} className="inp inline-block w-28 mr-2">
+                    {['Upcoming', 'Ongoing', 'Finished', 'Cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <button onClick={() => setFantasyVisibility(g.id, g.is_visible === false).then(reload)} className="text-electric-blue text-xs">{g.is_visible === false ? 'Show' : 'Hide'}</button>
+                </td>
+              </tr>
+            ))}
+            {comps.length === 0 && challenges.length === 0 && fantasyGames.length === 0 && <tr><td colSpan={7} className="px-4 py-6 text-center text-text-disabled">No games yet. Create one above.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -238,13 +265,15 @@ function ManagePanel({ id, onChange, flash }: { id: string; onChange: () => void
   );
 }
 
-function MatchDayCreate({ onCreated, flash }: { onCreated: () => void; flash: (m: string) => void }) {
+const GAME_LABELS: Record<string, string> = { betting: 'Match Day Challenge', prediction: 'Swipe Prediction', fantasy: 'Sportime Fantasy' };
+
+function MatchGameCreate({ gameType, onCreated, flash }: { gameType: 'betting' | 'prediction' | 'fantasy'; onCreated: () => void; flash: (m: string) => void }) {
   const [leagues, setLeagues] = useState<any[]>([]);
   const [sel, setSel] = useState<Set<string>>(new Set()); // league ids
   const [from, setFrom] = useState(''); const [to, setTo] = useState('');
   const [fixtures, setFixtures] = useState<any[]>([]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [f, setF] = useState({ name: '', mode: 'matchdays', entry_cost: 0, min_players: '', max_players: '', minimum_level: 'Rookie', is_visible: true });
+  const [f, setF] = useState({ name: '', mode: 'matchdays', entry_cost: 0, min_players: '', max_players: '', minimum_level: 'Rookie', is_visible: true, rules_html: '' });
 
   useEffect(() => { listLeaguesFull().then(setLeagues); }, []);
   const toggleLeague = (id: string) => setSel(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -256,19 +285,24 @@ function MatchDayCreate({ onCreated, flash }: { onCreated: () => void; flash: (m
 
   const submit = async () => {
     if (!f.name || picked.size === 0) return flash('Name and at least one match are required');
-    const { data, error } = await createMatchdayChallenge({
+    const payload = {
       name: f.name, league_ids: [...sel], fixture_ids: [...picked], mode: f.mode,
       entry_cost: Number(f.entry_cost) || 0, min_players: Number(f.min_players) || 0,
       max_players: Number(f.max_players) || 0, minimum_level: f.minimum_level, is_visible: f.is_visible,
-    });
+      rules_html: f.rules_html || null,
+    };
+    const { data, error } = gameType === 'fantasy'
+      ? await createFantasyGame(payload)
+      : await createMatchdayChallenge({ ...payload, game_type: gameType });
     if (error || !(data as any)?.ok) return flash(`Failed: ${error?.message || (data as any)?.error}`);
-    flash(`Created: ${(data as any).matchdays} matchdays, ${(data as any).fixtures} matches (${(data as any).mode})`);
+    const d = data as any;
+    flash(`Created: ${d.gameweeks ?? d.matchdays} ${gameType === 'fantasy' ? 'gameweeks' : 'matchdays'}, ${d.fixtures} matches (${d.mode})`);
     onCreated();
   };
 
   return (
     <div className="bg-surface border border-border-subtle rounded-xl p-5 space-y-4">
-      <h3 className="font-bold text-text-primary">New Match Day Challenge</h3>
+      <h3 className="font-bold text-text-primary">New {GAME_LABELS[gameType]}</h3>
       <div className="grid md:grid-cols-3 gap-3">
         <Field label="Name"><input value={f.name} onChange={e => setF({ ...f, name: e.target.value })} className="inp" /></Field>
         <Field label="From"><input type="date" value={from} onChange={e => setFrom(e.target.value)} className="inp" /></Field>
@@ -309,9 +343,13 @@ function MatchDayCreate({ onCreated, flash }: { onCreated: () => void; flash: (m
         <Field label="Max players"><input type="number" value={f.max_players} onChange={e => setF({ ...f, max_players: e.target.value })} className="inp" /></Field>
         <label className="flex items-center gap-2 text-sm text-text-secondary mt-5"><input type="checkbox" checked={f.is_visible} onChange={e => setF({ ...f, is_visible: e.target.checked })} /> Visible in app</label>
       </div>
+      <div>
+        <span className="text-xs text-text-secondary">Rules</span>
+        <div className="mt-1"><RichText value={f.rules_html} onChange={v => setF({ ...f, rules_html: v })} placeholder="Game rules, scoring, prizes…" /></div>
+      </div>
       <div className="flex items-center justify-between">
         <p className="text-xs text-text-disabled">{picked.size} match(es) selected.</p>
-        <button onClick={submit} className="bg-lime-glow text-deep-navy font-bold px-5 py-2 rounded-lg">Create challenge</button>
+        <button onClick={submit} className="bg-lime-glow text-deep-navy font-bold px-5 py-2 rounded-lg">Create {GAME_LABELS[gameType]}</button>
       </div>
     </div>
   );
