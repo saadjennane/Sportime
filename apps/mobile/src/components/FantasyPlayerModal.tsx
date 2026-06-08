@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { FantasyPlayer, PlayerPosition } from '../types';
-import { X, Search } from 'lucide-react';
+import { X, Search, Info } from 'lucide-react';
 import { CategoryIcon } from './fantasy/CategoryIcon';
+import { FantasyPlayerStatsModal } from './fantasy/FantasyPlayerStatsModal';
 
 interface FantasyPlayerModalProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ interface FantasyPlayerModalProps {
 
 export const FantasyPlayerModal: React.FC<FantasyPlayerModalProps> = ({ isOpen, onClose, position, allPlayers, onSelectPlayer, selectedPlayerIds = [] }) => {
   const takenIds = new Set(selectedPlayerIds);
+  const [statsPlayer, setStatsPlayer] = useState<FantasyPlayer | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   
   const availablePlayers = useMemo(() => {
@@ -55,34 +57,38 @@ export const FantasyPlayerModal: React.FC<FantasyPlayerModalProps> = ({ isOpen, 
           ) : availablePlayers.map(player => {
             const taken = takenIds.has(player.id);
             return (
-            <button
+            <div
               key={player.id}
-              onClick={() => { if (!taken) { onSelectPlayer(player); onClose(); } }}
-              disabled={taken}
-              className={`w-full flex items-center gap-3 p-3 bg-deep-navy border border-white/5 rounded-xl transition-colors text-left ${taken ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white/5'}`}
+              className={`w-full flex items-center gap-2 p-2 bg-deep-navy border border-white/5 rounded-xl ${taken ? 'opacity-40' : ''}`}
             >
-              <img
-                src={player.photo || `https://api.dicebear.com/8.x/bottts/svg?seed=${player.id}`}
-                alt={player.name}
-                className="w-11 h-11 rounded-full object-cover bg-navy-accent flex-shrink-0"
-              />
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-sm text-text-primary truncate">{player.name}</p>
-                <p className="text-xs text-text-secondary truncate">{player.teamName}</p>
-              </div>
-              <div className="text-center w-10 flex-shrink-0">
-                <CategoryIcon category={player.status} />
-                <p className="text-xs font-semibold text-text-primary">{player.pgs.toFixed(1)}</p>
-              </div>
-              <div className="text-center w-12 flex-shrink-0">
-                <p className="text-[10px] text-text-disabled">Fatigue</p>
-                <p className="font-bold text-sm text-text-primary">{player.fatigue}%</p>
-              </div>
-            </button>
+              <button
+                onClick={() => { if (!taken) { onSelectPlayer(player); onClose(); } }}
+                disabled={taken}
+                className={`flex-1 flex items-center gap-3 min-w-0 text-left ${taken ? 'cursor-not-allowed' : ''}`}
+              >
+                <img
+                  src={player.photo || `https://api.dicebear.com/8.x/bottts/svg?seed=${player.id}`}
+                  alt={player.name}
+                  className="w-11 h-11 rounded-full object-cover bg-navy-accent flex-shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-sm text-text-primary truncate">{player.name}</p>
+                  <p className="text-xs text-text-secondary truncate">{player.teamName} · {player.fatigue}% fit</p>
+                </div>
+                <div className="text-center w-10 flex-shrink-0">
+                  <CategoryIcon category={player.status} />
+                  <p className="text-xs font-semibold text-text-primary">{player.pgs.toFixed(1)}</p>
+                </div>
+              </button>
+              <button onClick={() => setStatsPlayer(player)} title="Stats"
+                className="p-2 text-text-secondary hover:bg-white/10 rounded-full flex-shrink-0"><Info size={18} /></button>
+            </div>
             );
           })}
         </div>
       </div>
+
+      <FantasyPlayerStatsModal isOpen={!!statsPlayer} onClose={() => setStatsPlayer(null)} player={statsPlayer} />
     </div>
   );
 };

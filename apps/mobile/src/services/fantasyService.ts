@@ -587,3 +587,14 @@ export async function getFantasyLeaderboardForWeeks(
   }
   return Array.from(map.values());
 }
+
+/** Recent form + aggregated stats for a player (for the stats modal). */
+export async function getFantasyPlayerStats(playerId: string): Promise<{
+  recent: { date: string; rating: number; position: string; goals: number; assists: number; minutes: number }[];
+  totals: Record<string, number> | null;
+} | null> {
+  if (!supabase) return null;
+  const { data, error } = await supabase.rpc('get_fantasy_player_stats', { p_player_id: playerId });
+  if (error) { console.error('[fantasyService] getFantasyPlayerStats', error); return null; }
+  return (data as any) ?? null;
+}

@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { FantasyGame, UserFantasyTeam, FantasyPlayer, PlayerPosition, Booster, Profile, UserLeague, LeagueMember, LeagueGame, Game } from '../../types';
-import { Info, Trophy, X, Check, Target, ArrowLeft, Replace } from 'lucide-react';
+import { Info, Trophy, X, Check, Target, ArrowLeft, Replace, Trash2 } from 'lucide-react';
 import { FantasyPlayerModal } from '../components/FantasyPlayerModal';
+import { FantasyPlayerStatsModal } from '../components/fantasy/FantasyPlayerStatsModal';
 import { FantasyLeaderboardModal } from '../components/FantasyLeaderboardModal';
 import { mockBoosters } from '../data/mockFantasy.tsx';
 import { BoosterSelectionModal } from '../components/BoosterSelectionModal';
@@ -41,6 +42,8 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
   const [selectedMatchDayId, setSelectedMatchDayId] = useState(initialLeagueContext ? game.gameWeeks[game.gameWeeks.length - 1].id : (game.gameWeeks.find(gw => gw.status === 'live')?.id || game.gameWeeks.find(gw => gw.status === 'upcoming')?.id || game.gameWeeks[0].id));
   
   const [editingSlot, setEditingSlot] = useState<{ position: PlayerPosition; playerToReplaceId: string | null; isBench?: boolean } | null>(null);
+  const [actionSheet, setActionSheet] = useState<{ player: FantasyPlayer; position: PlayerPosition } | null>(null);
+  const [statsPlayer, setStatsPlayer] = useState<FantasyPlayer | null>(null);
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(!!initialLeagueContext);
   const [isBoosterModalOpen, setIsBoosterModalOpen] = useState(false);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
@@ -160,9 +163,25 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
       } else {
         setSelectedForSwap(null);
       }
+    } else if (player) {
+      // Filled pitch slot -> action sheet (Stats / Replace / Remove).
+      setActionSheet({ player, position });
     } else {
-      setEditingSlot({ position, playerToReplaceId: player?.id || null, isBench: false });
+      setEditingSlot({ position, playerToReplaceId: null, isBench: false });
     }
+  };
+
+  const handleRemoveFromFormation = (p: FantasyPlayer) => {
+    if (isLiveOrFinished) return;
+    const newPositions = { ...(userTeam.playerPositions || {}) };
+    delete newPositions[p.id];
+    handleUpdateUserTeam({
+      ...userTeam,
+      starters: userTeam.starters.filter(id => id !== p.id),
+      substitutes: userTeam.substitutes.filter(id => id !== p.id),
+      captain_id: userTeam.captain_id === p.id ? '' : userTeam.captain_id,
+      playerPositions: newPositions,
+    });
   };
 
   const handleBenchSlotClick = (position: PlayerPosition, player: FantasyPlayer | null) => {
@@ -313,6 +332,27 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
 
       {/* MODALS */}
       <FantasyPlayerModal isOpen={!!editingSlot} onClose={() => setEditingSlot(null)} position={editingSlot?.position || 'Attacker'} allPlayers={allPlayers} onSelectPlayer={handleSelectPlayerFromModal} selectedPlayerIds={[...userTeam.starters, ...userTeam.substitutes]} />
+
+      {/* Action sheet for a player already in the formation */}
+      {actionSheet && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 z-[55] animate-scale-in" onClick={() => setActionSheet(null)}>
+          <div className="bg-navy-accent rounded-2xl w-full max-w-sm p-4 border border-white/10" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-2 pb-3 border-b border-white/10">
+              <img src={actionSheet.player.photo || `https://api.dicebear.com/8.x/bottts/svg?seed=${actionSheet.player.id}`} alt="" className="w-10 h-10 rounded-full object-cover bg-deep-navy" />
+              <p className="font-bold text-text-primary truncate">{actionSheet.player.name}</p>
+            </div>
+            <button onClick={() => { setStatsPlayer(actionSheet.player); setActionSheet(null); }} className="w-full text-left px-3 py-3 rounded-lg hover:bg-white/5 text-text-primary font-semibold flex items-center gap-3"><Info size={18} /> Stats</button>
+            {!isLiveOrFinished && (
+              <button onClick={() => { setEditingSlot({ position: actionSheet.position, playerToReplaceId: actionSheet.player.id, isBench: false }); setActionSheet(null); }} className="w-full text-left px-3 py-3 rounded-lg hover:bg-white/5 text-text-primary font-semibold flex items-center gap-3"><Replace size={18} /> Replace</button>
+            )}
+            {!isLiveOrFinished && (
+              <button onClick={() => { handleRemoveFromFormation(actionSheet.player); setActionSheet(null); }} className="w-full text-left px-3 py-3 rounded-lg hover:bg-hot-red/10 text-hot-red font-semibold flex items-center gap-3"><Trash2 size={18} /> Remove</button>
+            )}
+            <button onClick={() => setActionSheet(null)} className="w-full text-center px-3 py-2.5 mt-1 text-text-secondary font-semibold">Cancel</button>
+          </div>
+        </div>
+      )}
+      <FantasyPlayerStatsModal isOpen={!!statsPlayer} onClose={() => setStatsPlayer(null)} player={statsPlayer} />
       <FantasyLeaderboardModal isOpen={isLeaderboardOpen} onClose={() => setIsLeaderboardOpen(false)} game={game} initialLeagueContext={initialLeagueContext} allUsers={allUsers} userLeagues={userLeagues} leagueMembers={leagueMembers} leagueGames={leagueGames} currentUserId={currentUserId} />
       <BoosterSelectionModal isOpen={isBoosterModalOpen} onClose={() => setIsBoosterModalOpen(false)} boosters={mockBoosters} onSelect={handleBoosterSelect} teamPlayers={starters} />
       <FantasyRulesModal isOpen={isRulesModalOpen} onClose={() => setIsRulesModalOpen(false)} />
