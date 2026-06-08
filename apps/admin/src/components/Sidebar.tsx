@@ -37,7 +37,7 @@ export function Sidebar({ className = '' }: SidebarProps) {
     { to: '/fixtures', icon: Calendar, label: 'Fixtures' },
     { to: '/swipe', icon: Zap, label: 'Swipe Games' },
     { to: '/fantasy', icon: Gamepad2, label: 'Fantasy' },
-    { to: '/tournament', icon: Trophy, label: 'Tournament' },
+    { to: '/tournament', icon: Trophy, label: 'Game Builder' },
     { to: '/progression', icon: Star, label: 'Progression' },
     { to: '/data-sync', icon: DatabaseZap, label: 'Data Sync' },
     { to: '/bookmaker', icon: DollarSign, label: 'Bookmakers' },

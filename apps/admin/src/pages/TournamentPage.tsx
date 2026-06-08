@@ -1,5 +1,5 @@
-import TournamentAdmin from '../components/TournamentAdmin';
+import GameBuilder from '../components/GameBuilder';
 
 export function TournamentPage() {
-  return <TournamentAdmin />;
+  return <GameBuilder />;
 }
