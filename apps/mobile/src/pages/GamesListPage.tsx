@@ -113,6 +113,7 @@ interface GamesListPageProps {
   userChallengeEntries: UserChallengeEntry[];
   userSwipeEntries: UserSwipeEntry[];
   userFantasyTeams: UserFantasyTeam[];
+  joinedGameIds?: Set<string>;
   onJoinChallenge: (challenge: SportimeGame) => void;
   onViewChallenge: (challengeId: string) => void;
   onJoinSwipeGame: (gameId: string) => void;
@@ -127,7 +128,7 @@ interface GamesListPageProps {
 }
 
 const GamesListPage: React.FC<GamesListPageProps> = (props) => {
-  const { games, userChallengeEntries, userSwipeEntries, userFantasyTeams, onJoinChallenge, onViewChallenge, onJoinSwipeGame, onPlaySwipeGame, onViewFantasyGame, onViewTournament, profile, userTickets, onRefresh, onShowLiveGames } = props;
+  const { games, userChallengeEntries, userSwipeEntries, userFantasyTeams, joinedGameIds, onJoinChallenge, onViewChallenge, onJoinSwipeGame, onPlaySwipeGame, onViewFantasyGame, onViewTournament, profile, userTickets, onRefresh, onShowLiveGames } = props;
 
   const [activeTab, setActiveTab] = useState<GamesTab>('my-games');
   const [filters, setFilters] = useState<GameFilters>({
@@ -146,8 +147,9 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
     userChallengeEntries.forEach(e => ids.add(e.challengeId));
     userSwipeEntries.forEach(e => ids.add(e.matchDayId));
     userFantasyTeams.forEach(e => ids.add(e.gameId));
+    joinedGameIds?.forEach(id => ids.add(id)); // tournament (and other) joins from the catalog
     return ids;
-  }, [userChallengeEntries, userSwipeEntries, userFantasyTeams, profile]);
+  }, [userChallengeEntries, userSwipeEntries, userFantasyTeams, joinedGameIds, profile]);
 
   const processedGames = useMemo(() => {
     return games
@@ -324,6 +326,11 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       }
       // Entry still open
       return 'JOIN';
+    }
+
+    // Tournament: joined -> always a "play/predict" action (or results if finished)
+    if (game.game_type === 'tournament') {
+      return (realStatus === 'Finished' || realStatus === 'Cancelled') ? 'RESULTS' : 'MAKE_PREDICTIONS';
     }
 
     // USER HAS JOINED - use unified calculateGameState for ALL game types
