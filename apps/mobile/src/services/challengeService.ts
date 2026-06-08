@@ -1119,6 +1119,24 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
     const fantasyGames = await getFantasyCatalogGames()
     if (fantasyGames.length > 0) {
       catalog.games = [...catalog.games, ...(fantasyGames as unknown as SportimeGame[])]
+      // Mark fantasy games the user joined (challenge_participants). mapParticipantEntries
+      // skips them because they live in fantasy_games, not the `challenges` table.
+      const fantasyGameIds = new Set(fantasyGames.map(g => g.id))
+      if (userId) {
+        for (const p of participants) {
+          if (p.user_id === userId && fantasyGameIds.has(p.challenge_id)) {
+            finalParticipation.joinedIds.add(p.challenge_id)
+            if (!finalParticipation.userFantasyTeams.some(t => t.gameId === p.challenge_id)) {
+              finalParticipation.userFantasyTeams.push({
+                userId: p.user_id,
+                gameId: p.challenge_id,
+                gameWeekId: p.challenge_id,
+                starters: [], substitutes: [], captain_id: '', booster_used: null, fatigue_state: {},
+              } as unknown as UserFantasyTeam)
+            }
+          }
+        }
+      }
     }
   } catch (e) {
     console.warn('[challengeService] Failed to load fantasy catalog games', e)

@@ -155,21 +155,8 @@ const LeaguePage: React.FC<LeaguePageProps> = (props) => {
         </div>
         <div className="flex-grow min-w-0">
           <h2 className="text-lg font-bold text-text-primary truncate leading-tight">{league.name}</h2>
-          <button onClick={() => setIsManageModalOpen(true)} className="flex items-center gap-1.5 mt-1.5">
-            <div className="flex -space-x-2">
-              {members.slice(0, 5).map(member => (
-                <img
-                  key={member.id}
-                  src={member.profile_picture_url || `https://api.dicebear.com/8.x/bottts/svg?seed=${member.id}`}
-                  alt={member.username || 'user'}
-                  className="w-6 h-6 rounded-full object-cover bg-deep-navy border-2 border-navy-accent"
-                />
-              ))}
-              {members.length > 5 && (
-                <span className="w-6 h-6 rounded-full bg-deep-navy border-2 border-navy-accent flex items-center justify-center text-[9px] font-bold text-text-secondary">+{members.length - 5}</span>
-              )}
-            </div>
-            <span className="text-xs font-semibold text-text-secondary">{members.length} member{members.length > 1 ? 's' : ''}</span>
+          <button onClick={() => setIsManageModalOpen(true)} className="mt-0.5 text-xs font-semibold text-text-secondary hover:text-text-primary">
+            {members.length} member{members.length > 1 ? 's' : ''}
           </button>
         </div>
         <div className="flex-shrink-0 flex items-center gap-2">
