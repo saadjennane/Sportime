@@ -513,3 +513,50 @@ export async function syncLeagueFixtures(
     return { success: false, error: error.message }
   }
 }
+
+/**
+ * Full import for one league/season: league -> teams -> players (per team) -> fixtures.
+ * Used by the bulk import so every imported league gets its full dataset.
+ */
+export async function syncLeagueFull(
+  leagueApiId: number,
+  season: number = 2025,
+  onProgress?: SyncProgressCallback
+): Promise<{ success: boolean; error?: string; teamsCount?: number; playersCount?: number; fixturesCount?: number }> {
+  // 1) League
+  const lr = await syncLeague(leagueApiId, season, onProgress)
+  if (!lr.success || !lr.leagueId) return { success: false, error: lr.error || 'league sync failed' }
+  const leagueId = lr.leagueId
+
+  // 2) Teams
+  const tr = await syncLeagueTeams(leagueId, leagueApiId, season, onProgress)
+
+  // 3) Players (squad per team)
+  let playersCount = 0
+  const { data: parts } = await supabase
+    .from('fb_team_league_participation')
+    .select('team_id')
+    .eq('league_id', leagueId)
+    .eq('season', season)
+  const teamIds = (parts ?? []).map((p: any) => p.team_id)
+  let teams: { id: string; api_id: number }[] = []
+  if (teamIds.length > 0) {
+    const { data: t } = await supabase.from('fb_teams').select('id, api_id').in('id', teamIds)
+    teams = (t ?? []) as any[]
+  }
+  for (let i = 0; i < teams.length; i++) {
+    onProgress?.({ step: 'players', current: i + 1, total: teams.length, message: `Players ${i + 1}/${teams.length}...` })
+    const pr = await syncTeamPlayers(teams[i].id, teams[i].api_id, season)
+    if (pr.success) playersCount += pr.playersCount ?? 0
+  }
+
+  // 4) Fixtures
+  const fr = await syncLeagueFixtures(leagueId, leagueApiId, season, onProgress)
+
+  return {
+    success: true,
+    teamsCount: tr.teamsCount,
+    playersCount,
+    fixturesCount: fr.fixturesCount,
+  }
+}
