@@ -294,14 +294,12 @@ export function useFantasyTeam(
 
   const handleSaveTeam = useCallback(
     async (teamToSave: UserFantasyTeam): Promise<boolean> => {
+      setTeam(teamToSave); // optimistic: reflect the change immediately
       setIsSaving(true);
       setError(null);
 
       try {
         const success = await saveUserFantasyTeam(teamToSave);
-        if (success) {
-          setTeam(teamToSave);
-        }
         return success;
       } catch (err: any) {
         console.error('[useFantasyTeam] Save error:', err);

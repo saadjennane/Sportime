@@ -40,7 +40,7 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
   
   const [selectedMatchDayId, setSelectedMatchDayId] = useState(initialLeagueContext ? game.gameWeeks[game.gameWeeks.length - 1].id : (game.gameWeeks.find(gw => gw.status === 'live')?.id || game.gameWeeks.find(gw => gw.status === 'upcoming')?.id || game.gameWeeks[0].id));
   
-  const [editingSlot, setEditingSlot] = useState<{ position: PlayerPosition; playerToReplaceId: string | null } | null>(null);
+  const [editingSlot, setEditingSlot] = useState<{ position: PlayerPosition; playerToReplaceId: string | null; isBench?: boolean } | null>(null);
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(!!initialLeagueContext);
   const [isBoosterModalOpen, setIsBoosterModalOpen] = useState(false);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
@@ -53,7 +53,13 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
   const isFinished = selectedGameWeek.status === 'finished';
   const isLiveOrFinished = isLive || isFinished;
   
-  const { team: userTeam, saveTeam } = useFantasyTeam(currentUserId, selectedMatchDayId);
+  const { team: rawTeam, saveTeam } = useFantasyTeam(currentUserId, selectedMatchDayId);
+  // Compose against a real team, or a fresh empty one when none exists yet.
+  const userTeam: UserFantasyTeam = useMemo(() => rawTeam ?? {
+    userId: currentUserId, gameId: game.id, gameWeekId: selectedMatchDayId,
+    starters: [], substitutes: [], captain_id: '', booster_used: null,
+    fatigue_state: {}, playerPositions: {},
+  }, [rawTeam, currentUserId, game.id, selectedMatchDayId]);
 
   // Real per-player match stats for this game week (replaces mock stats).
   const [gwStats, setGwStats] = useState<Record<string, any>>({});
@@ -155,7 +161,7 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
         setSelectedForSwap(null);
       }
     } else {
-      setEditingSlot({ position, playerToReplaceId: player?.id || null });
+      setEditingSlot({ position, playerToReplaceId: player?.id || null, isBench: false });
     }
   };
 
@@ -164,7 +170,7 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
     if (player) {
       setSelectedForSwap(current => (current?.id === player.id ? null : player));
     } else {
-      setEditingSlot({ position, playerToReplaceId: null });
+      setEditingSlot({ position, playerToReplaceId: null, isBench: true });
     }
   };
 
@@ -197,6 +203,15 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
                 newSubstitutesIds[subIndex] = selectedPlayer.id;
                 handleUpdateUserTeam({ ...userTeam, substitutes: newSubstitutesIds, playerPositions: newPositions });
             }
+        }
+    } else {
+        // Empty slot -> add the player to the formation.
+        if (editingSlot.isBench) {
+            newSubstitutesIds.push(selectedPlayer.id);
+            handleUpdateUserTeam({ ...userTeam, substitutes: newSubstitutesIds, playerPositions: newPositions });
+        } else {
+            newStartersIds.push(selectedPlayer.id);
+            handleUpdateUserTeam({ ...userTeam, starters: newStartersIds, playerPositions: newPositions });
         }
     }
     setEditingSlot(null);
