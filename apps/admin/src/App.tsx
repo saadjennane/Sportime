@@ -1,5 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
+import { AuthGate } from './components/AuthGate';
+import { TournamentPage } from './pages/TournamentPage';
 import { Dashboard } from './pages/Dashboard';
 import { LeaguesPage } from './pages/LeaguesPage';
 import { TeamsPage } from './pages/TeamsPage';
@@ -16,9 +18,11 @@ import { LiveGameConfigPage } from './pages/LiveGameConfigPage';
 
 function App() {
   return (
+    <AuthGate>
     <Layout>
       <Routes>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/tournament" element={<TournamentPage />} />
         <Route path="/leagues" element={<LeaguesPage />} />
         <Route path="/teams" element={<TeamsPage />} />
         <Route path="/players" element={<PlayersPage />} />
@@ -34,6 +38,7 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
+    </AuthGate>
   );
 }
 
