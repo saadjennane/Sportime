@@ -265,7 +265,8 @@ serve(async (req) => {
         fouls_suffered: stat.fouls_drawn || 0,
         penalties_saved: stat.penalties_saved || 0,
         rating: stat.rating || 0,
-      })
+        position: stat.position || null, // REAL position played this match (scoring B)
+      } as any)
     })
 
     // 3b. Get all fantasy league players for this league (for status/category lookup)
@@ -348,9 +349,12 @@ serve(async (req) => {
         }
 
         if (stats) {
+          // Scoring (B): use the position the player ACTUALLY played this match
+          // (player_match_stats.position), falling back to their primary position.
+          const scoringPosition = mapPosition((stats as any).position || player.position) as PlayerPosition
           const points = computePlayerPoints(
             stats,
-            mapPosition(player.position) as PlayerPosition,
+            scoringPosition,
             fatigue,
             isCaptain,
             isDoubleImpactActive
