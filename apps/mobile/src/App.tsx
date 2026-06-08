@@ -819,11 +819,13 @@ function App() {
     setActiveFantasyGameId(gameId);
   };
 
-  const handleViewTournament = (competitionId: string) => {
+  const handleViewTournament = async (competitionId: string) => {
     if (!profile || isGuest) { handleTriggerSignUp(); return; }
-    // create the entry (free) so it shows in My Games; ignore if it already exists
-    import('./services/tournamentService').then(m => m.joinTournament(profile.id, competitionId)).catch(() => {});
     setActiveTournamentId(competitionId);
+    // create the entry (free) so it shows in My Games, then refresh the catalog
+    const { joinTournament } = await import('./services/tournamentService');
+    await joinTournament(profile.id, competitionId).catch(() => {});
+    refreshChallenges();
   };
   
   const handleCreateLeague = async (name: string, description: string, image_url: string | null) => {
