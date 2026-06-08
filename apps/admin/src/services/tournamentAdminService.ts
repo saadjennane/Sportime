@@ -57,3 +57,43 @@ export async function advanceRound(competitionId: string, fromRound: string) {
 export async function resolveCompetition(competitionId: string) {
   return supabase.rpc('tq_admin_resolve', { p_comp: competitionId });
 }
+
+// ── Game Builder ─────────────────────────────────────────────────────────────
+export async function createFromLeague(p: {
+  name: string; league_api_id: number; season: number; entry_cost: number;
+  min_players: number | null; max_players: number | null; minimum_level: string;
+  is_visible: boolean; opens_at: string | null;
+}) {
+  return supabase.functions.invoke('tq-create-from-league', { body: p });
+}
+
+export async function setStatus(id: string, status: string) {
+  return supabase.from('tq_competitions').update({ status }).eq('id', id);
+}
+
+export async function getLeaderboard(competitionId: string) {
+  const { data } = await supabase.from('tq_leaderboard')
+    .select('rank, total_score, username').eq('competition_id', competitionId).order('rank').limit(50);
+  return data ?? [];
+}
+
+export async function listAnnouncements(competitionId: string) {
+  const { data } = await supabase.from('tq_announcements')
+    .select('*').eq('competition_id', competitionId).order('created_at', { ascending: false });
+  return data ?? [];
+}
+export async function createAnnouncement(p: { competition_id: string; title: string; body: string; phase_key: string | null; celebrate: boolean; publish: boolean }) {
+  return supabase.from('tq_announcements').insert({
+    competition_id: p.competition_id, title: p.title, body: p.body, phase_key: p.phase_key,
+    celebrate: p.celebrate, published_at: p.publish ? new Date().toISOString() : null,
+  });
+}
+export async function deleteAnnouncement(id: string) {
+  return supabase.from('tq_announcements').delete().eq('id', id);
+}
+
+/** Leagues available as a Tournament Quest source (national-team cups have standings groups). */
+export async function listSourceLeagues() {
+  const { data } = await supabase.from('fb_leagues').select('api_id, name').order('name');
+  return data ?? [];
+}
