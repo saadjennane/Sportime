@@ -22,7 +22,7 @@ export interface TQEntry {
 }
 export interface TQCompetition {
   id: string; name: string; slug: string; status: string; start_date: string | null; end_date: string | null;
-  config: any; format: TQFormat; groups: TQGroup[]; officialMatches: TQMatch[];
+  config: any; format: TQFormat; groups: TQGroup[]; officialMatches: TQMatch[]; knockoutMatches: TQMatch[];
   phaseState: Record<string, { state: string; locks_at: string | null }>;
 }
 export interface TQLeaderboardRow { rank: number; total_score: number; tiebreak_delta: number | null; username: string | null; avatar: string | null; user_id: string; }
@@ -53,11 +53,13 @@ export async function getTournament(competitionId: string): Promise<TQCompetitio
   const { data: comp } = await supabase.from('tq_competitions').select('*').eq('id', competitionId).single();
   if (!comp) return null;
 
-  const [{ data: fmt }, { data: groupRows }, { data: gtRows }, { data: matchRows }, { data: windows }] = await Promise.all([
+  const teamJoin = '*, team_a:team_a_id(id,name,short_name,flag_url), team_b:team_b_id(id,name,short_name,flag_url)';
+  const [{ data: fmt }, { data: groupRows }, { data: gtRows }, { data: matchRows }, { data: koRows }, { data: windows }] = await Promise.all([
     supabase.rpc('tq_detect_format', { p_competition_id: competitionId }),
     supabase.from('tq_groups').select('*').eq('competition_id', competitionId).order('sort_order'),
     supabase.from('tq_group_teams').select('group_id, seed_order, team:tq_teams(id, name, short_name, flag_url)').order('seed_order'),
-    supabase.from('tq_matches').select('*, team_a:team_a_id(id,name,short_name,flag_url), team_b:team_b_id(id,name,short_name,flag_url)').eq('competition_id', competitionId).eq('is_official_quest_match', true).order('start_time'),
+    supabase.from('tq_matches').select(teamJoin).eq('competition_id', competitionId).eq('is_official_quest_match', true).order('start_time'),
+    supabase.from('tq_matches').select(teamJoin).eq('competition_id', competitionId).not('knockout_round', 'is', null).order('bracket_slot'),
     supabase.from('tq_phase_windows').select('phase_key, state, locks_at').eq('competition_id', competitionId),
   ]);
 
@@ -75,7 +77,8 @@ export async function getTournament(competitionId: string): Promise<TQCompetitio
   return {
     id: comp.id, name: comp.name, slug: comp.slug, status: comp.status,
     start_date: comp.start_date, end_date: comp.end_date, config: comp.config_json,
-    format: fmt as TQFormat, groups, officialMatches: (matchRows ?? []) as any[], phaseState,
+    format: fmt as TQFormat, groups, officialMatches: (matchRows ?? []) as any[],
+    knockoutMatches: (koRows ?? []) as any[], phaseState,
   };
 }
 

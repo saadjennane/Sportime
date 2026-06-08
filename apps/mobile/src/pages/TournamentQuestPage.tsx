@@ -3,7 +3,7 @@ import { ArrowLeft, Trophy, Lock, Check, X, Clock, Star, Crown, Medal } from 'lu
 import {
   TQCompetition, TQEntry, TQLeaderboardRow, TQTeam,
   getTournament, getMyTournamentEntry, getTournamentLeaderboard, isPhaseOpen,
-  saveLongTerm, saveGroupPrediction, saveDailyPrediction,
+  saveLongTerm, saveGroupPrediction, saveDailyPrediction, saveBracketPrediction,
 } from '../services/tournamentService';
 
 interface Props { competitionId: string; userId: string; onBack: () => void; }
@@ -84,7 +84,7 @@ export const TournamentQuestPage: React.FC<Props> = ({ competitionId, userId, on
         {tab === 'picks' && <PicksSection comp={comp} entry={entry} allTeams={allTeams} onSaved={() => { reload(); flash('Picks saved'); }} flash={flash} />}
         {tab === 'groups' && <GroupsSection comp={comp} entry={entry} onSaved={() => { reload(); flash('Group saved'); }} flash={flash} />}
         {tab === 'daily' && <DailySection comp={comp} entry={entry} onSaved={() => { reload(); flash('Prediction saved'); }} flash={flash} />}
-        {tab === 'bracket' && <BracketSection comp={comp} />}
+        {tab === 'bracket' && <BracketSection comp={comp} entry={entry} onSaved={() => { reload(); flash('Bracket saved'); }} flash={flash} />}
       </div>
 
       {toast && <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-electric-blue text-deep-navy font-bold px-4 py-2 rounded-full text-sm z-50 animate-scale-in">{toast}</div>}
@@ -263,30 +263,80 @@ const Seg: React.FC<{ options: [string, string][]; value: string | null; onChang
   </div>
 );
 
-// ── Bracket ──────────────────────────────────────────────────────────────────
-const BracketSection: React.FC<{ comp: TQCompetition }> = ({ comp }) => {
+// ── Bracket (living: predict the advancing team per tie, round by round) ─────
+const BracketSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onSaved: () => void; flash: (m: string) => void }> = ({ comp, entry, onSaved, flash }) => {
   const rounds = comp.format.knockout_rounds;
-  const anyOpen = rounds.some(r => isPhaseOpen(comp, r));
+  const matchesOf = (r: string) => comp.knockoutMatches.filter(m => m.knockout_round === r);
+
+  // local picks: round -> { matchId -> winnerTeamId }
+  const init: Record<string, Record<string, string>> = {};
+  for (const r of rounds) {
+    init[r] = {};
+    const picked = (entry?.bracketPicks ?? []).filter(p => p.round_key === r).map(p => p.predicted_winner_team_id);
+    for (const m of matchesOf(r)) {
+      const w = picked.find(id => id === m.team_a?.id || id === m.team_b?.id);
+      if (w) init[r][m.id] = w;
+    }
+  }
+  const [picks, setPicks] = useState(init);
+  const setWinner = (round: string, matchId: string, teamId: string) =>
+    setPicks(p => ({ ...p, [round]: { ...p[round], [matchId]: teamId } }));
+
+  const saveRound = async (round: string) => {
+    const winners = matchesOf(round).map(m => picks[round]?.[m.id]).filter(Boolean) as string[];
+    const { error } = await saveBracketPrediction(comp.id, round, winners);
+    if (error) flash(error.message); else onSaved();
+  };
+
+  const anyPlayable = rounds.some(r => matchesOf(r).length > 0);
+
   return (
-    <div className="space-y-3">
-      {!anyOpen && <LockedBanner text="The living bracket opens after the group stage. You'll predict the qualifiers round by round." />}
-      <div className="bg-navy-accent rounded-xl p-4">
-        <h3 className="font-bold mb-3 flex items-center gap-2"><Trophy size={18} className="text-warm-yellow" /> Knockout rounds</h3>
-        <div className="space-y-2">
-          {rounds.map(r => {
-            const w = comp.phaseState[r];
-            const open = isPhaseOpen(comp, r);
-            return (
-              <div key={r} className="flex items-center justify-between px-3 py-2.5 bg-deep-navy rounded-lg">
-                <span className="font-semibold text-sm">{ROUND_LABEL[r] ?? r}</span>
-                <span className={`text-[11px] font-bold flex items-center gap-1 ${open ? 'text-lime-glow' : 'text-text-disabled'}`}>
-                  {open ? <>Open</> : <><Lock size={11} /> {w?.state ?? 'Locked'}</>}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+    <div className="space-y-4">
+      {!anyPlayable && <LockedBanner text="The living bracket opens after the group stage. You'll predict who advances, round by round." />}
+      {rounds.map(round => {
+        const matches = matchesOf(round);
+        const open = isPhaseOpen(comp, round);
+        const weight = comp.config?.scoring?.bracket?.[round];
+        return (
+          <div key={round} className="bg-navy-accent rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold flex items-center gap-2"><Trophy size={16} className="text-warm-yellow" /> {ROUND_LABEL[round] ?? round}</h3>
+              <span className={`text-[11px] font-bold flex items-center gap-1 ${open ? 'text-lime-glow' : 'text-text-disabled'}`}>
+                {matches.length === 0 ? <><Lock size={11} /> awaiting teams</> : open ? <>Open · {weight ?? 0} pts each</> : <><Lock size={11} /> locked</>}
+              </span>
+            </div>
+            {matches.length === 0
+              ? <p className="text-xs text-text-disabled">Teams set once the previous round finishes.</p>
+              : <div className="space-y-2">
+                  {matches.map(m => {
+                    const pick = picks[round]?.[m.id];
+                    const resolved = m.winner_team_id != null;
+                    return (
+                      <div key={m.id} className="grid grid-cols-2 gap-2">
+                        {[m.team_a, m.team_b].map(t => {
+                          if (!t) return <div key="?" />;
+                          const chosen = pick === t.id;
+                          const won = resolved && m.winner_team_id === t.id;
+                          return (
+                            <button key={t.id} disabled={!open || resolved}
+                              onClick={() => setWinner(round, m.id, t.id)}
+                              className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg border text-left ${
+                                won ? 'border-lime-glow bg-lime-glow/10'
+                                : chosen ? 'border-electric-blue bg-electric-blue/10'
+                                : 'border-white/5 bg-deep-navy'} disabled:opacity-70`}>
+                              <TeamChip team={t} size="sm" />
+                              {won && <Check size={13} className="text-lime-glow ml-auto" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                  {open && <button onClick={() => saveRound(round)} className="w-full mt-2 bg-electric-blue text-deep-navy font-bold py-2 rounded-lg text-sm">Save {ROUND_LABEL[round] ?? round}</button>}
+                </div>}
+          </div>
+        );
+      })}
     </div>
   );
 };
