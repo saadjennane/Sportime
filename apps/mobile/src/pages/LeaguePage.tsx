@@ -39,7 +39,7 @@ interface LeaguePageProps {
   addToast: (message: string, type: 'success' | 'error' | 'info') => void;
 }
 
-type LeagueTab = 'feed' | 'games' | 'live' | 'members';
+type LeagueTab = 'feed' | 'games' | 'live';
 
 const TabButton: React.FC<{ icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void }> = ({ icon, label, isActive, onClick }) => (
   <button
@@ -145,15 +145,29 @@ const LeaguePage: React.FC<LeaguePageProps> = (props) => {
         <ArrowLeft size={20} /> Back to Squads
       </button>
 
-      {/* Header */}
-      <div className="card-base p-4 flex items-center gap-4">
-        <div className="w-16 h-16 bg-deep-navy rounded-lg flex-shrink-0 flex items-center justify-center border-2 border-neon-cyan/20">
-          {league.image_url ? <img src={league.image_url} alt={league.name} className="w-full h-full object-cover rounded-lg" /> : <Users className="w-8 h-8 text-neon-cyan/50" />}
+      {/* Header (compact) — members live here */}
+      <div className="card-base p-3 flex items-center gap-3">
+        <div className="w-12 h-12 bg-deep-navy rounded-lg flex-shrink-0 flex items-center justify-center border-2 border-neon-cyan/20">
+          {league.image_url ? <img src={league.image_url} alt={league.name} className="w-full h-full object-cover rounded-lg" /> : <Users className="w-6 h-6 text-neon-cyan/50" />}
         </div>
         <div className="flex-grow min-w-0">
-          <h2 className="text-xl font-bold text-text-primary truncate">{league.name}</h2>
-          {league.description && <p className="text-sm text-text-secondary truncate">{league.description}</p>}
-          <p className="text-xs text-text-disabled mt-1">Created by {adminProfile?.username || '...'}</p>
+          <h2 className="text-lg font-bold text-text-primary truncate leading-tight">{league.name}</h2>
+          <button onClick={() => setIsManageModalOpen(true)} className="flex items-center gap-1.5 mt-1.5">
+            <div className="flex -space-x-2">
+              {members.slice(0, 5).map(member => (
+                <img
+                  key={member.id}
+                  src={member.profile_picture_url || `https://api.dicebear.com/8.x/bottts/svg?seed=${member.id}`}
+                  alt={member.username || 'user'}
+                  className="w-6 h-6 rounded-full object-cover bg-deep-navy border-2 border-navy-accent"
+                />
+              ))}
+              {members.length > 5 && (
+                <span className="w-6 h-6 rounded-full bg-deep-navy border-2 border-navy-accent flex items-center justify-center text-[9px] font-bold text-text-secondary">+{members.length - 5}</span>
+              )}
+            </div>
+            <span className="text-xs font-semibold text-text-secondary">{members.length} member{members.length > 1 ? 's' : ''}</span>
+          </button>
         </div>
         <div className="flex-shrink-0 flex items-center gap-2">
           <button onClick={() => setIsInviteModalOpen(true)} className="p-2 bg-deep-navy rounded-lg text-text-secondary hover:bg-white/10" title="Invite"><Link size={18} /></button>
@@ -166,15 +180,11 @@ const LeaguePage: React.FC<LeaguePageProps> = (props) => {
         <TabButton label="Feed" icon={<Newspaper size={16} />} isActive={activeTab === 'feed'} onClick={() => setActiveTab('feed')} />
         <TabButton label="Games" icon={<Gamepad2 size={16} />} isActive={activeTab === 'games'} onClick={() => setActiveTab('games')} />
         <TabButton label="Live" icon={<Radio size={16} />} isActive={activeTab === 'live'} onClick={() => setActiveTab('live')} />
-        <TabButton label="Members" icon={<Users size={16} />} isActive={activeTab === 'members'} onClick={() => setActiveTab('members')} />
       </div>
 
       {/* Tab Content */}
       <div className="animate-scale-in">
         {activeTab === 'feed' && <LeagueFeed posts={feedForThisLeague} members={members} currentUserId={currentUserId} onViewSnapshot={setViewingSnapshot} onToggleLike={(postId) => toggleFeedPostLike(postId, currentUserId)} />}
-        {activeTab === 'members' && (
-          <div className="card-base p-5"><h3 className="font-bold text-text-secondary mb-4">Members ({members.length})</h3><div className="grid grid-cols-4 sm:grid-cols-5 gap-4">{members.map(member => (<div key={member.id} className="flex flex-col items-center text-center"><img src={member.profile_picture_url || `https://api.dicebear.com/8.x/bottts/svg?seed=${member.id}`} alt={member.username || 'user'} className="w-12 h-12 rounded-full object-cover bg-deep-navy" /><p className="text-xs font-semibold text-text-primary mt-1 truncate w-full">{member.username}</p>{memberRoles.find(m => m.user_id === member.id)?.role === 'admin' && (<p className="text-[10px] font-bold text-electric-blue">Admin</p>)}</div>))}</div></div>
-        )}
         {activeTab === 'games' && (
           <div className="space-y-4">
             {currentUserRole === 'admin' && (
