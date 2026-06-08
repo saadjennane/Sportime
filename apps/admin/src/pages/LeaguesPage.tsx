@@ -4,7 +4,7 @@ import { leagueService } from '../services/leagueService';
 import type { LeagueWithTeamCount } from '../types/football';
 import { LeagueFormModal } from '../components/admin/LeagueFormModal';
 import { ConfirmationModal } from '../components/admin/ConfirmationModal';
-import { syncLeague, syncLeagueTeams, syncLeagueFull, type SyncProgress } from '../services/footballSyncService';
+import { syncLeagueTeams, syncLeagueFull, type SyncProgress } from '../services/footballSyncService';
 
 const mockAddToast = (message: string, type: 'success' | 'error' | 'info') => {
   console.log(`[${type.toUpperCase()}]`, message);
