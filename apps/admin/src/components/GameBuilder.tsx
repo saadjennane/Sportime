@@ -7,6 +7,7 @@ import {
   setChallengeStatus, setChallengeVisibility, listFantasyGames, setFantasyStatus, setFantasyVisibility,
 } from '../services/tournamentAdminService';
 import { RichText } from './RichText';
+import { Medal, Zap, Repeat, CalendarDays } from 'lucide-react';
 import { RewardPackBuilder } from './RewardPackBuilder';
 import { listRewardPacks, deleteRewardPack, assignPackToGame, distributeRewards } from '../services/rewardService';
 
@@ -245,7 +246,7 @@ export default function GameBuilder() {
             {fComps.map(c => (
               <tr key={c.id} className="border-b border-border-subtle/50">
                 <td className="px-4 py-3 font-medium text-text-primary">{c.name}</td>
-                <td className="text-text-secondary">Tournament Quest</td>
+                <td className="text-text-secondary">Tournament Quest<GameMeta tier={c.tier} duration={c.duration_type} /></td>
                 <td><span className={`text-xs px-2 py-0.5 rounded-full ${statusColor(c.status)}`}>{c.status}</span></td>
                 <td className="text-text-secondary">{c.entry_cost ?? 0}</td>
                 <td className="text-text-secondary">{c.min_players ?? '—'} / {c.max_players ?? '∞'}</td>
@@ -259,7 +260,7 @@ export default function GameBuilder() {
             {fChallenges.map(c => (
               <tr key={c.id} className="border-b border-border-subtle/50">
                 <td className="px-4 py-3 font-medium text-text-primary">{c.name || '(untitled)'}</td>
-                <td className="text-text-secondary">{c.game_type === 'prediction' ? 'Swipe Prediction' : 'Match Day Challenge'} <span className="text-text-disabled text-xs">({c.rules?.period_type === 'calendar' ? 'calendar' : 'matchday'})</span></td>
+                <td className="text-text-secondary">{c.game_type === 'prediction' ? 'Swipe Prediction' : 'Match Day Challenge'} <span className="text-text-disabled text-xs">({c.rules?.period_type === 'calendar' ? 'calendar' : 'matchday'})</span><GameMeta tier={c.rules?.tier} duration={c.rules?.duration_type} /></td>
                 <td><span className={`text-xs px-2 py-0.5 rounded-full ${statusColor(c.status)}`}>{c.status}</span></td>
                 <td className="text-text-secondary">{c.entry_cost ?? 0}</td>
                 <td className="text-text-secondary">{c.rules?.minimum_players ?? 0} / {c.rules?.maximum_players || '∞'}</td>
@@ -277,7 +278,7 @@ export default function GameBuilder() {
             {fFantasy.map(g => (
               <tr key={g.id} className="border-b border-border-subtle/50">
                 <td className="px-4 py-3 font-medium text-text-primary">{g.name || '(untitled)'}</td>
-                <td className="text-text-secondary">Sportime Fantasy</td>
+                <td className="text-text-secondary">Sportime Fantasy<GameMeta tier={g.tier} duration={g.duration_type} /></td>
                 <td><span className={`text-xs px-2 py-0.5 rounded-full ${statusColor(g.status?.toLowerCase())}`}>{g.status}</span></td>
                 <td className="text-text-secondary">{g.entry_cost ?? 0}</td>
                 <td className="text-text-secondary">{g.min_players ?? '—'} / {g.max_players ?? '∞'}</td>
@@ -485,6 +486,30 @@ function MatchGameCreate({ gameType, onCreated, flash }: { gameType: 'betting' |
         <button onClick={submit} className="bg-lime-glow text-deep-navy font-bold px-5 py-2 rounded-lg">Create {GAME_LABELS[gameType]}</button>
       </div>
     </div>
+  );
+}
+
+const TIER_META: Record<string, { label: string; cls: string }> = {
+  amateur: { label: 'Amateur', cls: 'text-orange-400' },
+  master: { label: 'Master', cls: 'text-slate-300' },
+  apex: { label: 'Apex', cls: 'text-warm-yellow' },
+};
+const DUR_META: Record<string, { label: string; Icon: any }> = {
+  flash: { label: 'Flash', Icon: Zap },
+  series: { label: 'Series', Icon: Repeat },
+  season: { label: 'Season', Icon: CalendarDays },
+};
+
+/** Two at-a-glance icons: game level (tier) + duration. */
+function GameMeta({ tier, duration }: { tier?: string; duration?: string }) {
+  const t = TIER_META[tier ?? ''] ?? { label: tier ?? '—', cls: 'text-text-disabled' };
+  const d = DUR_META[duration ?? ''] ?? { label: duration ?? '—', Icon: CalendarDays };
+  const D = d.Icon;
+  return (
+    <span className="inline-flex items-center gap-2 ml-2 align-middle">
+      <span className={`inline-flex items-center gap-0.5 ${t.cls}`} title={`Level: ${t.label}`}><Medal size={14} /></span>
+      <span className="inline-flex items-center gap-0.5 text-electric-blue" title={`Duration: ${d.label}`}><D size={14} /></span>
+    </span>
   );
 }
 
