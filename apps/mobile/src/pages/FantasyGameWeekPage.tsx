@@ -312,7 +312,7 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
       {isLive && dnpStarters.length > 0 && <p className="text-center text-xs text-warm-yellow">A player in your starting lineup did not play. Tap them to make a substitution.</p>}
 
       {/* MODALS */}
-      <FantasyPlayerModal isOpen={!!editingSlot} onClose={() => setEditingSlot(null)} position={editingSlot?.position || 'Attacker'} allPlayers={allPlayers} onSelectPlayer={handleSelectPlayerFromModal} />
+      <FantasyPlayerModal isOpen={!!editingSlot} onClose={() => setEditingSlot(null)} position={editingSlot?.position || 'Attacker'} allPlayers={allPlayers} onSelectPlayer={handleSelectPlayerFromModal} selectedPlayerIds={[...userTeam.starters, ...userTeam.substitutes]} />
       <FantasyLeaderboardModal isOpen={isLeaderboardOpen} onClose={() => setIsLeaderboardOpen(false)} game={game} initialLeagueContext={initialLeagueContext} allUsers={allUsers} userLeagues={userLeagues} leagueMembers={leagueMembers} leagueGames={leagueGames} currentUserId={currentUserId} />
       <BoosterSelectionModal isOpen={isBoosterModalOpen} onClose={() => setIsBoosterModalOpen(false)} boosters={mockBoosters} onSelect={handleBoosterSelect} teamPlayers={starters} />
       <FantasyRulesModal isOpen={isRulesModalOpen} onClose={() => setIsRulesModalOpen(false)} />

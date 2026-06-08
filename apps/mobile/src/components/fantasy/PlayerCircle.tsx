@@ -56,7 +56,9 @@ export const PlayerCircle: React.FC<PlayerCircleProps> = ({ player, onClick, isC
           className={`${photoSize} rounded-full object-cover bg-gray-300 border-2 border-white/50 shadow-lg`}
         />
         {/* Overlays */}
-        <img src={player.teamLogo} alt={player.teamName} className={`${clubLogoSize} absolute -top-1 -left-1 bg-white rounded-full p-0.5 shadow-md`} />
+        {player.teamLogo && (
+          <img src={player.teamLogo} alt={player.teamName} className={`${clubLogoSize} absolute -top-1 -left-1 bg-white rounded-full p-0.5 shadow-md object-contain`} />
+        )}
         
         {player.liveStatus !== 'dnp' && (
           <div className="absolute -top-1 -right-1 bg-white p-0.5 rounded-full shadow-md">
@@ -96,6 +98,10 @@ export const PlayerCircle: React.FC<PlayerCircleProps> = ({ player, onClick, isC
       ) : (
         <p className={`font-bold text-white ${pgsFontSize}`}>{player.pgs.toFixed(1)}</p>
       )}
+
+      <p className="text-[10px] font-semibold text-white/90 truncate w-full text-center leading-none">
+        {player.name?.split(' ').slice(-1)[0] || player.name}
+      </p>
 
       <div className="w-16">
         <FatigueBar fatigue={player.fatigue} />

@@ -9,9 +9,11 @@ interface FantasyPlayerModalProps {
   position: PlayerPosition;
   allPlayers: FantasyPlayer[];
   onSelectPlayer: (player: FantasyPlayer) => void;
+  selectedPlayerIds?: string[];
 }
 
-export const FantasyPlayerModal: React.FC<FantasyPlayerModalProps> = ({ isOpen, onClose, position, allPlayers, onSelectPlayer }) => {
+export const FantasyPlayerModal: React.FC<FantasyPlayerModalProps> = ({ isOpen, onClose, position, allPlayers, onSelectPlayer, selectedPlayerIds = [] }) => {
+  const takenIds = new Set(selectedPlayerIds);
   const [searchTerm, setSearchTerm] = useState('');
   
   const availablePlayers = useMemo(() => {
@@ -50,11 +52,14 @@ export const FantasyPlayerModal: React.FC<FantasyPlayerModalProps> = ({ isOpen, 
         <div className="flex-1 overflow-y-auto space-y-2 pr-1">
           {availablePlayers.length === 0 ? (
             <p className="text-center text-sm text-text-disabled mt-8">No players found.</p>
-          ) : availablePlayers.map(player => (
+          ) : availablePlayers.map(player => {
+            const taken = takenIds.has(player.id);
+            return (
             <button
               key={player.id}
-              onClick={() => { onSelectPlayer(player); onClose(); }}
-              className="w-full flex items-center gap-3 p-3 bg-deep-navy hover:bg-white/5 border border-white/5 rounded-xl transition-colors text-left"
+              onClick={() => { if (!taken) { onSelectPlayer(player); onClose(); } }}
+              disabled={taken}
+              className={`w-full flex items-center gap-3 p-3 bg-deep-navy border border-white/5 rounded-xl transition-colors text-left ${taken ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white/5'}`}
             >
               <img
                 src={player.photo || `https://api.dicebear.com/8.x/bottts/svg?seed=${player.id}`}
@@ -74,7 +79,8 @@ export const FantasyPlayerModal: React.FC<FantasyPlayerModalProps> = ({ isOpen, 
                 <p className="font-bold text-sm text-text-primary">{player.fatigue}%</p>
               </div>
             </button>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
