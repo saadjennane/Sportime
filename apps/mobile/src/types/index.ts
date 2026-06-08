@@ -183,7 +183,8 @@ export interface FantasyPlayer {
   id: string;
   name: string;
   photo: string;
-  position: PlayerPosition;
+  position: PlayerPosition; // primary position
+  eligiblePositions?: PlayerPosition[]; // positions the player can be slotted in (derived from real lineups)
   status: PlayerCategory;
   fatigue: number; // 0-100
   teamName: string;
@@ -223,6 +224,7 @@ export interface UserFantasyTeam {
   fatigue_state: Record<string, number>;
   total_points?: number;
   player_points?: Record<string, number>;
+  playerPositions?: Record<string, PlayerPosition>; // assigned slot per starter
 }
 
 export interface Booster {

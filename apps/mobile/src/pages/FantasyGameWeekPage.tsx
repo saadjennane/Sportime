@@ -83,9 +83,17 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
 
   const { starters, substitutes, captainId } = useMemo(() => {
     if (!userTeam) return { starters: [], substitutes: [], captainId: null };
+    // A starter renders in the slot the user assigned (playerPositions), falling
+    // back to the player's primary position — needed for multi-position players.
+    const resolve = (id: string) => {
+      const p = allPlayers.find(pl => pl.id === id);
+      if (!p) return null;
+      const assigned = userTeam.playerPositions?.[id];
+      return assigned ? { ...p, position: assigned } : p;
+    };
     return {
-      starters: userTeam.starters.map(id => allPlayers.find(p => p.id === id)).filter(Boolean) as FantasyPlayer[],
-      substitutes: userTeam.substitutes.map(id => allPlayers.find(p => p.id === id)).filter(Boolean) as FantasyPlayer[],
+      starters: userTeam.starters.map(resolve).filter(Boolean) as FantasyPlayer[],
+      substitutes: userTeam.substitutes.map(resolve).filter(Boolean) as FantasyPlayer[],
       captainId: userTeam.captain_id,
     };
   }, [userTeam, allPlayers]);
@@ -173,16 +181,21 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
         return;
     }
 
+    // Record the slot the player was assigned to (for multi-position players).
+    const newPositions = { ...(userTeam.playerPositions || {}) };
+    if (playerToReplaceId) delete newPositions[playerToReplaceId];
+    newPositions[selectedPlayer.id] = editingSlot.position;
+
     if (playerToReplaceId) {
         const starterIndex = newStartersIds.indexOf(playerToReplaceId);
         if (starterIndex > -1) {
             newStartersIds[starterIndex] = selectedPlayer.id;
-            handleUpdateUserTeam({ ...userTeam, starters: newStartersIds });
+            handleUpdateUserTeam({ ...userTeam, starters: newStartersIds, playerPositions: newPositions });
         } else {
             const subIndex = newSubstitutesIds.indexOf(playerToReplaceId);
             if (subIndex > -1) {
                 newSubstitutesIds[subIndex] = selectedPlayer.id;
-                handleUpdateUserTeam({ ...userTeam, substitutes: newSubstitutesIds });
+                handleUpdateUserTeam({ ...userTeam, substitutes: newSubstitutesIds, playerPositions: newPositions });
             }
         }
     }

@@ -16,7 +16,10 @@ export const FantasyPlayerModal: React.FC<FantasyPlayerModalProps> = ({ isOpen, 
   
   const availablePlayers = useMemo(() => {
     return allPlayers
-      .filter(p => p.position === position)
+      // Eligible for this slot (derived from real lineups), falling back to primary.
+      .filter(p => (p.eligiblePositions && p.eligiblePositions.length > 0)
+        ? p.eligiblePositions.includes(position)
+        : p.position === position)
       .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()))
       .sort((a, b) => b.pgs - a.pgs);
   }, [allPlayers, position, searchTerm]);

@@ -26,6 +26,7 @@ interface FantasyPlayerRow {
   name: string;
   photo: string | null;
   position: 'Goalkeeper' | 'Defender' | 'Midfielder' | 'Attacker';
+  eligible_positions?: ('Goalkeeper' | 'Defender' | 'Midfielder' | 'Attacker')[];
   status: 'Star' | 'Key' | 'Wild';
   fatigue: number;
   team_name: string;
@@ -195,7 +196,8 @@ export async function saveUserFantasyTeam(team: UserFantasyTeam): Promise<boolea
     captain_id: team.captain_id,
     booster_used: team.booster_used,
     fatigue_state: team.fatigue_state,
-  };
+    ...(team.playerPositions ? { player_positions: team.playerPositions } : {}),
+  } as any;
 
   const { error } = await supabase
     .from('user_fantasy_teams')
@@ -267,6 +269,9 @@ function mapPlayerRowToPlayer(row: FantasyPlayerRow): FantasyPlayer {
     name: row.name,
     photo: row.photo || '',
     position: row.position as any,
+    eligiblePositions: (row.eligible_positions && row.eligible_positions.length > 0
+      ? row.eligible_positions
+      : [row.position]) as any,
     status: row.status as any,
     fatigue: row.fatigue,
     teamName: row.team_name,
@@ -300,6 +305,7 @@ function mapTeamRowToTeam(row: UserFantasyTeamRow): UserFantasyTeam {
     fatigue_state: row.fatigue_state || {},
     total_points: row.total_points != null ? parseFloat(row.total_points as any) : undefined,
     player_points: (row as any).player_points || {},
+    playerPositions: (row as any).player_positions || {},
   };
 }
 
