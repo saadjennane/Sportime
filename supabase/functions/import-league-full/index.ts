@@ -6,6 +6,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
+const API_FOOTBALL_KEY = Deno.env.get('API_FOOTBALL_KEY')!
+const API_HOST = 'v3.football.api-sports.io'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -16,18 +18,14 @@ const cors = {
 // caller's JWT (the admin's) — the proxy accepts a user JWT.
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-function makeApiFootball(authHeader: string) {
-  const call = async (path: string, params: Record<string, unknown>, attempt = 0): Promise<any> => {
-    const r = await fetch(`${SUPABASE_URL}/functions/v1/api-football-proxy`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: ANON_KEY, Authorization: authHeader },
-      body: JSON.stringify({ path, params }),
-    })
-    if (r.status === 429 && attempt < 5) { await sleep(10000); return call(path, params, attempt + 1) }
-    if (!r.ok) throw new Error(`api-football-proxy ${path} -> ${r.status}`)
-    return await r.json()
-  }
-  return call
+// Call API-Football directly (no proxy) to avoid Supabase edge-to-edge invocation limits.
+const apiFootball = async (path: string, params: Record<string, unknown>, attempt = 0): Promise<any> => {
+  const url = new URL(`https://${API_HOST}${path}`)
+  for (const [k, v] of Object.entries(params)) if (v != null) url.searchParams.set(k, String(v))
+  const r = await fetch(url, { headers: { 'x-rapidapi-key': API_FOOTBALL_KEY, 'x-rapidapi-host': API_HOST } })
+  if (r.status === 429 && attempt < 5) { await sleep(8000); return apiFootball(path, params, attempt + 1) }
+  if (!r.ok) throw new Error(`API-Football ${path} -> ${r.status}`)
+  return await r.json()
 }
 
 function splitName(name: string) {
@@ -48,7 +46,6 @@ Deno.serve(async (req) => {
     const { data: isAdmin } = await asCaller.rpc('is_admin')
     if (isAdmin !== true) return new Response(JSON.stringify({ error: 'Admin only' }), { status: 403, headers: { ...cors, 'Content-Type': 'application/json' } })
 
-    const apiFootball = makeApiFootball(authHeader)
     const db = createClient(SUPABASE_URL, SERVICE_KEY)
     const out: any = { league_api_id, season }
 
