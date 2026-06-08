@@ -117,13 +117,13 @@ export async function createFantasyGame(p: any) {
 }
 export async function listChallenges() {
   const { data } = await supabase.from('challenges')
-    .select('id, name, status, start_date, end_date, entry_cost, is_visible, rules, game_type, source_league_id')
+    .select('id, name, status, start_date, end_date, entry_cost, is_visible, rules, game_type, source_league_id, reward_pack_id')
     .in('game_type', ['betting', 'prediction']).order('created_at', { ascending: false });
   return data ?? [];
 }
 export async function listFantasyGames() {
   const { data } = await supabase.from('fantasy_games')
-    .select('id, name, status, entry_cost, is_visible, min_players, max_players, tier, duration_type, source_league_id')
+    .select('id, name, status, entry_cost, is_visible, min_players, max_players, tier, duration_type, source_league_id, reward_pack_id')
     .order('created_at', { ascending: false });
   return data ?? [];
 }

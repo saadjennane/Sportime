@@ -7,6 +7,8 @@ import {
   setChallengeStatus, setChallengeVisibility, listFantasyGames, setFantasyStatus, setFantasyVisibility,
 } from '../services/tournamentAdminService';
 import { RichText } from './RichText';
+import { RewardPackBuilder } from './RewardPackBuilder';
+import { listRewardPacks, deleteRewardPack, assignPackToGame } from '../services/rewardService';
 
 const STATUSES = ['draft', 'open', 'running', 'resolved', 'cancelled'];
 const LEVELS = ['Rookie', 'Rising', 'Pro', 'Elite', 'Legend', 'GOAT'];
@@ -59,12 +61,22 @@ export default function GameBuilder() {
   const [form, setForm] = useState({ name: '', league_api_id: 0, season: 2026, entry_cost: computeCost('amateur', 'season'), tier: 'amateur', duration: 'season', override: false, min_players: '', max_players: '', minimum_level: 'Rookie', is_visible: true, opens_at: '', rules_html: '' });
 
   const [leaguesById, setLeaguesById] = useState<Record<string, string>>({});
+  const [rewardPacks, setRewardPacks] = useState<any[]>([]);
+  const [editingPack, setEditingPack] = useState<any>(undefined); // undefined=closed, null=new, obj=edit
+  const [showPacks, setShowPacks] = useState(false);
   const [filters, setFilters] = useState({ type: 'all', league: 'all', tier: 'all', duration: 'all', status: 'all' });
   const [views, setViews] = useState<{ name: string; filters: any }[]>(() => { try { return JSON.parse(localStorage.getItem('gb_views') || '[]'); } catch { return []; } });
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 5000); };
-  const reload = async () => { setComps(await listCompetitions()); setChallenges(await listChallenges()); setFantasyGames(await listFantasyGames()); };
+  const reload = async () => { setComps(await listCompetitions()); setChallenges(await listChallenges()); setFantasyGames(await listFantasyGames()); setRewardPacks(await listRewardPacks()); };
   useEffect(() => { reload(); listSourceLeagues().then(setLeagues); listLeaguesFull().then(ls => setLeaguesById(Object.fromEntries(ls.map((l: any) => [l.id, l.name])))); }, []);
+
+  const assignPack = async (type: 'tq' | 'betting' | 'prediction' | 'fantasy', gameId: string, packId: string) => {
+    const pack = rewardPacks.find(p => p.id === packId);
+    await assignPackToGame(type, gameId, packId || null, pack?.tiers ?? []);
+    flash(packId ? `Pack "${pack?.name}" assigned` : 'Pack removed');
+    reload();
+  };
 
   const saveView = () => { const name = prompt('Save this view as:'); if (!name) return; const next = [...views.filter(v => v.name !== name), { name, filters }]; setViews(next); localStorage.setItem('gb_views', JSON.stringify(next)); };
   const deleteView = (name: string) => { const next = views.filter(v => v.name !== name); setViews(next); localStorage.setItem('gb_views', JSON.stringify(next)); };
@@ -116,9 +128,32 @@ export default function GameBuilder() {
               {creating === t ? 'Cancel' : `+ ${label}`}
             </button>
           ))}
+          <button onClick={() => setShowPacks(v => !v)} className="px-3 py-2 rounded-lg font-semibold text-sm bg-surface-hover text-text-primary border border-border-subtle">🎁 Reward Packs</button>
         </div>
       </div>
       {msg && <div className="bg-electric-blue/10 border border-electric-blue/30 text-electric-blue rounded-lg px-4 py-2 text-sm">{msg}</div>}
+
+      {showPacks && (
+        <div className="bg-surface border border-border-subtle rounded-xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-bold text-text-primary">Reward Packs</h2>
+            <button onClick={() => setEditingPack(null)} className="bg-electric-blue text-white px-3 py-1.5 rounded-lg text-sm font-semibold">+ New pack</button>
+          </div>
+          <div className="grid md:grid-cols-3 gap-2">
+            {rewardPacks.map(p => (
+              <div key={p.id} className="border border-border-subtle rounded-lg p-3 flex items-center justify-between">
+                <div><p className="text-text-primary font-medium">{p.name}</p><p className="text-text-disabled text-xs">{(p.tiers ?? []).length} bracket(s)</p></div>
+                <div className="flex gap-2">
+                  <button onClick={() => setEditingPack(p)} className="text-electric-blue text-xs font-semibold">Edit</button>
+                  <button onClick={async () => { await deleteRewardPack(p.id); reload(); }} className="text-hot-red text-xs">Delete</button>
+                </div>
+              </div>
+            ))}
+            {rewardPacks.length === 0 && <p className="text-text-disabled text-sm">No packs yet. Create one and assign it to a game.</p>}
+          </div>
+        </div>
+      )}
+      {editingPack !== undefined && <RewardPackBuilder initialPack={editingPack} onSaved={() => { setEditingPack(undefined); reload(); }} onClose={() => setEditingPack(undefined)} />}
 
       {(creating === 'betting' || creating === 'prediction' || creating === 'fantasy') &&
         <MatchGameCreate gameType={creating} onCreated={() => { setCreating(null); reload(); }} flash={flash} />}
@@ -194,7 +229,7 @@ export default function GameBuilder() {
       <div className="bg-surface border border-border-subtle rounded-xl overflow-hidden">
         <table className="w-full text-sm">
           <thead className="text-text-disabled text-left border-b border-border-subtle">
-            <tr><th className="px-4 py-3">Game</th><th>Type</th><th>Status</th><th>Entry</th><th>Players</th><th>Visible</th><th className="text-right pr-4">Actions</th></tr>
+            <tr><th className="px-4 py-3">Game</th><th>Type</th><th>Status</th><th>Entry</th><th>Players</th><th>Visible</th><th>Rewards</th><th className="text-right pr-4">Actions</th></tr>
           </thead>
           <tbody>
             {fComps.map(c => (
@@ -205,6 +240,7 @@ export default function GameBuilder() {
                 <td className="text-text-secondary">{c.entry_cost ?? 0}</td>
                 <td className="text-text-secondary">{c.min_players ?? '—'} / {c.max_players ?? '∞'}</td>
                 <td>{c.is_visible === false ? <span className="text-text-disabled">Hidden</span> : <span className="text-lime-glow">Yes</span>}</td>
+                <td><PackCell value={c.reward_pack_id} packs={rewardPacks} onChange={pid => assignPack('tq', c.id, pid)} /></td>
                 <td className="text-right pr-4">
                   <button onClick={() => setManageId(manageId === c.id ? null : c.id)} className="text-electric-blue font-semibold">Manage</button>
                 </td>
@@ -218,6 +254,7 @@ export default function GameBuilder() {
                 <td className="text-text-secondary">{c.entry_cost ?? 0}</td>
                 <td className="text-text-secondary">{c.rules?.minimum_players ?? 0} / {c.rules?.maximum_players || '∞'}</td>
                 <td>{c.is_visible === false ? <span className="text-text-disabled">Hidden</span> : <span className="text-lime-glow">Yes</span>}</td>
+                <td><PackCell value={c.reward_pack_id} packs={rewardPacks} onChange={pid => assignPack(c.game_type, c.id, pid)} /></td>
                 <td className="text-right pr-4 whitespace-nowrap">
                   <select value={c.status} onChange={e => setChallengeStatus(c.id, e.target.value).then(reload)} className="inp inline-block w-28 mr-2">
                     {['draft', 'open', 'running', 'resolved', 'cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
@@ -234,6 +271,7 @@ export default function GameBuilder() {
                 <td className="text-text-secondary">{g.entry_cost ?? 0}</td>
                 <td className="text-text-secondary">{g.min_players ?? '—'} / {g.max_players ?? '∞'}</td>
                 <td>{g.is_visible === false ? <span className="text-text-disabled">Hidden</span> : <span className="text-lime-glow">Yes</span>}</td>
+                <td><PackCell value={g.reward_pack_id} packs={rewardPacks} onChange={pid => assignPack('fantasy', g.id, pid)} /></td>
                 <td className="text-right pr-4 whitespace-nowrap">
                   <select value={g.status} onChange={e => setFantasyStatus(g.id, e.target.value).then(reload)} className="inp inline-block w-28 mr-2">
                     {['Upcoming', 'Ongoing', 'Finished', 'Cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
@@ -242,7 +280,7 @@ export default function GameBuilder() {
                 </td>
               </tr>
             ))}
-            {fComps.length === 0 && fChallenges.length === 0 && fFantasy.length === 0 && <tr><td colSpan={7} className="px-4 py-6 text-center text-text-disabled">No games yet. Create one above.</td></tr>}
+            {fComps.length === 0 && fChallenges.length === 0 && fFantasy.length === 0 && <tr><td colSpan={8} className="px-4 py-6 text-center text-text-disabled">No games yet. Create one above.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -434,6 +472,15 @@ function MatchGameCreate({ gameType, onCreated, flash }: { gameType: 'betting' |
         <button onClick={submit} className="bg-lime-glow text-deep-navy font-bold px-5 py-2 rounded-lg">Create {GAME_LABELS[gameType]}</button>
       </div>
     </div>
+  );
+}
+
+function PackCell({ value, packs, onChange }: { value: string | null; packs: any[]; onChange: (id: string) => void }) {
+  return (
+    <select value={value || ''} onChange={e => onChange(e.target.value)} className="inp inline-block w-28">
+      <option value="">— none —</option>
+      {packs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+    </select>
   );
 }
 
