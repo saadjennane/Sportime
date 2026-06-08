@@ -8,7 +8,7 @@ import {
 } from '../services/tournamentAdminService';
 import { RichText } from './RichText';
 import { RewardPackBuilder } from './RewardPackBuilder';
-import { listRewardPacks, deleteRewardPack, assignPackToGame } from '../services/rewardService';
+import { listRewardPacks, deleteRewardPack, assignPackToGame, distributeRewards } from '../services/rewardService';
 
 const STATUSES = ['draft', 'open', 'running', 'resolved', 'cancelled'];
 const LEVELS = ['Rookie', 'Rising', 'Pro', 'Elite', 'Legend', 'GOAT'];
@@ -75,6 +75,16 @@ export default function GameBuilder() {
     const pack = rewardPacks.find(p => p.id === packId);
     await assignPackToGame(type, gameId, packId || null, pack?.tiers ?? []);
     flash(packId ? `Pack "${pack?.name}" assigned` : 'Pack removed');
+    reload();
+  };
+
+  const distribute = async (type: 'tq' | 'betting' | 'prediction' | 'fantasy', gameId: string, name: string) => {
+    if (!confirm(`Distribute rewards for "${name}"? This credits winners and cannot be undone.`)) return;
+    const { data, error } = await distributeRewards(type, gameId);
+    const r = data as any;
+    if (error) flash(`Failed: ${error.message}`);
+    else if (r?.ok === false) flash(`Not distributed: ${r.error || r.skipped}`);
+    else flash(`Distributed: ${r?.grants ?? 0} grants to ${r?.players ?? 0} players`);
     reload();
   };
 
@@ -260,6 +270,7 @@ export default function GameBuilder() {
                     {['draft', 'open', 'running', 'resolved', 'cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                   <button onClick={() => setChallengeVisibility(c.id, c.is_visible === false).then(reload)} className="text-electric-blue text-xs">{c.is_visible === false ? 'Show' : 'Hide'}</button>
+                  <button onClick={() => distribute(c.game_type, c.id, c.name)} className="text-warm-yellow text-xs ml-2" title="Distribute rewards">💸</button>
                 </td>
               </tr>
             ))}
@@ -277,6 +288,7 @@ export default function GameBuilder() {
                     {['Upcoming', 'Ongoing', 'Finished', 'Cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                   <button onClick={() => setFantasyVisibility(g.id, g.is_visible === false).then(reload)} className="text-electric-blue text-xs">{g.is_visible === false ? 'Show' : 'Hide'}</button>
+                  <button onClick={() => distribute('fantasy', g.id, g.name)} className="text-warm-yellow text-xs ml-2" title="Distribute rewards">💸</button>
                 </td>
               </tr>
             ))}
@@ -336,6 +348,7 @@ function ManagePanel({ id, onChange, flash }: { id: string; onChange: () => void
           <div className="flex flex-wrap gap-2">
             <button onClick={() => act(() => generateBracket(id), 'Generate bracket')} className="bg-electric-blue/15 text-electric-blue px-3 py-2 rounded-lg text-sm font-semibold">Generate bracket</button>
             <button onClick={() => act(() => resolveCompetition(id), 'Resolve & recalc')} className="bg-lime-glow/15 text-lime-glow px-3 py-2 rounded-lg text-sm font-semibold">Resolve &amp; recalc scores</button>
+            <button onClick={() => { if (confirm('Distribute rewards to winners? This credits real value and cannot be undone.')) act(() => distributeRewards('tq', id), 'Distribute rewards'); }} className="bg-warm-yellow/15 text-warm-yellow px-3 py-2 rounded-lg text-sm font-semibold">💸 Distribute rewards</button>
           </div>
         </div>
       )}
