@@ -11,6 +11,38 @@ import { RichText } from './RichText';
 const STATUSES = ['draft', 'open', 'running', 'resolved', 'cancelled'];
 const LEVELS = ['Rookie', 'Rising', 'Pro', 'Elite', 'Legend', 'GOAT'];
 
+// Auto-cost matrix: cost = tier base × duration multiplier (override possible).
+const TIERS: [string, number][] = [['amateur', 2000], ['master', 10000], ['apex', 20000]];
+const DURATIONS: [string, number][] = [['flash', 1], ['series', 2], ['season', 4]];
+const TIER_BASE: Record<string, number> = Object.fromEntries(TIERS);
+const DUR_MULT: Record<string, number> = Object.fromEntries(DURATIONS);
+const computeCost = (tier: string, duration: string) => (TIER_BASE[tier] ?? 2000) * (DUR_MULT[duration] ?? 1);
+
+/** Tier + Duration + auto/override cost. set() patches the parent form. */
+function CostFields({ v, set }: { v: any; set: (patch: any) => void }) {
+  const auto = computeCost(v.tier, v.duration);
+  return (
+    <>
+      <Field label="Level (tier)">
+        <select value={v.tier} onChange={e => set({ tier: e.target.value, ...(v.override ? {} : { entry_cost: computeCost(e.target.value, v.duration) }) })} className="inp capitalize">
+          {TIERS.map(([t]) => <option key={t} value={t}>{t}</option>)}
+        </select>
+      </Field>
+      <Field label="Duration">
+        <select value={v.duration} onChange={e => set({ duration: e.target.value, ...(v.override ? {} : { entry_cost: computeCost(v.tier, e.target.value) }) })} className="inp capitalize">
+          {DURATIONS.map(([d]) => <option key={d} value={d}>{d}</option>)}
+        </select>
+      </Field>
+      <Field label={v.override ? 'Entry cost (custom)' : `Entry cost (auto: ${auto})`}>
+        <div className="flex items-center gap-2">
+          <input type="number" value={v.entry_cost} disabled={!v.override} onChange={e => set({ entry_cost: Number(e.target.value) })} className="inp disabled:opacity-50" />
+          <label className="flex items-center gap-1 text-xs text-text-secondary whitespace-nowrap"><input type="checkbox" checked={v.override} onChange={e => set({ override: e.target.checked, ...(e.target.checked ? {} : { entry_cost: auto }) })} /> Override</label>
+        </div>
+      </Field>
+    </>
+  );
+}
+
 const statusColor = (s: string) =>
   s === 'open' ? 'bg-lime-glow/15 text-lime-glow' : s === 'running' ? 'bg-electric-blue/15 text-electric-blue'
   : s === 'resolved' ? 'bg-text-disabled/15 text-text-disabled' : s === 'cancelled' ? 'bg-hot-red/15 text-hot-red'
@@ -24,11 +56,29 @@ export default function GameBuilder() {
   const [creating, setCreating] = useState<null | 'tq' | 'betting' | 'prediction' | 'fantasy'>(null);
   const [msg, setMsg] = useState('');
   const [manageId, setManageId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', league_api_id: 0, season: 2026, entry_cost: 0, min_players: '', max_players: '', minimum_level: 'Rookie', is_visible: true, opens_at: '', rules_html: '' });
+  const [form, setForm] = useState({ name: '', league_api_id: 0, season: 2026, entry_cost: computeCost('amateur', 'season'), tier: 'amateur', duration: 'season', override: false, min_players: '', max_players: '', minimum_level: 'Rookie', is_visible: true, opens_at: '', rules_html: '' });
+
+  const [leaguesById, setLeaguesById] = useState<Record<string, string>>({});
+  const [filters, setFilters] = useState({ type: 'all', league: 'all', tier: 'all', duration: 'all', status: 'all' });
+  const [views, setViews] = useState<{ name: string; filters: any }[]>(() => { try { return JSON.parse(localStorage.getItem('gb_views') || '[]'); } catch { return []; } });
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 5000); };
   const reload = async () => { setComps(await listCompetitions()); setChallenges(await listChallenges()); setFantasyGames(await listFantasyGames()); };
-  useEffect(() => { reload(); listSourceLeagues().then(setLeagues); }, []);
+  useEffect(() => { reload(); listSourceLeagues().then(setLeagues); listLeaguesFull().then(ls => setLeaguesById(Object.fromEntries(ls.map((l: any) => [l.id, l.name])))); }, []);
+
+  const saveView = () => { const name = prompt('Save this view as:'); if (!name) return; const next = [...views.filter(v => v.name !== name), { name, filters }]; setViews(next); localStorage.setItem('gb_views', JSON.stringify(next)); };
+  const deleteView = (name: string) => { const next = views.filter(v => v.name !== name); setViews(next); localStorage.setItem('gb_views', JSON.stringify(next)); };
+
+  // tier/duration/league accessors per game type
+  const keep = (type: string, tier: string, duration: string, leagueId: string | null, status: string) =>
+    (filters.type === 'all' || filters.type === type) &&
+    (filters.tier === 'all' || filters.tier === tier) &&
+    (filters.duration === 'all' || filters.duration === duration) &&
+    (filters.league === 'all' || filters.league === (leagueId || '')) &&
+    (filters.status === 'all' || filters.status === (status || '').toLowerCase());
+  const fComps = comps.filter(c => keep('tq', c.tier, c.duration_type, c.source_league_id, c.status));
+  const fChallenges = challenges.filter(c => keep(c.game_type, c.rules?.tier, c.rules?.duration_type, c.source_league_id, c.status));
+  const fFantasy = fantasyGames.filter(g => keep('fantasy', g.tier, g.duration_type, g.source_league_id, g.status));
 
   const submit = async () => {
     if (!form.name || !form.league_api_id) return flash('Name and source league are required');
@@ -39,7 +89,7 @@ export default function GameBuilder() {
       min_players: form.min_players ? Number(form.min_players) : null,
       max_players: form.max_players ? Number(form.max_players) : null,
       minimum_level: form.minimum_level, is_visible: form.is_visible,
-      opens_at: form.opens_at || null,
+      opens_at: form.opens_at || null, tier: form.tier, duration_type: form.duration,
     });
     if (error || !(data as any)?.ok) return flash(`Failed: ${error?.message || (data as any)?.error}`);
     if (form.rules_html) await updateCompetition((data as any).competition_id, { rules_html: form.rules_html });
@@ -85,7 +135,7 @@ export default function GameBuilder() {
             </select>
           </Field>
           <Field label="Season"><input type="number" value={form.season} onChange={e => setForm({ ...form, season: Number(e.target.value) })} className="inp" /></Field>
-          <Field label="Entry cost (coins)"><input type="number" value={form.entry_cost} onChange={e => setForm({ ...form, entry_cost: Number(e.target.value) })} className="inp" /></Field>
+          <CostFields v={form} set={patch => setForm({ ...form, ...patch })} />
           <Field label="Min players"><input type="number" value={form.min_players} onChange={e => setForm({ ...form, min_players: e.target.value })} className="inp" /></Field>
           <Field label="Max players"><input type="number" value={form.max_players} onChange={e => setForm({ ...form, max_players: e.target.value })} className="inp" /></Field>
           <Field label="Minimum level">
@@ -108,6 +158,38 @@ export default function GameBuilder() {
         </div>
       )}
 
+      {/* Filters + saved views */}
+      <div className="bg-surface border border-border-subtle rounded-xl p-3 flex flex-wrap items-center gap-2">
+        <select value={filters.type} onChange={e => setFilters({ ...filters, type: e.target.value })} className="inp w-auto">
+          <option value="all">All types</option>
+          <option value="tq">Tournament Quest</option><option value="betting">Match Day</option>
+          <option value="prediction">Swipe</option><option value="fantasy">Fantasy</option>
+        </select>
+        <select value={filters.league} onChange={e => setFilters({ ...filters, league: e.target.value })} className="inp w-auto">
+          <option value="all">All leagues</option>
+          {Object.entries(leaguesById).map(([id, n]) => <option key={id} value={id}>{n}</option>)}
+        </select>
+        <select value={filters.tier} onChange={e => setFilters({ ...filters, tier: e.target.value })} className="inp w-auto capitalize">
+          <option value="all">All levels</option>{TIERS.map(([t]) => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <select value={filters.duration} onChange={e => setFilters({ ...filters, duration: e.target.value })} className="inp w-auto capitalize">
+          <option value="all">All durations</option>{DURATIONS.map(([d]) => <option key={d} value={d}>{d}</option>)}
+        </select>
+        <select value={filters.status} onChange={e => setFilters({ ...filters, status: e.target.value })} className="inp w-auto">
+          <option value="all">All statuses</option>{STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <div className="flex items-center gap-1 ml-auto">
+          {views.map(v => (
+            <span key={v.name} className="flex items-center gap-1 bg-background-dark rounded-lg pl-2 pr-1 py-1 text-xs">
+              <button onClick={() => setFilters({ ...filters, ...v.filters })} className="text-electric-blue font-semibold">{v.name}</button>
+              <button onClick={() => deleteView(v.name)} className="text-hot-red">×</button>
+            </span>
+          ))}
+          <button onClick={() => setFilters({ type: 'all', league: 'all', tier: 'all', duration: 'all', status: 'all' })} className="text-text-disabled text-xs px-2">Reset</button>
+          <button onClick={saveView} className="bg-electric-blue/15 text-electric-blue text-xs font-semibold px-2 py-1 rounded-lg">Save view</button>
+        </div>
+      </div>
+
       {/* Games list */}
       <div className="bg-surface border border-border-subtle rounded-xl overflow-hidden">
         <table className="w-full text-sm">
@@ -115,7 +197,7 @@ export default function GameBuilder() {
             <tr><th className="px-4 py-3">Game</th><th>Type</th><th>Status</th><th>Entry</th><th>Players</th><th>Visible</th><th className="text-right pr-4">Actions</th></tr>
           </thead>
           <tbody>
-            {comps.map(c => (
+            {fComps.map(c => (
               <tr key={c.id} className="border-b border-border-subtle/50">
                 <td className="px-4 py-3 font-medium text-text-primary">{c.name}</td>
                 <td className="text-text-secondary">Tournament Quest</td>
@@ -128,7 +210,7 @@ export default function GameBuilder() {
                 </td>
               </tr>
             ))}
-            {challenges.map(c => (
+            {fChallenges.map(c => (
               <tr key={c.id} className="border-b border-border-subtle/50">
                 <td className="px-4 py-3 font-medium text-text-primary">{c.name || '(untitled)'}</td>
                 <td className="text-text-secondary">{c.game_type === 'prediction' ? 'Swipe Prediction' : 'Match Day Challenge'} <span className="text-text-disabled text-xs">({c.rules?.period_type === 'calendar' ? 'calendar' : 'matchday'})</span></td>
@@ -144,7 +226,7 @@ export default function GameBuilder() {
                 </td>
               </tr>
             ))}
-            {fantasyGames.map(g => (
+            {fFantasy.map(g => (
               <tr key={g.id} className="border-b border-border-subtle/50">
                 <td className="px-4 py-3 font-medium text-text-primary">{g.name || '(untitled)'}</td>
                 <td className="text-text-secondary">Sportime Fantasy</td>
@@ -160,7 +242,7 @@ export default function GameBuilder() {
                 </td>
               </tr>
             ))}
-            {comps.length === 0 && challenges.length === 0 && fantasyGames.length === 0 && <tr><td colSpan={7} className="px-4 py-6 text-center text-text-disabled">No games yet. Create one above.</td></tr>}
+            {fComps.length === 0 && fChallenges.length === 0 && fFantasy.length === 0 && <tr><td colSpan={7} className="px-4 py-6 text-center text-text-disabled">No games yet. Create one above.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -273,7 +355,7 @@ function MatchGameCreate({ gameType, onCreated, flash }: { gameType: 'betting' |
   const [from, setFrom] = useState(''); const [to, setTo] = useState('');
   const [fixtures, setFixtures] = useState<any[]>([]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [f, setF] = useState({ name: '', mode: 'matchdays', entry_cost: 0, min_players: '', max_players: '', minimum_level: 'Rookie', is_visible: true, rules_html: '' });
+  const [f, setF] = useState({ name: '', mode: 'matchdays', entry_cost: computeCost('amateur', 'flash'), tier: 'amateur', duration: 'flash', override: false, min_players: '', max_players: '', minimum_level: 'Rookie', is_visible: true, rules_html: '' });
 
   useEffect(() => { listLeaguesFull().then(setLeagues); }, []);
   const toggleLeague = (id: string) => setSel(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -289,7 +371,7 @@ function MatchGameCreate({ gameType, onCreated, flash }: { gameType: 'betting' |
       name: f.name, league_ids: [...sel], fixture_ids: [...picked], mode: f.mode,
       entry_cost: Number(f.entry_cost) || 0, min_players: Number(f.min_players) || 0,
       max_players: Number(f.max_players) || 0, minimum_level: f.minimum_level, is_visible: f.is_visible,
-      rules_html: f.rules_html || null,
+      rules_html: f.rules_html || null, tier: f.tier, duration_type: f.duration,
     };
     const { data, error } = gameType === 'fantasy'
       ? await createFantasyGame(payload)
@@ -337,8 +419,8 @@ function MatchGameCreate({ gameType, onCreated, flash }: { gameType: 'betting' |
             <option value="calendar">Calendar (one bet per day)</option>
           </select>
         </Field>
-        <Field label="Entry cost"><input type="number" value={f.entry_cost} onChange={e => setF({ ...f, entry_cost: Number(e.target.value) })} className="inp" /></Field>
         <Field label="Min level"><select value={f.minimum_level} onChange={e => setF({ ...f, minimum_level: e.target.value })} className="inp">{LEVELS.map(l => <option key={l}>{l}</option>)}</select></Field>
+        <CostFields v={f} set={patch => setF({ ...f, ...patch })} />
         <Field label="Min players"><input type="number" value={f.min_players} onChange={e => setF({ ...f, min_players: e.target.value })} className="inp" /></Field>
         <Field label="Max players"><input type="number" value={f.max_players} onChange={e => setF({ ...f, max_players: e.target.value })} className="inp" /></Field>
         <label className="flex items-center gap-2 text-sm text-text-secondary mt-5"><input type="checkbox" checked={f.is_visible} onChange={e => setF({ ...f, is_visible: e.target.checked })} /> Visible in app</label>
