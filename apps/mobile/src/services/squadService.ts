@@ -191,7 +191,7 @@ export async function getSquadMembers(squadId: string): Promise<(SquadMember & {
     .from('squad_members')
     .select(`
       *,
-      users (id, username, avatar_url, level, total_xp)
+      users (id, username, profile_picture_url, level_name, xp_total)
     `)
     .eq('squad_id', squadId)
     .order('joined_at', { ascending: true });
@@ -587,4 +587,28 @@ export async function getSquadLiveGames(squadId: string): Promise<any[]> {
     match_details: { teamA: { name: g.home_team }, teamB: { name: g.away_team } },
     players: Array.from({ length: g.players || 0 }),
   }));
+}
+
+/** Admin: change a member's role (admin/member). */
+export async function setMemberRoleRpc(squadId: string, targetUserId: string, role: 'admin' | 'member', actorId: string): Promise<void> {
+  const { error } = await supabase.rpc('squad_set_member_role', {
+    p_actor: actorId, p_squad_id: squadId, p_target: targetUserId, p_role: role,
+  });
+  if (error) throw error;
+}
+
+/** Admin: remove a member from the squad. */
+export async function kickMember(squadId: string, targetUserId: string, actorId: string): Promise<void> {
+  const { error } = await supabase.rpc('squad_remove_member', {
+    p_actor: actorId, p_squad_id: squadId, p_target: targetUserId,
+  });
+  if (error) throw error;
+}
+
+/** Admin: block a member (removes them and prevents rejoining via the code). */
+export async function blockMember(squadId: string, targetUserId: string, actorId: string): Promise<void> {
+  const { error } = await supabase.rpc('squad_block_member', {
+    p_actor: actorId, p_squad_id: squadId, p_target: targetUserId,
+  });
+  if (error) throw error;
 }

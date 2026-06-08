@@ -32,6 +32,9 @@ interface LeaguePageProps {
   onViewLiveGame: (gameId: string, status: 'Upcoming' | 'Ongoing' | 'Finished') => void;
   onLinkGame: (leagueId: string, game: Game) => void;
   onUnlinkGame?: (gameId: string) => void;
+  onSetMemberRole?: (userId: string, role: 'admin' | 'member') => void;
+  onKickMember?: (userId: string) => void;
+  onBlockMember?: (userId: string) => void;
   linkedLiveGames?: any[];
   leagueGames: LeagueGame[];
   allGames: Game[];
@@ -53,7 +56,7 @@ const TabButton: React.FC<{ icon: React.ReactNode, label: string, isActive: bool
 );
 
 const LeaguePage: React.FC<LeaguePageProps> = (props) => {
-  const { league, members, memberRoles, currentUserRole, currentUserId, onBack, onUpdateDetails, onRemoveMember, onResetInviteCode, onLeave, onDelete, onViewGame, onViewLiveGame, onLinkGame, onUnlinkGame, linkedLiveGames, leagueGames, allGames, linkableGames, addToast } = props;
+  const { league, members, memberRoles, currentUserRole, currentUserId, onBack, onUpdateDetails, onRemoveMember, onResetInviteCode, onLeave, onDelete, onViewGame, onViewLiveGame, onLinkGame, onUnlinkGame, onSetMemberRole, onKickMember, onBlockMember, linkedLiveGames, leagueGames, allGames, linkableGames, addToast } = props;
   
   const { unlinkGameFromLeague, leagueFeed, toggleFeedPostLike, createPrivateLeagueGame, liveGames, createLiveGame, privateLeagueGames } = useMockStore();
   const [activeTab, setActiveTab] = useState<LeagueTab>('live');
@@ -221,7 +224,7 @@ const LeaguePage: React.FC<LeaguePageProps> = (props) => {
       {viewingSnapshot && <SnapshotModal isOpen={!!viewingSnapshot} onClose={() => setViewingSnapshot(null)} snapshot={viewingSnapshot} author={snapshotAuthor} />}
       {currentUserRole === 'admin' && (
         <>
-          <LeagueManageModal isOpen={isManageModalOpen} onClose={() => setIsManageModalOpen(false)} league={league} members={members.filter(m => m.id !== currentUserId)} onUpdateDetails={onUpdateDetails} onRemoveMember={onRemoveMember} onLeave={onLeave} onDelete={onDelete} />
+          <LeagueManageModal isOpen={isManageModalOpen} onClose={() => setIsManageModalOpen(false)} league={league} members={members} memberRoles={memberRoles as any} currentUserId={currentUserId} currentUserRole={currentUserRole} onUpdateDetails={onUpdateDetails} onRemoveMember={onRemoveMember} onSetMemberRole={onSetMemberRole} onKickMember={onKickMember} onBlockMember={onBlockMember} onLeave={onLeave} onDelete={onDelete} />
           <LinkGameModal isOpen={isLinkGameModalOpen} onClose={() => setIsLinkGameModalOpen(false)} onLinkGame={(game) => onLinkGame(league.id, game)} linkableGames={linkableGames} alreadyLinkedGameIds={leagueGames.filter(lg => lg.league_id === league.id).map(g => g.game_id)} />
           <ConfirmationModal isOpen={!!gameToUnlink} onClose={() => setGameToUnlink(null)} onConfirm={handleConfirmUnlink} title="Unlink Game" message={`Are you sure you want to unlink "${gameToUnlink?.game_name}" from your league?`} confirmText="Unlink" isDestructive={true} />
         </>

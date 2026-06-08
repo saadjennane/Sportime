@@ -1167,6 +1167,42 @@ function App() {
     }
   }, [profile, activeLeagueId, refetchActiveSquadGames]);
 
+  // Squad member administration.
+  const refetchActiveSquadMembers = useCallback(async () => {
+    if (!activeLeagueId) return;
+    try { setActiveSquadMembers(await squadService.getSquadMembers(activeLeagueId)); } catch { /* keep */ }
+  }, [activeLeagueId]);
+  const mapSquadAdminError = (e: any): string => {
+    const m = e?.message;
+    if (m === 'not_admin') return 'Admins only';
+    if (m === 'cannot_target_creator') return "You can't manage the squad owner";
+    return m || 'Action failed';
+  };
+  const handleSetMemberRole = useCallback(async (userId: string, role: 'admin' | 'member') => {
+    if (!profile || !activeLeagueId) return;
+    try {
+      await squadService.setMemberRoleRpc(activeLeagueId, userId, role, profile.id);
+      await refetchActiveSquadMembers();
+      addToast(role === 'admin' ? 'Promoted to admin' : 'Admin rights removed', 'success');
+    } catch (e: any) { addToast(mapSquadAdminError(e), 'error'); }
+  }, [profile, activeLeagueId, refetchActiveSquadMembers]);
+  const handleKickMember = useCallback(async (userId: string) => {
+    if (!profile || !activeLeagueId) return;
+    try {
+      await squadService.kickMember(activeLeagueId, userId, profile.id);
+      await refetchActiveSquadMembers();
+      addToast('Member removed', 'success');
+    } catch (e: any) { addToast(mapSquadAdminError(e), 'error'); }
+  }, [profile, activeLeagueId, refetchActiveSquadMembers]);
+  const handleBlockMember = useCallback(async (userId: string) => {
+    if (!profile || !activeLeagueId) return;
+    try {
+      await squadService.blockMember(activeLeagueId, userId, profile.id);
+      await refetchActiveSquadMembers();
+      addToast('Member blocked', 'success');
+    } catch (e: any) { addToast(mapSquadAdminError(e), 'error'); }
+  }, [profile, activeLeagueId, refetchActiveSquadMembers]);
+
   const ticketCount = useMemo(() => {
     if (!profile) return 0;
     return userTickets.filter(t => 
@@ -1428,9 +1464,9 @@ function App() {
             const memberProfiles = activeSquadMembers.map((m: any) => ({
               id: m.user?.id ?? m.user_id,
               username: m.user?.username ?? 'Player',
-              avatar_url: m.user?.avatar_url ?? null,
-              level: m.user?.level,
-              total_xp: m.user?.total_xp,
+              profile_picture_url: m.user?.profile_picture_url ?? null,
+              level_name: m.user?.level_name,
+              xp_total: m.user?.xp_total,
             })) as unknown as Profile[];
             const currentUserMembership = activeSquadMembers.find((m: any) => m.user_id === profile.id);
             return <LeaguePage 
@@ -1449,6 +1485,9 @@ function App() {
                 onViewLiveGame={handleViewLiveGame}
                 onLinkGame={handleLinkGameToLeague}
                 onUnlinkGame={handleUnlinkSquadGame}
+                onSetMemberRole={handleSetMemberRole}
+                onKickMember={handleKickMember}
+                onBlockMember={handleBlockMember}
                 addToast={addToast}
                 linkedLiveGames={activeSquadLiveGames as any}
                 leagueGames={resolvedActiveSquadGames as any}
