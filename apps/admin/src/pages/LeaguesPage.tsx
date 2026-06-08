@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, Edit2, Trash2, RefreshCw, Download, Users } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, RefreshCw, Download, Users, Eye, EyeOff } from 'lucide-react';
 import { leagueService } from '../services/leagueService';
 import type { LeagueWithTeamCount } from '../types/football';
 import { LeagueFormModal } from '../components/admin/LeagueFormModal';
@@ -185,21 +185,18 @@ export function LeaguesPage() {
         step: 'leagues',
         current: i + 1,
         total: ids.length,
-        message: `Importing league ${leagueId}...`
+        message: `[${i + 1}/${ids.length}] Importing league ${leagueId} (teams, players, fixtures)…`
       });
 
-      const result = await syncLeagueFull(leagueId, season as number, (progress) => {
-        setSyncProgress({
-          ...progress,
-          message: `[${i + 1}/${ids.length}] ${progress.message}`
-        });
-      });
-
-      if (result.success) {
+      // Server-side full import (league -> teams -> players -> fixtures).
+      const { data, error } = await leagueService.importFull(leagueId, season as number);
+      if (!error && data?.ok) {
         successCount++;
+        mockAddToast(`${data.league}: ${data.teams ?? 0} teams, ${data.players ?? 0} players, ${data.fixtures ?? 0} fixtures`, 'success');
       } else {
         failCount++;
-        console.error(`Failed to import league ${leagueId}:`, result.error);
+        console.error(`Failed to import league ${leagueId}:`, error || data?.error);
+        mockAddToast(`League ${leagueId} failed: ${error?.message || data?.error || 'unknown'}`, 'error');
       }
     }
 
@@ -430,6 +427,15 @@ export function LeaguesPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={async () => { await leagueService.setVisibility(league.id, (league as any).is_visible === false); loadLeagues(); }}
+                          className="p-2 hover:bg-background-dark rounded transition-colors"
+                          title={(league as any).is_visible === false ? 'Hidden in app — click to show' : 'Visible in app — click to hide'}
+                        >
+                          {(league as any).is_visible === false
+                            ? <EyeOff className="w-4 h-4 text-text-disabled" />
+                            : <Eye className="w-4 h-4 text-lime-glow" />}
+                        </button>
                         {league.api_id && (
                           <button
                             onClick={() => handleSyncTeams(league)}
