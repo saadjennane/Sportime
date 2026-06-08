@@ -14,8 +14,10 @@ Deno.serve(async (req) => {
   try {
     const b = await req.json()
     const { name, league_ids = [], fixture_ids = [], mode = 'matchdays', entry_cost = 0,
-      min_players = 0, max_players = 0, minimum_level = 'Rookie', is_visible = true } = b
+      min_players = 0, max_players = 0, minimum_level = 'Rookie', is_visible = true,
+      game_type = 'betting', rules_html = null } = b
     if (!name || !Array.isArray(fixture_ids) || fixture_ids.length === 0) throw new Error('name and at least one fixture are required')
+    if (!['betting', 'prediction'].includes(game_type)) throw new Error('game_type must be betting or prediction')
 
     const asCaller = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } })
     const { data: isAdmin } = await asCaller.rpc('is_admin')
@@ -40,8 +42,8 @@ Deno.serve(async (req) => {
 
     // 1) Challenge
     const { data: ch, error: chErr } = await db.from('challenges').insert({
-      name, game_type: 'betting', sport: 'football', format: 'leaderboard', start_date, end_date,
-      entry_cost, status: 'draft', is_visible,
+      name, game_type, sport: 'football', format: 'leaderboard', start_date, end_date,
+      entry_cost, status: 'draft', is_visible, rules_html,
       league_id: league_ids[0] ?? null,
       rules: { tier: 'amateur', period_type: mode, minimum_players: min_players, maximum_players: max_players },
       entry_conditions: { minimum_level, required_badges: [], requires_subscription: false },
