@@ -129,10 +129,12 @@ interface GamesListPageProps {
   userTickets: UserTicket[];
   onRefresh?: () => void | Promise<void>;
   onShowLiveGames?: () => void;
+  pendingInviteGameIds?: Set<string>;
+  onReopenInvite?: (gameId: string) => void;
 }
 
 const GamesListPage: React.FC<GamesListPageProps> = (props) => {
-  const { games, userChallengeEntries, userSwipeEntries, userFantasyTeams, joinedGameIds, onJoinChallenge, onViewChallenge, onJoinSwipeGame, onPlaySwipeGame, onViewFantasyGame, onViewTournament, profile, userTickets, onRefresh, onShowLiveGames } = props;
+  const { games, userChallengeEntries, userSwipeEntries, userFantasyTeams, joinedGameIds, onJoinChallenge, onViewChallenge, onJoinSwipeGame, onPlaySwipeGame, onViewFantasyGame, onViewTournament, profile, userTickets, onRefresh, onShowLiveGames, pendingInviteGameIds, onReopenInvite } = props;
 
   const [activeTab, setActiveTab] = useState<GamesTab>('my-games');
   const [filters, setFilters] = useState<GameFilters>({
@@ -419,6 +421,8 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
         userTickets={userTickets}
         userEntry={userEntry}
         userSwipeEntry={userSwipeEntry}
+        hasPendingInvite={pendingInviteGameIds?.has(game.id)}
+        onReopenInvite={() => onReopenInvite?.(game.id)}
       />
     );
   };

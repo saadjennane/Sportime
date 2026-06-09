@@ -51,3 +51,14 @@ export async function getPendingInvite(gameId: string) {
 export function buildInviteLink(token: string): string {
   return `https://sportime.app/i/${token}`;
 }
+
+/** All pending +1 invites the user created, keyed by game id (for persistent re-open access). */
+export async function getMyPendingInvites(): Promise<Record<string, { inviteId: string; token: string }>> {
+  const { data } = await supabase
+    .from('tq_masterpass_invites')
+    .select('id, token, game_id')
+    .eq('status', 'pending');
+  const map: Record<string, { inviteId: string; token: string }> = {};
+  for (const r of (data ?? []) as any[]) if (r.game_id) map[r.game_id] = { inviteId: r.id, token: r.token };
+  return map;
+}

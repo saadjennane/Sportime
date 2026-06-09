@@ -14,7 +14,9 @@ const ChallengeRoomPage = lazy(() => import('./pages/ChallengeRoomPage'));
 const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage'));
 import { ChooseEntryMethodModal } from './components/ChooseEntryMethodModal';
 import { MasterpassInviteModal } from './components/funzone/MasterpassInviteModal';
-import { getAvailableMasterpasses, useMasterpass } from './services/masterpassService';
+import { MasterpassClaimModal } from './components/funzone/MasterpassClaimModal';
+import { getAvailableMasterpasses, useMasterpass, claimMasterpassInvite, getMyPendingInvites } from './services/masterpassService';
+import { App as CapApp } from '@capacitor/app';
 const SwipeFlowPage = lazy(() => import('./pages/SwipeFlowPage').then(m => ({ default: m.SwipeFlowPage })));
 import { JoinSwipeGameConfirmationModal } from './components/JoinSwipeGameConfirmationModal';
 import { supabase } from './services/supabase';
@@ -343,10 +345,41 @@ function App() {
   const [challengeToJoin, setChallengeToJoin] = useState<SportimeGame | null>(null);
   const [masterpassTiers, setMasterpassTiers] = useState<Set<string>>(new Set());
   const [masterpassInvite, setMasterpassInvite] = useState<{ inviteId: string; token: string } | null>(null);
+  const [claimToken, setClaimToken] = useState<string | null>(null);
+  const [pendingInvites, setPendingInvites] = useState<Record<string, { inviteId: string; token: string }>>({});
   useEffect(() => {
-    if (!profile) { setMasterpassTiers(new Set()); return; }
+    if (!profile) { setMasterpassTiers(new Set()); setPendingInvites({}); return; }
     getAvailableMasterpasses().then(mps => setMasterpassTiers(new Set(mps.map(m => m.tier)))).catch(() => {});
+    getMyPendingInvites().then(setPendingInvites).catch(() => {});
   }, [profile?.id]);
+  const reopenInvite = (gameId: string) => { const inv = pendingInvites[gameId]; if (inv) setMasterpassInvite(inv); };
+
+  // Deeplink: sportime://masterpass/<token> or https://sportime.app/i/<token> -> claim a +1 invite.
+  useEffect(() => {
+    const extract = (url: string): string | null => { const m = url.match(/(?:masterpass\/|\/i\/)([a-f0-9]{16,})/i); return m ? m[1] : null; };
+    let sub: any;
+    (async () => {
+      try {
+        sub = await CapApp.addListener('appUrlOpen', ({ url }: { url: string }) => { const t = extract(url); if (t) setClaimToken(t); });
+        const launch = await CapApp.getLaunchUrl();
+        if (launch?.url) { const t = extract(launch.url); if (t) setClaimToken(t); }
+      } catch { /* not native */ }
+    })();
+    return () => { try { sub?.remove?.(); } catch { /* ignore */ } };
+  }, []);
+
+  const confirmClaimMasterpass = async () => {
+    if (!claimToken) return;
+    if (!profile || isGuest) { setClaimToken(null); handleTriggerSignUp(); return; }
+    const res: any = await claimMasterpassInvite(claimToken);
+    setClaimToken(null);
+    if (!res?.ok) { addToast(res?.error === 'already_used' ? 'This invite was already used' : (res?.error || 'Could not join'), 'error'); return; }
+    addToast('Joined! 🎉 Good luck!', 'success');
+    await refreshChallenges();
+    if (res.game_type === 'tournament') handleViewTournament(res.game_id);
+    else if (res.game_type === 'fantasy') handleViewFantasyGame(res.game_id);
+    else setActiveChallengeId(res.game_id);
+  };
   const [swipeGameToJoin, setSwipeGameToJoin] = useState<Game | null>(null);
   const [joinSwipeGameModalState, setJoinSwipeGameModalState] = useState<{ isOpen: boolean; game: Game | null; }>({ isOpen: false, game: null });
   const [hasSeenSwipeTutorial, setHasSeenSwipeTutorial] = useState(false);
@@ -1559,7 +1592,7 @@ function App() {
           </ErrorBoundary>
         );
       case 'challenges':
-        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} onViewTournament={handleViewTournament} joinedGameIds={joinedChallengeSet} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} onRefresh={refreshChallenges} onShowLiveGames={() => setShowLiveGames(true)} />;
+        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} onViewTournament={handleViewTournament} joinedGameIds={joinedChallengeSet} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} onRefresh={refreshChallenges} onShowLiveGames={() => setShowLiveGames(true)} pendingInviteGameIds={new Set(Object.keys(pendingInvites))} onReopenInvite={reopenInvite} />;
       case 'squads':
           return <LeaguesListPage
               leagues={myLeagues}
@@ -1578,7 +1611,7 @@ function App() {
         }
         return null;
       default:
-        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} onViewTournament={handleViewTournament} joinedGameIds={joinedChallengeSet} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} onRefresh={refreshChallenges} onShowLiveGames={() => setShowLiveGames(true)} />;
+        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} onViewTournament={handleViewTournament} joinedGameIds={joinedChallengeSet} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} onRefresh={refreshChallenges} onShowLiveGames={() => setShowLiveGames(true)} pendingInviteGameIds={new Set(Object.keys(pendingInvites))} onReopenInvite={reopenInvite} />;
     }
   }
   
@@ -1692,10 +1725,17 @@ function App() {
       {masterpassInvite && (
         <MasterpassInviteModal
           isOpen={!!masterpassInvite}
-          onClose={() => setMasterpassInvite(null)}
+          onClose={() => { setMasterpassInvite(null); getMyPendingInvites().then(setPendingInvites).catch(() => {}); }}
           inviteId={masterpassInvite.inviteId}
           token={masterpassInvite.token}
           addToast={addToast}
+        />
+      )}
+      {claimToken && (
+        <MasterpassClaimModal
+          isOpen={!!claimToken}
+          onClose={() => setClaimToken(null)}
+          onConfirm={confirmClaimMasterpass}
         />
       )}
       {joinSwipeGameModalState.isOpen && joinSwipeGameModalState.game && ( <JoinSwipeGameConfirmationModal isOpen={joinSwipeGameModalState.isOpen} onClose={() => setJoinSwipeGameModalState({ isOpen: false, game: null })} onConfirm={handleConfirmJoinSwipeGame} game={joinSwipeGameModalState.game as SwipeMatchDay} userBalance={coinBalance} /> )}

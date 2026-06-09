@@ -83,6 +83,8 @@ interface GameCardProps {
   userTickets: UserTicket[];
   userEntry?: UserChallengeEntry;   // For betting/prediction games
   userSwipeEntry?: UserSwipeEntry;  // For swipe games
+  hasPendingInvite?: boolean;       // a MasterPass +1 slot is still open for this game
+  onReopenInvite?: () => void;
 }
 
 // =============================================================================
@@ -156,7 +158,7 @@ const durationVisual: Record<string, { Icon: any; label: string }> = {
   season: { Icon: CalendarDays, label: 'Season' },
 };
 
-export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick, onPlay, onShowRewards, onShowInfo, onViewLeaderboard, profile, userTickets, userEntry, userSwipeEntry }) => {
+export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick, onPlay, onShowRewards, onShowInfo, onViewLeaderboard, profile, userTickets, userEntry, userSwipeEntry, hasPendingInvite, onReopenInvite }) => {
   // Calculate progress status for the badge
   const progressStatus = useMemo(() => getProgressStatus(game, userEntry, userSwipeEntry), [game, userEntry, userSwipeEntry]);
   const details = gameTypeDetails[game.game_type as keyof typeof gameTypeDetails];
@@ -321,6 +323,15 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
         </div>
       </div>
       
+      {hasPendingInvite && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onReopenInvite?.(); }}
+          className="w-full flex items-center justify-center gap-2 bg-hot-red/15 text-hot-red border border-hot-red/30 rounded-lg py-2 text-sm font-bold hover:bg-hot-red/25 transition-colors"
+        >
+          <Users size={16} /> Invite your +1
+        </button>
+      )}
+
       {isCancelled && (
         <div className="text-center text-hot-red font-semibold text-sm border-t border-white/10 pt-3">
           Your entry has been refunded.
