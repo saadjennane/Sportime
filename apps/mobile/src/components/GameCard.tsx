@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { SportimeGame, TournamentType, Profile, UserTicket, GameType, UserChallengeEntry, UserSwipeEntry } from '../types';
 import { format, parseISO, isBefore } from 'date-fns';
-import { Calendar, Coins, Gift, ArrowRight, Clock, Users, Ticket, Star, Trophy, Award, Info, Flame, Lock, CheckCircle2, CircleDot } from 'lucide-react';
+import { Calendar, Coins, Gift, ArrowRight, Clock, Users, Ticket, Star, Trophy, Award, Info, Flame, Lock, CheckCircle2, CircleDot, Target, Layers, Shirt, Zap, Repeat, CalendarDays } from 'lucide-react';
 import { CtaState, calculateEntryDeadline } from '../pages/GamesListPage';
 import { normalizeTournamentTier } from '../config/constants';
 import { getGameDeadline } from '../services/gameStateService';
@@ -142,6 +142,20 @@ const tournamentTierDetails: Record<TournamentType, { label: string; color: stri
   apex: { label: 'Apex', color: 'bg-hot-red/20 text-hot-red' },
 };
 
+// Per-type visual identity: icon + name + chip colour + left rail colour.
+const gameTypeVisual: Record<string, { name: string; Icon: any; chip: string; rail: string; dot: string }> = {
+  betting:        { name: 'Match Day',  Icon: Target, chip: 'bg-electric-blue/20 text-electric-blue', rail: 'bg-electric-blue', dot: 'bg-electric-blue' },
+  prediction:     { name: 'Swipe',      Icon: Layers, chip: 'bg-neon-cyan/20 text-neon-cyan',         rail: 'bg-neon-cyan',     dot: 'bg-neon-cyan' },
+  fantasy:        { name: 'Fantasy',    Icon: Shirt,  chip: 'bg-lime-glow/20 text-lime-glow',         rail: 'bg-lime-glow',     dot: 'bg-lime-glow' },
+  'fantasy-live': { name: 'Fantasy Live', Icon: Shirt, chip: 'bg-purple-600/20 text-purple-400',      rail: 'bg-purple-500',    dot: 'bg-purple-400' },
+  tournament:     { name: 'Tournament', Icon: Trophy, chip: 'bg-warm-yellow/20 text-warm-yellow',     rail: 'bg-warm-yellow',   dot: 'bg-warm-yellow' },
+};
+const durationVisual: Record<string, { Icon: any; label: string }> = {
+  flash:  { Icon: Zap,          label: 'Flash' },
+  series: { Icon: Repeat,       label: 'Series' },
+  season: { Icon: CalendarDays, label: 'Season' },
+};
+
 export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick, onPlay, onShowRewards, onShowInfo, onViewLeaderboard, profile, userTickets, userEntry, userSwipeEntry }) => {
   // Calculate progress status for the badge
   const progressStatus = useMemo(() => getProgressStatus(game, userEntry, userSwipeEntry), [game, userEntry, userSwipeEntry]);
@@ -149,6 +163,11 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
   const normalizedTier = normalizeTournamentTier(game.tier);
   const tierDetails = normalizedTier ? tournamentTierDetails[normalizedTier] : null;
   const periodDetails = game.period_type ? periodTypeDetails[game.period_type] : null;
+  const typeViz = gameTypeVisual[game.game_type as string] ?? gameTypeVisual.betting;
+  const durViz = (game as any).duration_type ? durationVisual[(game as any).duration_type] : null;
+  const isLiveGame = game.status === 'Ongoing';
+  const TypeIcon = typeViz.Icon;
+  const DurIcon = durViz?.Icon;
 
 
   // Check if first match has started (for showing leaderboard to non-participants)
@@ -255,7 +274,9 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
 
 
   return (
-    <div className={`card-base p-4 space-y-3 transition-all hover:border-neon-cyan/50 ${isCancelled || isInProgress || isLocked ? 'opacity-60' : ''}`}>
+    <div className={`card-base p-4 space-y-3 relative overflow-hidden transition-all duration-150 hover:border-neon-cyan/50 active:scale-[0.99] ${isCancelled || isInProgress || isLocked || game.status === 'Finished' ? 'opacity-60' : ''}`}>
+      {/* Type identity rail */}
+      <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${typeViz.rail}`} />
       {/* Top Section */}
       <div className="flex justify-between items-start">
         <div className="flex-1">
@@ -275,22 +296,27 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
             )}
             <h3 className="text-md font-bold text-text-primary pr-2">{game.name}</h3>
           </div>
-          <div className="flex items-center gap-2 mt-1">
-            {details && (
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${details.color}`}>
-                {details.tag}
+          <div className="flex items-center justify-between gap-2 mt-1">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${typeViz.chip}`}>
+                {isLiveGame && <span className={`w-1.5 h-1.5 rounded-full ${typeViz.dot} animate-pulse`} />}
+                <TypeIcon size={12} />
+                {typeViz.name}
               </span>
-            )}
-            {tierDetails && (
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${tierDetails.color}`}>
-                {tierDetails.label}
-              </span>
-            )}
-            {accessConditionIcons.length > 0 && (
-              <div className="flex items-center gap-1 text-warm-yellow" title="Access conditions apply">
-                {accessConditionIcons}
-              </div>
-            )}
+              {accessConditionIcons.length > 0 && (
+                <div className="flex items-center gap-1 text-warm-yellow" title="Access conditions apply">
+                  {accessConditionIcons}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {tierDetails && (
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${tierDetails.color}`}>
+                  {tierDetails.label}
+                </span>
+              )}
+              {DurIcon && <span className="text-text-secondary" title={`Duration: ${durViz!.label}`}><DurIcon size={15} /></span>}
+            </div>
           </div>
         </div>
       </div>

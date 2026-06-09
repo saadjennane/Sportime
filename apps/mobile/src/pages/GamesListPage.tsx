@@ -48,6 +48,10 @@ export function calculateEntryDeadline(game: SportimeGame): Date {
   // Games without matches remain open until end_date
   // Parse end_date and set to end of day in LOCAL time to avoid timezone issues
   // parseISO("2025-12-06") creates UTC midnight, which shifts the date in local timezones
+  // Some games (e.g. Tournament Quest) have no fixed end_date -> keep entry open.
+  if (!game.end_date || typeof game.end_date !== 'string') {
+    return new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // far future = stays open
+  }
   const [year, month, day] = game.end_date.split('T')[0].split('-').map(Number);
   const endDate = new Date(year, month - 1, day, 23, 59, 59, 999);
   return endDate;
@@ -274,8 +278,10 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       if (game.totalPlayers === 0 && !entryStillOpen) continue;
 
       const realStatus = getRealGameStatus(game, now);
-      // Also check if end_date has passed (game is definitely finished)
-      const endDatePassed = parseISO(game.end_date) < now;
+      // Also check if end_date has passed (game is definitely finished).
+      // Some games (e.g. Tournament Quest) have no end_date -> never "passed".
+      const endParsed = safeParseISO(game.end_date);
+      const endDatePassed = endParsed ? endParsed < now : false;
 
       if (realStatus === 'Finished' || realStatus === 'Cancelled' || endDatePassed) {
         past.push(game);
@@ -291,8 +297,9 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       }
     }
 
-    const sortByStartDate = (a: SportimeGame, b: SportimeGame) => parseISO(a.start_date).getTime() - parseISO(b.start_date).getTime();
-    const sortByEndDateDesc = (a: SportimeGame, b: SportimeGame) => parseISO(b.end_date).getTime() - parseISO(a.end_date).getTime();
+    const ts = (d?: string | null, fallback = 0) => { const p = safeParseISO(d); return p ? p.getTime() : fallback; };
+    const sortByStartDate = (a: SportimeGame, b: SportimeGame) => ts(a.start_date) - ts(b.start_date);
+    const sortByEndDateDesc = (a: SportimeGame, b: SportimeGame) => ts(b.end_date) - ts(a.end_date);
 
     return {
       availableGames: available.sort(sortByStartDate),
