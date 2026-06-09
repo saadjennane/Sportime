@@ -1,12 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Profile, SpinTier } from '../types';
 import { useMockStore } from '../store/useMockStore';
 import { ProgressionBar } from '../components/funzone/ProgressionBar';
 import { SpinwheelCard } from '../components/funzone/SpinwheelCard';
 import { CasualGameCard } from '../components/funzone/CasualGameCard';
-import { FreeSpinwheelModal } from '../components/funzone/FreeSpinwheelModal';
-import { SpinwheelPreviewModal } from '../components/funzone/SpinwheelPreviewModal';
-import { differenceInHours } from 'date-fns';
+import { SpinwheelModal } from '../components/funzone/SpinwheelModal';
+import { prefetchSpinSegments } from '../services/spinSegmentsService';
 
 interface FunZonePageProps {
   profile: Profile | null;
@@ -16,36 +15,20 @@ interface FunZonePageProps {
 
 const FunZonePage: React.FC<FunZonePageProps> = ({ profile, onOpenSpinWheel, addToast }) => {
   const { funzone, userTickets } = useMockStore();
-  const [isFreeSpinModalOpen, setIsFreeSpinModalOpen] = useState(false);
-  const [previewingTier, setPreviewingTier] = useState<SpinTier | null>(null);
+  const [openTier, setOpenTier] = useState<SpinTier | null>(null);
 
-  const isFreeSpinAvailable = !funzone.dailySpinLastUsed || differenceInHours(new Date(), new Date(funzone.dailySpinLastUsed)) >= 24;
+  // Prefetch wheel content so the modal opens instantly (only re-downloads on change).
+  useEffect(() => { prefetchSpinSegments(); }, []);
 
-  const handleSpinwheelClick = (tier: SpinTier) => {
-    if (tier === 'free') {
-      if (isFreeSpinAvailable) {
-        setIsFreeSpinModalOpen(true);
-      } else {
-        addToast('You can only spin the free wheel once a day.', 'info');
-      }
-    } else {
-      // For now, all other wheels are locked and show a preview
-      setPreviewingTier(tier);
-    }
-  };
+  // Any wheel opens the modal; the server RPC enforces eligibility (cooldown / no spins).
+  const handleSpinwheelClick = (tier: SpinTier) => setOpenTier(tier);
 
   const checkTicketAvailability = (tier: SpinTier): boolean => {
-    if (tier === 'free') return isFreeSpinAvailable;
     if (tier === 'premium') return profile?.is_subscriber ?? false;
-
     if (!profile) return false;
-
     const now = new Date();
     return userTickets.some(ticket =>
-      ticket.user_id === profile.id &&
-      ticket.type === tier &&
-      !ticket.is_used &&
-      new Date(ticket.expires_at) > now
+      ticket.user_id === profile.id && ticket.type === tier && !ticket.is_used && new Date(ticket.expires_at) > now
     );
   };
 
@@ -80,20 +63,15 @@ const FunZonePage: React.FC<FunZonePageProps> = ({ profile, onOpenSpinWheel, add
         </div>
       </div>
 
-      {profile && (
-        <FreeSpinwheelModal
-          isOpen={isFreeSpinModalOpen}
-          onClose={() => setIsFreeSpinModalOpen(false)}
+      {profile && openTier && (
+        <SpinwheelModal
+          isOpen={!!openTier}
+          onClose={() => setOpenTier(null)}
+          tier={openTier}
           userId={profile.id}
           addToast={addToast}
         />
       )}
-
-      <SpinwheelPreviewModal
-        isOpen={!!previewingTier}
-        onClose={() => setPreviewingTier(null)}
-        tier={previewingTier!}
-      />
     </>
   );
 };
