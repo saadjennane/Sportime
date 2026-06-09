@@ -21,6 +21,15 @@ export async function listAvailableMRGames() {
   return data ?? [];
 }
 
+/** The active Match Royale game for a fixture (for the match's Play menu), if any. */
+export async function getMRGameByFixture(fixtureId: string) {
+  const { data } = await supabase.from('mr_games')
+    .select('id, status, pot_amount')
+    .eq('fixture_id', fixtureId).in('status', LIVE_STATUSES)
+    .order('created_at', { ascending: false }).limit(1).maybeSingle();
+  return data;
+}
+
 export async function getMRGame(gameId: string) {
   const { data } = await supabase
     .from('mr_games')
