@@ -1,29 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabase';
 import { MatchHeaderRow } from '../../components/matches/MatchHeaderRow';
-import { ChevronLeft, Loader2, Zap } from 'lucide-react';
+import { ChevronLeft, Loader2, Zap, Trophy } from 'lucide-react';
+import { listAvailableMRGames } from '../../services/matchRoyaleService';
+import { MatchRoyaleGame } from './MatchRoyaleGame';
 
 interface Props {
   userId: string;
   onOpenGame: (gameId: string, fixtureId: string, mode: 'free' | 'ranked') => void;
   onBack: () => void;
+  addToast?: (m: string, t: 'success' | 'error' | 'info') => void;
 }
 
 const FINISHED = ['FT', 'AET', 'PEN'];
 
-export const LiveGamesListPage: React.FC<Props> = ({ userId, onOpenGame, onBack }) => {
+export const LiveGamesListPage: React.FC<Props> = ({ userId, onOpenGame, onBack, addToast }) => {
   const [loading, setLoading] = useState(true);
   const [games, setGames] = useState<any[]>([]);
+  const [mrGames, setMrGames] = useState<any[]>([]);
+  const [openMR, setOpenMR] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (!supabase) { setLoading(false); return; }
-      const { data } = await supabase.rpc('get_user_live_games', { p_user_id: userId });
-      if (!cancelled) { setGames(Array.isArray(data) ? data : []); setLoading(false); }
+      const [{ data }, mr] = await Promise.all([
+        supabase.rpc('get_user_live_games', { p_user_id: userId }),
+        listAvailableMRGames().catch(() => []),
+      ]);
+      if (!cancelled) { setGames(Array.isArray(data) ? data : []); setMrGames(mr); setLoading(false); }
     })();
     return () => { cancelled = true; };
   }, [userId]);
+
+  if (openMR) {
+    return <MatchRoyaleGame gameId={openMR} userId={userId} onBack={() => setOpenMR(null)} addToast={addToast ?? (() => {})} />;
+  }
 
   return (
     <div className="fixed inset-0 bg-deep-navy z-40 overflow-y-auto">
@@ -32,6 +44,26 @@ export const LiveGamesListPage: React.FC<Props> = ({ userId, onOpenGame, onBack 
           <button onClick={onBack} className="p-2 -ml-2 text-text-secondary hover:text-text-primary"><ChevronLeft size={24} /></button>
           <h1 className="font-bold text-lg text-text-primary flex items-center gap-2"><Zap size={18} className="text-warm-yellow" /> Live Games</h1>
         </div>
+
+        {mrGames.length > 0 && (
+          <div className="space-y-2">
+            <h2 className="text-xs font-bold uppercase tracking-wide text-text-secondary flex items-center gap-1.5"><Trophy size={14} className="text-warm-yellow" /> Match Royale</h2>
+            {mrGames.map((g) => {
+              const fx = g.fixture;
+              const center = (fx?.goals_home != null) ? `${fx.goals_home} - ${fx.goals_away}` : (fx?.date ? new Date(fx.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'VS');
+              const tm = { teamA: { name: fx?.home?.name ?? 'Home', logo: fx?.home?.logo_url }, teamB: { name: fx?.away?.name ?? 'Away', logo: fx?.away?.logo_url } };
+              return (
+                <button key={g.id} onClick={() => setOpenMR(g.id)} className="w-full card-base p-4 text-left hover:border-warm-yellow/40 transition-colors">
+                  <MatchHeaderRow match={tm} center={center} />
+                  <div className="flex items-center justify-between mt-3 text-xs">
+                    <span className="font-semibold px-2 py-0.5 rounded-lg bg-warm-yellow/15 text-warm-yellow">🏆 {g.pot_amount ?? '—'} coins</span>
+                    <span className="text-text-secondary capitalize">{String(g.status).replace('_', ' ')}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {loading ? (
           <div className="flex justify-center py-16"><Loader2 className="animate-spin text-electric-blue" size={28} /></div>

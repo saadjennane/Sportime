@@ -1649,6 +1649,7 @@ function App() {
           userId={profile.id}
           onOpenGame={(id, fixtureId, mode) => { setShowLiveGames(false); setActiveLiveGameSupabase({ id, fixtureId, mode }); }}
           onBack={() => setShowLiveGames(false)}
+          addToast={addToast}
         />
       </Suspense>
     );
