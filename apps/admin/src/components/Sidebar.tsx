@@ -1,7 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
-  Zap,
   Star,
   DatabaseZap,
   Trophy,
@@ -12,7 +11,6 @@ import {
   Menu,
   X,
   Calendar,
-  Gamepad2,
   DollarSign,
   Radio,
   Disc3
@@ -36,8 +34,6 @@ export function Sidebar({ className = '' }: SidebarProps) {
     { to: '/teams', icon: Shield, label: 'Teams' },
     { to: '/players', icon: Users, label: 'Players' },
     { to: '/fixtures', icon: Calendar, label: 'Fixtures' },
-    { to: '/swipe', icon: Zap, label: 'Swipe Games' },
-    { to: '/fantasy', icon: Gamepad2, label: 'Fantasy' },
     { to: '/tournament', icon: Trophy, label: 'Game Builder' },
     { to: '/progression', icon: Star, label: 'Progression' },
     { to: '/spinwheel', icon: Disc3, label: 'Spinwheel' },
