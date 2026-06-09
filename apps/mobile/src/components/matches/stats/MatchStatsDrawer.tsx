@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, FileText, History, Users } from 'lucide-react';
+import { X, FileText, History, Users, BarChart3 } from 'lucide-react';
 import { Match } from '../../../types';
 import { FormTab } from './FormTab';
 import { H2HTab } from './H2HTab';
 import { LineupsTab } from './LineupsTab';
+import { StatsTab } from './StatsTab';
 import { useMatchExtras } from '../../../features/matches/useMatchExtras';
 
 interface MatchStatsDrawerProps {
@@ -12,7 +13,7 @@ interface MatchStatsDrawerProps {
   onClose: () => void;
 }
 
-type ActiveTab = 'form' | 'h2h' | 'lineups';
+type ActiveTab = 'form' | 'h2h' | 'lineups' | 'stats';
 
 const drawerVariants = {
   hidden: { y: '100%', x: 0 },
@@ -78,6 +79,8 @@ export const MatchStatsDrawer: React.FC<MatchStatsDrawerProps> = ({ match, onClo
         return <H2HTab data={h2h} loading={loading} />;
       case 'lineups':
         return <LineupsTab data={lineups} loading={loading} />;
+      case 'stats':
+        return <StatsTab fixtureId={extrasParams?.fixtureId} homeTeamId={extrasParams?.homeTeamId} />;
       default:
         return null;
     }
@@ -137,6 +140,9 @@ export const MatchStatsDrawer: React.FC<MatchStatsDrawerProps> = ({ match, onClo
               <TabButton label="H2H" icon={<History size={18} />} isActive={activeTab === 'h2h'} onClick={() => setActiveTab('h2h')} />
               {extrasParams && (
                 <TabButton label="Lineups" icon={<Users size={18} />} isActive={activeTab === 'lineups'} onClick={() => setActiveTab('lineups')} />
+              )}
+              {extrasParams && (
+                <TabButton label="Stats" icon={<BarChart3 size={18} />} isActive={activeTab === 'stats'} onClick={() => setActiveTab('stats')} />
               )}
             </div>
 
