@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { LiveGameConfigPage } from './LiveGameConfigPage';
 import { MatchRoyalePage } from './MatchRoyalePage';
+import { LivePredictionScoring } from '../components/LivePredictionScoring';
 
 export function LiveGamesPage() {
   const [tab, setTab] = useState<'prediction' | 'royale'>('prediction');
@@ -18,7 +19,12 @@ export function LiveGamesPage() {
           </button>
         ))}
       </div>
-      <div>{tab === 'prediction' ? <LiveGameConfigPage /> : <MatchRoyalePage />}</div>
+      <div>{tab === 'prediction' ? (
+        <div className="space-y-6">
+          <LivePredictionScoring />
+          <LiveGameConfigPage />
+        </div>
+      ) : <MatchRoyalePage />}</div>
     </div>
   );
 }
