@@ -144,8 +144,8 @@ const tournamentTierDetails: Record<TournamentType, { label: string; color: stri
 
 // Per-type visual identity: icon + name + chip colour + left rail colour.
 const gameTypeVisual: Record<string, { name: string; Icon: any; chip: string; rail: string; dot: string }> = {
-  betting:        { name: 'Match Day',  Icon: Target, chip: 'bg-electric-blue/20 text-electric-blue', rail: 'bg-electric-blue', dot: 'bg-electric-blue' },
-  prediction:     { name: 'Swipe',      Icon: Layers, chip: 'bg-neon-cyan/20 text-neon-cyan',         rail: 'bg-neon-cyan',     dot: 'bg-neon-cyan' },
+  betting:        { name: 'Betting',    Icon: Target, chip: 'bg-electric-blue/20 text-electric-blue', rail: 'bg-electric-blue', dot: 'bg-electric-blue' },
+  prediction:     { name: 'Prediction', Icon: Layers, chip: 'bg-neon-cyan/20 text-neon-cyan',         rail: 'bg-neon-cyan',     dot: 'bg-neon-cyan' },
   fantasy:        { name: 'Fantasy',    Icon: Shirt,  chip: 'bg-lime-glow/20 text-lime-glow',         rail: 'bg-lime-glow',     dot: 'bg-lime-glow' },
   'fantasy-live': { name: 'Fantasy Live', Icon: Shirt, chip: 'bg-purple-600/20 text-purple-400',      rail: 'bg-purple-500',    dot: 'bg-purple-400' },
   tournament:     { name: 'Tournament', Icon: Trophy, chip: 'bg-warm-yellow/20 text-warm-yellow',     rail: 'bg-warm-yellow',   dot: 'bg-warm-yellow' },
