@@ -19,6 +19,37 @@ async function api(path: string, params: Record<string, unknown>) {
 }
 const n = (v: any) => (v == null ? null : Number(v))
 
+// Fixtures: resolve team UUIDs (fb_fixtures.*_team_id are UUID refs) via select-then-insert.
+async function seedFixtures(db: any, league_api_id: number, season: number, leagueId: string, country: string) {
+  const fx = await api('/fixtures', { league: league_api_id, season })
+  const teams = new Map<number, any>()
+  for (const f of (fx.response ?? [])) {
+    teams.set(f.teams.home.id, { api_id: f.teams.home.id, name: f.teams.home.name, logo_url: f.teams.home.logo, country })
+    teams.set(f.teams.away.id, { api_id: f.teams.away.id, name: f.teams.away.name, logo_url: f.teams.away.logo, country })
+  }
+  const apiIds = [...teams.keys()]
+  const map = new Map<number, string>()
+  if (apiIds.length) {
+    const { data: existing } = await db.from('fb_teams').select('id, api_id').in('api_id', apiIds)
+    for (const t of (existing ?? [])) map.set(t.api_id, t.id)
+    const missing = apiIds.filter(id => !map.has(id)).map(id => teams.get(id))
+    if (missing.length) {
+      const { data: ins, error } = await db.from('fb_teams').insert(missing).select('id, api_id')
+      if (error) return { count: 0, error: 'teams insert: ' + error.message }
+      for (const t of (ins ?? [])) map.set(t.api_id, t.id)
+    }
+  }
+  const fixtureRows = (fx.response ?? []).map((f: any) => ({
+    api_id: f.fixture.id, date: f.fixture.date, status: f.fixture.status?.short,
+    league_id: leagueId, season: Number(season), round: f.league?.round ?? null,
+    home_team_id: map.get(f.teams.home.id) ?? null, away_team_id: map.get(f.teams.away.id) ?? null,
+    goals_home: n(f.goals?.home), goals_away: n(f.goals?.away),
+  }))
+  let err: string | null = null
+  if (fixtureRows.length) { const { error } = await db.from('fb_fixtures').upsert(fixtureRows, { onConflict: 'api_id' }); err = error?.message ?? null }
+  return { count: fixtureRows.length, error: err }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   try {
@@ -26,13 +57,11 @@ Deno.serve(async (req) => {
     if (!league_api_id) throw new Error('league_api_id required')
     const db = createClient(SUPABASE_URL, SERVICE_KEY)
 
-    // league row
-    const lr = await api('/leagues', { id: league_api_id })
-    const ld = lr.response?.[0]
-    const { data: leagueRow } = await db.from('fb_leagues').upsert(
-      { api_id: ld.league.id, name: ld.league.name, type: 'football_competition' }, { onConflict: 'api_id' }
-    ).select('id').single()
+    // league row (must already be imported)
+    const { data: leagueRow } = await db.from('fb_leagues').select('id').eq('api_id', league_api_id).maybeSingle()
     const leagueId = leagueRow?.id
+    const country = 'Spain' // La Liga; pass per-league when expanding
+    if (!leagueId) throw new Error(`league api_id ${league_api_id} not found in fb_leagues — import it first`)
 
     const out: any = { league_api_id, season, phase }
 
@@ -66,24 +95,18 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: true, ...out }), { headers: { ...cors, 'Content-Type': 'application/json' } })
     }
 
-    if (!season) throw new Error('season required for phase=season')
+    if (!season) throw new Error('season required for phase=season|fixtures')
 
-    // 1) Fixtures (+ teams)
-    const fx = await api('/fixtures', { league: league_api_id, season })
-    const teamRows = new Map<number, any>()
-    const fixtureRows = (fx.response ?? []).map((f: any) => {
-      teamRows.set(f.teams.home.id, { api_id: f.teams.home.id, name: f.teams.home.name, logo_url: f.teams.home.logo })
-      teamRows.set(f.teams.away.id, { api_id: f.teams.away.id, name: f.teams.away.name, logo_url: f.teams.away.logo })
-      return {
-        api_id: f.fixture.id, date: f.fixture.date, status: f.fixture.status?.short,
-        league_id: leagueId, season: Number(season), round: f.league?.round ?? null,
-        home_team_id: f.teams.home.id, away_team_id: f.teams.away.id,
-        goals_home: n(f.goals?.home), goals_away: n(f.goals?.away),
-      }
-    })
-    if (teamRows.size) await db.from('fb_teams').upsert([...teamRows.values()], { onConflict: 'api_id' })
-    if (fixtureRows.length) await db.from('fb_fixtures').upsert(fixtureRows, { onConflict: 'api_id' })
-    out.fixtures = fixtureRows.length
+    // phase 'fixtures' = only re-seed matches (cheap, 1 API call)
+    if (phase === 'fixtures') {
+      const r = await seedFixtures(db, league_api_id, season, leagueId, country)
+      out.fixtures = r.count; out.fixtures_error = r.error
+      return new Response(JSON.stringify({ ok: !r.error, ...out }), { headers: { ...cors, 'Content-Type': 'application/json' } })
+    }
+
+    // 1) Fixtures (+ teams, UUID-resolved)
+    const rfx = await seedFixtures(db, league_api_id, season, leagueId, country)
+    out.fixtures = rfx.count; out.fixtures_error = rfx.error
 
     // 2) Standings
     const st = await api('/standings', { league: league_api_id, season })
