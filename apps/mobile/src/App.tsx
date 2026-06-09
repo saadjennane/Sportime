@@ -13,6 +13,8 @@ import GamesListPage from './pages/GamesListPage';
 const ChallengeRoomPage = lazy(() => import('./pages/ChallengeRoomPage'));
 const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage'));
 import { ChooseEntryMethodModal } from './components/ChooseEntryMethodModal';
+import { MasterpassInviteModal } from './components/funzone/MasterpassInviteModal';
+import { getAvailableMasterpasses, useMasterpass } from './services/masterpassService';
 const SwipeFlowPage = lazy(() => import('./pages/SwipeFlowPage').then(m => ({ default: m.SwipeFlowPage })));
 import { JoinSwipeGameConfirmationModal } from './components/JoinSwipeGameConfirmationModal';
 import { supabase } from './services/supabase';
@@ -339,6 +341,12 @@ function App() {
   const [activeLiveGame, setActiveLiveGame] = useState<{ id: string; status: 'Upcoming' | 'Ongoing' | 'Finished' } | null>(null);
   const [boosterInfoPreferences, setBoosterInfoPreferences] = useState<{ x2: boolean, x3: boolean }>({ x2: false, x3: false });
   const [challengeToJoin, setChallengeToJoin] = useState<SportimeGame | null>(null);
+  const [masterpassTiers, setMasterpassTiers] = useState<Set<string>>(new Set());
+  const [masterpassInvite, setMasterpassInvite] = useState<{ inviteId: string; token: string } | null>(null);
+  useEffect(() => {
+    if (!profile) { setMasterpassTiers(new Set()); return; }
+    getAvailableMasterpasses().then(mps => setMasterpassTiers(new Set(mps.map(m => m.tier)))).catch(() => {});
+  }, [profile?.id]);
   const [swipeGameToJoin, setSwipeGameToJoin] = useState<Game | null>(null);
   const [joinSwipeGameModalState, setJoinSwipeGameModalState] = useState<{ isOpen: boolean; game: Game | null; }>({ isOpen: false, game: null });
   const [hasSeenSwipeTutorial, setHasSeenSwipeTutorial] = useState(false);
@@ -751,8 +759,16 @@ function App() {
     await joinSwipeGame(game, 'coins', () => setJoinSwipeGameModalState({ isOpen: false, game: null }));
   };
 
-  // Handle joining swipe game with ticket or coins (server-validated)
-  const handleConfirmJoinSwipeGameWithMethod = async (game: Game, method: 'coins' | 'ticket') => {
+  // Handle joining swipe game with ticket / coins / masterpass (server-validated)
+  const handleConfirmJoinSwipeGameWithMethod = async (game: Game, method: 'coins' | 'ticket' | 'masterpass') => {
+    if (method === 'masterpass') {
+      setSwipeGameToJoin(null);
+      const res = await useMasterpass('prediction', game.id);
+      if (!(res as any)?.ok) { addToast((res as any)?.error === 'no_masterpass' ? 'No MasterPass for this tier' : ((res as any)?.error || 'Failed'), 'error'); return; }
+      await refreshChallenges();
+      setMasterpassInvite({ inviteId: (res as any).invite_id, token: (res as any).token });
+      return;
+    }
     await joinSwipeGame(game, method, () => setSwipeGameToJoin(null));
   };
 
@@ -949,8 +965,26 @@ function App() {
     }
   };
 
-  const handleConfirmJoinChallenge = async (challengeId: string, method: 'coins' | 'ticket') => {
+  const handleConfirmJoinChallenge = async (challengeId: string, method: 'coins' | 'ticket' | 'masterpass') => {
     if (!profile) return;
+
+    const gameType = challengeToJoin?.game_type;
+    if (method === 'masterpass') {
+      const gt = (gameType === 'tournament' ? 'tournament' : gameType === 'fantasy' ? 'fantasy' : 'betting') as 'tournament' | 'fantasy' | 'betting';
+      const res = await useMasterpass(gt, challengeId);
+      setChallengeToJoin(null);
+      if (!(res as any)?.ok) { addToast((res as any)?.error === 'no_masterpass' ? 'No MasterPass for this tier' : ((res as any)?.error || 'Failed to use MasterPass'), 'error'); return; }
+      await reloadProfile(); await refreshChallenges();
+      setMasterpassInvite({ inviteId: (res as any).invite_id, token: (res as any).token });
+      return;
+    }
+
+    // Tournament Quest: coins/ticket entry = join + open it.
+    if (gameType === 'tournament') {
+      setChallengeToJoin(null);
+      handleViewTournament(challengeId);
+      return;
+    }
 
     // Try the fantasy join first: join_fantasy_game (SECURITY DEFINER) authoritatively
     // checks fantasy_games and bypasses RLS. If it's not a fantasy game, it raises
@@ -1026,12 +1060,13 @@ function App() {
       isBefore(new Date(), parseISO(t.expires_at))
     );
     const hasEnoughCoins = profile.coins_balance >= game.entry_cost;
+    const hasMasterpass = masterpassTiers.has(game.tier);
 
-    // Always show the confirmation modal before spending coins / consuming a ticket.
-    if (validTicket || hasEnoughCoins) {
+    // Always show the confirmation modal before spending coins / consuming a ticket / masterpass.
+    if (validTicket || hasEnoughCoins || hasMasterpass) {
       setChallengeToJoin(game);
     } else {
-      addToast("You don't have enough coins or a valid ticket to join.", 'error');
+      addToast("You don't have enough coins, a valid ticket or a MasterPass to join.", 'error');
     }
   };
 
@@ -1642,6 +1677,7 @@ function App() {
             !t.is_used &&
             isBefore(new Date(), parseISO(t.expires_at))
           )}
+          hasMasterpass={masterpassTiers.has(challengeToJoin.tier)}
         />
       )}
       {swipeGameToJoin && (
@@ -1650,6 +1686,16 @@ function App() {
           onClose={() => setSwipeGameToJoin(null)}
           onSelectMethod={(method) => handleConfirmJoinSwipeGameWithMethod(swipeGameToJoin, method)}
           challenge={swipeGameToJoin}
+          hasMasterpass={masterpassTiers.has(swipeGameToJoin.tier)}
+        />
+      )}
+      {masterpassInvite && (
+        <MasterpassInviteModal
+          isOpen={!!masterpassInvite}
+          onClose={() => setMasterpassInvite(null)}
+          inviteId={masterpassInvite.inviteId}
+          token={masterpassInvite.token}
+          addToast={addToast}
         />
       )}
       {joinSwipeGameModalState.isOpen && joinSwipeGameModalState.game && ( <JoinSwipeGameConfirmationModal isOpen={joinSwipeGameModalState.isOpen} onClose={() => setJoinSwipeGameModalState({ isOpen: false, game: null })} onConfirm={handleConfirmJoinSwipeGame} game={joinSwipeGameModalState.game as SwipeMatchDay} userBalance={coinBalance} /> )}

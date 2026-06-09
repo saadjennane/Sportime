@@ -406,9 +406,8 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
           // only prediction/swipe games use onJoinSwipeGame.
           if (game.game_type === 'prediction') {
             onJoinSwipeGame(game.id);
-          } else if (game.game_type === 'tournament') {
-            onViewTournament(game.id); // joining = opening; entry is created on first pick
           } else {
+            // betting / fantasy / tournament -> entry-method modal (coins / ticket / MasterPass)
             onJoinChallenge(game);
           }
         }}

@@ -1,14 +1,15 @@
 import React from 'react';
-import { X, Coins, Ticket } from 'lucide-react';
+import { X, Coins, Ticket, Users } from 'lucide-react';
 import { BettingChallenge, TournamentType } from '../types';
 
 interface ChooseEntryMethodModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelectMethod: (method: 'coins' | 'ticket') => void;
+  onSelectMethod: (method: 'coins' | 'ticket' | 'masterpass') => void;
   challenge: BettingChallenge;
   hasCoins?: boolean;
   hasTicket?: boolean;
+  hasMasterpass?: boolean;
 }
 
 const tierDetails: Record<TournamentType, { label: string; color: string }> = {
@@ -24,6 +25,7 @@ export const ChooseEntryMethodModal: React.FC<ChooseEntryMethodModalProps> = ({
   challenge,
   hasCoins = true,
   hasTicket = true,
+  hasMasterpass = false,
 }) => {
   if (!isOpen) return null;
 
@@ -65,6 +67,21 @@ export const ChooseEntryMethodModal: React.FC<ChooseEntryMethodModalProps> = ({
               <span className="capitalize">{hasTicket ? tier.label : 'None'}</span>
             </div>
           </button>
+          {hasMasterpass && (
+            <button
+              onClick={() => onSelectMethod('masterpass')}
+              className="w-full flex items-center justify-between p-4 bg-deep-navy rounded-xl border-2 border-hot-red/40 transition-all hover:bg-navy-accent hover:border-hot-red"
+            >
+              <div className="text-left">
+                <span className="font-bold text-lg text-text-primary block">Use MasterPass</span>
+                <span className="text-xs text-text-secondary">Enter + bring a friend free (1+1)</span>
+              </div>
+              <div className="flex items-center gap-2 font-semibold text-hot-red">
+                <Users size={20} />
+                <span className="capitalize">{tier.label}</span>
+              </div>
+            </button>
+          )}
         </div>
 
         <button
