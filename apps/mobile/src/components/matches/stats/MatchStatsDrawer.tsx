@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, FileText, History, Users, BarChart3 } from 'lucide-react';
+import { X, FileText, History, Users, BarChart3, Clock } from 'lucide-react';
 import { Match } from '../../../types';
 import { FormTab } from './FormTab';
 import { H2HTab } from './H2HTab';
 import { LineupsTab } from './LineupsTab';
 import { StatsTab } from './StatsTab';
+import { EventsTab } from './EventsTab';
 import { useMatchExtras } from '../../../features/matches/useMatchExtras';
 
 interface MatchStatsDrawerProps {
@@ -13,7 +14,7 @@ interface MatchStatsDrawerProps {
   onClose: () => void;
 }
 
-type ActiveTab = 'form' | 'h2h' | 'lineups' | 'stats';
+type ActiveTab = 'form' | 'h2h' | 'lineups' | 'events' | 'stats';
 
 const drawerVariants = {
   hidden: { y: '100%', x: 0 },
@@ -79,6 +80,8 @@ export const MatchStatsDrawer: React.FC<MatchStatsDrawerProps> = ({ match, onClo
         return <H2HTab data={h2h} loading={loading} />;
       case 'lineups':
         return <LineupsTab data={lineups} loading={loading} />;
+      case 'events':
+        return <EventsTab fixtureId={extrasParams?.fixtureId} homeTeamId={extrasParams?.homeTeamId} />;
       case 'stats':
         return <StatsTab fixtureId={extrasParams?.fixtureId} homeTeamId={extrasParams?.homeTeamId} />;
       default:
@@ -135,11 +138,14 @@ export const MatchStatsDrawer: React.FC<MatchStatsDrawerProps> = ({ match, onClo
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-2 p-2 border-b border-disabled flex-shrink-0">
+            <div className="flex gap-2 p-2 border-b border-disabled flex-shrink-0 overflow-x-auto scrollbar-hide">
               <TabButton label="Form" icon={<FileText size={18} />} isActive={activeTab === 'form'} onClick={() => setActiveTab('form')} />
               <TabButton label="H2H" icon={<History size={18} />} isActive={activeTab === 'h2h'} onClick={() => setActiveTab('h2h')} />
               {extrasParams && (
                 <TabButton label="Lineups" icon={<Users size={18} />} isActive={activeTab === 'lineups'} onClick={() => setActiveTab('lineups')} />
+              )}
+              {extrasParams && (
+                <TabButton label="Events" icon={<Clock size={18} />} isActive={activeTab === 'events'} onClick={() => setActiveTab('events')} />
               )}
               {extrasParams && (
                 <TabButton label="Stats" icon={<BarChart3 size={18} />} isActive={activeTab === 'stats'} onClick={() => setActiveTab('stats')} />
