@@ -113,29 +113,45 @@ export const MatchStatsDrawer: React.FC<MatchStatsDrawerProps> = ({ match, onClo
             className="fixed bottom-0 left-0 right-0 h-[85vh] bg-deep-navy rounded-t-2xl shadow-2xl flex flex-col z-50 
                        md:bottom-auto md:top-0 md:left-auto md:w-96 md:h-screen md:rounded-none md:border-l md:border-disabled"
           >
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-disabled flex-shrink-0">
-              <div className="flex items-center gap-3">
-                {match.teamA.logo ? (
-                  <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
-                    <img src={match.teamA.logo} alt={match.teamA.name} className="w-8 h-8 object-contain" />
-                  </div>
-                ) : (
-                  <span className="text-2xl">{match.teamA.emoji || '⚽'}</span>
-                )}
-                <span className="text-sm font-bold text-text-primary">{match.teamA.name} vs {match.teamB.name}</span>
-                {match.teamB.logo ? (
-                  <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
-                    <img src={match.teamB.logo} alt={match.teamB.name} className="w-8 h-8 object-contain" />
-                  </div>
-                ) : (
-                  <span className="text-2xl">{match.teamB.emoji || '⚽'}</span>
-                )}
-              </div>
-              <button onClick={onClose} className="p-2 text-text-secondary hover:bg-white/10 rounded-full">
-                <X size={20} />
+            {/* Close — above the sheet */}
+            <div className="flex justify-center pt-2.5 pb-1 flex-shrink-0">
+              <button onClick={onClose} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-text-secondary hover:bg-white/20 transition-colors">
+                <X size={18} />
               </button>
             </div>
+
+            {/* Header — TeamA · logo · score(+status) · logo · TeamB, centered */}
+            {(() => {
+              const live = !!match.isLive;
+              const raw = match.rawStatus;
+              const badge = live
+                ? (raw && /^(1H|2H|HT|ET|BT|P|LIVE)$/i.test(raw) ? raw : `${match.elapsedMinutes ?? ''}'`)
+                : (match.status === 'played' ? (raw || 'FT') : null);
+              const Logo = ({ url, emoji, name }: { url?: string; emoji?: string; name: string }) =>
+                url ? (
+                  <div className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                    <img src={url} alt={name} className="w-8 h-8 object-contain" />
+                  </div>
+                ) : <span className="text-3xl flex-shrink-0">{emoji || '⚽'}</span>;
+              return (
+                <div className="flex items-center justify-center gap-3 px-4 pb-4 border-b border-disabled flex-shrink-0">
+                  <span className="flex-1 text-right text-sm font-bold text-text-primary truncate">{match.teamA.name}</span>
+                  <Logo url={match.teamA.logo} emoji={match.teamA.emoji} name={match.teamA.name} />
+                  <div className="flex flex-col items-center justify-center min-w-[64px]">
+                    <span className="text-2xl font-extrabold text-text-primary tabular-nums leading-none">
+                      {match.score ? `${match.score.teamA} - ${match.score.teamB}` : 'vs'}
+                    </span>
+                    {badge && (
+                      <span className={`mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${live ? 'bg-hot-red text-white animate-pulse' : 'bg-white/10 text-text-secondary'}`}>
+                        {badge}
+                      </span>
+                    )}
+                  </div>
+                  <Logo url={match.teamB.logo} emoji={match.teamB.emoji} name={match.teamB.name} />
+                  <span className="flex-1 text-left text-sm font-bold text-text-primary truncate">{match.teamB.name}</span>
+                </div>
+              );
+            })()}
 
             {/* Tabs */}
             <div className="flex gap-2 p-2 border-b border-disabled flex-shrink-0 overflow-x-auto scrollbar-hide">
