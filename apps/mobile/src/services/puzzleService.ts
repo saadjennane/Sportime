@@ -40,6 +40,32 @@ export async function puzzleFinish(gameId: string) {
   const { data } = await supabase.rpc('puzzle_finish', { p_game_id: gameId });
   return data as any;
 }
+// ── Guess the Player ─────────────────────────────────────────────────────────
+export interface PlayerRound {
+  round_no: number;
+  trail: { name: string; id: number }[];
+  trail_total: number;
+  hints: { k: string; v: string }[];
+  attempt?: { guesses: { pid: number; name: string; correct: boolean }[]; solved: boolean; attempts: number };
+  reveal?: { name: string; photo?: string } | null;
+}
+export interface PlayerToday {
+  ok: boolean; scope: PuzzleScope; hint: PuzzleHint; has_prefs: boolean; date: string;
+  config?: { max_attempts: number; rounds: number };
+  play?: { id: string; started_at: string; finished_at: string | null; rounds_solved: number; score: number };
+  game?: { id: string } | null;
+  rounds?: PlayerRound[];
+}
+export async function getPlayerToday(scope?: PuzzleScope): Promise<PlayerToday> {
+  const { data } = await supabase.rpc('puzzle_get_today_player', { p_scope: scope ?? null });
+  return (data ?? { ok: false }) as PlayerToday;
+}
+export async function guessPlayer(gameId: string, roundNo: number, playerId: number) {
+  const { data, error } = await supabase.rpc('puzzle_guess_player', { p_game_id: gameId, p_round_no: roundNo, p_player_id: playerId });
+  if (error) return { ok: false, error: error.message };
+  return data as any;
+}
+
 export async function getPuzzleStats(scope?: PuzzleScope) {
   const { data } = await supabase.rpc('puzzle_my_stats', { p_level: scope ?? null });
   return data as any;

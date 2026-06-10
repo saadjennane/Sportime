@@ -7,6 +7,7 @@ import { CasualGameCard } from '../components/funzone/CasualGameCard';
 import { SpinwheelModal } from '../components/funzone/SpinwheelModal';
 import { prefetchSpinSegments } from '../services/spinSegmentsService';
 import GuessScoreGame from './GuessScoreGame';
+import GuessPlayerGame from './GuessPlayerGame';
 
 interface FunZonePageProps {
   profile: Profile | null;
@@ -18,6 +19,7 @@ const FunZonePage: React.FC<FunZonePageProps> = ({ profile, onOpenSpinWheel, add
   const { funzone, userTickets } = useMockStore();
   const [openTier, setOpenTier] = useState<SpinTier | null>(null);
   const [openPuzzle, setOpenPuzzle] = useState(false);
+  const [openPlayerPuzzle, setOpenPlayerPuzzle] = useState(false);
 
   // Prefetch wheel content so the modal opens instantly (only re-downloads on change).
   useEffect(() => { prefetchSpinSegments(); }, []);
@@ -57,6 +59,17 @@ const FunZonePage: React.FC<FunZonePageProps> = ({ profile, onOpenSpinWheel, add
               <span className="text-electric-blue font-bold text-sm">Play →</span>
             </div>
           </button>
+          <button onClick={() => setOpenPlayerPuzzle(true)}
+            className="w-full text-left p-4 rounded-2xl bg-gradient-to-br from-warm-yellow/20 to-hot-red/10 border border-warm-yellow/30 active:scale-[0.99] transition-transform">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-deep-navy/40 flex items-center justify-center text-2xl flex-shrink-0">🕵️</div>
+              <div className="flex-1 min-w-0">
+                <p className="font-extrabold text-text-primary">Guess the Player</p>
+                <p className="text-xs text-text-secondary">From a transfer trail · keep your streak 🔥</p>
+              </div>
+              <span className="text-warm-yellow font-bold text-sm">Play →</span>
+            </div>
+          </button>
         </div>
 
         <div className="space-y-2">
@@ -91,6 +104,9 @@ const FunZonePage: React.FC<FunZonePageProps> = ({ profile, onOpenSpinWheel, add
       )}
       {profile && openPuzzle && (
         <GuessScoreGame userId={profile.id} onBack={() => setOpenPuzzle(false)} addToast={addToast} />
+      )}
+      {profile && openPlayerPuzzle && (
+        <GuessPlayerGame userId={profile.id} onBack={() => setOpenPlayerPuzzle(false)} addToast={addToast} />
       )}
     </>
   );
