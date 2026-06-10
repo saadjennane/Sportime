@@ -134,7 +134,7 @@ function Config({ flash }: { flash: (m: string) => void }) {
   return (
     <div className="space-y-5">
       <Section title="Match scope — popularity floors (0-100)"><F k="pop_floor_big" label="Only big teams (floor)" /><F k="pop_floor_all" label="All teams (floor)" /></Section>
-      <Section title="Gameplay"><F k="max_attempts" label="Max attempts / round" /><F k="freeze_every_days" label="Freeze every N days" /><F k="max_freezes" label="Max freezes" /><F k="daily_cutover_hour" label="Daily cutover hour" /></Section>
+      <Section title="Gameplay"><F k="max_attempts" label="Max attempts / round (0 = unlimited)" /><F k="freeze_every_days" label="Freeze every N days" /><F k="max_freezes" label="Max freezes" /><F k="daily_cutover_hour" label="Daily cutover hour" /></Section>
       <Section title="Daily prize">
         <label className="flex items-center gap-2 text-sm text-text-secondary mt-6"><input type="checkbox" checked={c.prize_enabled} onChange={e => setC({ ...c, prize_enabled: e.target.checked })} /> Enabled</label>
         <F k="prize_pot_default" label="Pot (coins)" /><F k="prize_top_pct" label="Top % share" />
