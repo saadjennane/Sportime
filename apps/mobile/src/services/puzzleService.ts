@@ -26,6 +26,10 @@ export async function setPuzzleLevel(level: PuzzleLevel) {
   const { data } = await supabase.rpc('puzzle_set_level', { p_level: level });
   return data;
 }
+export async function puzzleStart(gameId: string) {
+  const { data } = await supabase.rpc('puzzle_start', { p_game_id: gameId });
+  return data as any;
+}
 export async function puzzleGuess(gameId: string, roundNo: number, home: number, away: number) {
   const { data, error } = await supabase.rpc('puzzle_guess', { p_game_id: gameId, p_round_no: roundNo, p_home: home, p_away: away });
   if (error) return { ok: false, error: error.message };
