@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, Loader2, Flame, Snowflake, Share2, Trophy, Lightbulb, Search, X } from 'lucide-react';
 import {
-  getPlayerToday, setPuzzlePrefs, puzzleStart, guessPlayer, giveupPlayer, puzzleFinish, getPuzzleStats,
+  getPlayerToday, setPuzzlePrefs, puzzleStart, guessPlayer, giveupPlayer, revealLetters, puzzleFinish, getPuzzleStats,
   PuzzleHint, PuzzleScope, PlayerToday, PlayerRound,
 } from '../services/puzzleService';
 import { getPlayerIndex, searchPlayers, IndexedPlayer } from '../services/playerIndexService';
@@ -34,6 +34,9 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
   const [stats, setStats] = useState<any>(null);
   const [elapsed, setElapsed] = useState(0);
   const [unlocked, setUnlocked] = useState(0);
+  const [letters, setLetters] = useState(0);
+  const [masked, setMasked] = useState('');
+  const [nameLen, setNameLen] = useState(0);
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [now, setNow] = useState(Date.now());
   const [index, setIndex] = useState<IndexedPlayer[]>([]);
@@ -49,7 +52,7 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
     setLoading(true);
     const [d] = await Promise.all([getPlayerToday(scope), getPlayerIndex().then(setIndex)]);
     setData(d); setPickScope(d.scope); setPickHint(d.hint);
-    setStats(await getPuzzleStats(d.scope));
+    setStats(await getPuzzleStats(d.scope, 'guess_player'));
     if (!d.has_prefs) { setConfig(true); setLoading(false); return; }
     if (!d.game) { setLoading(false); return; }
     if (d.play?.finished_at) { setSummary(await puzzleFinish(d.game.id)); setLoading(false); return; }
@@ -64,7 +67,14 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
     const t = setInterval(() => { setNow(Date.now()); if (startRef.current) setElapsed(Math.floor((Date.now() - startRef.current) / 1000)); }, 500);
     return () => clearInterval(t);
   }, [summary, ready, config, data]);
-  useEffect(() => { setUnlocked(0); setCooldownUntil(0); setQuery(''); }, [idx]);
+  useEffect(() => { setUnlocked(0); setCooldownUntil(0); setQuery(''); setLetters(0); setMasked(''); setNameLen(0); }, [idx]);
+
+  const revealLetter = async () => {
+    if (!data?.game || cooldownLeft > 0) return;
+    const n = letters + 1;
+    const r = await revealLetters(data.game.id, data.rounds![idx].round_no, n);
+    if (r?.ok) { setMasked(r.masked); setNameLen(r.length); setLetters(n); setCooldownUntil(Date.now() + HINT_COOLDOWN); }
+  };
 
   const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   const cooldownLeft = Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
@@ -75,7 +85,7 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
     if (r?.started_at) startRef.current = new Date(r.started_at).getTime();
     setElapsed(0); setReady(false);
   };
-  const confirmConfig = async () => { setConfig(false); setSummary(null); await setPuzzlePrefs(pickScope, pickHint); load(pickScope); };
+  const confirmConfig = async () => { setConfig(false); setSummary(null); await setPuzzlePrefs(pickScope, pickHint, 'guess_player'); load(pickScope); };
 
   const pick = async (player: IndexedPlayer) => {
     if (!data?.game || busy) return;
@@ -97,7 +107,7 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
     const isLast = idx >= (data.rounds!.length - 1);
     if (isLast && (r.solved || r.reveal != null)) {
       const s = await puzzleFinish(data.game.id);
-      if (s?.ok) { setSummary(s); setStats(await getPuzzleStats(data.scope)); }
+      if (s?.ok) { setSummary(s); setStats(await getPuzzleStats(data.scope, 'guess_player')); }
     }
   };
   const giveUp = async () => {
@@ -113,13 +123,13 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
       return { ...prev, rounds };
     });
     const isLast = idx >= (data.rounds!.length - 1);
-    if (isLast) { const s = await puzzleFinish(data.game.id); if (s?.ok) { setSummary(s); setStats(await getPuzzleStats(data.scope)); } }
+    if (isLast) { const s = await puzzleFinish(data.game.id); if (s?.ok) { setSummary(s); setStats(await getPuzzleStats(data.scope, 'guess_player')); } }
   };
   const next = async () => {
     if (!data?.game) return;
     if (idx < data.rounds!.length - 1) { setIdx(idx + 1); return; }
     setBusy(true);
-    try { const s = await puzzleFinish(data.game.id); if (s?.ok) { setSummary(s); setStats(await getPuzzleStats(data.scope)); } else addToast('Could not finish', 'error'); }
+    try { const s = await puzzleFinish(data.game.id); if (s?.ok) { setSummary(s); setStats(await getPuzzleStats(data.scope, 'guess_player')); } else addToast('Could not finish', 'error'); }
     catch { addToast('Network error', 'error'); }
     setBusy(false);
   };
@@ -262,17 +272,44 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
       ) : <span className="text-xs text-text-disabled">∞ · {used} {used === 1 ? 'guess' : 'guesses'}</span>}
     </div>
 
-    {/* answer slot (top) + horizontal wrapping trail */}
-    <div className="card-base p-4">
-      <div className="flex flex-col items-center mb-4">
-        {done && round.reveal ? (<>
-          {round.reveal.photo && <img src={round.reveal.photo} className="w-16 h-16 rounded-full object-cover mb-1" />}
-          <p className="text-xl font-extrabold text-text-primary text-center">{round.reveal.name}</p>
-        </>) : (<>
-          <div className="w-16 h-16 rounded-full bg-electric-blue/15 flex items-center justify-center text-3xl text-electric-blue mb-1">?</div>
-          <p className="text-sm font-bold text-electric-blue">Who is this player?</p>
-        </>)}
+    {/* answer slot (top): ? / revealed letters / final answer */}
+    <div className="card-base p-4 flex flex-col items-center">
+      {done && round.reveal ? (<>
+        {round.reveal.photo && <img src={round.reveal.photo} className="w-16 h-16 rounded-full object-cover mb-1" />}
+        <p className="text-xl font-extrabold text-text-primary text-center">{round.reveal.name}</p>
+      </>) : letters > 0 ? (<>
+        <p className="text-2xl font-extrabold text-text-primary font-mono tracking-[0.15em] text-center break-all">{masked}</p>
+        <p className="text-[11px] text-text-disabled mt-1">{letters}/{nameLen} letters</p>
+      </>) : (<>
+        <div className="w-16 h-16 rounded-full bg-electric-blue/15 flex items-center justify-center text-3xl text-electric-blue mb-1">?</div>
+        <p className="text-sm font-bold text-electric-blue">Who is this player?</p>
+      </>)}
+    </div>
+
+    {/* guess input — ABOVE the trail */}
+    {!done && (
+      <div className="mt-3 relative">
+        <div className="flex items-center gap-2 bg-navy-accent rounded-xl px-3 py-2.5">
+          <Search size={18} className="text-text-disabled" />
+          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Type a player name…" autoFocus
+            className="flex-1 bg-transparent outline-none text-text-primary placeholder:text-text-disabled" />
+          {query && <button onClick={() => setQuery('')}><X size={16} className="text-text-disabled" /></button>}
+        </div>
+        {results.length > 0 && (
+          <div className="absolute z-20 left-0 right-0 mt-1 bg-navy-accent rounded-xl overflow-hidden divide-y divide-white/5 max-h-72 overflow-y-auto shadow-xl">
+            {results.map(p => (
+              <button key={p.id} onClick={() => pick(p)} disabled={busy} className="w-full flex items-center gap-3 px-3 py-2.5 text-left active:bg-white/5">
+                {p.photo ? <img src={p.photo} className="w-8 h-8 rounded-full object-cover flex-shrink-0" /> : <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0" />}
+                <span className="text-sm font-semibold text-text-primary truncate">{p.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
+    )}
+
+    {/* trail */}
+    <div className="card-base p-4 mt-3">
       <p className="text-[11px] text-text-secondary text-center mb-2">Transfer trail{round.trail_total > round.trail.length ? ` · last ${round.trail.length} clubs` : ''}</p>
       <div className="flex flex-wrap items-center justify-center gap-x-1 gap-y-2">
         {round.trail.map((c, i) => (
@@ -287,42 +324,24 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
       </div>
     </div>
 
-    {/* hints */}
-    {hintsTotal > 0 && (
+    {/* revealed hints */}
+    {unlocked > 0 && (
       <div className="mt-3 space-y-1.5">
         {round.hints.slice(0, unlocked).map((h, i) => <div key={i} className="bg-navy-accent/40 rounded-lg px-3 py-2 text-sm text-text-secondary">💡 <b className="text-text-primary">{h.k}:</b> {h.v}</div>)}
-        {!done && unlocked < hintsTotal && (
-          <button onClick={() => { if (cooldownLeft === 0) { setUnlocked(u => u + 1); setCooldownUntil(Date.now() + HINT_COOLDOWN); } }} disabled={cooldownLeft > 0}
-            className="relative overflow-hidden w-full flex items-center justify-center gap-2 border border-dashed border-disabled rounded-lg px-3 py-2 text-sm text-text-secondary disabled:opacity-80">
-            {cooldownLeft > 0 && <span key={cooldownUntil} className="absolute inset-y-0 left-0 bg-warm-yellow/20" style={{ animation: `hintFill ${HINT_COOLDOWN}ms linear forwards` }} />}
-            <span className="relative flex items-center gap-2"><Lightbulb size={14} className="text-warm-yellow" /> Reveal a hint ({unlocked}/{hintsTotal})</span>
-          </button>
-        )}
-        <style>{`@keyframes hintFill{from{width:0%}to{width:100%}}`}</style>
       </div>
     )}
 
-    {/* autocomplete */}
-    {!done && (
-      <div className="mt-4 relative">
-        <div className="flex items-center gap-2 bg-navy-accent rounded-xl px-3 py-2.5">
-          <Search size={18} className="text-text-disabled" />
-          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Type a player name…" autoFocus
-            className="flex-1 bg-transparent outline-none text-text-primary placeholder:text-text-disabled" />
-          {query && <button onClick={() => setQuery('')}><X size={16} className="text-text-disabled" /></button>}
-        </div>
-        {results.length > 0 && (
-          <div className="mt-1 bg-navy-accent rounded-xl overflow-hidden divide-y divide-white/5 max-h-72 overflow-y-auto">
-            {results.map(p => (
-              <button key={p.id} onClick={() => pick(p)} disabled={busy} className="w-full flex items-center gap-3 px-3 py-2.5 text-left active:bg-white/5">
-                {p.photo ? <img src={p.photo} className="w-8 h-8 rounded-full object-cover flex-shrink-0" /> : <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0" />}
-                <span className="text-sm font-semibold text-text-primary truncate">{p.name}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+    {/* reveal hint -> then letters one by one */}
+    {!done && (unlocked < hintsTotal || nameLen === 0 || letters < nameLen) && (
+      <button onClick={unlocked < hintsTotal ? () => { if (cooldownLeft === 0) { setUnlocked(u => u + 1); setCooldownUntil(Date.now() + HINT_COOLDOWN); } } : revealLetter}
+        disabled={cooldownLeft > 0}
+        className="relative overflow-hidden w-full mt-2 flex items-center justify-center gap-2 border border-dashed border-disabled rounded-lg px-3 py-2 text-sm text-text-secondary disabled:opacity-80">
+        {cooldownLeft > 0 && <span key={cooldownUntil} className="absolute inset-y-0 left-0 bg-warm-yellow/20" style={{ animation: `hintFill ${HINT_COOLDOWN}ms linear forwards` }} />}
+        <span className="relative flex items-center gap-2"><Lightbulb size={14} className="text-warm-yellow" />
+          {unlocked < hintsTotal ? `Reveal a hint (${unlocked}/${hintsTotal})` : 'Reveal a letter'}</span>
+      </button>
     )}
+    <style>{`@keyframes hintFill{from{width:0%}to{width:100%}}`}</style>
 
     {!done && (
       <button onClick={giveUp} disabled={busy} className="mt-3 w-full text-text-disabled text-sm font-semibold py-2 active:opacity-60">I give up — reveal answer</button>

@@ -23,8 +23,8 @@ export async function getPuzzleToday(scope?: PuzzleScope): Promise<PuzzleToday> 
   const { data } = await supabase.rpc('puzzle_get_today', { p_level: scope ?? null });
   return (data ?? { ok: false }) as PuzzleToday;
 }
-export async function setPuzzlePrefs(scope: PuzzleScope, hint: PuzzleHint) {
-  const { data } = await supabase.rpc('puzzle_set_prefs', { p_scope: scope, p_hint: hint });
+export async function setPuzzlePrefs(scope: PuzzleScope, hint: PuzzleHint, gameType: string = 'guess_score') {
+  const { data } = await supabase.rpc('puzzle_set_prefs', { p_scope: scope, p_hint: hint, p_game_type: gameType });
   return data;
 }
 export async function puzzleStart(gameId: string) {
@@ -69,8 +69,12 @@ export async function giveupPlayer(gameId: string, roundNo: number) {
   const { data } = await supabase.rpc('puzzle_giveup_player', { p_game_id: gameId, p_round_no: roundNo });
   return data as any;
 }
+export async function revealLetters(gameId: string, roundNo: number, n: number) {
+  const { data } = await supabase.rpc('puzzle_reveal_letters', { p_game_id: gameId, p_round_no: roundNo, p_n: n });
+  return data as any;
+}
 
-export async function getPuzzleStats(scope?: PuzzleScope) {
-  const { data } = await supabase.rpc('puzzle_my_stats', { p_level: scope ?? null });
+export async function getPuzzleStats(scope?: PuzzleScope, gameType: string = 'guess_score') {
+  const { data } = await supabase.rpc('puzzle_my_stats', { p_scope: scope ?? null, p_game_type: gameType });
   return data as any;
 }
