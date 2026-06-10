@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, Loader2, Flame, Snowflake, Share2, Trophy, Lightbulb, Search, X } from 'lucide-react';
 import {
-  getPlayerToday, setPuzzlePrefs, puzzleStart, guessPlayer, puzzleFinish, getPuzzleStats,
+  getPlayerToday, setPuzzlePrefs, puzzleStart, guessPlayer, giveupPlayer, puzzleFinish, getPuzzleStats,
   PuzzleHint, PuzzleScope, PlayerToday, PlayerRound,
 } from '../services/puzzleService';
 import { getPlayerIndex, searchPlayers, IndexedPlayer } from '../services/playerIndexService';
@@ -99,6 +99,21 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
       const s = await puzzleFinish(data.game.id);
       if (s?.ok) { setSummary(s); setStats(await getPuzzleStats(data.scope)); }
     }
+  };
+  const giveUp = async () => {
+    if (!data?.game || busy) return;
+    setBusy(true); setQuery('');
+    const round = data.rounds![idx];
+    const r = await giveupPlayer(data.game.id, round.round_no);
+    setBusy(false);
+    if (!r?.ok) return;
+    setData(prev => {
+      if (!prev) return prev;
+      const rounds = prev.rounds!.map(x => x.round_no === round.round_no ? { ...x, reveal: r.reveal } : x);
+      return { ...prev, rounds };
+    });
+    const isLast = idx >= (data.rounds!.length - 1);
+    if (isLast) { const s = await puzzleFinish(data.game.id); if (s?.ok) { setSummary(s); setStats(await getPuzzleStats(data.scope)); } }
   };
   const next = async () => {
     if (!data?.game) return;
@@ -247,21 +262,28 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
       ) : <span className="text-xs text-text-disabled">∞ · {used} {used === 1 ? 'guess' : 'guesses'}</span>}
     </div>
 
-    {/* trail */}
+    {/* answer slot (top) + horizontal wrapping trail */}
     <div className="card-base p-4">
-      <p className="text-[11px] text-text-secondary text-center mb-3">Transfer trail{round.trail_total > round.trail.length ? ` · last ${round.trail.length} clubs` : ''}</p>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col items-center mb-4">
+        {done && round.reveal ? (<>
+          {round.reveal.photo && <img src={round.reveal.photo} className="w-16 h-16 rounded-full object-cover mb-1" />}
+          <p className="text-xl font-extrabold text-text-primary text-center">{round.reveal.name}</p>
+        </>) : (<>
+          <div className="w-16 h-16 rounded-full bg-electric-blue/15 flex items-center justify-center text-3xl text-electric-blue mb-1">?</div>
+          <p className="text-sm font-bold text-electric-blue">Who is this player?</p>
+        </>)}
+      </div>
+      <p className="text-[11px] text-text-secondary text-center mb-2">Transfer trail{round.trail_total > round.trail.length ? ` · last ${round.trail.length} clubs` : ''}</p>
+      <div className="flex flex-wrap items-center justify-center gap-x-1 gap-y-2">
         {round.trail.map((c, i) => (
-          <div key={i} className="flex items-center gap-3">
-            <img src={clubLogo(c.id)} className="w-8 h-8 object-contain flex-shrink-0" onError={(e) => ((e.target as HTMLImageElement).style.visibility = 'hidden')} />
-            <span className="text-sm font-semibold text-text-primary">{c.name}</span>
-            {i < round.trail.length - 1 && <span className="text-text-disabled ml-auto">↓</span>}
-          </div>
+          <React.Fragment key={i}>
+            <div className="flex items-center gap-1 bg-navy-accent/40 rounded-full pl-1 pr-2 py-1">
+              <img src={clubLogo(c.id)} className="w-5 h-5 object-contain" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+              <span className="text-xs font-semibold text-text-primary">{c.name}</span>
+            </div>
+            {i < round.trail.length - 1 && <span className="text-text-disabled text-xs">→</span>}
+          </React.Fragment>
         ))}
-        <div className="flex items-center gap-3 mt-1">
-          <div className="w-8 h-8 rounded-full bg-electric-blue/20 flex items-center justify-center text-electric-blue font-bold">?</div>
-          <span className="text-sm font-bold text-electric-blue">Who is it?</span>
-        </div>
       </div>
     </div>
 
@@ -302,6 +324,10 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
       </div>
     )}
 
+    {!done && (
+      <button onClick={giveUp} disabled={busy} className="mt-3 w-full text-text-disabled text-sm font-semibold py-2 active:opacity-60">I give up — reveal answer</button>
+    )}
+
     {/* guesses (latest on top) */}
     {att?.guesses?.length ? (
       <div className="mt-4 space-y-1.5">
@@ -315,14 +341,9 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
     ) : null}
 
     {done && (
-      <div className="mt-4 text-center">
-        {round.reveal?.photo && <img src={round.reveal.photo} className="w-20 h-20 rounded-full object-cover mx-auto mb-2" />}
-        <p className="text-text-secondary text-sm">Answer</p>
-        <p className="text-2xl font-extrabold text-text-primary my-1">{round.reveal?.name}</p>
-        <button onClick={next} disabled={busy} className="mt-4 w-full bg-electric-blue text-white font-bold py-3 rounded-xl disabled:opacity-50">
-          {busy ? '…' : idx >= data!.rounds!.length - 1 ? 'See results' : 'Next round'}
-        </button>
-      </div>
+      <button onClick={next} disabled={busy} className="mt-4 w-full bg-electric-blue text-white font-bold py-3 rounded-xl disabled:opacity-50">
+        {busy ? '…' : idx >= data!.rounds!.length - 1 ? 'See results' : 'Next round'}
+      </button>
     )}
   </>);
 };

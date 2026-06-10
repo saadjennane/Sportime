@@ -65,6 +65,10 @@ export async function guessPlayer(gameId: string, roundNo: number, playerId: num
   if (error) return { ok: false, error: error.message };
   return data as any;
 }
+export async function giveupPlayer(gameId: string, roundNo: number) {
+  const { data } = await supabase.rpc('puzzle_giveup_player', { p_game_id: gameId, p_round_no: roundNo });
+  return data as any;
+}
 
 export async function getPuzzleStats(scope?: PuzzleScope) {
   const { data } = await supabase.rpc('puzzle_my_stats', { p_level: scope ?? null });
