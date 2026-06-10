@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 
-export type PuzzleLevel = 'easy' | 'medium' | 'hard';
+export type PuzzleHint = 'easy' | 'medium' | 'hard';
+export type PuzzleScope = 'big' | 'all';
 export interface PuzzleRound {
   round_no: number;
   home_name: string; home_logo?: string;
@@ -11,19 +12,19 @@ export interface PuzzleRound {
   reveal?: { home: number; away: number } | null;
 }
 export interface PuzzleToday {
-  ok: boolean; level: PuzzleLevel; date: string;
+  ok: boolean; scope: PuzzleScope; hint: PuzzleHint; has_prefs: boolean; date: string;
   config?: { max_attempts: number; heat_bands: any; rounds: number };
   play?: { id: string; started_at: string; finished_at: string | null; rounds_solved: number; score: number };
   game?: { id: string; difficulty: number } | null;
   rounds?: PuzzleRound[];
 }
 
-export async function getPuzzleToday(level?: PuzzleLevel): Promise<PuzzleToday> {
-  const { data } = await supabase.rpc('puzzle_get_today', { p_level: level ?? null });
+export async function getPuzzleToday(scope?: PuzzleScope): Promise<PuzzleToday> {
+  const { data } = await supabase.rpc('puzzle_get_today', { p_level: scope ?? null });
   return (data ?? { ok: false }) as PuzzleToday;
 }
-export async function setPuzzleLevel(level: PuzzleLevel) {
-  const { data } = await supabase.rpc('puzzle_set_level', { p_level: level });
+export async function setPuzzlePrefs(scope: PuzzleScope, hint: PuzzleHint) {
+  const { data } = await supabase.rpc('puzzle_set_prefs', { p_scope: scope, p_hint: hint });
   return data;
 }
 export async function puzzleStart(gameId: string) {
@@ -39,7 +40,7 @@ export async function puzzleFinish(gameId: string) {
   const { data } = await supabase.rpc('puzzle_finish', { p_game_id: gameId });
   return data as any;
 }
-export async function getPuzzleStats(level?: PuzzleLevel) {
-  const { data } = await supabase.rpc('puzzle_my_stats', { p_level: level ?? null });
+export async function getPuzzleStats(scope?: PuzzleScope) {
+  const { data } = await supabase.rpc('puzzle_my_stats', { p_level: scope ?? null });
   return data as any;
 }
