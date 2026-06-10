@@ -212,20 +212,25 @@ export const GuessScoreGame: React.FC<Props> = ({ onBack, addToast }) => {
   }
 
   if (summary) {
-    const pct = Math.max(1, Math.round(summary.percentile || 100));
+    const pct = Math.max(1, Math.round(summary.percentile ?? 100));
     const bucket = pct <= 1 ? 'Top 1%' : pct <= 5 ? 'Top 5%' : pct <= 25 ? 'Top 25%' : pct <= 50 ? 'Top 50%' : 'Top 75%';
+    const totalGuesses = (data?.rounds ?? []).reduce((s, r) => s + (r.attempt?.attempts ?? 0), 0);
     return <Shell><div className="text-center py-8">
       <Trophy size={44} className="text-warm-yellow mx-auto mb-3" />
       <h1 className="text-2xl font-extrabold text-text-primary">Done!</h1>
       <p className="text-text-secondary">{summary.rounds_solved}/{data?.rounds?.length} solved</p>
-      <div className="grid grid-cols-3 gap-3 mt-6">
+      {summary.freeze_gained && <div className="mt-3 inline-flex items-center gap-2 bg-electric-blue/15 text-electric-blue rounded-full px-4 py-1.5 text-sm font-bold"><Snowflake size={14} /> +1 Freeze earned!</div>}
+      <div className="grid grid-cols-2 gap-3 mt-6">
         <div className="card-base p-3"><p className="text-xs text-text-secondary">Time</p><p className="text-lg font-bold text-text-primary">{fmtTime(Math.floor((summary.time_ms || 0) / 1000))}</p></div>
+        <div className="card-base p-3"><p className="text-xs text-text-secondary">Guesses</p><p className="text-lg font-bold text-text-primary">{totalGuesses}</p></div>
         <div className="card-base p-3"><p className="text-xs text-text-secondary">Percentile</p><p className="text-lg font-bold text-lime-glow">{bucket}</p></div>
         <div className="card-base p-3"><p className="text-xs text-text-secondary">Streak</p><p className="text-lg font-bold text-hot-red">🔥 {summary.streak}</p></div>
       </div>
-      <p className="text-text-disabled text-xs mt-3">Avg time: {fmtTime(Math.floor((summary.avg_time_ms || 0) / 1000))} · {summary.total_players} players</p>
-      <button onClick={share} className="mt-6 w-full bg-lime-glow text-deep-navy font-extrabold py-3 rounded-xl flex items-center justify-center gap-2"><Share2 size={18} /> Share result</button>
+      <p className="text-text-disabled text-xs mt-3">Avg time: {fmtTime(Math.floor((summary.avg_time_ms || 0) / 1000))}</p>
+      <p className="text-text-secondary text-sm mt-4 font-medium">You solved today's game — see you tomorrow! 👋</p>
+      <button onClick={share} className="mt-5 w-full bg-lime-glow text-deep-navy font-extrabold py-3 rounded-xl flex items-center justify-center gap-2"><Share2 size={18} /> Share result</button>
       <button onClick={() => setConfig(true)} className="mt-3 text-electric-blue font-semibold text-sm">Change setup</button>
+      <button onClick={onBack} className="mt-4 w-full bg-navy-accent text-text-primary font-bold py-3 rounded-xl">Go to FunZone</button>
     </div></Shell>;
   }
 
@@ -269,26 +274,7 @@ export const GuessScoreGame: React.FC<Props> = ({ onBack, addToast }) => {
       </div>
     )}
 
-    {att?.guesses?.length ? (
-      <div className="mt-3 space-y-1.5">
-        {[...att.guesses].reverse().map((g: any, i) => (
-          <div key={i} className="flex items-center justify-between bg-navy-accent/30 rounded-lg px-3 py-2">
-            <span className="font-bold text-text-primary tabular-nums">{g.h} - {g.a}</span>
-            <FbBadge fb={g.fb} heat={g.heat} />
-          </div>
-        ))}
-      </div>
-    ) : null}
-
-    {done ? (
-      <div className="mt-4 text-center">
-        <p className="text-text-secondary text-sm">Actual score</p>
-        <p className="text-3xl font-extrabold text-text-primary my-1">{round.reveal?.home} - {round.reveal?.away}</p>
-        <button onClick={next} disabled={busy} className="mt-4 w-full bg-electric-blue text-white font-bold py-3 rounded-xl disabled:opacity-50">
-          {busy ? '…' : idx >= data!.rounds!.length - 1 ? 'See results' : 'Next round'}
-        </button>
-      </div>
-    ) : (
+    {!done && (
       <div className="mt-5">
         <div className="flex items-center justify-center gap-6">
           {[['home', home, setHome], ['away', away, setAway]].map(([k, val, set]: any) => (
@@ -299,7 +285,28 @@ export const GuessScoreGame: React.FC<Props> = ({ onBack, addToast }) => {
             </div>
           ))}
         </div>
-        <button onClick={submit} disabled={busy} className="mt-6 w-full bg-lime-glow text-deep-navy font-extrabold py-3.5 rounded-xl disabled:opacity-50">{busy ? '…' : 'Guess'}</button>
+        <button onClick={submit} disabled={busy} className="mt-5 w-full bg-lime-glow text-deep-navy font-extrabold py-3.5 rounded-xl disabled:opacity-50">{busy ? '…' : 'Guess'}</button>
+      </div>
+    )}
+
+    {att?.guesses?.length ? (
+      <div className="mt-4 space-y-1.5">
+        {[...att.guesses].reverse().map((g: any, i) => (
+          <div key={i} className="flex items-center justify-between bg-navy-accent/30 rounded-lg px-3 py-2">
+            <span className="font-bold text-text-primary tabular-nums">{g.h} - {g.a}</span>
+            <FbBadge fb={g.fb} heat={g.heat} />
+          </div>
+        ))}
+      </div>
+    ) : null}
+
+    {done && (
+      <div className="mt-4 text-center">
+        <p className="text-text-secondary text-sm">Actual score</p>
+        <p className="text-3xl font-extrabold text-text-primary my-1">{round.reveal?.home} - {round.reveal?.away}</p>
+        <button onClick={next} disabled={busy} className="mt-4 w-full bg-electric-blue text-white font-bold py-3 rounded-xl disabled:opacity-50">
+          {busy ? '…' : idx >= data!.rounds!.length - 1 ? 'See results' : 'Next round'}
+        </button>
       </div>
     )}
   </Shell>;

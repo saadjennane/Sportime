@@ -52,7 +52,7 @@ const FunZonePage: React.FC<FunZonePageProps> = ({ profile, onOpenSpinWheel, add
               <div className="w-12 h-12 rounded-xl bg-deep-navy/40 flex items-center justify-center text-2xl flex-shrink-0">⚽</div>
               <div className="flex-1 min-w-0">
                 <p className="font-extrabold text-text-primary">Guess the Score</p>
-                <p className="text-xs text-text-secondary">5 matchs · chrono · garde ton streak 🔥</p>
+                <p className="text-xs text-text-secondary">5 matches · timed · keep your streak 🔥</p>
               </div>
               <span className="text-electric-blue font-bold text-sm">Play →</span>
             </div>
