@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, Loader2, Minus, Plus, Flame, Snowflake, Share2, Trophy, Lightbulb, Lock } from 'lucide-react';
+import { ChevronLeft, Loader2, Minus, Plus, Flame, Snowflake, Share2, Trophy, Lightbulb } from 'lucide-react';
 import {
   getPuzzleToday, setPuzzlePrefs, puzzleStart, puzzleGuess, puzzleFinish, getPuzzleStats,
   PuzzleHint, PuzzleScope, PuzzleToday, PuzzleRound,
@@ -53,6 +53,7 @@ export const GuessScoreGame: React.FC<Props> = ({ onBack, addToast }) => {
   const [away, setAway] = useState(0);
   const [busy, setBusy] = useState(false);
   const [summary, setSummary] = useState<any>(null);
+  const [review, setReview] = useState(false);
   const [stats, setStats] = useState<any>(null);
   const [elapsed, setElapsed] = useState(0);
   const [unlocked, setUnlocked] = useState(0);
@@ -119,6 +120,12 @@ export const GuessScoreGame: React.FC<Props> = ({ onBack, addToast }) => {
     });
     if (r.solved) addToast('🎯 Exact!', 'success');
     setHome(0); setAway(0);
+    // last round resolved -> stop the clock and go straight to results
+    const isLast = idx >= (data.rounds!.length - 1);
+    if (isLast && (r.solved || r.reveal != null)) {
+      const s = await puzzleFinish(data.game.id);
+      if (s?.ok) { setSummary(s); setStats(await getPuzzleStats(data.scope)); }
+    }
   };
 
   const next = async () => {
@@ -138,6 +145,12 @@ export const GuessScoreGame: React.FC<Props> = ({ onBack, addToast }) => {
     if (!data?.rounds) return;
     const grid = data.rounds.map(r => r.attempt?.solved ? '🎯' : (r.attempt?.guesses?.length ? '🟥' : '⬜')).join('');
     const txt = `Sportime — Guess the Score\n${grid}  ${fmtTime(summary?.time_ms ? Math.floor(summary.time_ms / 1000) : elapsed)}\nTop ${Math.max(1, Math.round(summary?.percentile ?? 100))}%`;
+    try { await navigator.clipboard.writeText(txt); addToast('Copied to clipboard', 'success'); } catch { addToast(txt, 'info'); }
+  };
+  const shareReview = async () => {
+    if (!data?.rounds) return;
+    const lines = data.rounds.map(r => `${r.attempt?.solved ? '🎯' : '❌'} ${r.home_name} ${r.reveal?.home}-${r.reveal?.away} ${r.away_name} · ${r.attempt?.attempts ?? 0}🎲`).join('\n');
+    const txt = `Sportime — Guess the Score\n${lines}\n⏱️ ${fmtTime(Math.floor((summary?.time_ms || 0) / 1000))} · Top ${Math.max(1, Math.round(summary?.percentile ?? 100))}%`;
     try { await navigator.clipboard.writeText(txt); addToast('Copied to clipboard', 'success'); } catch { addToast(txt, 'info'); }
   };
 
@@ -211,6 +224,28 @@ export const GuessScoreGame: React.FC<Props> = ({ onBack, addToast }) => {
     </div></Shell>;
   }
 
+  // answers review (shareable)
+  if (review && data?.rounds) {
+    return <Shell>
+      <div className="flex items-center justify-between mt-1 mb-3">
+        <button onClick={() => setReview(false)} className="text-electric-blue text-sm font-semibold">← Results</button>
+        <button onClick={shareReview} className="flex items-center gap-1.5 text-electric-blue text-sm font-semibold"><Share2 size={16} /> Share</button>
+      </div>
+      <h1 className="text-xl font-extrabold text-text-primary mb-3">Today's answers</h1>
+      <div className="space-y-2">
+        {data.rounds.map(r => (
+          <div key={r.round_no} className="flex items-center justify-between card-base p-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="flex-shrink-0">{r.attempt?.solved ? '🎯' : '❌'}</span>
+              <span className="text-sm text-text-primary truncate"><b>{r.home_name}</b> <span className="tabular-nums">{r.reveal?.home}-{r.reveal?.away}</span> <b>{r.away_name}</b></span>
+            </div>
+            <span className="text-xs text-text-secondary flex-shrink-0 ml-2">{r.attempt?.attempts ?? 0} {(r.attempt?.attempts ?? 0) > 1 ? 'guesses' : 'guess'}</span>
+          </div>
+        ))}
+      </div>
+    </Shell>;
+  }
+
   if (summary) {
     const pct = Math.max(1, Math.round(summary.percentile ?? 100));
     const bucket = pct <= 1 ? 'Top 1%' : pct <= 5 ? 'Top 5%' : pct <= 25 ? 'Top 25%' : pct <= 50 ? 'Top 50%' : 'Top 75%';
@@ -228,7 +263,8 @@ export const GuessScoreGame: React.FC<Props> = ({ onBack, addToast }) => {
       </div>
       <p className="text-text-disabled text-xs mt-3">Avg time: {fmtTime(Math.floor((summary.avg_time_ms || 0) / 1000))}</p>
       <p className="text-text-secondary text-sm mt-4 font-medium">You solved today's game — see you tomorrow! 👋</p>
-      <button onClick={share} className="mt-5 w-full bg-lime-glow text-deep-navy font-extrabold py-3 rounded-xl flex items-center justify-center gap-2"><Share2 size={18} /> Share result</button>
+      <button onClick={() => setReview(true)} className="mt-5 w-full border border-electric-blue/40 text-electric-blue font-bold py-2.5 rounded-xl">See answers</button>
+      <button onClick={share} className="mt-3 w-full bg-lime-glow text-deep-navy font-extrabold py-3 rounded-xl flex items-center justify-center gap-2"><Share2 size={18} /> Share result</button>
       <button onClick={() => setConfig(true)} className="mt-3 text-electric-blue font-semibold text-sm">Change setup</button>
       <button onClick={onBack} className="mt-4 w-full bg-navy-accent text-text-primary font-bold py-3 rounded-xl">Go to FunZone</button>
     </div></Shell>;
@@ -267,10 +303,12 @@ export const GuessScoreGame: React.FC<Props> = ({ onBack, addToast }) => {
         {!done && unlocked < hintsTotal && (
           <button onClick={() => { if (cooldownLeft === 0) { setUnlocked(u => u + 1); setCooldownUntil(Date.now() + HINT_COOLDOWN); } }}
             disabled={cooldownLeft > 0}
-            className="w-full flex items-center justify-center gap-2 border border-dashed border-disabled rounded-lg px-3 py-2 text-sm text-text-secondary disabled:opacity-50">
-            {cooldownLeft > 0 ? <><Lock size={14} /> Next hint in {cooldownLeft}s</> : <><Lightbulb size={14} className="text-warm-yellow" /> Reveal a hint ({unlocked}/{hintsTotal})</>}
+            className="relative overflow-hidden w-full flex items-center justify-center gap-2 border border-dashed border-disabled rounded-lg px-3 py-2 text-sm text-text-secondary disabled:opacity-80">
+            {cooldownLeft > 0 && <span key={cooldownUntil} className="absolute inset-y-0 left-0 bg-warm-yellow/20" style={{ animation: `hintFill ${HINT_COOLDOWN}ms linear forwards` }} />}
+            <span className="relative flex items-center gap-2"><Lightbulb size={14} className="text-warm-yellow" /> Reveal a hint ({unlocked}/{hintsTotal})</span>
           </button>
         )}
+        <style>{`@keyframes hintFill{from{width:0%}to{width:100%}}`}</style>
       </div>
     )}
 
