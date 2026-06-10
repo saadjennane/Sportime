@@ -18,6 +18,7 @@ import { ConfigPage } from './pages/ConfigPage';
 import { BookmakerPage } from './pages/BookmakerPage';
 import { LiveGameConfigPage } from './pages/LiveGameConfigPage';
 import { LiveGamesPage } from './pages/LiveGamesPage';
+import { PuzzlePage } from './pages/PuzzlePage';
 
 function App() {
   return (
@@ -41,6 +42,7 @@ function App() {
         <Route path="/config" element={<ConfigPage />} />
         <Route path="/live-game" element={<LiveGameConfigPage />} />
         <Route path="/live-games" element={<LiveGamesPage />} />
+        <Route path="/puzzles" element={<PuzzlePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

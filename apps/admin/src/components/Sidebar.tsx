@@ -13,7 +13,8 @@ import {
   Calendar,
   DollarSign,
   Radio,
-  Disc3
+  Disc3,
+  Puzzle
 } from 'lucide-react';
 import { useState } from 'react';
 import packageJson from '../../package.json';
@@ -38,6 +39,7 @@ export function Sidebar({ className = '' }: SidebarProps) {
     { to: '/progression', icon: Star, label: 'Progression' },
     { to: '/spinwheel', icon: Disc3, label: 'Spinwheel' },
     { to: '/live-games', icon: Radio, label: 'Live Games' },
+    { to: '/puzzles', icon: Puzzle, label: 'Daily Puzzles' },
     { to: '/data-sync', icon: DatabaseZap, label: 'Data Sync' },
     { to: '/bookmaker', icon: DollarSign, label: 'Bookmakers' },
     { to: '/config', icon: Settings, label: 'Game Config' },
