@@ -37,6 +37,7 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
   const [letters, setLetters] = useState(0);
   const [masked, setMasked] = useState('');
   const [nameLen, setNameLen] = useState(0);
+  const [revealing, setRevealing] = useState(false);
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [now, setNow] = useState(Date.now());
   const [index, setIndex] = useState<IndexedPlayer[]>([]);
@@ -70,10 +71,13 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
   useEffect(() => { setUnlocked(0); setCooldownUntil(0); setQuery(''); setLetters(0); setMasked(''); setNameLen(0); }, [idx]);
 
   const revealLetter = async () => {
-    if (!data?.game || cooldownLeft > 0) return;
+    if (!data?.game || revealing) return;
+    setRevealing(true);
     const n = letters + 1;
     const r = await revealLetters(data.game.id, data.rounds![idx].round_no, n);
-    if (r?.ok) { setMasked(r.masked); setNameLen(r.length); setLetters(n); setCooldownUntil(Date.now() + HINT_COOLDOWN); }
+    setRevealing(false);
+    if (r?.ok) { setMasked(r.masked); setNameLen(r.length); setLetters(n); }
+    else addToast('Could not reveal a letter', 'error');
   };
 
   const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -331,14 +335,19 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
       </div>
     )}
 
-    {/* reveal hint -> then letters one by one */}
-    {!done && (unlocked < hintsTotal || nameLen === 0 || letters < nameLen) && (
-      <button onClick={unlocked < hintsTotal ? () => { if (cooldownLeft === 0) { setUnlocked(u => u + 1); setCooldownUntil(Date.now() + HINT_COOLDOWN); } } : revealLetter}
-        disabled={cooldownLeft > 0}
+    {/* reveal hints (5s cooldown) */}
+    {!done && unlocked < hintsTotal && (
+      <button onClick={() => { if (cooldownLeft === 0) { setUnlocked(u => u + 1); setCooldownUntil(Date.now() + HINT_COOLDOWN); } }} disabled={cooldownLeft > 0}
         className="relative overflow-hidden w-full mt-2 flex items-center justify-center gap-2 border border-dashed border-disabled rounded-lg px-3 py-2 text-sm text-text-secondary disabled:opacity-80">
         {cooldownLeft > 0 && <span key={cooldownUntil} className="absolute inset-y-0 left-0 bg-warm-yellow/20" style={{ animation: `hintFill ${HINT_COOLDOWN}ms linear forwards` }} />}
-        <span className="relative flex items-center gap-2"><Lightbulb size={14} className="text-warm-yellow" />
-          {unlocked < hintsTotal ? `Reveal a hint (${unlocked}/${hintsTotal})` : 'Reveal a letter'}</span>
+        <span className="relative flex items-center gap-2"><Lightbulb size={14} className="text-warm-yellow" /> Reveal a hint ({unlocked}/{hintsTotal})</span>
+      </button>
+    )}
+    {/* then reveal the name letter by letter (instant, one per tap) */}
+    {!done && unlocked >= hintsTotal && (nameLen === 0 || letters < nameLen) && (
+      <button onClick={revealLetter} disabled={revealing}
+        className="w-full mt-2 flex items-center justify-center gap-2 border border-dashed border-disabled rounded-lg px-3 py-2 text-sm text-text-secondary disabled:opacity-60 active:bg-white/5">
+        <Lightbulb size={14} className="text-warm-yellow" /> Reveal a letter{nameLen > 0 ? ` (${letters}/${nameLen})` : ''}
       </button>
     )}
     <style>{`@keyframes hintFill{from{width:0%}to{width:100%}}`}</style>

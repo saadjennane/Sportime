@@ -24,9 +24,9 @@ const config: CapacitorConfig = {
       androidScaleType: 'CENTER_CROP',
     },
     Keyboard: {
-      // Resize the web view when the keyboard opens so focused inputs stay visible.
-      resize: 'native',
-      resizeOnFullScreen: true,
+      // 'none' = keyboard overlays the webview without resizing it, so fixed elements
+      // (bottom nav/footer) stay put instead of jumping up with the keyboard.
+      resize: 'none',
     },
     StatusBar: {
       // Dark style = light (white) text/icons, suited to our dark UI.
