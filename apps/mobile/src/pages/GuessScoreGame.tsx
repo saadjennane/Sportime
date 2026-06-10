@@ -156,25 +156,28 @@ export const GuessScoreGame: React.FC<Props> = ({ onBack, addToast }) => {
 
   if (loading) return <div className="fixed inset-0 bg-deep-navy z-40 flex items-center justify-center"><Loader2 className="animate-spin text-electric-blue" size={28} /></div>;
 
-  const Header = () => (
-    <div className="flex items-center justify-between sticky top-0 bg-deep-navy py-2 z-10">
-      <button onClick={onBack} className="p-2 -ml-2 text-text-secondary"><ChevronLeft size={24} /></button>
-      <div className="flex items-center gap-3 text-sm">
-        {stats && <span className="flex items-center gap-1 text-hot-red font-bold"><Flame size={16} /> {stats.current_streak}</span>}
-        {stats && <span className="flex items-center gap-1 text-electric-blue font-bold"><Snowflake size={14} /> {stats.freezes}</span>}
-        {!summary && !ready && !config && data?.game && <span className="font-mono text-text-primary tabular-nums">{fmtTime(elapsed)}</span>}
-      </div>
-    </div>
-  );
-  const Shell = ({ children }: { children: React.ReactNode }) => (
+  // NOTE: a plain function (called inline), NOT a component — defining a component
+  // inside the render would give it a new identity each render and remount the whole
+  // tree on every tick, which "ate" taps and forced multiple clicks.
+  const wrap = (content: React.ReactNode) => (
     <div className="fixed inset-0 bg-deep-navy z-40 overflow-y-auto">
-      <div className="max-w-md mx-auto px-4 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-[max(0.5rem,env(safe-area-inset-top))]"><Header />{children}</div>
+      <div className="max-w-md mx-auto px-4 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-[max(0.5rem,env(safe-area-inset-top))]">
+        <div className="flex items-center justify-between sticky top-0 bg-deep-navy py-2 z-10">
+          <button onClick={onBack} className="p-2 -ml-2 text-text-secondary"><ChevronLeft size={24} /></button>
+          <div className="flex items-center gap-3 text-sm">
+            {stats && <span className="flex items-center gap-1 text-hot-red font-bold"><Flame size={16} /> {stats.current_streak}</span>}
+            {stats && <span className="flex items-center gap-1 text-electric-blue font-bold"><Snowflake size={14} /> {stats.freezes}</span>}
+            {!summary && !ready && !config && data?.game && <span className="font-mono text-text-primary tabular-nums">{fmtTime(elapsed)}</span>}
+          </div>
+        </div>
+        {content}
+      </div>
     </div>
   );
 
   // config: scope + difficulty (hint)
   if (config) {
-    return <Shell>
+    return wrap(<>
       <h1 className="text-2xl font-extrabold text-text-primary mt-3 mb-1">Set up your puzzle</h1>
       <p className="text-text-secondary text-sm mb-4">Pick the teams and how much help you want.</p>
       <p className="text-xs font-bold uppercase tracking-wide text-text-secondary mb-2">Matches</p>
@@ -198,21 +201,21 @@ export const GuessScoreGame: React.FC<Props> = ({ onBack, addToast }) => {
         ))}
       </div>
       <button onClick={confirmConfig} className="mt-6 w-full bg-lime-glow text-deep-navy font-extrabold py-3.5 rounded-xl">Start</button>
-    </Shell>;
+    </>);
   }
 
   if (data && !data.game) {
-    return <Shell><div className="text-center py-20">
+    return wrap(<><div className="text-center py-20">
       <div className="text-4xl mb-3">🗓️</div>
       <p className="text-text-primary font-bold">No puzzle today</p>
       <p className="text-text-secondary text-sm mt-1">Come back tomorrow at 8:00.</p>
       <button onClick={() => setConfig(true)} className="mt-5 text-electric-blue font-semibold text-sm">Change setup</button>
-    </div></Shell>;
+    </div></>);
   }
 
   if (ready && data?.game) {
     const sc = SCOPES.find(s => s.key === data.scope)!; const hn = HINTS.find(h => h.key === data.hint)!;
-    return <Shell><div className="flex flex-col items-center justify-center text-center py-14">
+    return wrap(<><div className="flex flex-col items-center justify-center text-center py-14">
       <div className="text-5xl mb-4">⚽</div>
       <h1 className="text-3xl font-extrabold text-text-primary">Get ready</h1>
       <p className="text-text-secondary text-sm mt-1">5 matches · beat the clock</p>
@@ -221,12 +224,12 @@ export const GuessScoreGame: React.FC<Props> = ({ onBack, addToast }) => {
         <span className="text-electric-blue text-xs font-semibold">change</span>
       </button>
       <button onClick={startPlay} className="mt-8 w-full max-w-xs bg-lime-glow text-deep-navy font-extrabold py-3.5 rounded-xl text-lg">Play</button>
-    </div></Shell>;
+    </div></>);
   }
 
   // answers review (shareable)
   if (review && data?.rounds) {
-    return <Shell>
+    return wrap(<>
       <div className="flex items-center justify-between mt-1 mb-3">
         <button onClick={() => setReview(false)} className="text-electric-blue text-sm font-semibold">← Results</button>
         <button onClick={shareReview} className="flex items-center gap-1.5 text-electric-blue text-sm font-semibold"><Share2 size={16} /> Share</button>
@@ -243,14 +246,14 @@ export const GuessScoreGame: React.FC<Props> = ({ onBack, addToast }) => {
           </div>
         ))}
       </div>
-    </Shell>;
+    </>);
   }
 
   if (summary) {
     const pct = Math.max(1, Math.round(summary.percentile ?? 100));
     const bucket = pct <= 1 ? 'Top 1%' : pct <= 5 ? 'Top 5%' : pct <= 25 ? 'Top 25%' : pct <= 50 ? 'Top 50%' : 'Top 75%';
     const totalGuesses = (data?.rounds ?? []).reduce((s, r) => s + (r.attempt?.attempts ?? 0), 0);
-    return <Shell><div className="text-center py-8">
+    return wrap(<><div className="text-center py-8">
       <Trophy size={44} className="text-warm-yellow mx-auto mb-3" />
       <h1 className="text-2xl font-extrabold text-text-primary">Done!</h1>
       <p className="text-text-secondary">{summary.rounds_solved}/{data?.rounds?.length} solved</p>
@@ -267,7 +270,7 @@ export const GuessScoreGame: React.FC<Props> = ({ onBack, addToast }) => {
       <button onClick={share} className="mt-3 w-full bg-lime-glow text-deep-navy font-extrabold py-3 rounded-xl flex items-center justify-center gap-2"><Share2 size={18} /> Share result</button>
       <button onClick={() => setConfig(true)} className="mt-3 text-electric-blue font-semibold text-sm">Change setup</button>
       <button onClick={onBack} className="mt-4 w-full bg-navy-accent text-text-primary font-bold py-3 rounded-xl">Go to FunZone</button>
-    </div></Shell>;
+    </div></>);
   }
 
   const round = data!.rounds![idx];
@@ -277,10 +280,15 @@ export const GuessScoreGame: React.FC<Props> = ({ onBack, addToast }) => {
   const done = att?.solved || (round.reveal != null);
   const hintsTotal = round.hints.length;
 
-  return <Shell>
+  return wrap(<>
     <div className="flex items-center justify-between mb-3">
       <span className="text-xs font-bold uppercase tracking-wide text-text-secondary">Round {idx + 1}/{data!.rounds!.length}</span>
-      <span className="text-xs text-text-disabled">{maxAtt - used} tries left</span>
+      <div className="flex items-center gap-1.5">
+        {Array.from({ length: maxAtt }).map((_, i) => (
+          <span key={i} className={`w-2 h-2 rounded-full ${i < used ? 'bg-hot-red' : 'bg-white/20'}`} />
+        ))}
+        <span className="text-xs text-text-disabled ml-1">{maxAtt - used} left</span>
+      </div>
     </div>
     <div className="card-base p-4 text-center">
       <p className="text-[11px] text-text-secondary mb-3">{round.competition}{round.stage ? ` · ${round.stage}` : ''}{round.match_date ? ` · ${new Date(round.match_date).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}` : ''}</p>
@@ -347,7 +355,7 @@ export const GuessScoreGame: React.FC<Props> = ({ onBack, addToast }) => {
         </button>
       </div>
     )}
-  </Shell>;
+  </>);
 };
 
 export default GuessScoreGame;
