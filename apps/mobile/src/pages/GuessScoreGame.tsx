@@ -283,12 +283,16 @@ export const GuessScoreGame: React.FC<Props> = ({ onBack, addToast }) => {
   return wrap(<>
     <div className="flex items-center justify-between mb-3">
       <span className="text-xs font-bold uppercase tracking-wide text-text-secondary">Round {idx + 1}/{data!.rounds!.length}</span>
-      <div className="flex items-center gap-1.5">
-        {Array.from({ length: maxAtt }).map((_, i) => (
-          <span key={i} className={`w-2 h-2 rounded-full ${i < used ? 'bg-hot-red' : 'bg-white/20'}`} />
-        ))}
-        <span className="text-xs text-text-disabled ml-1">{maxAtt - used} left</span>
-      </div>
+      {maxAtt > 0 ? (
+        <div className="flex items-center gap-1.5">
+          {Array.from({ length: maxAtt }).map((_, i) => (
+            <span key={i} className={`w-2 h-2 rounded-full ${i < used ? 'bg-hot-red' : 'bg-white/20'}`} />
+          ))}
+          <span className="text-xs text-text-disabled ml-1">{maxAtt - used} left</span>
+        </div>
+      ) : (
+        <span className="text-xs text-text-disabled">∞ · {used} {used === 1 ? 'guess' : 'guesses'}</span>
+      )}
     </div>
     <div className="card-base p-4 text-center">
       <p className="text-[11px] text-text-secondary mb-3">{round.competition}{round.stage ? ` · ${round.stage}` : ''}{round.match_date ? ` · ${new Date(round.match_date).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}` : ''}</p>
