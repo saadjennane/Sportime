@@ -6,6 +6,7 @@ import { SpinwheelCard } from '../components/funzone/SpinwheelCard';
 import { CasualGameCard } from '../components/funzone/CasualGameCard';
 import { SpinwheelModal } from '../components/funzone/SpinwheelModal';
 import { prefetchSpinSegments } from '../services/spinSegmentsService';
+import GuessScoreGame from './GuessScoreGame';
 
 interface FunZonePageProps {
   profile: Profile | null;
@@ -16,6 +17,7 @@ interface FunZonePageProps {
 const FunZonePage: React.FC<FunZonePageProps> = ({ profile, onOpenSpinWheel, addToast }) => {
   const { funzone, userTickets } = useMockStore();
   const [openTier, setOpenTier] = useState<SpinTier | null>(null);
+  const [openPuzzle, setOpenPuzzle] = useState(false);
 
   // Prefetch wheel content so the modal opens instantly (only re-downloads on change).
   useEffect(() => { prefetchSpinSegments(); }, []);
@@ -41,6 +43,21 @@ const FunZonePage: React.FC<FunZonePageProps> = ({ profile, onOpenSpinWheel, add
         </div>
 
         <ProgressionBar currentWins={funzone.userProgress} />
+
+        <div className="space-y-2">
+          <h2 className="text-xl font-bold text-text-primary">Daily Puzzle</h2>
+          <button onClick={() => setOpenPuzzle(true)}
+            className="w-full text-left p-4 rounded-2xl bg-gradient-to-br from-electric-blue/20 to-lime-glow/10 border border-electric-blue/30 active:scale-[0.99] transition-transform">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-deep-navy/40 flex items-center justify-center text-2xl flex-shrink-0">⚽</div>
+              <div className="flex-1 min-w-0">
+                <p className="font-extrabold text-text-primary">Guess the Score</p>
+                <p className="text-xs text-text-secondary">5 matchs · chrono · garde ton streak 🔥</p>
+              </div>
+              <span className="text-electric-blue font-bold text-sm">Play →</span>
+            </div>
+          </button>
+        </div>
 
         <div className="space-y-2">
           <h2 className="text-xl font-bold text-text-primary">Spinwheels</h2>
@@ -71,6 +88,9 @@ const FunZonePage: React.FC<FunZonePageProps> = ({ profile, onOpenSpinWheel, add
           userId={profile.id}
           addToast={addToast}
         />
+      )}
+      {profile && openPuzzle && (
+        <GuessScoreGame userId={profile.id} onBack={() => setOpenPuzzle(false)} addToast={addToast} />
       )}
     </>
   );
