@@ -7,7 +7,7 @@ export interface PuzzleRound {
   away_name: string; away_logo?: string;
   season: number; competition: string; stage?: string; match_date?: string;
   hints: string[];
-  attempt?: { guesses: { h: number; a: number; heat: string }[]; solved: boolean; attempts: number };
+  attempt?: { guesses: { h: number; a: number; heat?: string; fb?: any }[]; solved: boolean; attempts: number };
   reveal?: { home: number; away: number } | null;
 }
 export interface PuzzleToday {

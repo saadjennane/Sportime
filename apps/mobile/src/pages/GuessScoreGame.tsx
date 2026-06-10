@@ -14,12 +14,30 @@ const HEAT: Record<string, { label: string; cls: string; emoji: string }> = {
   warm: { label: 'Warm', cls: 'text-amber-300', emoji: '🌤️' },
   cold: { label: 'Cold', cls: 'text-electric-blue', emoji: '❄️' },
 };
-const LEVELS: { key: PuzzleLevel; title: string; desc: string; emoji: string }[] = [
-  { key: 'easy', title: 'Easy', desc: 'Casual fans who follow the big teams', emoji: '🟢' },
-  { key: 'medium', title: 'Medium', desc: 'Fans who watch more than a game a week', emoji: '🟡' },
-  { key: 'hard', title: 'Hard', desc: 'Experts who know it all', emoji: '🔴' },
+const LEVELS: { key: PuzzleLevel; title: string; desc: string; hint: string; emoji: string }[] = [
+  { key: 'easy', title: 'Easy', desc: 'Casual fans who follow the big teams', hint: 'Hint: arrows tell you which way to adjust each score ⬆️⬇️', emoji: '🟢' },
+  { key: 'medium', title: 'Medium', desc: 'Fans who watch more than a game a week', hint: 'Hint: only the total goal gap is revealed', emoji: '🟡' },
+  { key: 'hard', title: 'Hard', desc: 'Experts who know it all', hint: 'Hint: hot / cold only — nothing else', emoji: '🔴' },
 ];
 const HINT_COOLDOWN = 5000;
+
+const arrow = (v: string) => v === 'up' ? '⬆️' : v === 'down' ? '⬇️' : '✅';
+function FbBadge({ fb, heat }: { fb?: any; heat?: string }) {
+  if (fb?.kind === 'arrows') {
+    return (
+      <span className="text-sm font-bold text-text-primary flex items-center gap-3">
+        <span className="flex items-center gap-1"><span className="text-[10px] text-text-disabled">H</span>{arrow(fb.home)}</span>
+        <span className="flex items-center gap-1"><span className="text-[10px] text-text-disabled">A</span>{arrow(fb.away)}</span>
+      </span>
+    );
+  }
+  if (fb?.kind === 'distance') {
+    return <span className="text-sm font-bold text-amber-300">{fb.value === 0 ? '🎯 Exact!' : `${fb.value} goal${fb.value > 1 ? 's' : ''} away`}</span>;
+  }
+  const key = fb?.kind === 'heat' ? fb.key : heat;
+  const h = HEAT[key] ?? HEAT.cold;
+  return <span className={`text-sm font-bold ${h.cls}`}>{h.emoji} {h.label}</span>;
+}
 
 export const GuessScoreGame: React.FC<Props> = ({ onBack, addToast }) => {
   const [data, setData] = useState<PuzzleToday | null>(null);
@@ -94,7 +112,7 @@ export const GuessScoreGame: React.FC<Props> = ({ onBack, addToast }) => {
       if (!prev) return prev;
       const rounds = prev.rounds!.map(x => x.round_no === round.round_no ? {
         ...x,
-        attempt: { guesses: [...(x.attempt?.guesses ?? []), { h: home, a: away, heat: r.heat }], solved: r.solved, attempts: r.attempts_used },
+        attempt: { guesses: [...(x.attempt?.guesses ?? []), { h: home, a: away, fb: r.fb }], solved: r.solved, attempts: r.attempts_used },
         reveal: r.reveal ?? x.reveal,
       } : x);
       return { ...prev, rounds };
@@ -118,10 +136,9 @@ export const GuessScoreGame: React.FC<Props> = ({ onBack, addToast }) => {
 
   const share = async () => {
     if (!data?.rounds) return;
-    const grid = data.rounds.map(r => {
-      const g = r.attempt?.guesses ?? []; const last = g[g.length - 1];
-      return r.attempt?.solved ? '🎯' : last ? (HEAT[last.heat]?.emoji ?? '❌') : '⬜';
-    }).join('');
+    const grid = data.rounds.map(r =>
+      r.attempt?.solved ? '🎯' : (r.attempt?.guesses?.length ? '🟥' : '⬜')
+    ).join('');
     const txt = `Sportime — Guess the Score (${data.level})\n${grid}  ${fmtTime(summary?.time_ms ? Math.floor(summary.time_ms / 1000) : elapsed)}\nTop ${Math.max(1, Math.round(summary?.percentile ?? 100))}%`;
     try { await navigator.clipboard.writeText(txt); addToast('Copied to clipboard', 'success'); } catch { addToast(txt, 'info'); }
   };
@@ -156,6 +173,7 @@ export const GuessScoreGame: React.FC<Props> = ({ onBack, addToast }) => {
             className={`w-full text-left p-4 rounded-xl border-2 ${data?.level === l.key ? 'border-electric-blue' : 'border-disabled'} bg-navy-accent/40`}>
             <p className="font-bold text-text-primary">{l.emoji} {l.title}</p>
             <p className="text-xs text-text-secondary mt-0.5">{l.desc}</p>
+            <p className="text-[11px] text-warm-yellow/80 mt-1.5">💡 {l.hint}</p>
           </button>
         ))}
       </div>
@@ -252,10 +270,10 @@ export const GuessScoreGame: React.FC<Props> = ({ onBack, addToast }) => {
     {/* guess history — latest on top */}
     {att?.guesses?.length ? (
       <div className="mt-3 space-y-1.5">
-        {[...att.guesses].reverse().map((g, i) => (
+        {[...att.guesses].reverse().map((g: any, i) => (
           <div key={i} className="flex items-center justify-between bg-navy-accent/30 rounded-lg px-3 py-2">
             <span className="font-bold text-text-primary tabular-nums">{g.h} - {g.a}</span>
-            <span className={`text-sm font-bold ${HEAT[g.heat]?.cls}`}>{HEAT[g.heat]?.emoji} {HEAT[g.heat]?.label}</span>
+            <FbBadge fb={g.fb} heat={g.heat} />
           </div>
         ))}
       </div>
