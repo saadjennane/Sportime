@@ -4,7 +4,7 @@ import {
   listPuzzleGames, getPuzzleRounds, generatePuzzles, reschedulePuzzle, deletePuzzleGame,
 } from '../services/puzzleAdminService';
 
-const LEVELS = ['easy', 'medium', 'hard'];
+const LEVELS = ['big', 'all'];
 const lvlColor = (d: number) => d == null ? 'bg-surface-hover text-text-secondary' : d < 33 ? 'bg-lime-glow/15 text-lime-glow' : d < 66 ? 'bg-warm-yellow/15 text-warm-yellow' : 'bg-hot-red/15 text-hot-red';
 
 export function PuzzlePage() {
@@ -31,7 +31,7 @@ export function PuzzlePage() {
 }
 
 function Calendar({ flash }: { flash: (m: string) => void }) {
-  const [level, setLevel] = useState('easy');
+  const [level, setLevel] = useState('big');
   const [games, setGames] = useState<any[]>([]);
   const [open, setOpen] = useState<string | null>(null);
   const [rounds, setRounds] = useState<any[]>([]);
@@ -120,8 +120,7 @@ function Config({ flash }: { flash: (m: string) => void }) {
   if (!c) return null;
   const save = async () => {
     const { error } = await updatePuzzleConfig({
-      weight_pop: +c.weight_pop, weight_rarity: +c.weight_rarity, weight_recency: +c.weight_recency,
-      easy_max: +c.easy_max, medium_max: +c.medium_max, too_easy_max: +c.too_easy_max, impossible_min: +c.impossible_min,
+      pop_floor_big: +c.pop_floor_big, pop_floor_all: +c.pop_floor_all,
       max_attempts: +c.max_attempts, freeze_every_days: +c.freeze_every_days, max_freezes: +c.max_freezes,
       daily_cutover_hour: +c.daily_cutover_hour, prize_enabled: c.prize_enabled, prize_pot_default: +c.prize_pot_default, prize_top_pct: +c.prize_top_pct,
       monthly_milestones: typeof c.monthly_milestones === 'string' ? JSON.parse(c.monthly_milestones) : c.monthly_milestones,
@@ -134,8 +133,7 @@ function Config({ flash }: { flash: (m: string) => void }) {
   );
   return (
     <div className="space-y-5">
-      <Section title="Difficulty weights (sum ~1)"><F k="weight_pop" label="Popularity" /><F k="weight_rarity" label="Score rarity" /><F k="weight_recency" label="Recency" /></Section>
-      <Section title="Level thresholds (0-100)"><F k="easy_max" label="Easy max" /><F k="medium_max" label="Medium max" /><F k="too_easy_max" label="Too-easy guard" /><F k="impossible_min" label="Impossible guard" /></Section>
+      <Section title="Match scope — popularity floors (0-100)"><F k="pop_floor_big" label="Only big teams (floor)" /><F k="pop_floor_all" label="All teams (floor)" /></Section>
       <Section title="Gameplay"><F k="max_attempts" label="Max attempts / round" /><F k="freeze_every_days" label="Freeze every N days" /><F k="max_freezes" label="Max freezes" /><F k="daily_cutover_hour" label="Daily cutover hour" /></Section>
       <Section title="Daily prize">
         <label className="flex items-center gap-2 text-sm text-text-secondary mt-6"><input type="checkbox" checked={c.prize_enabled} onChange={e => setC({ ...c, prize_enabled: e.target.checked })} /> Enabled</label>
