@@ -14,7 +14,8 @@ const TABLES = [
   { t: 'tm_club_seasons',       f: 'tm_club_seasons.csv',       c: 'league_id,season,club_id', num: ['season','club_id'] },
   { t: 'tm_players',            f: 'tm_players.csv',            c: 'player_id', num: ['player_id','height_cm','current_market_value_eur'] },
   { t: 'tm_squad_memberships',  f: 'tm_squad_memberships.csv',  c: 'player_id,club_id,season', num: ['player_id','club_id','season','age','market_value_eur'] },
-  { t: 'tm_transfers',          f: 'tm_transfers.csv',          c: 'player_id,transfer_date,to_club_id,from_club_id', num: ['player_id','from_club_id','to_club_id','fee_eur','market_value_eur'] },
+  { t: 'tm_transfers',          f: 'tm_transfers.csv',          c: 'player_id,transfer_date,to_club_id,from_club_id', num: ['player_id','from_club_id','to_club_id','fee_eur','market_value_eur','seq'] },
+  { t: 'tm_player_season_stats',f: 'tm_player_season_stats.csv',c: 'player_id,season,club_id,league_id', num: ['player_id','season','club_id','appearances','goals','minutes'] },
   { t: 'tm_market_values',      f: 'tm_market_values.csv',      c: 'player_id,value_date', num: ['player_id','value_eur','club_id'] },
 ];
 
@@ -50,7 +51,8 @@ async function load(jwt, { t, f, c, num = [] }) {
     header.forEach((h, i) => {
       let v = r[i];
       if (v === '' || v === 'NA' || v === 'NULL' || v == null) { o[h] = null; return; }
-      o[h] = num.includes(h) ? Number(String(v).replace(/[^0-9.\-]/g, '')) || null : v;
+      if (num.includes(h)) { const n = Number(String(v).replace(/[^0-9.\-]/g, '')); o[h] = Number.isFinite(n) ? Math.round(n) : null; }
+      else o[h] = v;
     });
     return o;
   });
