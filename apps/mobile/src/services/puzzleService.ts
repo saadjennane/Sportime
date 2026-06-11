@@ -57,13 +57,27 @@ export interface PlayerToday {
   game?: { id: string } | null;
   rounds?: PlayerRound[];
 }
+let ptCache: { key: string; data: PlayerToday; ts: number } | null = null;
+let ptInflight: { key: string; p: Promise<PlayerToday> } | null = null;
 export async function finishPlayer(gameId: string, roundsSolved: number, timeMs: number) {
+  ptCache = null;   // result changes after finishing
   const { data } = await supabase.rpc('puzzle_finish_player', { p_game_id: gameId, p_rounds_solved: roundsSolved, p_time_ms: timeMs });
   return data as any;
 }
+export function prefetchPlayerToday(scope?: PuzzleScope) { getPlayerToday(scope).catch(() => {}); }
 export async function getPlayerToday(scope?: PuzzleScope): Promise<PlayerToday> {
-  const { data } = await supabase.rpc('puzzle_get_today_player', { p_scope: scope ?? null });
-  return (data ?? { ok: false }) as PlayerToday;
+  const key = scope ?? '';
+  if (ptCache && ptCache.key === key && Date.now() - ptCache.ts < 20000) return ptCache.data;
+  if (ptInflight && ptInflight.key === key) return ptInflight.p;   // dedupe concurrent (prefetch + open)
+  const p = (async () => {
+    const { data } = await supabase.rpc('puzzle_get_today_player', { p_scope: scope ?? null });
+    const d = (data ?? { ok: false }) as PlayerToday;
+    if (d.ok) ptCache = { key, data: d, ts: Date.now() };
+    ptInflight = null;
+    return d;
+  })();
+  ptInflight = { key, p };
+  return p;
 }
 export async function guessPlayer(gameId: string, roundNo: number, playerId: number) {
   const { data, error } = await supabase.rpc('puzzle_guess_player', { p_game_id: gameId, p_round_no: roundNo, p_player_id: playerId });

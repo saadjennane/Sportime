@@ -7,6 +7,7 @@ import { CasualGameCard } from '../components/funzone/CasualGameCard';
 import { SpinwheelModal } from '../components/funzone/SpinwheelModal';
 import { prefetchSpinSegments } from '../services/spinSegmentsService';
 import { prefetchPlayerIndex } from '../services/playerIndexService';
+import { prefetchPlayerToday } from '../services/puzzleService';
 import GuessScoreGame from './GuessScoreGame';
 import GuessPlayerGame from './GuessPlayerGame';
 
@@ -23,7 +24,7 @@ const FunZonePage: React.FC<FunZonePageProps> = ({ profile, onOpenSpinWheel, add
   const [openPlayerPuzzle, setOpenPlayerPuzzle] = useState(false);
 
   // Prefetch wheel content so the modal opens instantly (only re-downloads on change).
-  useEffect(() => { prefetchSpinSegments(); prefetchPlayerIndex(); }, []);
+  useEffect(() => { prefetchSpinSegments(); prefetchPlayerIndex(); prefetchPlayerToday(); }, []);
 
   // Any wheel opens the modal; the server RPC enforces eligibility (cooldown / no spins).
   const handleSpinwheelClick = (tier: SpinTier) => setOpenTier(tier);
