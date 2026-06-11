@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 
 export interface IndexedPlayer { id: number; name: string; photo?: string; r: number; key: string }
-const CACHE_KEY = 'sportime_player_index_v2';
+const CACHE_KEY = 'sportime_player_index_v3';
 const TTL = 24 * 3600 * 1000;
 let MEM: IndexedPlayer[] | null = null;
 
