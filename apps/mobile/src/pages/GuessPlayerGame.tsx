@@ -51,9 +51,9 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
   };
   const load = useCallback(async (scope?: PuzzleScope) => {
     setLoading(true);
-    const [d] = await Promise.all([getPlayerToday(scope), getPlayerIndex().then(setIndex)]);
+    const d = await getPlayerToday(scope);     // only this blocks the screen
     setData(d); setPickScope(d.scope); setPickHint(d.hint);
-    setStats(await getPuzzleStats(d.scope, 'guess_player'));
+    getPuzzleStats(d.scope, 'guess_player').then(setStats);   // background
     if (!d.has_prefs) { setConfig(true); setLoading(false); return; }
     if (!d.game) { setLoading(false); return; }
     if (d.play?.finished_at) { setSummary(await puzzleFinish(d.game.id)); setLoading(false); return; }
@@ -63,6 +63,7 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
     setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { getPlayerIndex().then(setIndex).catch(() => {}); }, []);   // autocomplete index, non-blocking
   useEffect(() => {
     if (summary || ready || config || !data?.game) return;
     const t = setInterval(() => { setNow(Date.now()); if (startRef.current) setElapsed(Math.floor((Date.now() - startRef.current) / 1000)); }, 500);
@@ -309,6 +310,11 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
             ))}
           </div>
         )}
+        {query.length >= 2 && results.length === 0 && (
+          <div className="absolute z-20 left-0 right-0 mt-1 bg-navy-accent rounded-xl px-3 py-2.5 text-sm text-text-disabled shadow-xl">
+            {index.length === 0 ? 'Loading players…' : 'No match'}
+          </div>
+        )}
       </div>
     )}
 
@@ -318,8 +324,8 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
       <div className="flex flex-wrap items-center justify-center gap-x-1 gap-y-2">
         {round.trail.map((c, i) => (
           <React.Fragment key={i}>
-            <div className="flex items-center gap-1 bg-navy-accent/40 rounded-full pl-1 pr-2 py-1">
-              <img src={clubLogo(c.id)} className="w-5 h-5 object-contain" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+            <div className="flex items-center gap-1 bg-navy-accent/40 rounded-full px-2.5 py-1">
+              {c.id ? <img src={clubLogo(c.id)} className="w-5 h-5 object-contain" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} /> : null}
               <span className="text-xs font-semibold text-text-primary">{c.name}</span>
             </div>
             {i < round.trail.length - 1 && <span className="text-text-disabled text-xs">→</span>}
