@@ -303,7 +303,10 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
         {results.length > 0 && (
           <div className="absolute z-20 left-0 right-0 mt-1 bg-navy-accent rounded-xl overflow-hidden divide-y divide-white/5 max-h-72 overflow-y-auto shadow-xl">
             {results.map(p => (
-              <button key={p.id} onClick={() => pick(p)} disabled={busy} className="w-full flex items-center gap-3 px-3 py-2.5 text-left active:bg-white/5">
+              // onPointerDown + preventDefault: select on the FIRST tap, before the input
+              // blurs (otherwise the first tap just dismisses the keyboard and is lost).
+              <button key={p.id} onPointerDown={(e) => { e.preventDefault(); if (!busy) pick(p); }} disabled={busy}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-left active:bg-white/5">
                 {p.photo ? <img src={p.photo} className="w-8 h-8 rounded-full object-cover flex-shrink-0" /> : <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0" />}
                 <span className="text-sm font-semibold text-text-primary truncate">{p.name}</span>
               </button>
