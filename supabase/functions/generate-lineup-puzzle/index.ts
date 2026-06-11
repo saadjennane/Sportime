@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
     const { scope = 'big', holes = 1, count = 3, start_date, rounds = 5, reset = false } = await req.json();
     const db = createClient(SUPABASE_URL, SERVICE_KEY);
     const level = `${scope}_${holes}`;
-    const POP_FLOOR = scope === 'big' ? 40 : 0;
+    const POP_FLOOR = scope === 'big' ? 75 : 0;   // genuinely big clubs (top tier ~90+, mid ~45)
     if (reset) await db.from('puzzle_games').delete().eq('game_type', 'guess_lineup').eq('level', level);
 
     const { data: pops } = await db.from('team_popularity').select('team_api_id,popularity');

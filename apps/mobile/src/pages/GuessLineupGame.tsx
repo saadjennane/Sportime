@@ -211,11 +211,15 @@ const GuessLineupGame: React.FC<Props> = ({ onBack, addToast }) => {
   if (!data?.game) return Shell(<div className="text-center py-20 text-text-secondary">No lineup puzzle today.</div>);
 
   if (ready) return Shell(
-    <div className="text-center py-16">
+    <div className="text-center py-12">
       <div className="text-5xl mb-4">🧩</div>
       <h1 className="text-2xl font-extrabold text-text-primary mb-1">Guess the Lineup</h1>
-      <p className="text-text-secondary mb-8">{data.rounds?.length} lineups · {data.holes} missing player{(data.holes ?? 1) > 1 ? 's' : ''} each · timed</p>
+      <p className="text-text-secondary mb-5">{data.rounds?.length} lineups · {data.holes} missing player{(data.holes ?? 1) > 1 ? 's' : ''} each · timed</p>
+      <div className="inline-flex items-center gap-2 bg-navy-accent rounded-full px-4 py-1.5 text-sm font-bold text-text-primary mb-6">
+        {data.scope === 'big' ? '🏆 Only big clubs' : '🌍 All teams'} · {data.holes} hole{(data.holes ?? 1) > 1 ? 's' : ''}
+      </div>
       <button onClick={startPlay} className="w-full bg-electric-blue text-white font-extrabold py-3.5 rounded-xl">Play</button>
+      <button onClick={() => setConfig(true)} className="mt-3 text-electric-blue font-semibold text-sm">Change setup</button>
     </div>
   );
 
