@@ -93,16 +93,16 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
   const confirmConfig = async () => { setConfig(false); setSummary(null); await setPuzzlePrefs(pickScope, pickHint, 'guess_player'); load(pickScope); };
 
   const solvedCount = () => (data?.rounds ?? []).filter(r => r.attempt?.solved).length;
-  const doFinish = async (finalSolved: number) => {
-    if (!data?.game || busy) return;
-    setBusy(true);
-    try {
-      const timeMs = startRef.current ? Date.now() - startRef.current : elapsed * 1000;
-      const s = await finishPlayer(data.game.id, finalSolved, timeMs);
-      if (s?.ok) { setSummary(s); getPuzzleStats(data.scope, 'guess_player').then(setStats); }
-      else addToast('Could not finish', 'error');
-    } catch { addToast('Network error', 'error'); }
-    finally { setBusy(false); }
+  // Optimistic: show Results instantly from local data; submit in the background
+  // (streak/percentile fill in when the network responds — never blocks the user).
+  const doFinish = (finalSolved: number) => {
+    if (!data?.game || summary) return;
+    const timeMs = startRef.current ? Date.now() - startRef.current : elapsed * 1000;
+    const score = Math.max(0, finalSolved) * 1000 - Math.min(900, Math.floor(Math.max(0, timeMs) / 1000));
+    setSummary({ ok: true, rounds_solved: finalSolved, time_ms: timeMs, score, pending: true });
+    finishPlayer(data.game.id, finalSolved, timeMs)
+      .then(s => { if (s?.ok) { setSummary(s); getPuzzleStats(data.scope, 'guess_player').then(setStats); } })
+      .catch(() => { /* offline — keep the local summary */ });
   };
 
   const pick = (player: IndexedPlayer) => {   // 100% local validation
@@ -124,19 +124,13 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
       return { ...prev, rounds };
     });
     if (solved) addToast('🎯 Correct!', 'success');
-    const isLast = idx >= (data.rounds!.length - 1);
-    if (isLast && (solved || exhausted)) {
-      const prior = data.rounds!.filter(r => r.round_no !== round.round_no && r.attempt?.solved).length;
-      doFinish(prior + (solved ? 1 : 0));
-    }
+    // on the last round we just reveal; the user taps "See results" (doFinish) when ready
   };
   const giveUp = () => {   // local reveal
     if (!data?.game) return;
     setQuery('');
     const round = data.rounds![idx];
     setData(prev => prev ? { ...prev, rounds: prev.rounds!.map(x => x.round_no === round.round_no ? { ...x, reveal: x.answer } : x) } : prev);
-    const isLast = idx >= (data.rounds!.length - 1);
-    if (isLast) doFinish(data.rounds!.filter(r => r.round_no !== round.round_no && r.attempt?.solved).length);
   };
   const next = () => {
     if (!data?.game) return;
@@ -240,8 +234,9 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
   }
 
   if (summary) {
-    const pct = Math.max(1, Math.round(summary.percentile ?? 100));
-    const bucket = pct <= 1 ? 'Top 1%' : pct <= 5 ? 'Top 5%' : pct <= 25 ? 'Top 25%' : pct <= 50 ? 'Top 50%' : 'Top 75%';
+    const hasPct = summary.percentile != null;
+    const pct = hasPct ? Math.max(1, Math.round(summary.percentile)) : 0;
+    const bucket = !hasPct ? '…' : pct <= 1 ? 'Top 1%' : pct <= 5 ? 'Top 5%' : pct <= 25 ? 'Top 25%' : pct <= 50 ? 'Top 50%' : 'Top 75%';
     const totalGuesses = (data?.rounds ?? []).reduce((s, r) => s + (r.attempt?.attempts ?? 0), 0);
     return wrap(<div className="text-center py-8">
       <Trophy size={44} className="text-warm-yellow mx-auto mb-3" />
@@ -252,7 +247,7 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
         <div className="card-base p-3"><p className="text-xs text-text-secondary">Time</p><p className="text-lg font-bold text-text-primary">{fmtTime(Math.floor((summary.time_ms || 0) / 1000))}</p></div>
         <div className="card-base p-3"><p className="text-xs text-text-secondary">Guesses</p><p className="text-lg font-bold text-text-primary">{totalGuesses}</p></div>
         <div className="card-base p-3"><p className="text-xs text-text-secondary">Percentile</p><p className="text-lg font-bold text-lime-glow">{bucket}</p></div>
-        <div className="card-base p-3"><p className="text-xs text-text-secondary">Streak</p><p className="text-lg font-bold text-hot-red">🔥 {summary.streak}</p></div>
+        <div className="card-base p-3"><p className="text-xs text-text-secondary">Streak</p><p className="text-lg font-bold text-hot-red">🔥 {summary.streak ?? '…'}</p></div>
       </div>
       <p className="text-text-secondary text-sm mt-4 font-medium">You solved today's game — see you tomorrow! 👋</p>
       <button onClick={() => setReview(true)} className="mt-5 w-full border border-electric-blue/40 text-electric-blue font-bold py-2.5 rounded-xl">See players</button>
