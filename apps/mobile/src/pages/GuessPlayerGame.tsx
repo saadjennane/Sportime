@@ -99,10 +99,16 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
     if (!data?.game || summary) return;
     const timeMs = startRef.current ? Date.now() - startRef.current : elapsed * 1000;
     const score = Math.max(0, finalSolved) * 1000 - Math.min(900, Math.floor(Math.max(0, timeMs) / 1000));
-    setSummary({ ok: true, rounds_solved: finalSolved, time_ms: timeMs, score, pending: true });
-    finishPlayer(data.game.id, finalSolved, timeMs)
+    // percentile + streak computed locally from data preloaded at start -> instant, no network wait
+    const dist = data.dist ?? [];
+    const percentile = dist.length > 0 ? Math.round((1000 * dist.filter(s => s > score).length) / dist.length) / 10 : 0;
+    const prog = data.progress;
+    const playedToday = prog?.last_played === data.date;
+    const streak = playedToday ? (prog?.streak ?? 1) : ((prog?.streak ?? 0) + 1);
+    setSummary({ ok: true, rounds_solved: finalSolved, time_ms: timeMs, score, percentile, streak });
+    finishPlayer(data.game.id, finalSolved, timeMs)   // reconcile authoritatively in the background
       .then(s => { if (s?.ok) { setSummary(s); getPuzzleStats(data.scope, 'guess_player').then(setStats); } })
-      .catch(() => { /* offline — keep the local summary */ });
+      .catch(() => { /* offline — local values stand */ });
   };
 
   const pick = (player: IndexedPlayer) => {   // 100% local validation

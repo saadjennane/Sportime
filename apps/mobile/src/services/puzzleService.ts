@@ -52,9 +52,11 @@ export interface PlayerRound {
 }
 export interface PlayerToday {
   ok: boolean; scope: PuzzleScope; hint: PuzzleHint; has_prefs: boolean; date: string;
-  config?: { max_attempts: number; rounds: number };
+  config?: { max_attempts: number; rounds: number; freeze_every_days?: number; max_freezes?: number };
   play?: { id: string; started_at: string; finished_at: string | null; rounds_solved: number; score: number };
   game?: { id: string } | null;
+  dist?: number[];                                                  // other players' scores today (for local percentile)
+  progress?: { streak: number; freezes: number; last_played: string | null };
   rounds?: PlayerRound[];
 }
 let ptCache: { key: string; data: PlayerToday; ts: number } | null = null;
