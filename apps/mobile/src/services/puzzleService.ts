@@ -114,11 +114,13 @@ export async function getLineupToday(scope?: PuzzleScope, holes?: number): Promi
   if (luCache && luCache.key === key && Date.now() - luCache.ts < 20000) return luCache.data;
   if (luInflight && luInflight.key === key) return luInflight.p;
   const p = (async () => {
-    const { data } = await supabase.rpc('puzzle_get_today_lineup', { p_scope: scope ?? null, p_holes: holes ?? null });
-    const d = (data ?? { ok: false }) as LineupToday;
-    if (d.ok) luCache = { key, data: d, ts: Date.now() };
-    luInflight = null;
-    return d;
+    try {
+      const { data } = await supabase.rpc('puzzle_get_today_lineup', { p_scope: scope ?? null, p_holes: holes ?? null });
+      const d = (data ?? { ok: false }) as LineupToday;
+      if (d.ok) luCache = { key, data: d, ts: Date.now() };
+      return d;
+    } catch { return { ok: false } as LineupToday; }
+    finally { luInflight = null; }
   })();
   luInflight = { key, p };
   return p;

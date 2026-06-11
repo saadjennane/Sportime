@@ -14,6 +14,7 @@ const saveDone = (g: string, date: string, summary: any, prog: any) => {
   } catch { /**/ }
 };
 const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+const teamLogo = (id: number) => `https://media.api-sports.io/football/teams/${id}.png`;
 
 type HoleState = { solved: boolean; gaveUp: boolean; guesses: { id: number; name: string; correct: boolean }[]; hint: number; letters: number; masked: string };
 const hk = (round: number, hole: number) => `${round}:${hole}`;
@@ -45,21 +46,27 @@ const GuessLineupGame: React.FC<Props> = ({ onBack, addToast }) => {
 
   const load = useCallback(async (scope?: 'big' | 'all', holes?: number) => {
     setLoading(true);
-    const d = await getLineupToday(scope, holes);
-    const local = d.game ? readDone(d.game.id) : null;
-    setData(d); setPickScope(d.scope ?? 'big'); setPickHoles(d.holes ?? 1);
-    getPuzzleStats(undefined as any, 'guess_lineup').then(setStats).catch(() => {});
-    if (!d.has_prefs) { setConfig(true); setLoading(false); return; }
-    if (!d.game) { setLoading(false); return; }
-    if (d.play?.finished_at || local) {
-      setSummary(local?.summary ?? { ok: true, rounds_solved: d.play?.rounds_solved ?? 0, pending: true });
-      if (local?.prog) setProg(local.prog);
-      if (!d.play?.finished_at && local) finishPlayer(d.game.id, local.summary.rounds_solved, local.summary.time_ms ?? 0).catch(() => {});
-      setLoading(false); return;
+    try {
+      const d = await getLineupToday(scope, holes);
+      const local = d.game ? readDone(d.game.id) : null;
+      setData(d); setPickScope(d.scope ?? 'big'); setPickHoles(d.holes ?? 1);
+      getPuzzleStats(undefined as any, 'guess_lineup').then(setStats).catch(() => {});
+      if (!d.has_prefs) { setConfig(true); return; }
+      if (!d.game) return;
+      if (d.play?.finished_at || local) {
+        setSummary(local?.summary ?? { ok: true, rounds_solved: d.play?.rounds_solved ?? 0, pending: true });
+        if (local?.prog) setProg(local.prog);
+        if (!d.play?.finished_at && local) finishPlayer(d.game.id, local.summary.rounds_solved, local.summary.time_ms ?? 0).catch(() => {});
+        return;
+      }
+      startRef.current = Date.now();
+      setReady(true);
+    } catch (e) {
+      addToast('Could not load — tap to retry', 'error');
+      setConfig(true);   // fall back to setup so the screen is never stuck
+    } finally {
+      setLoading(false);
     }
-    startRef.current = Date.now();
-    setReady(true);
-    setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { getLineupIndex().then(setIndex).catch(() => {}); }, []);
@@ -225,19 +232,23 @@ const GuessLineupGame: React.FC<Props> = ({ onBack, addToast }) => {
 
     {/* match context */}
     <div className="card-base p-3 mb-3 flex items-center justify-center gap-3">
-      <img src={pl!.team.logo} className="w-7 h-7 object-contain" />
+      <div className="flex items-center gap-1.5">
+        <img src={teamLogo(pl!.team.id)} className="w-7 h-7 object-contain" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+        <span className="text-xs font-bold text-text-primary max-w-[80px] truncate">{pl!.team.name}</span>
+      </div>
       <div className="text-center">
         <div className="text-lg font-extrabold text-text-primary tabular-nums">{pl!.score.team} – {pl!.score.opp}</div>
         <div className="text-[10px] text-text-secondary">{pl!.competition} · {pl!.date}</div>
       </div>
-      <img src={pl!.opponent.logo} className="w-7 h-7 object-contain opacity-70" />
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs font-medium text-text-secondary max-w-[80px] truncate">{pl!.opponent.name}</span>
+        <img src={teamLogo(pl!.opponent.id)} className="w-7 h-7 object-contain opacity-70" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+      </div>
     </div>
 
-    <GuessLineupPitch cells={cells} onSelectHole={(i) => setSel(prev => prev === i ? null : i)} />
-
-    {/* per-hole guess panel */}
+    {/* per-hole guess panel — ABOVE the pitch (so the keyboard never covers it) */}
     {sel != null && !selState?.solved && (
-      <div className="mt-3">
+      <div className="mb-3">
         <div className="relative">
           <div className="flex items-center gap-2 bg-navy-accent rounded-xl px-3 py-2.5">
             <Search size={18} className="text-text-disabled" />
@@ -274,7 +285,9 @@ const GuessLineupGame: React.FC<Props> = ({ onBack, addToast }) => {
       </div>
     )}
 
-    {sel == null && !done && <p className="text-center text-text-secondary text-sm mt-3">Tap a <span className="text-warm-yellow font-bold">?</span> on the pitch to guess</p>}
+    {sel == null && !done && <p className="text-center text-text-secondary text-sm mb-2">Tap a <span className="text-warm-yellow font-bold">?</span> on the pitch to guess</p>}
+
+    <GuessLineupPitch cells={cells} onSelectHole={(i) => setSel(prev => prev === i ? null : i)} />
 
     {done && (
       <button onClick={next} className="mt-4 w-full bg-electric-blue text-white font-bold py-3 rounded-xl">
