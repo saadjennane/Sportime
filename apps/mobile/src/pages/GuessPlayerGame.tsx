@@ -124,13 +124,19 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
       return { ...prev, rounds };
     });
     if (solved) addToast('🎯 Correct!', 'success');
-    // on the last round we just reveal; the user taps "See results" (doFinish) when ready
+    const isLast = idx >= (data.rounds!.length - 1);
+    if (isLast && (solved || exhausted)) {   // last round done -> auto-advance to Results
+      const final = data.rounds!.filter(r => r.round_no !== round.round_no && r.attempt?.solved).length + (solved ? 1 : 0);
+      setTimeout(() => doFinish(final), 900);   // brief beat to show the reveal
+    }
   };
   const giveUp = () => {   // local reveal
     if (!data?.game) return;
     setQuery('');
     const round = data.rounds![idx];
     setData(prev => prev ? { ...prev, rounds: prev.rounds!.map(x => x.round_no === round.round_no ? { ...x, reveal: x.answer } : x) } : prev);
+    const isLast = idx >= (data.rounds!.length - 1);
+    if (isLast) setTimeout(() => doFinish(data.rounds!.filter(r => r.round_no !== round.round_no && r.attempt?.solved).length), 900);
   };
   const next = () => {
     if (!data?.game) return;
