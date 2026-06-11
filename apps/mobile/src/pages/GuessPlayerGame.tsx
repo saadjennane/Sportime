@@ -1,9 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, Loader2, Flame, Snowflake, Share2, Trophy, Lightbulb, Search, X } from 'lucide-react';
 import {
-  getPlayerToday, setPuzzlePrefs, puzzleStart, guessPlayer, giveupPlayer, revealLetters, puzzleFinish, getPuzzleStats,
+  getPlayerToday, setPuzzlePrefs, puzzleStart, finishPlayer, getPuzzleStats,
   PuzzleHint, PuzzleScope, PlayerToday, PlayerRound,
 } from '../services/puzzleService';
+
+// reveal the first n characters of a name; mask the rest (keep spaces/punctuation)
+const maskName = (name: string, n: number) => name.split('').map((ch, i) => i < n ? ch : (/[\s.\-']/.test(ch) ? ch : '_')).join('');
 import { getPlayerIndex, searchPlayers, IndexedPlayer } from '../services/playerIndexService';
 
 interface Props { userId: string; onBack: () => void; addToast: (m: string, t: 'success' | 'error' | 'info') => void; }
@@ -56,7 +59,7 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
     getPuzzleStats(d.scope, 'guess_player').then(setStats);   // background
     if (!d.has_prefs) { setConfig(true); setLoading(false); return; }
     if (!d.game) { setLoading(false); return; }
-    if (d.play?.finished_at) { setSummary(await puzzleFinish(d.game.id)); setLoading(false); return; }
+    if (d.play?.finished_at) { setSummary(await finishPlayer(d.game.id, d.play.rounds_solved ?? 0, 0)); setLoading(false); return; }
     setIdx(firstUnsolved(d.rounds));
     startRef.current = d.play?.started_at ? new Date(d.play.started_at).getTime() : Date.now();
     setReady(!(d.rounds ?? []).some(r => r.attempt?.guesses?.length));
@@ -71,14 +74,11 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
   }, [summary, ready, config, data]);
   useEffect(() => { setUnlocked(0); setCooldownUntil(0); setQuery(''); setLetters(0); setMasked(''); setNameLen(0); }, [idx]);
 
-  const revealLetter = async () => {
-    if (!data?.game || revealing) return;
-    setRevealing(true);
+  const revealLetter = () => {   // fully local
+    if (!data?.game) return;
+    const name = data.rounds![idx].answer?.name || '';
     const n = letters + 1;
-    const r = await revealLetters(data.game.id, data.rounds![idx].round_no, n);
-    setRevealing(false);
-    if (r?.ok) { setMasked(r.masked); setNameLen(r.length); setLetters(n); }
-    else addToast('Could not reveal a letter', 'error');
+    setNameLen(name.length); setMasked(maskName(name, n)); setLetters(n);
   };
 
   const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -92,51 +92,56 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
   };
   const confirmConfig = async () => { setConfig(false); setSummary(null); await setPuzzlePrefs(pickScope, pickHint, 'guess_player'); load(pickScope); };
 
-  const pick = async (player: IndexedPlayer) => {
+  const solvedCount = () => (data?.rounds ?? []).filter(r => r.attempt?.solved).length;
+  const doFinish = async (finalSolved: number) => {
     if (!data?.game || busy) return;
-    setBusy(true); setQuery('');
+    setBusy(true);
+    try {
+      const timeMs = startRef.current ? Date.now() - startRef.current : elapsed * 1000;
+      const s = await finishPlayer(data.game.id, finalSolved, timeMs);
+      if (s?.ok) { setSummary(s); getPuzzleStats(data.scope, 'guess_player').then(setStats); }
+      else addToast('Could not finish', 'error');
+    } catch { addToast('Network error', 'error'); }
+    finally { setBusy(false); }
+  };
+
+  const pick = (player: IndexedPlayer) => {   // 100% local validation
+    if (!data?.game) return;
+    setQuery('');
     const round = data.rounds![idx];
-    const r = await guessPlayer(data.game.id, round.round_no, player.id);
-    setBusy(false);
-    if (!r?.ok) return addToast(r?.error === 'no_attempts_left' ? 'No attempts left' : 'Failed', 'error');
+    if (round.attempt?.solved || round.reveal) return;
+    const used = (round.attempt?.attempts ?? 0) + 1;
+    const solved = player.id === round.answer.id;
+    const maxAtt = data.config!.max_attempts;
+    const exhausted = maxAtt > 0 && used >= maxAtt;
     setData(prev => {
       if (!prev) return prev;
       const rounds = prev.rounds!.map(x => x.round_no === round.round_no ? {
         ...x,
-        attempt: { guesses: [...(x.attempt?.guesses ?? []), { pid: player.id, name: player.name, correct: r.solved }], solved: r.solved, attempts: r.attempts_used },
-        reveal: r.reveal ?? x.reveal,
+        attempt: { guesses: [...(x.attempt?.guesses ?? []), { pid: player.id, name: player.name, correct: solved }], solved, attempts: used },
+        reveal: (solved || exhausted) ? x.answer : x.reveal,
       } : x);
       return { ...prev, rounds };
     });
-    if (r.solved) addToast('🎯 Correct!', 'success');
+    if (solved) addToast('🎯 Correct!', 'success');
     const isLast = idx >= (data.rounds!.length - 1);
-    if (isLast && (r.solved || r.reveal != null)) {
-      const s = await puzzleFinish(data.game.id);
-      if (s?.ok) { setSummary(s); setStats(await getPuzzleStats(data.scope, 'guess_player')); }
+    if (isLast && (solved || exhausted)) {
+      const prior = data.rounds!.filter(r => r.round_no !== round.round_no && r.attempt?.solved).length;
+      doFinish(prior + (solved ? 1 : 0));
     }
   };
-  const giveUp = async () => {
-    if (!data?.game || busy) return;
-    setBusy(true); setQuery('');
+  const giveUp = () => {   // local reveal
+    if (!data?.game) return;
+    setQuery('');
     const round = data.rounds![idx];
-    const r = await giveupPlayer(data.game.id, round.round_no);
-    setBusy(false);
-    if (!r?.ok) return;
-    setData(prev => {
-      if (!prev) return prev;
-      const rounds = prev.rounds!.map(x => x.round_no === round.round_no ? { ...x, reveal: r.reveal } : x);
-      return { ...prev, rounds };
-    });
+    setData(prev => prev ? { ...prev, rounds: prev.rounds!.map(x => x.round_no === round.round_no ? { ...x, reveal: x.answer } : x) } : prev);
     const isLast = idx >= (data.rounds!.length - 1);
-    if (isLast) { const s = await puzzleFinish(data.game.id); if (s?.ok) { setSummary(s); setStats(await getPuzzleStats(data.scope, 'guess_player')); } }
+    if (isLast) doFinish(data.rounds!.filter(r => r.round_no !== round.round_no && r.attempt?.solved).length);
   };
-  const next = async () => {
+  const next = () => {
     if (!data?.game) return;
     if (idx < data.rounds!.length - 1) { setIdx(idx + 1); return; }
-    setBusy(true);
-    try { const s = await puzzleFinish(data.game.id); if (s?.ok) { setSummary(s); setStats(await getPuzzleStats(data.scope, 'guess_player')); } else addToast('Could not finish', 'error'); }
-    catch { addToast('Network error', 'error'); }
-    setBusy(false);
+    doFinish(solvedCount());
   };
   const shareReview = async () => {
     if (!data?.rounds) return;

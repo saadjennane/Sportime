@@ -46,6 +46,7 @@ export interface PlayerRound {
   trail: { name: string; id: number }[];
   trail_total: number;
   hints: { k: string; v: string }[];
+  answer: { id: number; name: string; photo?: string };   // sent to the client; validated locally
   attempt?: { guesses: { pid: number; name: string; correct: boolean }[]; solved: boolean; attempts: number };
   reveal?: { name: string; photo?: string } | null;
 }
@@ -55,6 +56,10 @@ export interface PlayerToday {
   play?: { id: string; started_at: string; finished_at: string | null; rounds_solved: number; score: number };
   game?: { id: string } | null;
   rounds?: PlayerRound[];
+}
+export async function finishPlayer(gameId: string, roundsSolved: number, timeMs: number) {
+  const { data } = await supabase.rpc('puzzle_finish_player', { p_game_id: gameId, p_rounds_solved: roundsSolved, p_time_ms: timeMs });
+  return data as any;
 }
 export async function getPlayerToday(scope?: PuzzleScope): Promise<PlayerToday> {
   const { data } = await supabase.rpc('puzzle_get_today_player', { p_scope: scope ?? null });
