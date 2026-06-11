@@ -1,22 +1,25 @@
 import { supabase } from './supabase';
 
 export interface IndexedPlayer { id: number; name: string; photo?: string; r: number; key: string }
-const CACHE_KEY = 'sportime_player_index_v3';
+const CACHE_KEY = 'sportime_player_index_v4';
 const TTL = 24 * 3600 * 1000;
 let MEM: IndexedPlayer[] | null = null;
 
-const norm = (s: string) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').trim();
+// ̀-ͯ = combining diacritics (explicit escapes; literal chars mis-strip in some webviews)
+const norm = (s: string) => (s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 
 export async function getPlayerIndex(): Promise<IndexedPlayer[]> {
-  if (MEM) return MEM;
+  if (MEM && MEM.length) return MEM;
   try {
     const raw = localStorage.getItem(CACHE_KEY);
-    if (raw) { const c = JSON.parse(raw); if (Date.now() - c.ts < TTL && Array.isArray(c.data)) { MEM = c.data; return MEM!; } }
+    if (raw) { const c = JSON.parse(raw); if (Date.now() - c.ts < TTL && Array.isArray(c.data) && c.data.length) { MEM = c.data; return MEM!; } }
   } catch { /* ignore */ }
   const { data } = await supabase.rpc('puzzle_player_index');
   const list: IndexedPlayer[] = (data ?? []).map((p: any) => ({ id: p.id, name: p.n, photo: p.p, r: p.r ?? 30, key: norm(p.n) }));
-  MEM = list;
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: list })); } catch { /* quota */ }
+  if (list.length) {   // never cache an empty/failed fetch
+    MEM = list;
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: list })); } catch { /* quota */ }
+  }
   return list;
 }
 export function prefetchPlayerIndex() { getPlayerIndex().catch(() => {}); }
