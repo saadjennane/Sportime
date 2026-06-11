@@ -7,6 +7,19 @@ import {
 
 // reveal the first n characters of a name; mask the rest (keep spaces/punctuation)
 const maskName = (name: string, n: number) => name.split('').map((ch, i) => i < n ? ch : (/[\s.\-']/.test(ch) ? ch : '_')).join('');
+
+// Local persistence of "today's game played" (survives if the background finish never reached the server).
+const doneKey = (gameId: string) => `sportime_gp_done_${gameId}`;
+const readDone = (gameId: string) => { try { const r = localStorage.getItem(doneKey(gameId)); return r ? JSON.parse(r) : null; } catch { return null; } };
+const saveDone = (gameId: string, date: string, summary: any, rounds: any) => {
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {   // drop previous days' entries
+      const k = localStorage.key(i);
+      if (k?.startsWith('sportime_gp_done_')) { try { if (JSON.parse(localStorage.getItem(k)!).date !== date) localStorage.removeItem(k); } catch { /* ignore */ } }
+    }
+    localStorage.setItem(doneKey(gameId), JSON.stringify({ date, summary, rounds }));
+  } catch { /* quota */ }
+};
 import { getPlayerIndex, searchPlayers, IndexedPlayer } from '../services/playerIndexService';
 
 interface Props { userId: string; onBack: () => void; addToast: (m: string, t: 'success' | 'error' | 'info') => void; }
@@ -55,11 +68,17 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
   const load = useCallback(async (scope?: PuzzleScope) => {
     setLoading(true);
     const d = await getPlayerToday(scope);     // only this blocks the screen
-    setData(d); setPickScope(d.scope); setPickHint(d.hint);
+    const local = d.game ? readDone(d.game.id) : null;   // played-today, persisted locally
+    setData(local?.rounds ? { ...d, rounds: local.rounds } : d);   // restore guesses for the review
+    setPickScope(d.scope); setPickHint(d.hint);
     getPuzzleStats(d.scope, 'guess_player').then(setStats);   // background
     if (!d.has_prefs) { setConfig(true); setLoading(false); return; }
     if (!d.game) { setLoading(false); return; }
-    if (d.play?.finished_at) { setSummary(await finishPlayer(d.game.id, d.play.rounds_solved ?? 0, 0)); setLoading(false); return; }
+    if (d.play?.finished_at || local) {                 // already played today -> results, no restart
+      setSummary(local?.summary ?? await finishPlayer(d.game.id, d.play!.rounds_solved ?? 0, 0));
+      if (!d.play?.finished_at && local) finishPlayer(d.game.id, local.summary.rounds_solved, local.summary.time_ms ?? 0).catch(() => {});   // re-sync server
+      setLoading(false); return;
+    }
     setIdx(firstUnsolved(d.rounds));
     startRef.current = d.play?.started_at ? new Date(d.play.started_at).getTime() : Date.now();
     setReady(!(d.rounds ?? []).some(r => r.attempt?.guesses?.length));
@@ -67,6 +86,7 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
   }, []);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { getPlayerIndex().then(setIndex).catch(() => {}); }, []);   // autocomplete index, non-blocking
+  useEffect(() => { if (summary && data?.game) saveDone(data.game.id, data.date, summary, data.rounds); }, [summary]);   // persist "played today"
   useEffect(() => {
     if (summary || ready || config || !data?.game) return;
     const t = setInterval(() => { setNow(Date.now()); if (startRef.current) setElapsed(Math.floor((Date.now() - startRef.current) / 1000)); }, 500);
