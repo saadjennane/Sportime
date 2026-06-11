@@ -59,6 +59,7 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
   const [index, setIndex] = useState<IndexedPlayer[]>([]);
   const [query, setQuery] = useState('');
   const startRef = useRef<number | null>(null);
+  const dataRef = useRef<PlayerToday | null>(null); dataRef.current = data;   // always-fresh data for callbacks
 
   const firstUnsolved = (rounds?: PlayerRound[]) => {
     if (!rounds) return 0;
@@ -125,8 +126,10 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
     const prog = data.progress;
     const playedToday = prog?.last_played === data.date;
     const streak = playedToday ? (prog?.streak ?? 1) : ((prog?.streak ?? 0) + 1);
-    setSummary({ ok: true, rounds_solved: finalSolved, time_ms: timeMs, score, percentile, streak });
-    finishPlayer(data.game.id, finalSolved, timeMs)   // reconcile authoritatively in the background
+    const localSummary = { ok: true, rounds_solved: finalSolved, time_ms: timeMs, score, percentile, streak };
+    setSummary(localSummary);
+    saveDone(data.game.id, data.date, localSummary, (dataRef.current ?? data).rounds);   // persist "played today" now (synchronous)
+    finishPlayer(data.game.id, finalSolved, timeMs)   // reconcile authoritatively in the background (retries)
       .then(s => { if (s?.ok) { setSummary(s); getPuzzleStats(data.scope, 'guess_player').then(setStats); } })
       .catch(() => { /* offline — local values stand */ });
   };

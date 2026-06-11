@@ -63,8 +63,14 @@ let ptCache: { key: string; data: PlayerToday; ts: number } | null = null;
 let ptInflight: { key: string; p: Promise<PlayerToday> } | null = null;
 export async function finishPlayer(gameId: string, roundsSolved: number, timeMs: number) {
   ptCache = null;   // result changes after finishing
-  const { data } = await supabase.rpc('puzzle_finish_player', { p_game_id: gameId, p_rounds_solved: roundsSolved, p_time_ms: timeMs });
-  return data as any;
+  for (let i = 0; i < 3; i++) {   // retry so a weak network still records finished_at server-side
+    try {
+      const { data, error } = await supabase.rpc('puzzle_finish_player', { p_game_id: gameId, p_rounds_solved: roundsSolved, p_time_ms: timeMs });
+      if (!error && data) return data as any;
+    } catch { /* network — retry */ }
+    await new Promise(r => setTimeout(r, 700 * (i + 1)));
+  }
+  return { ok: false };
 }
 export function prefetchPlayerToday(scope?: PuzzleScope) { getPlayerToday(scope).catch(() => {}); }
 export async function getPlayerToday(scope?: PuzzleScope): Promise<PlayerToday> {
