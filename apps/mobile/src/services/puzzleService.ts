@@ -62,7 +62,7 @@ export interface PlayerToday {
 let ptCache: { key: string; data: PlayerToday; ts: number } | null = null;
 let ptInflight: { key: string; p: Promise<PlayerToday> } | null = null;
 export async function finishPlayer(gameId: string, roundsSolved: number, timeMs: number) {
-  ptCache = null;   // result changes after finishing
+  ptCache = null; luCache = null;   // result changes after finishing (player + lineup share this)
   for (let i = 0; i < 3; i++) {   // retry so a weak network still records finished_at server-side
     try {
       const { data, error } = await supabase.rpc('puzzle_finish_player', { p_game_id: gameId, p_rounds_solved: roundsSolved, p_time_ms: timeMs });
@@ -87,6 +87,43 @@ export async function getPlayerToday(scope?: PuzzleScope): Promise<PlayerToday> 
   ptInflight = { key, p };
   return p;
 }
+
+// ---- Guess the Lineup ------------------------------------------------------
+export interface LineupHole { grid: string; answer: { id: number; name: string; number?: number; position?: string; photo?: string; nationality?: string | null } }
+export interface LineupStarter { id: number; name: string; number?: number; pos?: string; grid: string; photo?: string }
+export interface LineupRoundPayload {
+  team: { id: number; name: string; logo?: string }; opponent: { id: number; name: string; logo?: string };
+  competition?: string; date: string; score: { team: number; opp: number }; formation: string;
+  starters: LineupStarter[]; holes: LineupHole[];
+}
+export interface LineupRound { round_no: number; payload: LineupRoundPayload }
+export interface LineupToday {
+  ok: boolean; scope: PuzzleScope; holes: number; has_prefs: boolean; date: string;
+  config?: { rounds: number };
+  play?: { id: string; finished_at: string | null; rounds_solved: number; score: number };
+  game?: { id: string } | null;
+  dist?: number[]; progress?: { streak: number; freezes: number; last_played: string | null };
+  rounds?: LineupRound[];
+}
+let luCache: { key: string; data: LineupToday; ts: number } | null = null;
+let luInflight: { key: string; p: Promise<LineupToday> } | null = null;
+export function invalidateLineupToday() { luCache = null; }
+export function prefetchLineupToday() { getLineupToday().catch(() => {}); }
+export async function getLineupToday(scope?: PuzzleScope, holes?: number): Promise<LineupToday> {
+  const key = `${scope ?? ''}_${holes ?? ''}`;
+  if (luCache && luCache.key === key && Date.now() - luCache.ts < 20000) return luCache.data;
+  if (luInflight && luInflight.key === key) return luInflight.p;
+  const p = (async () => {
+    const { data } = await supabase.rpc('puzzle_get_today_lineup', { p_scope: scope ?? null, p_holes: holes ?? null });
+    const d = (data ?? { ok: false }) as LineupToday;
+    if (d.ok) luCache = { key, data: d, ts: Date.now() };
+    luInflight = null;
+    return d;
+  })();
+  luInflight = { key, p };
+  return p;
+}
+
 export async function guessPlayer(gameId: string, roundNo: number, playerId: number) {
   const { data, error } = await supabase.rpc('puzzle_guess_player', { p_game_id: gameId, p_round_no: roundNo, p_player_id: playerId });
   if (error) return { ok: false, error: error.message };

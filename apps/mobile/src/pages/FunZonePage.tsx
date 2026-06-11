@@ -6,10 +6,11 @@ import { SpinwheelCard } from '../components/funzone/SpinwheelCard';
 import { CasualGameCard } from '../components/funzone/CasualGameCard';
 import { SpinwheelModal } from '../components/funzone/SpinwheelModal';
 import { prefetchSpinSegments } from '../services/spinSegmentsService';
-import { prefetchPlayerIndex } from '../services/playerIndexService';
-import { prefetchPlayerToday } from '../services/puzzleService';
+import { prefetchPlayerIndex, prefetchLineupIndex } from '../services/playerIndexService';
+import { prefetchPlayerToday, prefetchLineupToday } from '../services/puzzleService';
 import GuessScoreGame from './GuessScoreGame';
 import GuessPlayerGame from './GuessPlayerGame';
+import GuessLineupGame from './GuessLineupGame';
 
 interface FunZonePageProps {
   profile: Profile | null;
@@ -22,9 +23,10 @@ const FunZonePage: React.FC<FunZonePageProps> = ({ profile, onOpenSpinWheel, add
   const [openTier, setOpenTier] = useState<SpinTier | null>(null);
   const [openPuzzle, setOpenPuzzle] = useState(false);
   const [openPlayerPuzzle, setOpenPlayerPuzzle] = useState(false);
+  const [openLineupPuzzle, setOpenLineupPuzzle] = useState(false);
 
   // Prefetch wheel content so the modal opens instantly (only re-downloads on change).
-  useEffect(() => { prefetchSpinSegments(); prefetchPlayerIndex(); prefetchPlayerToday(); }, []);
+  useEffect(() => { prefetchSpinSegments(); prefetchPlayerIndex(); prefetchPlayerToday(); prefetchLineupIndex(); prefetchLineupToday(); }, []);
 
   // Any wheel opens the modal; the server RPC enforces eligibility (cooldown / no spins).
   const handleSpinwheelClick = (tier: SpinTier) => setOpenTier(tier);
@@ -72,6 +74,17 @@ const FunZonePage: React.FC<FunZonePageProps> = ({ profile, onOpenSpinWheel, add
               <span className="text-warm-yellow font-bold text-sm">Play →</span>
             </div>
           </button>
+          <button onClick={() => setOpenLineupPuzzle(true)}
+            className="w-full text-left p-4 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-electric-blue/10 border border-emerald-500/30 active:scale-[0.99] transition-transform">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-deep-navy/40 flex items-center justify-center text-2xl flex-shrink-0">🧩</div>
+              <div className="flex-1 min-w-0">
+                <p className="font-extrabold text-text-primary">Guess the Lineup</p>
+                <p className="text-xs text-text-secondary">Find the missing player on the pitch 🔥</p>
+              </div>
+              <span className="text-emerald-400 font-bold text-sm">Play →</span>
+            </div>
+          </button>
         </div>
 
         <div className="space-y-2">
@@ -109,6 +122,9 @@ const FunZonePage: React.FC<FunZonePageProps> = ({ profile, onOpenSpinWheel, add
       )}
       {profile && openPlayerPuzzle && (
         <GuessPlayerGame userId={profile.id} onBack={() => setOpenPlayerPuzzle(false)} addToast={addToast} />
+      )}
+      {profile && openLineupPuzzle && (
+        <GuessLineupGame userId={profile.id} onBack={() => setOpenLineupPuzzle(false)} addToast={addToast} />
       )}
     </>
   );

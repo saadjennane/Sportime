@@ -1,28 +1,33 @@
 import { supabase } from './supabase';
 
 export interface IndexedPlayer { id: number; name: string; photo?: string; r: number; key: string }
-const CACHE_KEY = 'sportime_player_index_v5';
 const TTL = 24 * 3600 * 1000;
-let MEM: IndexedPlayer[] | null = null;
+const MEM: Record<string, IndexedPlayer[]> = {};
 
 // ̀-ͯ = combining diacritics (explicit escapes; literal chars mis-strip in some webviews)
 const norm = (s: string) => (s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 
-export async function getPlayerIndex(): Promise<IndexedPlayer[]> {
-  if (MEM && MEM.length) return MEM;
+async function loadIndex(rpc: string, cacheKey: string): Promise<IndexedPlayer[]> {
+  if (MEM[cacheKey]?.length) return MEM[cacheKey];
   try {
-    const raw = localStorage.getItem(CACHE_KEY);
-    if (raw) { const c = JSON.parse(raw); if (Date.now() - c.ts < TTL && Array.isArray(c.data) && c.data.length) { MEM = c.data; return MEM!; } }
+    const raw = localStorage.getItem(cacheKey);
+    if (raw) { const c = JSON.parse(raw); if (Date.now() - c.ts < TTL && Array.isArray(c.data) && c.data.length) { MEM[cacheKey] = c.data; return c.data; } }
   } catch { /* ignore */ }
-  const { data } = await supabase.rpc('puzzle_player_index');
+  const { data } = await supabase.rpc(rpc);
   const list: IndexedPlayer[] = (data ?? []).map((p: any) => ({ id: p.id, name: p.n, photo: p.p, r: p.r ?? 30, key: norm(p.n) }));
   if (list.length) {   // never cache an empty/failed fetch
-    MEM = list;
-    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: list })); } catch { /* quota */ }
+    MEM[cacheKey] = list;
+    try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data: list })); } catch { /* quota */ }
   }
   return list;
 }
-export function prefetchPlayerIndex() { getPlayerIndex().catch(() => {}); }
+
+// Guess the Player → Transfermarkt id space
+export const getPlayerIndex = () => loadIndex('puzzle_player_index', 'sportime_player_index_v5');
+export const prefetchPlayerIndex = () => { getPlayerIndex().catch(() => {}); };
+// Guess the Lineup → API-Football id space
+export const getLineupIndex = () => loadIndex('puzzle_lineup_index', 'sportime_lineup_index_v1');
+export const prefetchLineupIndex = () => { getLineupIndex().catch(() => {}); };
 
 // small Levenshtein (early-exit) for typo tolerance
 function lev(a: string, b: string, max: number): number {
