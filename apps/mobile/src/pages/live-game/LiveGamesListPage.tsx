@@ -3,7 +3,9 @@ import { supabase } from '../../services/supabase';
 import { MatchHeaderRow } from '../../components/matches/MatchHeaderRow';
 import { ChevronLeft, Loader2, Zap, Trophy } from 'lucide-react';
 import { listAvailableMRGames } from '../../services/matchRoyaleService';
+import { listAvailableLFGames } from '../../services/liveFantasyService';
 import { MatchRoyaleGame } from './MatchRoyaleGame';
+import { LiveFantasyGame } from './LiveFantasyGame';
 
 interface Props {
   userId: string;
@@ -18,23 +20,29 @@ export const LiveGamesListPage: React.FC<Props> = ({ userId, onOpenGame, onBack,
   const [loading, setLoading] = useState(true);
   const [games, setGames] = useState<any[]>([]);
   const [mrGames, setMrGames] = useState<any[]>([]);
+  const [lfGames, setLfGames] = useState<any[]>([]);
   const [openMR, setOpenMR] = useState<string | null>(null);
+  const [openLF, setOpenLF] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (!supabase) { setLoading(false); return; }
-      const [{ data }, mr] = await Promise.all([
+      const [{ data }, mr, lf] = await Promise.all([
         supabase.rpc('get_user_live_games', { p_user_id: userId }),
         listAvailableMRGames().catch(() => []),
+        listAvailableLFGames().catch(() => []),
       ]);
-      if (!cancelled) { setGames(Array.isArray(data) ? data : []); setMrGames(mr); setLoading(false); }
+      if (!cancelled) { setGames(Array.isArray(data) ? data : []); setMrGames(mr); setLfGames(lf); setLoading(false); }
     })();
     return () => { cancelled = true; };
   }, [userId]);
 
   if (openMR) {
     return <MatchRoyaleGame gameId={openMR} userId={userId} onBack={() => setOpenMR(null)} addToast={addToast ?? (() => {})} />;
+  }
+  if (openLF) {
+    return <LiveFantasyGame fixtureId={openLF} userId={userId} onBack={() => setOpenLF(null)} addToast={addToast ?? (() => {})} />;
   }
 
   return (
@@ -58,6 +66,26 @@ export const LiveGamesListPage: React.FC<Props> = ({ userId, onOpenGame, onBack,
                   <div className="flex items-center justify-between mt-3 text-xs">
                     <span className="font-semibold px-2 py-0.5 rounded-lg bg-warm-yellow/15 text-warm-yellow">🏆 {g.pot_amount ?? '—'} coins</span>
                     <span className="text-text-secondary capitalize">{String(g.status).replace('_', ' ')}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {lfGames.length > 0 && (
+          <div className="space-y-2">
+            <h2 className="text-xs font-bold uppercase tracking-wide text-text-secondary flex items-center gap-1.5"><Trophy size={14} className="text-lime-glow" /> Live Fantasy</h2>
+            {lfGames.map((g) => {
+              const fx = g.fixture;
+              const center = (fx?.goals_home != null) ? `${fx.goals_home} - ${fx.goals_away}` : (fx?.date ? new Date(fx.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'VS');
+              const tm = { teamA: { name: fx?.home?.name ?? 'Home', logo: fx?.home?.logo_url }, teamB: { name: fx?.away?.name ?? 'Away', logo: fx?.away?.logo_url } };
+              return (
+                <button key={g.id} onClick={() => setOpenLF(g.fixture_id)} className="w-full card-base p-4 text-left hover:border-lime-glow/40 transition-colors">
+                  <MatchHeaderRow match={tm} center={center} />
+                  <div className="flex items-center justify-between mt-3 text-xs">
+                    <span className="font-semibold px-2 py-0.5 rounded-lg bg-lime-glow/15 text-lime-glow">⭐ Live Fantasy</span>
+                    <span className="text-text-secondary capitalize">{String(g.status)}</span>
                   </div>
                 </button>
               );
