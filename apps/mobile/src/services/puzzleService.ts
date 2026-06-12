@@ -138,6 +138,10 @@ export interface ConnectionsToday {
 }
 let cnCache: { data: ConnectionsToday; ts: number } | null = null;
 let cnInflight: Promise<ConnectionsToday> | null = null;
+export async function replayGame(gameId: string) {
+  cnCache = null; ptCache = null; luCache = null;
+  await supabase.rpc('puzzle_replay', { p_game_id: gameId });
+}
 export function prefetchConnectionsToday() { getConnectionsToday().catch(() => {}); }
 export async function getConnectionsToday(): Promise<ConnectionsToday> {
   if (cnCache && Date.now() - cnCache.ts < 20000) return cnCache.data;

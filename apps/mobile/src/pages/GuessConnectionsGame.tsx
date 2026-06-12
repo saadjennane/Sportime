@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Flame, Snowflake, Trophy, Share2, Shuffle, Lightbulb } from 'lucide-react';
-import { getConnectionsToday, finishPlayer, getPuzzleStats, ConnectionsToday, ConnGroup } from '../services/puzzleService';
+import { getConnectionsToday, finishPlayer, getPuzzleStats, replayGame, ConnectionsToday, ConnGroup } from '../services/puzzleService';
 
 const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 const COLOR = { yellow: 'bg-warm-yellow', green: 'bg-lime-glow', blue: 'bg-electric-blue', purple: 'bg-purple-500' } as Record<string, string>;
@@ -101,6 +101,13 @@ const GuessConnectionsGame: React.FC<Props> = ({ onBack, addToast }) => {
     }
   };
 
+  const replay = async () => {
+    if (!data?.game) return;
+    try { localStorage.removeItem(doneKey(data.game.id)); } catch { /**/ }
+    await replayGame(data.game.id);
+    setSummary(null); setSolved([]); setSelected([]); setMistakes(0); setGuesses([]); setHint(null);
+    load();
+  };
   const useHint = () => {
     if (!pl || hint) return;
     const unsolved = pl.groups.filter(g => !solved.some(s => s.key === g.key));
@@ -156,6 +163,7 @@ const GuessConnectionsGame: React.FC<Props> = ({ onBack, addToast }) => {
         <div className="card-base p-3"><p className="text-xs text-text-secondary">Streak</p><p className="text-base font-bold text-hot-red">🔥 {summary.streak ?? '…'}</p></div>
       </div>
       <button onClick={shareReview} className="mt-5 w-full bg-lime-glow text-deep-navy font-extrabold py-3 rounded-xl flex items-center justify-center gap-2"><Share2 size={18} /> Share result</button>
+      <button onClick={replay} className="mt-3 text-electric-blue font-semibold text-sm">🔄 Play again</button>
       <button onClick={onBack} className="mt-3 w-full bg-navy-accent text-text-primary font-bold py-3 rounded-xl">Go to FunZone</button>
     </div>);
   }
