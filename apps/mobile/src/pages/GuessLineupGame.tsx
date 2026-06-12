@@ -256,7 +256,7 @@ const GuessLineupGame: React.FC<Props> = ({ onBack, addToast }) => {
         <div className="relative">
           <div className="flex items-center gap-2 bg-navy-accent rounded-xl px-3 py-2.5">
             <Search size={18} className="text-text-disabled" />
-            <input value={query} onChange={e => setQuery(e.target.value)} placeholder={`Player at ${selAns?.position} #${selAns?.number}…`} autoFocus
+            <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Type a player name…" autoFocus
               className="flex-1 bg-transparent outline-none text-text-primary placeholder:text-text-disabled" />
             {query && <button onClick={() => setQuery('')}><X size={16} className="text-text-disabled" /></button>}
           </div>
@@ -277,7 +277,7 @@ const GuessLineupGame: React.FC<Props> = ({ onBack, addToast }) => {
         </div>
         {/* hints */}
         <div className="mt-2 space-y-1.5">
-          {(selState?.hint ?? 0) >= 1 && <div className="bg-navy-accent/40 rounded-lg px-3 py-2 text-sm text-text-secondary">💡 <b className="text-text-primary">Position:</b> {selAns?.position} · <b className="text-text-primary">#</b>{selAns?.number}</div>}
+          {(selState?.hint ?? 0) >= 1 && <div className="bg-navy-accent/40 rounded-lg px-3 py-2 text-sm text-text-secondary">💡 <b className="text-text-primary">Position:</b> {selAns?.position}</div>}
           {(selState?.hint ?? 0) >= 2 && <div className="bg-navy-accent/40 rounded-lg px-3 py-2 text-sm text-text-secondary">💡 <b className="text-text-primary">Nationality:</b> {selAns?.nationality && selAns.nationality !== 'Unknown' ? selAns.nationality : '—'}</div>}
           {(selState?.letters ?? 0) > 0 && <div className="bg-navy-accent/40 rounded-lg px-3 py-2 text-base font-mono tracking-widest text-text-primary">{selState!.masked}</div>}
         </div>
