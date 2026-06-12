@@ -144,6 +144,32 @@ export async function replayGame(gameId: string) {
 }
 export function prefetchConnectionsToday() { getConnectionsToday().catch(() => {}); }
 
+// ---- Higher / Lower ---------------------------------------------------------
+export interface HlToday {
+  ok: boolean; date: string; criterion?: string; has_prefs?: boolean;
+  play?: { id: string; finished_at: string | null; score: number };
+  game?: { id: string } | null; best?: number; dist?: number[];
+}
+let hlCache: { key: string; data: HlToday; ts: number } | null = null;
+let hlInflight: { key: string; p: Promise<HlToday> } | null = null;
+export function prefetchHlToday() { getHlToday().catch(() => {}); }
+export async function getHlToday(criterion?: string): Promise<HlToday> {
+  const key = criterion ?? '';
+  if (hlCache && hlCache.key === key && Date.now() - hlCache.ts < 20000) return hlCache.data;
+  if (hlInflight && hlInflight.key === key) return hlInflight.p;
+  const p = (async () => {
+    try { const { data } = await supabase.rpc('puzzle_get_today_hl', { p_criterion: criterion ?? null }); const d = (data ?? { ok: false }) as HlToday; if (d.ok) hlCache = { key, data: d, ts: Date.now() }; return d; }
+    catch { return { ok: false } as HlToday; } finally { hlInflight = null; }
+  })();
+  hlInflight = { key, p };
+  return p;
+}
+export async function submitHl(gameId: string, streak: number) {
+  hlCache = null;
+  const { data } = await supabase.rpc('puzzle_submit_hl', { p_game_id: gameId, p_streak: streak });
+  return data as any;
+}
+
 // ---- Rapid Fire -------------------------------------------------------------
 export interface RapidToday {
   ok: boolean; date: string;

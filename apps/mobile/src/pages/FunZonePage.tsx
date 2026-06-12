@@ -5,13 +5,15 @@ import { SpinwheelCard } from '../components/funzone/SpinwheelCard';
 import { SpinwheelModal } from '../components/funzone/SpinwheelModal';
 import { prefetchSpinSegments } from '../services/spinSegmentsService';
 import { prefetchPlayerIndex } from '../services/playerIndexService';
-import { prefetchPlayerToday, prefetchLineupToday, prefetchConnectionsToday, prefetchGridToday, prefetchRapidToday } from '../services/puzzleService';
+import { prefetchPlayerToday, prefetchLineupToday, prefetchConnectionsToday, prefetchGridToday, prefetchRapidToday, prefetchHlToday } from '../services/puzzleService';
 import { prefetchGridIndex } from '../services/gridService';
+import { prefetchValueIndex } from '../services/valueService';
 import GuessPlayerGame from './GuessPlayerGame';
 import GuessLineupGame from './GuessLineupGame';
 import GuessConnectionsGame from './GuessConnectionsGame';
 import GuessGridGame from './GuessGridGame';
 import RapidFireGame from './RapidFireGame';
+import HigherLowerGame from './HigherLowerGame';
 
 interface FunZonePageProps {
   profile: Profile | null;
@@ -27,9 +29,10 @@ const FunZonePage: React.FC<FunZonePageProps> = ({ profile, onOpenSpinWheel, add
   const [openConnections, setOpenConnections] = useState(false);
   const [openGrid, setOpenGrid] = useState(false);
   const [openRapid, setOpenRapid] = useState(false);
+  const [openHl, setOpenHl] = useState(false);
 
   // Prefetch wheel content so the modal opens instantly (only re-downloads on change).
-  useEffect(() => { prefetchSpinSegments(); prefetchPlayerIndex(); prefetchPlayerToday(); prefetchLineupToday(); prefetchConnectionsToday(); prefetchGridToday(); prefetchGridIndex(); prefetchRapidToday(); }, []);
+  useEffect(() => { prefetchSpinSegments(); prefetchPlayerIndex(); prefetchPlayerToday(); prefetchLineupToday(); prefetchConnectionsToday(); prefetchGridToday(); prefetchGridIndex(); prefetchRapidToday(); prefetchHlToday(); prefetchValueIndex(); }, []);
 
   // Any wheel opens the modal; the server RPC enforces eligibility (cooldown / no spins).
   const handleSpinwheelClick = (tier: SpinTier) => setOpenTier(tier);
@@ -108,6 +111,17 @@ const FunZonePage: React.FC<FunZonePageProps> = ({ profile, onOpenSpinWheel, add
               <span className="text-warm-yellow font-bold text-sm">Play →</span>
             </div>
           </button>
+          <button onClick={() => setOpenHl(true)}
+            className="w-full text-left p-4 rounded-2xl bg-gradient-to-br from-lime-glow/20 to-emerald-500/10 border border-lime-glow/30 active:scale-[0.99] transition-transform">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-deep-navy/40 flex items-center justify-center text-2xl flex-shrink-0">⬆️</div>
+              <div className="flex-1 min-w-0">
+                <p className="font-extrabold text-text-primary">Higher or Lower</p>
+                <p className="text-xs text-text-secondary">Value, fee, age… build your streak 🔥</p>
+              </div>
+              <span className="text-lime-glow font-bold text-sm">Play →</span>
+            </div>
+          </button>
         </div>
 
         <div className="space-y-2">
@@ -139,6 +153,9 @@ const FunZonePage: React.FC<FunZonePageProps> = ({ profile, onOpenSpinWheel, add
       )}
       {profile && openRapid && (
         <RapidFireGame userId={profile.id} onBack={() => setOpenRapid(false)} addToast={addToast} />
+      )}
+      {profile && openHl && (
+        <HigherLowerGame userId={profile.id} onBack={() => setOpenHl(false)} addToast={addToast} />
       )}
       {profile && openPlayerPuzzle && (
         <GuessPlayerGame userId={profile.id} onBack={() => setOpenPlayerPuzzle(false)} addToast={addToast} />
