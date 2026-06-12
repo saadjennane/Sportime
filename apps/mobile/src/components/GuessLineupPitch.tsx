@@ -10,6 +10,7 @@ export interface PitchCell {
   holeIdx?: number;
   status?: 'open' | 'solved';   // hole state
   selected?: boolean;
+  label?: string;               // surname shown when solved
 }
 
 const parseGrid = (g: string) => { const [r, c] = (g || '0:0').split(':').map(n => parseInt(n, 10)); return { row: isNaN(r) ? 0 : r, col: isNaN(c) ? 0 : c }; };
@@ -29,19 +30,19 @@ const PlayerNode: React.FC<{ c: PitchCell }> = ({ c }) => {
   );
 };
 
-const HoleNode: React.FC<{ c: PitchCell; onSelect: () => void }> = ({ c, onSelect }) => (
+const HoleNode: React.FC<{ c: PitchCell; showShirt: boolean; onSelect: () => void }> = ({ c, showShirt, onSelect }) => (
   <button onClick={onSelect} className="flex flex-col items-center gap-0.5 w-[58px]">
-    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-extrabold text-lg border-2 transition-all
+    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-extrabold text-base border-2 transition-all
       ${c.status === 'solved' ? 'bg-lime-glow/90 text-deep-navy border-white' : c.selected ? 'bg-warm-yellow text-deep-navy border-white scale-110' : 'bg-deep-navy/70 text-warm-yellow border-warm-yellow border-dashed'}`}>
-      {c.status === 'solved' ? '✓' : '?'}
+      {c.status === 'solved' ? '✓' : (showShirt && c.number != null ? c.number : '?')}
     </div>
     <span className={`text-[9px] font-bold text-center leading-tight truncate max-w-[58px] ${c.status === 'solved' ? 'text-lime-glow' : 'text-warm-yellow'}`}>
-      {c.status === 'solved' ? (c.name || '').split(' ').pop() : (c.pos || '?')}
+      {c.status === 'solved' ? (c.label || c.name || '') : (c.pos || '?')}
     </span>
   </button>
 );
 
-export const GuessLineupPitch: React.FC<{ cells: PitchCell[]; onSelectHole: (idx: number) => void }> = ({ cells, onSelectHole }) => {
+export const GuessLineupPitch: React.FC<{ cells: PitchCell[]; showShirt?: boolean; onSelectHole: (idx: number) => void }> = ({ cells, showShirt = false, onSelectHole }) => {
   const rows = new Map<number, PitchCell[]>();
   for (const c of cells) { const { row } = parseGrid(c.grid); if (!rows.has(row)) rows.set(row, []); rows.get(row)!.push(c); }
   for (const [, arr] of rows) arr.sort((a, b) => parseGrid(a.grid).col - parseGrid(b.grid).col);
@@ -58,7 +59,7 @@ export const GuessLineupPitch: React.FC<{ cells: PitchCell[]; onSelectHole: (idx
         {sortedRows.map(rn => (
           <div key={rn} className="flex justify-center items-center gap-1.5">
             {(rows.get(rn) || []).map((c, i) => c.kind === 'hole'
-              ? <HoleNode key={`h${i}`} c={c} onSelect={() => onSelectHole(c.holeIdx!)} />
+              ? <HoleNode key={`h${i}`} c={c} showShirt={showShirt} onSelect={() => onSelectHole(c.holeIdx!)} />
               : <PlayerNode key={`p${i}`} c={c} />)}
           </div>
         ))}

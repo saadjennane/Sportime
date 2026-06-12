@@ -64,10 +64,10 @@ Deno.serve(async (req) => {
       const showTeam = showIsHome ? home : away;
       const oppTeam = showIsHome ? away : home;
       const starters = show.startXI.map((s: any) => s.player).filter((p: any) => p?.id && p?.grid);
-      const outfield = starters.filter((p: any) => p.pos !== 'G');
-      if (outfield.length < holes) continue;
-
-      const chosen = shuffle([...outfield]).slice(0, holes);
+      if (starters.length < 11) continue;
+      const pool = holes >= 11 ? starters : starters.filter((p: any) => p.pos !== 'G');   // 11 = whole XI incl GK
+      if (pool.length < holes) continue;
+      const chosen = shuffle([...pool]).slice(0, holes);
       const chosenIds = new Set(chosen.map((c: any) => c.id));
       const { data: fp } = await db.from('fb_players').select('api_id,nationality').in('api_id', chosen.map((c: any) => c.id));
       const natMap = new Map((fp ?? []).map((p: any) => [p.api_id, p.nationality]));
