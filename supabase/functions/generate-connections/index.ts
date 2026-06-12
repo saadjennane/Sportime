@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
     // build categories: { id, label, color-rank weight, test(pid), members[] }
     type Cat = { id: string; label: string; weight: number; test: (e: any) => boolean };
     const cats: Cat[] = [];
-    const YOUTH = /(U1[5-9]|U2[0-3]|youth|yth|giov|reserve|castilla|without club| B$| II$)/i;
+    const YOUTH = /(U1[5-9]|U2[0-3]|youth|yth|giov|reserve|castilla|without club|retired|career break|unknown|ablöse| B$| II$| C$)/i;
     // clubs (>=6 notable players)
     const clubCount = new Map<string, number>();
     for (const e of P.values()) for (const c of e.clubs) if (!YOUTH.test(c)) clubCount.set(c, (clubCount.get(c) ?? 0) + 1);
@@ -74,9 +74,11 @@ Deno.serve(async (req) => {
 
     for (let g = 0; g < count; g++) {
       let built = null;
-      for (let attempt = 0; attempt < 300 && !built; attempt++) {
-        const pick = shuffle([...cats]).slice(0, 4);
-        if (new Set(pick.map(c => c.id.split(':')[0])).size < 2) continue;   // require ≥2 types for variety
+      for (let attempt = 0; attempt < 400 && !built; attempt++) {
+        // varied pick: ≤1 nationality, ≤2 of any type, ≥3 distinct types
+        const order = shuffle([...cats]); const pick: Cat[] = []; const tc: Record<string, number> = {};
+        for (const c of order) { const t = c.id.split(':')[0]; const cap = t === 'nat' ? 1 : 2; if ((tc[t] ?? 0) >= cap) continue; pick.push(c); tc[t] = (tc[t] ?? 0) + 1; if (pick.length === 4) break; }
+        if (pick.length < 4 || Object.keys(tc).length < 3) continue;
         // exclusive members per chosen category
         const groups: { cat: Cat; ids: number[] }[] = [];
         let ok = true;
