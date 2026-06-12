@@ -5,7 +5,7 @@ const TTL = 24 * 3600 * 1000;
 const MEM: Record<string, IndexedPlayer[]> = {};
 
 // ̀-ͯ = combining diacritics (explicit escapes; literal chars mis-strip in some webviews)
-const norm = (s: string) => (s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+export const norm = (s: string) => (s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 
 async function loadIndex(rpc: string, cacheKey: string): Promise<IndexedPlayer[]> {
   if (MEM[cacheKey]?.length) return MEM[cacheKey];

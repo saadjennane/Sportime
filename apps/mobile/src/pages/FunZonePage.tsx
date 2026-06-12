@@ -7,10 +7,12 @@ import { CasualGameCard } from '../components/funzone/CasualGameCard';
 import { SpinwheelModal } from '../components/funzone/SpinwheelModal';
 import { prefetchSpinSegments } from '../services/spinSegmentsService';
 import { prefetchPlayerIndex } from '../services/playerIndexService';
-import { prefetchPlayerToday, prefetchLineupToday, prefetchConnectionsToday } from '../services/puzzleService';
+import { prefetchPlayerToday, prefetchLineupToday, prefetchConnectionsToday, prefetchGridToday } from '../services/puzzleService';
+import { prefetchGridIndex } from '../services/gridService';
 import GuessPlayerGame from './GuessPlayerGame';
 import GuessLineupGame from './GuessLineupGame';
 import GuessConnectionsGame from './GuessConnectionsGame';
+import GuessGridGame from './GuessGridGame';
 
 interface FunZonePageProps {
   profile: Profile | null;
@@ -24,9 +26,10 @@ const FunZonePage: React.FC<FunZonePageProps> = ({ profile, onOpenSpinWheel, add
   const [openPlayerPuzzle, setOpenPlayerPuzzle] = useState(false);
   const [openLineupPuzzle, setOpenLineupPuzzle] = useState(false);
   const [openConnections, setOpenConnections] = useState(false);
+  const [openGrid, setOpenGrid] = useState(false);
 
   // Prefetch wheel content so the modal opens instantly (only re-downloads on change).
-  useEffect(() => { prefetchSpinSegments(); prefetchPlayerIndex(); prefetchPlayerToday(); prefetchLineupToday(); prefetchConnectionsToday(); }, []);
+  useEffect(() => { prefetchSpinSegments(); prefetchPlayerIndex(); prefetchPlayerToday(); prefetchLineupToday(); prefetchConnectionsToday(); prefetchGridToday(); prefetchGridIndex(); }, []);
 
   // Any wheel opens the modal; the server RPC enforces eligibility (cooldown / no spins).
   const handleSpinwheelClick = (tier: SpinTier) => setOpenTier(tier);
@@ -85,6 +88,17 @@ const FunZonePage: React.FC<FunZonePageProps> = ({ profile, onOpenSpinWheel, add
               <span className="text-emerald-400 font-bold text-sm">Play →</span>
             </div>
           </button>
+          <button onClick={() => setOpenGrid(true)}
+            className="w-full text-left p-4 rounded-2xl bg-gradient-to-br from-hot-red/20 to-warm-yellow/10 border border-hot-red/30 active:scale-[0.99] transition-transform">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-deep-navy/40 flex items-center justify-center text-2xl flex-shrink-0">⬛</div>
+              <div className="flex-1 min-w-0">
+                <p className="font-extrabold text-text-primary">Box2Box</p>
+                <p className="text-xs text-text-secondary">Fill the 3×3 grid in 3 min 🔥</p>
+              </div>
+              <span className="text-hot-red font-bold text-sm">Play →</span>
+            </div>
+          </button>
         </div>
 
         <div className="space-y-2">
@@ -119,6 +133,9 @@ const FunZonePage: React.FC<FunZonePageProps> = ({ profile, onOpenSpinWheel, add
       )}
       {profile && openConnections && (
         <GuessConnectionsGame userId={profile.id} onBack={() => setOpenConnections(false)} addToast={addToast} />
+      )}
+      {profile && openGrid && (
+        <GuessGridGame userId={profile.id} onBack={() => setOpenGrid(false)} addToast={addToast} />
       )}
       {profile && openPlayerPuzzle && (
         <GuessPlayerGame userId={profile.id} onBack={() => setOpenPlayerPuzzle(false)} addToast={addToast} />

@@ -62,7 +62,7 @@ export interface PlayerToday {
 let ptCache: { key: string; data: PlayerToday; ts: number } | null = null;
 let ptInflight: { key: string; p: Promise<PlayerToday> } | null = null;
 export async function finishPlayer(gameId: string, roundsSolved: number, timeMs: number) {
-  ptCache = null; luCache = null; cnCache = null;   // result changes after finishing (shared generic finish)
+  ptCache = null; luCache = null; cnCache = null; gdCache = null;   // result changes after finishing (shared generic finish)
   for (let i = 0; i < 3; i++) {   // retry so a weak network still records finished_at server-side
     try {
       const { data, error } = await supabase.rpc('puzzle_finish_player', { p_game_id: gameId, p_rounds_solved: roundsSolved, p_time_ms: timeMs });
@@ -139,10 +139,36 @@ export interface ConnectionsToday {
 let cnCache: { data: ConnectionsToday; ts: number } | null = null;
 let cnInflight: Promise<ConnectionsToday> | null = null;
 export async function replayGame(gameId: string) {
-  cnCache = null; ptCache = null; luCache = null;
+  cnCache = null; ptCache = null; luCache = null; gdCache = null;
   await supabase.rpc('puzzle_replay', { p_game_id: gameId });
 }
 export function prefetchConnectionsToday() { getConnectionsToday().catch(() => {}); }
+
+// ---- Box2Box grid -----------------------------------------------------------
+export interface GridToday {
+  ok: boolean; date: string;
+  play?: { id: string; finished_at: string | null; rounds_solved: number; score: number };
+  game?: { id: string } | null;
+  dist?: number[]; progress?: { streak: number; freezes: number; last_played: string | null };
+  payload?: { rows: { type: string; value: any; label: string }[]; cols: { type: string; value: any; label: string }[] };
+}
+let gdCache: { data: GridToday; ts: number } | null = null;
+let gdInflight: Promise<GridToday> | null = null;
+export function prefetchGridToday() { getGridToday().catch(() => {}); }
+export async function getGridToday(): Promise<GridToday> {
+  if (gdCache && Date.now() - gdCache.ts < 20000) return gdCache.data;
+  if (gdInflight) return gdInflight;
+  gdInflight = (async () => {
+    try {
+      const { data } = await supabase.rpc('puzzle_get_today_grid');
+      const d = (data ?? { ok: false }) as GridToday;
+      if (d.ok) gdCache = { data: d, ts: Date.now() };
+      return d;
+    } catch { return { ok: false } as GridToday; }
+    finally { gdInflight = null; }
+  })();
+  return gdInflight;
+}
 export async function getConnectionsToday(): Promise<ConnectionsToday> {
   if (cnCache && Date.now() - cnCache.ts < 20000) return cnCache.data;
   if (cnInflight) return cnInflight;
