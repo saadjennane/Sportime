@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 
 // Wordle feedback: 2 = green (right letter, right spot), 1 = yellow (in word, wrong spot), 0 = gray.
 export function wordleFeedback(guess: string, target: string): number[] {
@@ -11,11 +11,11 @@ export function wordleFeedback(guess: string, target: string): number[] {
 }
 export const fbEmoji = (fb: number[]) => fb.map(v => v === 2 ? '🟩' : v === 1 ? '🟨' : '⬜').join('');
 
-const Tile: React.FC<{ ch?: string; state?: number; active?: boolean }> = ({ ch, state, active }) => {
+const Tile: React.FC<{ ch?: string; state?: number; cursor?: boolean }> = ({ ch, state, cursor }) => {
   const bg = state === 2 ? 'bg-lime-glow text-deep-navy border-lime-glow'
     : state === 1 ? 'bg-warm-yellow text-deep-navy border-warm-yellow'
     : state === 0 ? 'bg-navy-accent text-text-disabled border-navy-accent'
-    : active ? 'bg-transparent text-text-primary border-electric-blue/60' : 'bg-transparent text-text-primary border-white/15';
+    : cursor ? 'bg-transparent text-text-primary border-electric-blue' : 'bg-transparent text-text-primary border-white/15';
   return <div className={`flex-1 aspect-square rounded-md border-2 flex items-center justify-center font-extrabold text-lg ${bg}`}>{ch}</div>;
 };
 
@@ -23,40 +23,43 @@ interface Props {
   target: string;                       // normalized A-Z surname
   rows: string[];                       // submitted guesses
   solved: boolean;
-  onSubmit: (guess: string) => void;    // parent validates + stores
+  onSubmit: (guess: string) => void;
   onGiveUp: () => void;
 }
 
+const sanitize = (s: string) => s.toUpperCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/[^A-Z]/g, '');
+
 export const WordleHole: React.FC<Props> = ({ target, rows, solved, onSubmit, onGiveUp }) => {
   const [cur, setCur] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
   const L = target.length;
   const submit = () => { if (cur.length === L && !solved) { onSubmit(cur); setCur(''); } };
+  const focus = () => inputRef.current?.focus();
 
   return (
-    <div>
-      <div className="space-y-1.5">
+    <div className="relative">
+      {/* hidden input: the tiles are the field; tapping the grid (re)opens the keyboard */}
+      <input ref={inputRef} value={cur} autoFocus inputMode="text" autoCapitalize="characters" autoCorrect="off"
+        onChange={e => setCur(sanitize(e.target.value).slice(0, L))}
+        onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+        className="absolute opacity-0 w-px h-px top-0 left-0 -z-10" />
+
+      <div onClick={focus} className="space-y-1.5 cursor-text">
         {rows.map((g, ri) => {
           const fb = wordleFeedback(g, target);
           return <div key={ri} className="flex gap-1.5">{Array.from({ length: L }).map((_, i) => <Tile key={i} ch={g[i]} state={fb[i]} />)}</div>;
         })}
         {!solved && (
-          <div className="flex gap-1.5">{Array.from({ length: L }).map((_, i) => <Tile key={i} ch={cur[i]} active />)}</div>
+          <div className="flex gap-1.5">{Array.from({ length: L }).map((_, i) => <Tile key={i} ch={cur[i]} cursor={i === cur.length} />)}</div>
         )}
       </div>
+
       {!solved && (
-        <>
-          <div className="mt-3 flex items-center gap-2">
-            <input
-              value={cur}
-              onChange={e => setCur(e.target.value.toUpperCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/[^A-Z]/g, '').slice(0, L))}
-              onKeyDown={e => { if (e.key === 'Enter') submit(); }}
-              placeholder={`${L} letters`} autoFocus
-              className="flex-1 bg-navy-accent rounded-xl px-3 py-2.5 outline-none text-text-primary tracking-[0.3em] font-bold uppercase placeholder:tracking-normal placeholder:font-normal placeholder:text-text-disabled" />
-            <button onPointerDown={(e) => { e.preventDefault(); submit(); }} disabled={cur.length !== L}
-              className="px-4 py-2.5 rounded-xl bg-electric-blue text-white font-bold disabled:opacity-40">Go</button>
-          </div>
-          <button onPointerDown={(e) => { e.preventDefault(); onGiveUp(); }} className="mt-2 w-full text-text-disabled text-sm font-semibold py-1.5 active:opacity-60">Give up this player</button>
-        </>
+        <div className="mt-3 flex items-center gap-2">
+          <button onPointerDown={(e) => { e.preventDefault(); submit(); }} disabled={cur.length !== L}
+            className="flex-1 py-2.5 rounded-xl bg-electric-blue text-white font-bold disabled:opacity-40">Submit</button>
+          <button onPointerDown={(e) => { e.preventDefault(); onGiveUp(); }} className="px-4 py-2.5 text-text-disabled text-sm font-semibold active:opacity-60">Give up</button>
+        </div>
       )}
     </div>
   );

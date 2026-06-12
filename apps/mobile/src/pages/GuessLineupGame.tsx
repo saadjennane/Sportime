@@ -121,10 +121,10 @@ const GuessLineupGame: React.FC<Props> = ({ onBack, addToast }) => {
 
   // ---- pitch cells ----
   const cells: PitchCell[] = pl ? [
-    ...pl.starters.map(s => ({ grid: s.grid, kind: 'player' as const, name: s.name, number: s.number, pos: s.pos, photo: s.photo })),
+    ...pl.starters.map(s => ({ grid: s.grid, kind: 'player' as const, name: s.name, number: s.number, pos: s.pos, photo: s.photo, goal: s.goal, assist: s.assist })),
     ...holes.map((h, i) => {
       const st = prog[i];
-      return { grid: h.grid, kind: 'hole' as const, holeIdx: i, selected: sel === i, status: st?.solved ? 'solved' as const : 'open' as const, number: h.answer.number, pos: h.answer.position, label: st?.solved ? toWord(h.answer.name) : undefined };
+      return { grid: h.grid, kind: 'hole' as const, holeIdx: i, selected: sel === i, status: st?.solved ? 'solved' as const : 'open' as const, number: h.answer.number, pos: h.answer.position, goal: h.answer.goal, assist: h.answer.assist, label: st?.solved ? toWord(h.answer.name) : undefined };
     }),
   ] : [];
 
@@ -218,7 +218,7 @@ const GuessLineupGame: React.FC<Props> = ({ onBack, addToast }) => {
   return Shell(<>
     <div className="flex items-center justify-between mb-2">
       <span className="text-sm font-bold text-text-primary">Missing XI</span>
-      <button onClick={toggleShirt} className="text-xs text-text-secondary">{showShirt ? '#️⃣ on' : '#️⃣ off'}</button>
+      <button onClick={toggleShirt} className={`text-xs font-bold px-2.5 py-1 rounded-full ${showShirt ? 'bg-electric-blue/20 text-electric-blue' : 'bg-navy-accent text-text-secondary'}`}>Shirt #{showShirt ? ' ✓' : ''}</button>
       <span className="text-xs text-text-secondary">{found}/{holes.length} found</span>
     </div>
 

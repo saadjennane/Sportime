@@ -89,8 +89,8 @@ export async function getPlayerToday(scope?: PuzzleScope): Promise<PlayerToday> 
 }
 
 // ---- Guess the Lineup ------------------------------------------------------
-export interface LineupHole { grid: string; answer: { id: number; name: string; number?: number; position?: string; photo?: string; nationality?: string | null } }
-export interface LineupStarter { id: number; name: string; number?: number; pos?: string; grid: string; photo?: string }
+export interface LineupHole { grid: string; answer: { id: number; name: string; number?: number; position?: string; photo?: string; nationality?: string | null; goal?: boolean; assist?: boolean } }
+export interface LineupStarter { id: number; name: string; number?: number; pos?: string; grid: string; photo?: string; goal?: boolean; assist?: boolean }
 export interface LineupRoundPayload {
   team: { id: number; name: string; logo?: string }; opponent: { id: number; name: string; logo?: string };
   competition?: string; date: string; score: { team: number; opp: number }; formation: string;

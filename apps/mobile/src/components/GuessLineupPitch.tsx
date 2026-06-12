@@ -11,7 +11,12 @@ export interface PitchCell {
   status?: 'open' | 'solved';   // hole state
   selected?: boolean;
   label?: string;               // surname shown when solved
+  goal?: boolean;               // scored in this match
+  assist?: boolean;             // assisted in this match
 }
+
+const Badge: React.FC<{ goal?: boolean; assist?: boolean }> = ({ goal, assist }) =>
+  (goal || assist) ? <span className="absolute -top-1 -right-1.5 text-[11px] leading-none drop-shadow">{goal ? '⚽' : ''}{assist ? '👟' : ''}</span> : null;
 
 const parseGrid = (g: string) => { const [r, c] = (g || '0:0').split(':').map(n => parseInt(n, 10)); return { row: isNaN(r) ? 0 : r, col: isNaN(c) ? 0 : c }; };
 const posColor: Record<string, string> = { G: 'from-amber-400 to-amber-600', D: 'from-emerald-400 to-emerald-600', M: 'from-blue-400 to-blue-600', F: 'from-red-400 to-red-600' };
@@ -20,10 +25,13 @@ const PlayerNode: React.FC<{ c: PitchCell }> = ({ c }) => {
   const [err, setErr] = React.useState(false);
   return (
     <div className="flex flex-col items-center gap-0.5 w-[58px]">
-      <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-white/40 shadow">
-        {c.photo && !err
-          ? <img src={c.photo} alt="" className="w-full h-full object-cover" onError={() => setErr(true)} />
-          : <div className={`w-full h-full bg-gradient-to-b ${posColor[c.pos || ''] || 'from-gray-400 to-gray-600'} flex items-center justify-center text-white font-bold text-xs`}>{c.number ?? '?'}</div>}
+      <div className="relative w-10 h-10">
+        <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-white/40 shadow">
+          {c.photo && !err
+            ? <img src={c.photo} alt="" className="w-full h-full object-cover" onError={() => setErr(true)} />
+            : <div className={`w-full h-full bg-gradient-to-b ${posColor[c.pos || ''] || 'from-gray-400 to-gray-600'} flex items-center justify-center text-white font-bold text-xs`}>{c.number ?? '?'}</div>}
+        </div>
+        <Badge goal={c.goal} assist={c.assist} />
       </div>
       <span className="text-[9px] font-semibold text-white/90 text-center leading-tight truncate max-w-[58px]">{(c.name || '').split(' ').pop()}</span>
     </div>
@@ -32,9 +40,12 @@ const PlayerNode: React.FC<{ c: PitchCell }> = ({ c }) => {
 
 const HoleNode: React.FC<{ c: PitchCell; showShirt: boolean; onSelect: () => void }> = ({ c, showShirt, onSelect }) => (
   <button onClick={onSelect} className="flex flex-col items-center gap-0.5 w-[58px]">
-    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-extrabold text-base border-2 transition-all
-      ${c.status === 'solved' ? 'bg-lime-glow/90 text-deep-navy border-white' : c.selected ? 'bg-warm-yellow text-deep-navy border-white scale-110' : 'bg-deep-navy/70 text-warm-yellow border-warm-yellow border-dashed'}`}>
-      {c.status === 'solved' ? '✓' : (showShirt && c.number != null ? c.number : '?')}
+    <div className="relative w-10 h-10">
+      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-extrabold text-base border-2 transition-all
+        ${c.status === 'solved' ? 'bg-lime-glow/90 text-deep-navy border-white' : c.selected ? 'bg-warm-yellow text-deep-navy border-white scale-110' : 'bg-deep-navy/70 text-warm-yellow border-warm-yellow border-dashed'}`}>
+        {c.status === 'solved' ? '✓' : (showShirt && c.number != null ? c.number : '?')}
+      </div>
+      <Badge goal={c.goal} assist={c.assist} />
     </div>
     <span className={`text-[9px] font-bold text-center leading-tight truncate max-w-[58px] ${c.status === 'solved' ? 'text-lime-glow' : 'text-warm-yellow'}`}>
       {c.status === 'solved' ? (c.label || c.name || '') : (c.pos || '?')}

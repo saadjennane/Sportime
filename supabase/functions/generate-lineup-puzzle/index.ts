@@ -72,10 +72,21 @@ Deno.serve(async (req) => {
       const { data: fp } = await db.from('fb_players').select('api_id,nationality').in('api_id', chosen.map((c: any) => c.id));
       const natMap = new Map((fp ?? []).map((p: any) => [p.api_id, p.nationality]));
 
-      const visible = starters.filter((p: any) => !chosenIds.has(p.id)).map((p: any) => ({ id: p.id, name: p.name, number: p.number, pos: p.pos, grid: p.grid, photo: photoUrl(p.id) }));
+      // goals + assists for the match (⚽ / 👟 markers)
+      const ev = await api('/fixtures/events', { fixture: fx.api_id });
+      const scorers = new Set<number>(), assisters = new Set<number>();
+      for (const e of (ev?.response ?? [])) {
+        if (e?.type === 'Goal' && !['Own Goal', 'Missed Penalty'].includes(e?.detail)) {
+          if (e.player?.id) scorers.add(e.player.id);
+          if (e.assist?.id) assisters.add(e.assist.id);
+        }
+      }
+      const mark = (id: number) => ({ goal: scorers.has(id), assist: assisters.has(id) });
+
+      const visible = starters.filter((p: any) => !chosenIds.has(p.id)).map((p: any) => ({ id: p.id, name: p.name, number: p.number, pos: p.pos, grid: p.grid, photo: photoUrl(p.id), ...mark(p.id) }));
       const holesArr = chosen.map((c: any) => ({
         grid: c.grid,
-        answer: { id: c.id, name: c.name, number: c.number, position: c.pos, photo: photoUrl(c.id), nationality: natMap.get(c.id) ?? null },
+        answer: { id: c.id, name: c.name, number: c.number, position: c.pos, photo: photoUrl(c.id), nationality: natMap.get(c.id) ?? null, ...mark(c.id) },
       }));
 
       const payload = {
