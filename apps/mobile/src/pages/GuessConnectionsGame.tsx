@@ -5,7 +5,13 @@ import { getConnectionsToday, finishPlayer, getPuzzleStats, replayGame, Connecti
 const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 const COLOR = { yellow: 'bg-warm-yellow', green: 'bg-lime-glow', blue: 'bg-electric-blue', purple: 'bg-purple-500' } as Record<string, string>;
 const EMOJI = { yellow: '🟨', green: '🟩', blue: '🟦', purple: '🟪' } as Record<string, string>;
-const shortName = (n: string) => { const p = n.replace(/^[A-Za-z]\.\s*/, '').trim(); return p.length > 13 ? (p.split(' ').pop() || p) : p; };
+// recognizable short name: drop leading initial + trailing suffix (Junior/Jr…), take the meaningful word
+const SUFFIX = /^(jr|jnr|junior|júnior|filho|neto|segundo)$/i;
+const shortName = (n: string) => {
+  let p = (n || '').replace(/^[A-Za-z]\.\s*/, '').trim().split(/\s+/);
+  while (p.length > 1 && SUFFIX.test(p[p.length - 1])) p = p.slice(0, -1);
+  return p.length === 1 ? p[0] : p[p.length - 1];   // e.g. "Vinicius Junior" -> "Vinicius"
+};
 const doneKey = (g: string) => `sportime_cn_done_${g}`;
 const readDone = (g: string) => { try { const r = localStorage.getItem(doneKey(g)); return r ? JSON.parse(r) : null; } catch { return null; } };
 const saveDone = (g: string, date: string, st: any) => {
@@ -26,6 +32,8 @@ const GuessConnectionsGame: React.FC<Props> = ({ onBack, addToast }) => {
   const [mistakes, setMistakes] = useState(0);
   const [guesses, setGuesses] = useState<{ ids: number[]; correct: boolean }[]>([]);
   const [hint, setHint] = useState<string | null>(null);
+  const [dev, setDev] = useState(false);            // hidden replay (tap the results title 4×)
+  const devTaps = useRef(0);
   const [elapsed, setElapsed] = useState(0);
   const [, setNow] = useState(0);
   const startRef = useRef<number | null>(null);
@@ -146,7 +154,7 @@ const GuessConnectionsGame: React.FC<Props> = ({ onBack, addToast }) => {
     const bucket = !hasPct ? '…' : summary.percentile <= 1 ? 'Top 1%' : summary.percentile <= 5 ? 'Top 5%' : summary.percentile <= 25 ? 'Top 25%' : summary.percentile <= 50 ? 'Top 50%' : 'Top 75%';
     return Shell(<div className="text-center py-6">
       <Trophy size={44} className={`mx-auto mb-3 ${won ? 'text-warm-yellow' : 'text-text-disabled'}`} />
-      <h1 className="text-2xl font-extrabold text-text-primary">{won ? 'Solved!' : 'Out of lives'}</h1>
+      <h1 onClick={() => { devTaps.current += 1; if (devTaps.current >= 4) setDev(true); }} className="text-2xl font-extrabold text-text-primary">{won ? 'Solved!' : 'Out of lives'}</h1>
       <p className="text-text-secondary">{Math.min(4, summary.rounds_solved)}/4 groups</p>
       {/* the solution */}
       <div className="space-y-2 mt-5 text-left">
@@ -163,7 +171,7 @@ const GuessConnectionsGame: React.FC<Props> = ({ onBack, addToast }) => {
         <div className="card-base p-3"><p className="text-xs text-text-secondary">Streak</p><p className="text-base font-bold text-hot-red">🔥 {summary.streak ?? '…'}</p></div>
       </div>
       <button onClick={shareReview} className="mt-5 w-full bg-lime-glow text-deep-navy font-extrabold py-3 rounded-xl flex items-center justify-center gap-2"><Share2 size={18} /> Share result</button>
-      <button onClick={replay} className="mt-3 text-electric-blue font-semibold text-sm">🔄 Play again</button>
+      {dev && <button onClick={replay} className="mt-3 text-electric-blue font-semibold text-sm">🔄 Play again</button>}
       <button onClick={onBack} className="mt-3 w-full bg-navy-accent text-text-primary font-bold py-3 rounded-xl">Go to FunZone</button>
     </div>);
   }

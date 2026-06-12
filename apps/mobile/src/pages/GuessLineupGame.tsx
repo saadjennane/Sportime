@@ -4,9 +4,12 @@ import { getLineupToday, finishPlayer, getPuzzleStats, LineupToday, LineupRoundP
 import { GuessLineupPitch, PitchCell } from '../components/GuessLineupPitch';
 import { WordleHole, wordleFeedback, fbEmoji } from '../components/WordleHole';
 
-// normalized surname target for the Wordle (last word, A-Z, no accents)
+// normalized surname target for the Wordle (drop leading initial + trailing suffix like Junior/Jr)
+const SUFFIX = /^(jr|jnr|junior|júnior|filho|neto|segundo)$/i;
 const toWord = (name: string) => {
-  const s = (name || '').replace(/^[A-Za-z]\.\s*/, '').trim().split(/\s+/).pop() || '';
+  let p = (name || '').replace(/^[A-Za-z]\.\s*/, '').trim().split(/\s+/);
+  while (p.length > 1 && SUFFIX.test(p[p.length - 1])) p = p.slice(0, -1);
+  const s = p[p.length - 1] || '';
   return s.toUpperCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/[^A-Z]/g, '');
 };
 const SHIRT_KEY = 'sportime_gl_shirt';
