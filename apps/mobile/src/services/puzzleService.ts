@@ -62,7 +62,7 @@ export interface PlayerToday {
 let ptCache: { key: string; data: PlayerToday; ts: number } | null = null;
 let ptInflight: { key: string; p: Promise<PlayerToday> } | null = null;
 export async function finishPlayer(gameId: string, roundsSolved: number, timeMs: number) {
-  ptCache = null; luCache = null; cnCache = null; gdCache = null;   // result changes after finishing (shared generic finish)
+  ptCache = null; luCache = null; cnCache = null; gdCache = null; rfCache = null;   // result changes after finishing (shared generic finish)
   for (let i = 0; i < 3; i++) {   // retry so a weak network still records finished_at server-side
     try {
       const { data, error } = await supabase.rpc('puzzle_finish_player', { p_game_id: gameId, p_rounds_solved: roundsSolved, p_time_ms: timeMs });
@@ -143,6 +143,27 @@ export async function replayGame(gameId: string) {
   await supabase.rpc('puzzle_replay', { p_game_id: gameId });
 }
 export function prefetchConnectionsToday() { getConnectionsToday().catch(() => {}); }
+
+// ---- Rapid Fire -------------------------------------------------------------
+export interface RapidToday {
+  ok: boolean; date: string;
+  play?: { id: string; finished_at: string | null; rounds_solved: number; score: number };
+  game?: { id: string } | null;
+  dist?: number[]; progress?: { streak: number; freezes: number; last_played: string | null };
+  payload?: { type: string; value: any; label: string; total: number };
+}
+let rfCache: { data: RapidToday; ts: number } | null = null;
+let rfInflight: Promise<RapidToday> | null = null;
+export function prefetchRapidToday() { getRapidToday().catch(() => {}); }
+export async function getRapidToday(): Promise<RapidToday> {
+  if (rfCache && Date.now() - rfCache.ts < 20000) return rfCache.data;
+  if (rfInflight) return rfInflight;
+  rfInflight = (async () => {
+    try { const { data } = await supabase.rpc('puzzle_get_today_rapid'); const d = (data ?? { ok: false }) as RapidToday; if (d.ok) rfCache = { data: d, ts: Date.now() }; return d; }
+    catch { return { ok: false } as RapidToday; } finally { rfInflight = null; }
+  })();
+  return rfInflight;
+}
 
 // ---- Box2Box grid -----------------------------------------------------------
 export interface GridToday {
