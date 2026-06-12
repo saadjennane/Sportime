@@ -62,7 +62,7 @@ export interface PlayerToday {
 let ptCache: { key: string; data: PlayerToday; ts: number } | null = null;
 let ptInflight: { key: string; p: Promise<PlayerToday> } | null = null;
 export async function finishPlayer(gameId: string, roundsSolved: number, timeMs: number) {
-  ptCache = null; luCache = null;   // result changes after finishing (player + lineup share this)
+  ptCache = null; luCache = null; cnCache = null;   // result changes after finishing (shared generic finish)
   for (let i = 0; i < 3; i++) {   // retry so a weak network still records finished_at server-side
     try {
       const { data, error } = await supabase.rpc('puzzle_finish_player', { p_game_id: gameId, p_rounds_solved: roundsSolved, p_time_ms: timeMs });
@@ -124,6 +124,34 @@ export async function getLineupToday(scope?: PuzzleScope, holes?: number): Promi
   })();
   luInflight = { key, p };
   return p;
+}
+
+// ---- Football Connections ---------------------------------------------------
+export interface ConnGroup { key: string; label: string; color: string; playerIds: number[] }
+export interface ConnPayload { players: { id: number; name: string; photo?: string }[]; groups: ConnGroup[] }
+export interface ConnectionsToday {
+  ok: boolean; date: string;
+  play?: { id: string; finished_at: string | null; rounds_solved: number; score: number };
+  game?: { id: string } | null;
+  dist?: number[]; progress?: { streak: number; freezes: number; last_played: string | null };
+  payload?: ConnPayload;
+}
+let cnCache: { data: ConnectionsToday; ts: number } | null = null;
+let cnInflight: Promise<ConnectionsToday> | null = null;
+export function prefetchConnectionsToday() { getConnectionsToday().catch(() => {}); }
+export async function getConnectionsToday(): Promise<ConnectionsToday> {
+  if (cnCache && Date.now() - cnCache.ts < 20000) return cnCache.data;
+  if (cnInflight) return cnInflight;
+  cnInflight = (async () => {
+    try {
+      const { data } = await supabase.rpc('puzzle_get_today_connections');
+      const d = (data ?? { ok: false }) as ConnectionsToday;
+      if (d.ok) cnCache = { data: d, ts: Date.now() };
+      return d;
+    } catch { return { ok: false } as ConnectionsToday; }
+    finally { cnInflight = null; }
+  })();
+  return cnInflight;
 }
 
 export async function guessPlayer(gameId: string, roundNo: number, playerId: number) {
