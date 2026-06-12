@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Profile, SpinTier } from '../types';
 import { useMockStore } from '../store/useMockStore';
-import { ProgressionBar } from '../components/funzone/ProgressionBar';
 import { SpinwheelCard } from '../components/funzone/SpinwheelCard';
-import { CasualGameCard } from '../components/funzone/CasualGameCard';
 import { SpinwheelModal } from '../components/funzone/SpinwheelModal';
 import { prefetchSpinSegments } from '../services/spinSegmentsService';
 import { prefetchPlayerIndex } from '../services/playerIndexService';
@@ -50,8 +48,6 @@ const FunZonePage: React.FC<FunZonePageProps> = ({ profile, onOpenSpinWheel, add
           <h1 className="text-3xl font-bold text-text-primary">FunZone 🎮</h1>
           <p className="text-text-secondary mt-1">Play, progress, and spin your way to rewards!</p>
         </div>
-
-        <ProgressionBar currentWins={funzone.userProgress} />
 
         <div className="space-y-2">
           <h2 className="text-xl font-bold text-text-primary">Daily Puzzle</h2>
@@ -109,15 +105,6 @@ const FunZonePage: React.FC<FunZonePageProps> = ({ profile, onOpenSpinWheel, add
             <SpinwheelCard tier="master" onClick={() => handleSpinwheelClick('master')} isAvailable={checkTicketAvailability('master')} />
             <SpinwheelCard tier="apex" onClick={() => handleSpinwheelClick('apex')} isAvailable={checkTicketAvailability('apex')} />
             <SpinwheelCard tier="premium" onClick={() => handleSpinwheelClick('premium')} isAvailable={checkTicketAvailability('premium')} />
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <h2 className="text-xl font-bold text-text-primary">Casual Games</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {funzone.availableGames.map(game => (
-              <CasualGameCard key={game.id} game={game} />
-            ))}
           </div>
         </div>
       </div>

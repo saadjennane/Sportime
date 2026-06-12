@@ -146,28 +146,30 @@ export function prefetchConnectionsToday() { getConnectionsToday().catch(() => {
 
 // ---- Box2Box grid -----------------------------------------------------------
 export interface GridToday {
-  ok: boolean; date: string;
+  ok: boolean; date: string; level?: string; has_prefs?: boolean;
   play?: { id: string; finished_at: string | null; rounds_solved: number; score: number };
   game?: { id: string } | null;
   dist?: number[]; progress?: { streak: number; freezes: number; last_played: string | null };
-  payload?: { rows: { type: string; value: any; label: string }[]; cols: { type: string; value: any; label: string }[] };
+  payload?: { rows: { type: string; value: any; label: string }[]; cols: { type: string; value: any; label: string }[]; counts?: number[][] };
 }
-let gdCache: { data: GridToday; ts: number } | null = null;
-let gdInflight: Promise<GridToday> | null = null;
+let gdCache: { key: string; data: GridToday; ts: number } | null = null;
+let gdInflight: { key: string; p: Promise<GridToday> } | null = null;
 export function prefetchGridToday() { getGridToday().catch(() => {}); }
-export async function getGridToday(): Promise<GridToday> {
-  if (gdCache && Date.now() - gdCache.ts < 20000) return gdCache.data;
-  if (gdInflight) return gdInflight;
-  gdInflight = (async () => {
+export async function getGridToday(level?: string): Promise<GridToday> {
+  const key = level ?? '';
+  if (gdCache && gdCache.key === key && Date.now() - gdCache.ts < 20000) return gdCache.data;
+  if (gdInflight && gdInflight.key === key) return gdInflight.p;
+  const p = (async () => {
     try {
-      const { data } = await supabase.rpc('puzzle_get_today_grid');
+      const { data } = await supabase.rpc('puzzle_get_today_grid', { p_level: level ?? null });
       const d = (data ?? { ok: false }) as GridToday;
-      if (d.ok) gdCache = { data: d, ts: Date.now() };
+      if (d.ok) gdCache = { key, data: d, ts: Date.now() };
       return d;
     } catch { return { ok: false } as GridToday; }
     finally { gdInflight = null; }
   })();
-  return gdInflight;
+  gdInflight = { key, p };
+  return p;
 }
 export async function getConnectionsToday(): Promise<ConnectionsToday> {
   if (cnCache && Date.now() - cnCache.ts < 20000) return cnCache.data;

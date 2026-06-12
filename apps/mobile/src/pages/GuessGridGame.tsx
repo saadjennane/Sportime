@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Search, X, Flame, Trophy, Share2 } from 'lucide-react';
 import { getGridToday, finishPlayer, getPuzzleStats, replayGame, GridToday } from '../services/puzzleService';
-import { getGridIndex, searchPlayers, fits, GridPlayer, GridCrit } from '../services/gridService';
+import { getGridIndex, searchPlayers, fits, cellRarity, GridPlayer, GridCrit } from '../services/gridService';
 import { IndexedPlayer } from '../services/playerIndexService';
 
 const DURATION = 180;
@@ -17,10 +17,12 @@ const GuessGridGame: React.FC<Props> = ({ onBack, addToast }) => {
   const [data, setData] = useState<GridToday | null>(null);
   const [loading, setLoading] = useState(true);
   const [ready, setReady] = useState(false);
+  const [config, setConfig] = useState(false);
+  const [pickLevel, setPickLevel] = useState('medium');
   const [summary, setSummary] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
   const [index, setIndex] = useState<GridPlayer[]>([]);
-  const [cells, setCells] = useState<Record<string, { id: number; name: string }[]>>({});
+  const [cells, setCells] = useState<Record<string, { id: number; name: string; rarity: number }[]>>({});
   const cellsRef = useRef(cells); cellsRef.current = cells;
   const [query, setQuery] = useState('');
   const [left, setLeft] = useState(DURATION);
@@ -34,13 +36,14 @@ const GuessGridGame: React.FC<Props> = ({ onBack, addToast }) => {
   const filled = Object.values(cells).filter(a => a.length > 0).length;
   const distinct = new Set(Object.values(cells).flat().map(p => p.id)).size;
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (level?: string) => {
     setLoading(true);
     try {
-      const d = await getGridToday();
+      const d = await getGridToday(level);
       const local = d.game ? readDone(d.game.id) : null;
-      setData(d);
+      setData(d); if (d.level) setPickLevel(d.level);
       getPuzzleStats(undefined as any, 'grid').then(setStats).catch(() => {});
+      if (!d.has_prefs) { setConfig(true); return; }
       if (!d.game || !d.payload) return;
       if (d.play?.finished_at || local) {
         setCells(local?.cells ?? {});
@@ -64,6 +67,7 @@ const GuessGridGame: React.FC<Props> = ({ onBack, addToast }) => {
   }, [summary, ready]);
 
   const kickoff = () => { startRef.current = Date.now(); setLeft(DURATION); setReady(true); };
+  const confirmConfig = async () => { setConfig(false); setSummary(null); setCells({}); setReady(false); await load(pickLevel); };
 
   const doFinish = () => {
     if (!data?.game || summary) return;
@@ -90,7 +94,7 @@ const GuessGridGame: React.FC<Props> = ({ onBack, addToast }) => {
       for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
         if (fits(gp, rows[r]) && fits(gp, cols[c])) {
           const key = `${r}_${c}`; const arr = next[key] ?? [];
-          if (!arr.some(x => x.id === gp.id)) { next[key] = [...arr, { id: gp.id, name: gp.name }]; added++; }
+          if (!arr.some(x => x.id === gp.id)) { next[key] = [...arr, { id: gp.id, name: gp.name, rarity: cellRarity(index, rows[r], cols[c], gp.id) }]; added++; }
         }
       }
       return next;
@@ -121,7 +125,23 @@ const GuessGridGame: React.FC<Props> = ({ onBack, addToast }) => {
   );
 
   if (loading) return Shell(<div className="flex justify-center py-20"><div className="w-8 h-8 border-2 border-electric-blue border-t-transparent rounded-full animate-spin" /></div>);
-  if (!data?.game || !pl) return Shell(<div className="text-center py-20 text-text-secondary">No grid puzzle today.</div>);
+
+  if (config) return Shell(
+    <div className="py-4">
+      <h1 className="text-2xl font-extrabold text-text-primary text-center mb-1">Box2Box</h1>
+      <p className="text-text-secondary text-center text-sm mb-6">Fill the 3×3 grid — pick your difficulty.</p>
+      <p className="text-xs font-bold text-text-secondary mb-2">DIFFICULTY</p>
+      <div className="grid grid-cols-3 gap-2 mb-8">
+        {[['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard']].map(([k, lbl]) => (
+          <button key={k} onClick={() => setPickLevel(k)} className={`p-3 rounded-xl border text-sm font-bold ${pickLevel === k ? 'border-electric-blue bg-electric-blue/10 text-text-primary' : 'border-white/10 text-text-secondary'}`}>{lbl}</button>
+        ))}
+      </div>
+      <button onClick={confirmConfig} className="w-full bg-electric-blue text-white font-bold py-3 rounded-xl">Start</button>
+    </div>
+  );
+  if (!data?.game || !pl) return Shell(<div className="text-center py-20 text-text-secondary">
+    No grid for this difficulty today.<br /><button onClick={() => setConfig(true)} className="mt-3 text-electric-blue font-bold">Change difficulty</button>
+  </div>);
 
   if (summary) {
     const hasPct = summary.percentile != null;
@@ -142,11 +162,13 @@ const GuessGridGame: React.FC<Props> = ({ onBack, addToast }) => {
   }
 
   if (!ready) return Shell(
-    <div className="text-center py-16">
+    <div className="text-center py-14">
       <div className="text-5xl mb-4">⬛</div>
       <h1 className="text-2xl font-extrabold text-text-primary mb-1">Box2Box</h1>
-      <p className="text-text-secondary mb-8">Fill the 3×3 grid · 3 minutes · name as many players as you can</p>
+      <p className="text-text-secondary mb-5">Fill the 3×3 grid · 3 minutes · name as many players as you can</p>
+      <div className="inline-flex items-center gap-2 bg-navy-accent rounded-full px-4 py-1.5 text-sm font-bold text-text-primary mb-6 capitalize">{data.level} difficulty</div>
       <button onClick={kickoff} className="w-full bg-electric-blue text-white font-extrabold py-3.5 rounded-xl">Kick Off ⚽</button>
+      <button onClick={() => setConfig(true)} className="mt-3 text-electric-blue font-semibold text-sm">Change difficulty</button>
     </div>
   );
 
@@ -185,8 +207,9 @@ const GuessGridGame: React.FC<Props> = ({ onBack, addToast }) => {
           {cols.map((_, c) => {
             const arr = cells[`${r}_${c}`] ?? [];
             return (
-              <div key={c} className={`aspect-square rounded-lg flex flex-col items-center justify-center p-1 ${arr.length ? 'bg-emerald-700/40' : 'bg-emerald-900/30'}`}>
+              <div key={c} className={`relative aspect-square rounded-lg flex flex-col items-center justify-center p-1 ${arr.length ? 'bg-emerald-700/40' : 'bg-emerald-900/30'}`}>
                 {arr.length ? (<>
+                  <span className="absolute top-0.5 right-1 text-[8px] font-extrabold text-warm-yellow">{arr[arr.length - 1].rarity}%</span>
                   <div className="relative text-white"><span className="text-2xl">👕</span><span className="absolute inset-0 flex items-center justify-center text-[11px] font-extrabold text-deep-navy">{arr.length}</span></div>
                   <span className="text-[8px] font-bold text-text-primary text-center leading-tight truncate max-w-full">{surname(arr[arr.length - 1].name)}</span>
                 </>) : <span className="text-[8px] text-text-disabled font-bold">FIND PLAYER</span>}

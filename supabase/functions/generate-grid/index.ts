@@ -33,9 +33,11 @@ function fits(p: Player, c: any): boolean {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   try {
-    const { count = 3, start_date, reset = false } = await req.json();
+    const { count = 3, start_date, level = 'medium', reset = false } = await req.json();
+    const K = level === 'hard' ? 1 : 2;                              // min valid players per cell
+    const MAXCLUB = level === 'hard' ? 5 : 3; // fewer clubs = broader (easier) cells (easy≈medium until the pool grows)
     const db = createClient(SUPABASE_URL, SERVICE_KEY);
-    if (reset) await db.from('puzzle_games').delete().eq('game_type', 'grid').eq('level', 'daily');
+    if (reset) await db.from('puzzle_games').delete().eq('game_type', 'grid').eq('level', level);
 
     const { data: idx } = await db.rpc('puzzle_grid_index');
     const P: Player[] = (idx ?? []).map((p: any) => ({ id: p.id, n: p.n, nat: p.nat, by: p.by, cl: p.cl, trClean: new Set((p.tr ?? []).map(trophyLabel).filter(Boolean)) }));
@@ -54,33 +56,33 @@ Deno.serve(async (req) => {
     for (const [c, n] of troM) if (n >= MIN) crits.push({ type: 'trophy', value: c, label: c });
     for (const dec of [1990, 2000]) { const n = P.filter(p => p.by != null && p.by >= dec && p.by <= dec + 9).length; if (n >= MIN) crits.push({ type: 'born', value: dec, label: `BORN IN THE ${dec}s` }); }
 
-    const cellOk = (r: Crit, c: Crit) => P.some(p => fits(p, r) && fits(p, c));
+    const cellCount = (r: Crit, c: Crit) => P.reduce((n, p) => n + (fits(p, r) && fits(p, c) ? 1 : 0), 0);
 
     const sample: string[] = [];
     let made = 0;
-    const { data: seqRow } = await db.from('puzzle_games').select('seq').eq('game_type', 'grid').eq('level', 'daily').order('seq', { ascending: false }).limit(1);
+    const { data: seqRow } = await db.from('puzzle_games').select('seq').eq('game_type', 'grid').eq('level', level).order('seq', { ascending: false }).limit(1);
     let seq = seqRow?.[0]?.seq ?? 0;
 
     for (let g = 0; g < count; g++) {
       let grid = null;
-      for (let attempt = 0; attempt < 600 && !grid; attempt++) {
+      for (let attempt = 0; attempt < 800 && !grid; attempt++) {
         const six = shuffle([...crits]).slice(0, 6);
         const rows = six.slice(0, 3), cols = six.slice(3, 6);
         if (rows.some(r => cols.some(c => r.type === c.type && r.value === c.value))) continue;   // no identical r/c
-        // at least one club axis (recognizable), and variety
         if (new Set(six.map(c => c.type)).size < 2) continue;
-        let ok = true;
-        for (const r of rows) { for (const c of cols) { if (!cellOk(r, c)) { ok = false; break; } } if (!ok) break; }
-        if (ok) grid = { rows, cols };
+        if (six.filter(c => c.type === 'club').length > MAXCLUB) continue;   // bias breadth by difficulty
+        const counts: number[][] = []; let ok = true;
+        for (const r of rows) { const row: number[] = []; for (const c of cols) { const n = cellCount(r, c); if (n < K) { ok = false; break; } row.push(n); } if (!ok) break; counts.push(row); }
+        if (ok) grid = { rows, cols, counts };
       }
       if (!grid) continue;
       made++;
       const { data: gm, error: ge } = await db.from('puzzle_games').insert({
-        game_type: 'grid', level: 'daily', puzzle_date: addDays(start_date, g), seq: seq + made, status: 'scheduled',
+        game_type: 'grid', level, puzzle_date: addDays(start_date, g), seq: seq + made, status: 'scheduled',
       }).select('id').single();
       if (ge || !gm) { sample.push('insert failed: ' + ge?.message); break; }
       await db.from('puzzle_rounds').insert({ game_id: gm.id, round_no: 1, payload: grid });
-      sample.push('rows: ' + grid.rows.map(r => r.label).join(' / ') + ' || cols: ' + grid.cols.map(c => c.label).join(' / '));
+      sample.push('rows: ' + grid.rows.map(r => r.label).join(' / ') + ' || cols: ' + grid.cols.map(c => c.label).join(' / ') + ' | min cell=' + Math.min(...grid.counts.flat()));
     }
     return new Response(JSON.stringify({ ok: true, games: made, criteria: crits.length, pool: P.length, sample }), { headers: { ...cors, 'Content-Type': 'application/json' } });
   } catch (e) {

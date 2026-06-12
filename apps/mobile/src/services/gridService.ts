@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import { norm, searchPlayers, IndexedPlayer } from './playerIndexService';
 
 export interface GridCrit { type: 'club' | 'nat' | 'born' | 'trophy'; value: any; label: string }
-export interface GridPlayer extends IndexedPlayer { clubs: string[]; nat: string | null; by: number | null; tr: string[] }
+export interface GridPlayer extends IndexedPlayer { clubs: string[]; nat: string | null; by: number | null; tr: string[]; mv: number }
 
 // must mirror the generator's trophyLabel
 function trophyLabel(raw: string): string | null {
@@ -29,7 +29,7 @@ export async function getGridIndex(): Promise<GridPlayer[]> {
   const { data } = await supabase.rpc('puzzle_grid_index');
   const list: GridPlayer[] = (data ?? []).map((p: any) => ({
     id: p.id, name: p.n, photo: p.p, r: 50, key: norm(p.n),
-    clubs: p.cl ?? [], nat: p.nat, by: p.by, tr: (p.tr ?? []).map(trophyLabel).filter(Boolean),
+    clubs: p.cl ?? [], nat: p.nat, by: p.by, tr: (p.tr ?? []).map(trophyLabel).filter(Boolean), mv: p.mv ?? 0,
   }));
   if (list.length) { MEM = list; try { localStorage.setItem(KEY, JSON.stringify({ ts: Date.now(), data: list })); } catch { /**/ } }
   return list;
@@ -43,4 +43,11 @@ export function fits(p: GridPlayer, c: GridCrit): boolean {
   if (c.type === 'born') return p.by != null && p.by >= c.value && p.by <= c.value + 9;
   if (c.type === 'trophy') return p.tr.includes(c.value);
   return false;
+}
+// rarity % of a pick within a cell's valid players (by notoriety): obscure valid pick -> high %
+export function cellRarity(index: GridPlayer[], row: GridCrit, col: GridCrit, pid: number): number {
+  const valid = index.filter(p => fits(p, row) && fits(p, col));
+  const me = valid.find(p => p.id === pid); if (!me || valid.length <= 1) return 0;
+  const moreFamous = valid.filter(p => p.mv > me.mv).length;
+  return Math.round((100 * moreFamous) / valid.length);
 }
