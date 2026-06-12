@@ -34,6 +34,7 @@ const GuessLineupGame: React.FC<Props> = ({ onBack, addToast }) => {
   const [summary, setSummary] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
   const [sel, setSel] = useState<number | null>(null);
+  const [review, setReview] = useState(false);
   const [prog, setProg] = useState<Record<number, HoleState>>({});
   const progRef = useRef(prog); progRef.current = prog;
   const [pickScope, setPickScope] = useState<'big' | 'all'>('big');
@@ -109,13 +110,15 @@ const GuessLineupGame: React.FC<Props> = ({ onBack, addToast }) => {
     setSel(null); setTimeout(() => { if (allDone()) doFinish(); }, 250);
   };
 
+  const totalGuesses = () => holes.reduce((n, _, i) => n + (prog[i]?.rows?.length ?? 0), 0);
   const shareReview = async () => {
     if (!pl) return;
-    const lines = holes.map((h, i) => { const st = prog[i]; if (!st) return '⬜ ?';
+    const lines = holes.map((h, i) => { const st = prog[i]; if (!st) return '⬜';
       if (st.gaveUp) return `❌ ${toWord(h.answer.name)}`;
       const last = st.rows[st.rows.length - 1]; return `${fbEmoji(wordleFeedback(last, toWord(h.answer.name)))} (${st.rows.length})`;
     }).join('\n');
-    const txt = `Missing XI — ${pl.team.name} ${pl.score.team}-${pl.score.opp} ${pl.opponent.name}\n${lines}\n${cleanCount()}/${holes.length} · ⏱️ ${fmtTime(Math.floor((summary?.time_ms || 0) / 1000))}`;
+    const secs = Math.floor((summary?.time_ms || 0) / 1000);
+    const txt = `Missing XI — ${pl.team.name} ${pl.score.team}-${pl.score.opp} ${pl.opponent.name} (${pl.competition})\n${lines}\n${cleanCount()} players found in ${secs}sec and ${totalGuesses()} guesses`;
     try { await navigator.clipboard.writeText(txt); addToast('Copied!', 'success'); } catch { /**/ }
   };
 
@@ -172,6 +175,32 @@ const GuessLineupGame: React.FC<Props> = ({ onBack, addToast }) => {
     </div>
   );
 
+  if (review && pl) {
+    const reviewCells: PitchCell[] = [
+      ...pl.starters.map(s => ({ grid: s.grid, kind: 'player' as const, name: s.name, number: s.number, pos: s.pos, photo: s.photo, goal: s.goal, assist: s.assist })),
+      ...holes.map(h => ({ grid: h.grid, kind: 'player' as const, name: h.answer.name, number: h.answer.number, pos: h.answer.position, photo: h.answer.photo, goal: h.answer.goal, assist: h.answer.assist })),
+    ];
+    return Shell(<>
+      <button onClick={() => setReview(false)} className="text-electric-blue text-sm font-semibold mb-2">← Results</button>
+      <div className="card-base p-3 mb-3 flex items-center justify-center gap-3">
+        <div className="flex items-center gap-1.5">
+          <img src={teamLogo(pl.team.id)} className="w-7 h-7 object-contain" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+          <span className="text-xs font-bold text-text-primary max-w-[80px] truncate">{pl.team.name}</span>
+        </div>
+        <div className="text-center">
+          <div className="text-lg font-extrabold text-text-primary tabular-nums">{pl.score.team} – {pl.score.opp}</div>
+          <div className="text-[10px] text-text-secondary">{pl.competition} · {pl.date}</div>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-medium text-text-secondary max-w-[80px] truncate">{pl.opponent.name}</span>
+          <img src={teamLogo(pl.opponent.id)} className="w-7 h-7 object-contain opacity-70" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+        </div>
+      </div>
+      <GuessLineupPitch cells={reviewCells} showShirt={showShirt} onSelectHole={() => {}} />
+      <p className="text-center text-text-secondary text-xs mt-3">⚽ scored · 👟 assisted</p>
+    </>);
+  }
+
   if (summary) {
     const hasPct = summary.percentile != null;
     const bucket = !hasPct ? '…' : summary.percentile <= 1 ? 'Top 1%' : summary.percentile <= 5 ? 'Top 5%' : summary.percentile <= 25 ? 'Top 25%' : summary.percentile <= 50 ? 'Top 50%' : 'Top 75%';
@@ -184,9 +213,10 @@ const GuessLineupGame: React.FC<Props> = ({ onBack, addToast }) => {
         <div className="card-base p-3"><p className="text-xs text-text-secondary">Time</p><p className="text-lg font-bold text-text-primary">{fmtTime(Math.floor((summary.time_ms || 0) / 1000))}</p></div>
         <div className="card-base p-3"><p className="text-xs text-text-secondary">Percentile</p><p className="text-lg font-bold text-lime-glow">{bucket}</p></div>
         <div className="card-base p-3"><p className="text-xs text-text-secondary">Streak</p><p className="text-lg font-bold text-hot-red">🔥 {summary.streak ?? '…'}</p></div>
-        <div className="card-base p-3"><p className="text-xs text-text-secondary">Difficulty</p><p className="text-lg font-bold text-text-primary">{holes.length} players</p></div>
+        <div className="card-base p-3"><p className="text-xs text-text-secondary">Guesses</p><p className="text-lg font-bold text-text-primary">{totalGuesses()}</p></div>
       </div>
-      <button onClick={shareReview} className="mt-5 w-full bg-lime-glow text-deep-navy font-extrabold py-3 rounded-xl flex items-center justify-center gap-2"><Share2 size={18} /> Share result</button>
+      <button onClick={() => setReview(true)} className="mt-5 w-full border border-electric-blue/40 text-electric-blue font-bold py-2.5 rounded-xl">See lineup</button>
+      <button onClick={shareReview} className="mt-3 w-full bg-lime-glow text-deep-navy font-extrabold py-3 rounded-xl flex items-center justify-center gap-2"><Share2 size={18} /> Share result</button>
       <button onClick={() => setConfig(true)} className="mt-3 text-electric-blue font-semibold text-sm">Change setup</button>
       <button onClick={onBack} className="mt-4 w-full bg-navy-accent text-text-primary font-bold py-3 rounded-xl">Go to FunZone</button>
     </div>);
