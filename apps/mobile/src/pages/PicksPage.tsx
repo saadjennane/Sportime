@@ -92,7 +92,8 @@ const PicksPage: React.FC<PicksPageProps> = ({
       {/* Picks Grouped by League */}
       {hasPicks &&
         sortedLeagueNames.map((leagueName, index) => {
-          const picksForLeague = groupedPicks[leagueName] || [];
+          const picksForLeague = (groupedPicks[leagueName] || []).slice()
+            .sort((a, b) => (a.match.kickoffTime || '').localeCompare(b.match.kickoffTime || ''));   // by kickoff time
           if (picksForLeague.length === 0) return null;
 
           return (

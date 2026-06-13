@@ -16,8 +16,8 @@ import { ChooseEntryMethodModal } from './components/ChooseEntryMethodModal';
 import { MasterpassInviteModal } from './components/funzone/MasterpassInviteModal';
 import { MasterpassClaimModal } from './components/funzone/MasterpassClaimModal';
 import { getAvailableMasterpasses, useMasterpass, claimMasterpassInvite, getMyPendingInvites } from './services/masterpassService';
-import { getMRGameByFixture } from './services/matchRoyaleService';
-import { getLFGameByFixture } from './services/liveFantasyService';
+import { getMRGameByFixture, createMRGame } from './services/matchRoyaleService';
+import { getLFGameByFixture, notifyLineups } from './services/liveFantasyService';
 import { App as CapApp } from '@capacitor/app';
 const SwipeFlowPage = lazy(() => import('./pages/SwipeFlowPage').then(m => ({ default: m.SwipeFlowPage })));
 import { JoinSwipeGameConfirmationModal } from './components/JoinSwipeGameConfirmationModal';
@@ -1813,11 +1813,11 @@ function App() {
         isLoading={liveGameModalState.isLoading}
         userBalance={profile?.coins_balance ?? 0}
         userTier={profile?.level ?? profile?.current_level ?? 'rookie'}
-        matchRoyaleGameId={mrForMatch?.id ?? null}
         matchRoyalePot={mrForMatch?.pot_amount ?? null}
-        onPlayMatchRoyale={() => { setLiveGameModalState({ isOpen: false, matchId: null, matchName: null, isLoading: false }); setOpenMRGame(mrForMatch?.id ?? null); }}
-        liveFantasyAvailable={!!lfForMatch}
+        onPlayMatchRoyale={async () => { const fx = liveGameModalState.matchId; const nm = liveGameModalState.matchName ?? 'Match Royale'; setLiveGameModalState({ isOpen: false, matchId: null, matchName: null, isLoading: false }); let id = mrForMatch?.id ?? null; if (!id && fx) { id = await createMRGame(fx, nm).catch(() => null); if (!id) { addToast('Could not start Match Royale', 'error'); return; } } setOpenMRGame(id); }}
+        liveFantasyReady={!!lfForMatch}
         onPlayLiveFantasy={() => { const fx = liveGameModalState.matchId; setLiveGameModalState({ isOpen: false, matchId: null, matchName: null, isLoading: false }); setOpenLFGame(fx); }}
+        onNotifyLineups={() => { const fx = liveGameModalState.matchId; setLiveGameModalState({ isOpen: false, matchId: null, matchName: null, isLoading: false }); if (fx) notifyLineups(fx).then(() => addToast("We'll notify you when lineups drop 🔔", 'success')).catch(() => {}); }}
     />
     {openMRGame && profile && (
       <Suspense fallback={<PageLoader />}>

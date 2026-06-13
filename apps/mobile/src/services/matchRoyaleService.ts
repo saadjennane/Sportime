@@ -29,6 +29,15 @@ export async function listMyMRGames(userId: string) {
   return (data ?? []).map((r: any) => r.game).filter((g: any) => g && LIVE_STATUSES.includes(g.status));
 }
 
+/** Create (or no-op) a Match Royale game for a fixture, on demand. Returns the game id. */
+export async function createMRGame(fixtureId: string, name: string) {
+  const existing = await getMRGameByFixture(fixtureId);
+  if (existing?.id) return existing.id;
+  const { data, error } = await supabase.rpc('mr_create_game', { p_fixture_id: fixtureId, p_name: name });
+  if (error) return null;
+  return (data as any)?.id ?? data ?? null;
+}
+
 /** The active Match Royale game for a fixture (for the match's Play menu), if any. */
 export async function getMRGameByFixture(fixtureId: string) {
   const { data } = await supabase.from('mr_games')
