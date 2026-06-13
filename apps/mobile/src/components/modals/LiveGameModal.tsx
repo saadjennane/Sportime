@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Loader2, ChevronRight, Crosshair, Trophy } from 'lucide-react';
+import { X, Loader2, ChevronRight, Crosshair, Trophy, Star } from 'lucide-react';
 
 interface LiveGameModalProps {
   isOpen: boolean;
@@ -13,11 +13,13 @@ interface LiveGameModalProps {
   matchRoyaleGameId?: string | null;
   matchRoyalePot?: number | null;
   onPlayMatchRoyale?: () => void;
+  liveFantasyAvailable?: boolean;
+  onPlayLiveFantasy?: () => void;
 }
 
 /** Live Games chooser for a match: Live Prediction + Match Royale. */
 export const LiveGameModal: React.FC<LiveGameModalProps> = ({
-  isOpen, onClose, matchName, onSelectMode, isLoading, matchRoyaleGameId, matchRoyalePot, onPlayMatchRoyale,
+  isOpen, onClose, matchName, onSelectMode, isLoading, matchRoyaleGameId, matchRoyalePot, onPlayMatchRoyale, liveFantasyAvailable, onPlayLiveFantasy,
 }) => {
   if (!isOpen) return null;
   return (
@@ -52,6 +54,19 @@ export const LiveGameModal: React.FC<LiveGameModalProps> = ({
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-text-primary">Match Royale</p>
                   <p className="text-xs text-text-secondary">Survive the match{matchRoyalePot ? ` · ${matchRoyalePot} coins pot` : ''}</p>
+                </div>
+                <ChevronRight size={20} className="text-text-disabled flex-shrink-0" />
+              </button>
+            )}
+
+            {/* Live Fantasy */}
+            {liveFantasyAvailable && onPlayLiveFantasy && (
+              <button onClick={onPlayLiveFantasy}
+                className="w-full flex items-center gap-3 p-4 bg-deep-navy rounded-xl border-2 border-lime-glow/40 hover:border-lime-glow transition-all text-left">
+                <div className="w-11 h-11 rounded-xl bg-lime-glow/15 flex items-center justify-center flex-shrink-0"><Star size={22} className="text-lime-glow" /></div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-text-primary">Live Fantasy</p>
+                  <p className="text-xs text-text-secondary">Build a 7-man XI from both teams · follow it live</p>
                 </div>
                 <ChevronRight size={20} className="text-text-disabled flex-shrink-0" />
               </button>

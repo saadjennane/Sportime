@@ -21,6 +21,14 @@ export async function listAvailableMRGames() {
   return data ?? [];
 }
 
+/** Match Royale games the user has joined (for the Live tab). */
+export async function listMyMRGames(userId: string) {
+  const { data } = await supabase.from('mr_participants')
+    .select('game:mr_games(id, name, status, pot_amount, fixture_id, fixture:fb_fixtures(date, status, goals_home, goals_away, home:fb_teams!fb_fixtures_home_team_id_fkey(name,logo_url), away:fb_teams!fb_fixtures_away_team_id_fkey(name,logo_url)))')
+    .eq('user_id', userId);
+  return (data ?? []).map((r: any) => r.game).filter((g: any) => g && LIVE_STATUSES.includes(g.status));
+}
+
 /** The active Match Royale game for a fixture (for the match's Play menu), if any. */
 export async function getMRGameByFixture(fixtureId: string) {
   const { data } = await supabase.from('mr_games')

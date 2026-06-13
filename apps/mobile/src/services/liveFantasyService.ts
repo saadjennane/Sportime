@@ -7,6 +7,16 @@ export async function listAvailableLFGames() {
     .in('status', ['open', 'locked', 'live']).order('lock_at', { ascending: true });
   return data ?? [];
 }
+export async function getLFGameByFixture(fixtureId: string) {
+  if (!supabase) return null;
+  const { data } = await supabase.from('lf_games').select('id, status').eq('fixture_id', fixtureId).maybeSingle();
+  return data;
+}
+export async function listMyLFGames(userId: string) {
+  if (!supabase) return [];
+  const { data } = await supabase.from('lf_teams').select('game:game_id(id, fixture_id, status, fixture:fixture_id(id, date, goals_home, goals_away, home:home_team_id(name, logo_url), away:away_team_id(name, logo_url)))').eq('user_id', userId);
+  return (data ?? []).map((r: any) => r.game).filter(Boolean);
+}
 export async function getLfGame(fixtureId: string) {
   const { data } = await supabase.rpc('lf_get_game', { p_fixture_id: fixtureId });
   return data as any;

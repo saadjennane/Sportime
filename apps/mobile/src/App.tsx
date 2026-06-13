@@ -17,6 +17,7 @@ import { MasterpassInviteModal } from './components/funzone/MasterpassInviteModa
 import { MasterpassClaimModal } from './components/funzone/MasterpassClaimModal';
 import { getAvailableMasterpasses, useMasterpass, claimMasterpassInvite, getMyPendingInvites } from './services/masterpassService';
 import { getMRGameByFixture } from './services/matchRoyaleService';
+import { getLFGameByFixture } from './services/liveFantasyService';
 import { App as CapApp } from '@capacitor/app';
 const SwipeFlowPage = lazy(() => import('./pages/SwipeFlowPage').then(m => ({ default: m.SwipeFlowPage })));
 import { JoinSwipeGameConfirmationModal } from './components/JoinSwipeGameConfirmationModal';
@@ -65,6 +66,7 @@ const LiveGameLobbyPage = lazy(() => import('./pages/live-game/LiveGameLobbyPage
 const LiveScorePredictionGame = lazy(() => import('./pages/live-game/LiveScorePredictionGame'));
 const LiveGamesListPage = lazy(() => import('./pages/live-game/LiveGamesListPage'));
 const MatchRoyaleGame = lazy(() => import('./pages/live-game/MatchRoyaleGame'));
+const LiveFantasyGame = lazy(() => import('./pages/live-game/LiveFantasyGame'));
 import { OnboardingFlow } from './components/OnboardingFlow';
 import { isBefore, parseISO, differenceInHours } from 'date-fns';
 import { TicketWalletModal } from './components/TicketWalletModal';
@@ -158,6 +160,8 @@ function App() {
   const [liveGameModalState, setLiveGameModalState] = useState<{ isOpen: boolean; matchId: string | null; matchName: string | null; isLoading: boolean; }>({ isOpen: false, matchId: null, matchName: null, isLoading: false });
   const [mrForMatch, setMrForMatch] = useState<{ id: string; pot_amount: number | null } | null>(null);
   const [openMRGame, setOpenMRGame] = useState<string | null>(null);
+  const [lfForMatch, setLfForMatch] = useState<{ id: string } | null>(null);
+  const [openLFGame, setOpenLFGame] = useState<string | null>(null);
 
   // --- Active Live Game (Supabase) ---
   const [activeLiveGameSupabase, setActiveLiveGameSupabase] = useState<{
@@ -1317,8 +1321,9 @@ function App() {
         }
       } catch { /* fall through to the create modal */ }
     }
-    setMrForMatch(null);
+    setMrForMatch(null); setLfForMatch(null);
     getMRGameByFixture(matchId).then((g: any) => setMrForMatch(g)).catch(() => setMrForMatch(null));
+    getLFGameByFixture(matchId).then((g: any) => setLfForMatch(g)).catch(() => setLfForMatch(null));
     setLiveGameModalState({ isOpen: true, matchId, matchName, isLoading: false });
   };
 
@@ -1811,10 +1816,17 @@ function App() {
         matchRoyaleGameId={mrForMatch?.id ?? null}
         matchRoyalePot={mrForMatch?.pot_amount ?? null}
         onPlayMatchRoyale={() => { setLiveGameModalState({ isOpen: false, matchId: null, matchName: null, isLoading: false }); setOpenMRGame(mrForMatch?.id ?? null); }}
+        liveFantasyAvailable={!!lfForMatch}
+        onPlayLiveFantasy={() => { const fx = liveGameModalState.matchId; setLiveGameModalState({ isOpen: false, matchId: null, matchName: null, isLoading: false }); setOpenLFGame(fx); }}
     />
     {openMRGame && profile && (
       <Suspense fallback={<PageLoader />}>
         <MatchRoyaleGame gameId={openMRGame} userId={profile.id} onBack={() => setOpenMRGame(null)} addToast={addToast} />
+      </Suspense>
+    )}
+    {openLFGame && profile && (
+      <Suspense fallback={<PageLoader />}>
+        <LiveFantasyGame fixtureId={openLFGame} userId={profile.id} onBack={() => setOpenLFGame(null)} addToast={addToast} />
       </Suspense>
     )}
     <NotificationCenter

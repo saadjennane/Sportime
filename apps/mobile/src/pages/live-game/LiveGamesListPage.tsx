@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabase';
 import { MatchHeaderRow } from '../../components/matches/MatchHeaderRow';
 import { ChevronLeft, Loader2, Zap, Trophy } from 'lucide-react';
-import { listAvailableMRGames } from '../../services/matchRoyaleService';
-import { listAvailableLFGames } from '../../services/liveFantasyService';
+import { listMyMRGames } from '../../services/matchRoyaleService';
+import { listMyLFGames } from '../../services/liveFantasyService';
 import { MatchRoyaleGame } from './MatchRoyaleGame';
 import { LiveFantasyGame } from './LiveFantasyGame';
 
@@ -30,8 +30,8 @@ export const LiveGamesListPage: React.FC<Props> = ({ userId, onOpenGame, onBack,
       if (!supabase) { setLoading(false); return; }
       const [{ data }, mr, lf] = await Promise.all([
         supabase.rpc('get_user_live_games', { p_user_id: userId }),
-        listAvailableMRGames().catch(() => []),
-        listAvailableLFGames().catch(() => []),
+        listMyMRGames(userId).catch(() => []),
+        listMyLFGames(userId).catch(() => []),
       ]);
       if (!cancelled) { setGames(Array.isArray(data) ? data : []); setMrGames(mr); setLfGames(lf); setLoading(false); }
     })();
