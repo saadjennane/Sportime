@@ -5,9 +5,10 @@ import {
   listAnnouncements, createAnnouncement, deleteAnnouncement,
   listLeaguesFull, searchFixtures, createMatchdayChallenge, createFantasyGame, listChallenges,
   setChallengeStatus, setChallengeVisibility, listFantasyGames, setFantasyStatus, setFantasyVisibility,
+  deleteCompetition, deleteChallenge, deleteFantasyGame,
 } from '../services/tournamentAdminService';
 import { RichText } from './RichText';
-import { Medal, Zap, Repeat, CalendarDays } from 'lucide-react';
+import { Medal, Zap, Repeat, CalendarDays, Trash2 } from 'lucide-react';
 import { RewardPackBuilder } from './RewardPackBuilder';
 import { listRewardPacks, deleteRewardPack, assignPackToGame, distributeRewards } from '../services/rewardService';
 
@@ -88,6 +89,13 @@ export default function GameBuilder() {
     else if (r?.ok === false) flash(`Not distributed: ${r.error || r.skipped}`);
     else flash(`Distributed: ${r?.grants ?? 0} grants to ${r?.players ?? 0} players`);
     reload();
+  };
+
+  const del = async (type: 'tq' | 'betting' | 'prediction' | 'fantasy', id: string, name: string) => {
+    if (!confirm(`Delete "${name || '(untitled)'}"? This permanently removes the game and ALL its entries, predictions and leaderboard. Cannot be undone.`)) return;
+    const fn = type === 'tq' ? deleteCompetition : type === 'fantasy' ? deleteFantasyGame : deleteChallenge;
+    const { error } = await fn(id);
+    if (error) flash(`Delete failed: ${error.message}`); else { flash(`Deleted "${name}"`); if (manageId === id) setManageId(null); reload(); }
   };
 
   const saveView = () => { const name = prompt('Save this view as:'); if (!name) return; const next = [...views.filter(v => v.name !== name), { name, filters }]; setViews(next); localStorage.setItem('gb_views', JSON.stringify(next)); };
@@ -257,8 +265,9 @@ export default function GameBuilder() {
                 <td className="text-text-secondary">{c.min_players ?? '—'} / {c.max_players ?? '∞'}</td>
                 <td>{c.is_visible === false ? <span className="text-text-disabled">Hidden</span> : <span className="text-lime-glow">Yes</span>}</td>
                 <td><PackCell value={c.reward_pack_id} packs={rewardPacks} onChange={pid => assignPack('tq', c.id, pid)} /></td>
-                <td className="text-right pr-4">
+                <td className="text-right pr-4 whitespace-nowrap">
                   <button onClick={() => setManageId(manageId === c.id ? null : c.id)} className="text-electric-blue font-semibold">Manage</button>
+                  <button onClick={() => del('tq', c.id, c.name)} className="text-hot-red ml-3 align-middle inline-flex" title="Delete game"><Trash2 size={15} /></button>
                 </td>
               </tr>
             ))}
@@ -277,6 +286,7 @@ export default function GameBuilder() {
                   </select>
                   <button onClick={() => setChallengeVisibility(c.id, c.is_visible === false).then(reload)} className="text-electric-blue text-xs">{c.is_visible === false ? 'Show' : 'Hide'}</button>
                   <button onClick={() => distribute(c.game_type, c.id, c.name)} className="text-warm-yellow text-xs ml-2" title="Distribute rewards">💸</button>
+                  <button onClick={() => del(c.game_type, c.id, c.name)} className="text-hot-red ml-2 align-middle inline-flex" title="Delete game"><Trash2 size={15} /></button>
                 </td>
               </tr>
             ))}
@@ -295,6 +305,7 @@ export default function GameBuilder() {
                   </select>
                   <button onClick={() => setFantasyVisibility(g.id, g.is_visible === false).then(reload)} className="text-electric-blue text-xs">{g.is_visible === false ? 'Show' : 'Hide'}</button>
                   <button onClick={() => distribute('fantasy', g.id, g.name)} className="text-warm-yellow text-xs ml-2" title="Distribute rewards">💸</button>
+                  <button onClick={() => del('fantasy', g.id, g.name)} className="text-hot-red ml-2 align-middle inline-flex" title="Delete game"><Trash2 size={15} /></button>
                 </td>
               </tr>
             ))}

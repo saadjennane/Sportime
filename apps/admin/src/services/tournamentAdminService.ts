@@ -78,6 +78,17 @@ export async function setStatus(id: string, status: string) {
   return supabase.from('tq_competitions').update({ status }).eq('id', id);
 }
 
+// ── Delete games (cascades to all children via FK ON DELETE CASCADE) ──────────
+export async function deleteCompetition(id: string) {
+  return supabase.from('tq_competitions').delete().eq('id', id);
+}
+export async function deleteChallenge(id: string) {
+  return supabase.from('challenges').delete().eq('id', id);
+}
+export async function deleteFantasyGame(id: string) {
+  return supabase.from('fantasy_games').delete().eq('id', id);
+}
+
 export async function getLeaderboard(competitionId: string) {
   const { data } = await supabase.from('tq_leaderboard')
     .select('rank, total_score, username').eq('competition_id', competitionId).order('rank').limit(50);
