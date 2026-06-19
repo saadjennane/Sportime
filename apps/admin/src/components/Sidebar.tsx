@@ -35,7 +35,7 @@ export function Sidebar({ className = '' }: SidebarProps) {
     { to: '/teams', icon: Shield, label: 'Teams' },
     { to: '/players', icon: Users, label: 'Players' },
     { to: '/fixtures', icon: Calendar, label: 'Fixtures' },
-    { to: '/tournament', icon: Trophy, label: 'Game Builder' },
+    { to: '/tournament', icon: Trophy, label: 'Games' },
     { to: '/progression', icon: Star, label: 'Progression' },
     { to: '/spinwheel', icon: Disc3, label: 'Spinwheel' },
     { to: '/live-games', icon: Radio, label: 'Live Games' },

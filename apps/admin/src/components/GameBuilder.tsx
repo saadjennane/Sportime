@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   listCompetitions, getCompetitionDetail, createFromLeague, setStatus, updateCompetition,
-  resolveCompetition, generateBracket, getLeaderboard, listSourceLeagues,
+  resolveCompetition, generateBracket, getLeaderboard, listSourceLeagues, seedContent,
   listAnnouncements, createAnnouncement, deleteAnnouncement,
   listLeaguesFull, searchFixtures, createMatchdayChallenge, createFantasyGame, listChallenges,
   setChallengeStatus, setChallengeVisibility, listFantasyGames, setFantasyStatus, setFantasyVisibility,
@@ -126,8 +126,8 @@ export default function GameBuilder() {
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-text-primary mb-1">Game Builder</h1>
-          <p className="text-text-secondary">Create and run games — Tournament Quest, from any imported league.</p>
+          <h1 className="text-3xl font-bold text-text-primary mb-1">Games</h1>
+          <p className="text-text-secondary">Create and run every game — Tournament Quest, Match Day, Swipe, Fantasy.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {([['tq', 'Tournament Quest', 'bg-electric-blue text-white'],
@@ -321,6 +321,19 @@ function ManagePanel({ id, onChange, flash }: { id: string; onChange: () => void
     if (error) flash(`${label}: ${error.message}`); else { flash(`${label} ✓`); await reload(); onChange(); }
   };
 
+  // Backfill players (from squads) + matches (from /fixtures). League+season optional
+  // override — needed when the competition has no source league/season recorded.
+  const seedNow = async () => {
+    const lg = prompt('League API id for matches (e.g. 1 = World Cup). Leave empty to seed players only:');
+    const season = lg ? prompt('Season (e.g. 2026):', String(c.source_season ?? 2026)) : null;
+    flash('Seeding… (fetching squads + fixtures from the API)');
+    const { data, error } = await seedContent(id, lg ? Number(lg) : null, season ? Number(season) : null);
+    const r = data as any;
+    if (error || r?.ok === false) flash(`Seed failed: ${error?.message || r?.error}`);
+    else flash(`Seeded: ${r?.players ?? 0} players, ${r?.matches ?? 0} matches${r?.note ? ` — ${r.note}` : ''}`);
+    await reload(); onChange();
+  };
+
   return (
     <div className="bg-surface border border-border-subtle rounded-xl p-5 space-y-4">
       <div className="flex items-center justify-between">
@@ -347,6 +360,7 @@ function ManagePanel({ id, onChange, flash }: { id: string; onChange: () => void
             </label>
           </div>
           <div className="flex flex-wrap gap-2">
+            <button onClick={seedNow} className="bg-warm-yellow/15 text-warm-yellow px-3 py-2 rounded-lg text-sm font-semibold" title="Seed players (squads) + matches (fixtures) from API-Football">⚽ Seed players + matches</button>
             <button onClick={() => act(() => generateBracket(id), 'Generate bracket')} className="bg-electric-blue/15 text-electric-blue px-3 py-2 rounded-lg text-sm font-semibold">Generate bracket</button>
             <button onClick={() => act(() => resolveCompetition(id), 'Resolve & recalc')} className="bg-lime-glow/15 text-lime-glow px-3 py-2 rounded-lg text-sm font-semibold">Resolve &amp; recalc scores</button>
             <button onClick={() => { if (confirm('Distribute rewards to winners? This credits real value and cannot be undone.')) act(() => distributeRewards('tq', id), 'Distribute rewards'); }} className="bg-warm-yellow/15 text-warm-yellow px-3 py-2 rounded-lg text-sm font-semibold">💸 Distribute rewards</button>

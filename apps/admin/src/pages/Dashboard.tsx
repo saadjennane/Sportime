@@ -25,7 +25,14 @@ export function Dashboard() {
       color: 'purple-spark'
     },
     {
-      title: 'Swipe Games',
+      title: 'Games',
+      description: 'Create & manage every game — Tournament Quest, Match Day, Swipe, Fantasy',
+      icon: Trophy,
+      link: '/tournament',
+      color: 'electric-blue'
+    },
+    {
+      title: 'Swipe Predictions',
       description: 'Manage swipe prediction games and leaderboards',
       icon: Zap,
       link: '/swipe',
@@ -103,7 +110,7 @@ export function Dashboard() {
             <p className="text-3xl font-bold text-lime-glow">-</p>
           </div>
           <div className="bg-surface border border-border-subtle rounded-lg p-6">
-            <p className="text-sm text-text-secondary mb-1">Swipe Games</p>
+            <p className="text-sm text-text-secondary mb-1">Games</p>
             <p className="text-3xl font-bold text-purple-spark">-</p>
           </div>
           <div className="bg-surface border border-border-subtle rounded-lg p-6">
