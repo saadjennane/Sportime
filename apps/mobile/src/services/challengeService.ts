@@ -382,13 +382,31 @@ export async function fetchChallengeCatalog(userId?: string | null): Promise<Cha
 
   const challenges = (challengeRows ?? []) as ChallengeRow[]
   if (challenges.length === 0) {
-    return {
-      games: [],
-      userChallengeEntries: [],
-      userSwipeEntries: [],
-      userFantasyTeams: [],
-      joinedChallengeIds: [],
-    }
+    // No challenges — but Tournament Quest + Fantasy games live in their OWN tables.
+    // Surface them anyway, otherwise zero challenges hides all tournaments/fantasy.
+    const games: SportimeGame[] = []
+    const joinedChallengeIds: string[] = []
+    const userFantasyTeams: UserFantasyTeam[] = []
+    try {
+      const tg = await getTournamentCatalogGames()
+      games.push(...(tg as unknown as SportimeGame[]))
+      if (userId && tg.length > 0) {
+        const { data } = await supabase.from('tq_entries').select('competition_id').eq('user_id', userId).in('competition_id', tg.map((g: any) => g.id))
+        for (const e of (data ?? []) as { competition_id: string }[]) joinedChallengeIds.push(e.competition_id)
+      }
+    } catch (e) { console.warn('[challengeService] tournament-only catalog failed', e) }
+    try {
+      const fg = await getFantasyCatalogGames()
+      games.push(...(fg as unknown as SportimeGame[]))
+      if (userId && fg.length > 0) {
+        const { data } = await supabase.from('challenge_participants').select('challenge_id').eq('user_id', userId).in('challenge_id', fg.map((g: any) => g.id))
+        for (const p of (data ?? []) as { challenge_id: string }[]) {
+          joinedChallengeIds.push(p.challenge_id)
+          userFantasyTeams.push({ userId, gameId: p.challenge_id, gameWeekId: p.challenge_id, starters: [], substitutes: [], captain_id: '', booster_used: null, fatigue_state: {} } as unknown as UserFantasyTeam)
+        }
+      }
+    } catch (e) { console.warn('[challengeService] fantasy-only catalog failed', e) }
+    return { games, userChallengeEntries: [], userSwipeEntries: [], userFantasyTeams, joinedChallengeIds }
   }
 
   const challengeIds = challenges.map(ch => ch.id)
