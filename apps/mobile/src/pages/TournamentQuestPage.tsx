@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Trophy, Lock, Check, X, Clock, Star, Crown, Medal, Loader2 } from 'lucide-react';
 import { PullToRefresh } from '../components/PullToRefresh';
 import {
@@ -159,7 +159,7 @@ export const TournamentQuestPage: React.FC<Props> = ({ competitionId, userId, on
 };
 
 // ── My Picks ─────────────────────────────────────────────────────────────────
-const PicksSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; allTeams: TQTeam[]; onSaved: () => void; flash: (m: string) => void }> = ({ comp, entry, allTeams, onSaved, flash }) => {
+const PicksSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; allTeams: TQTeam[]; onSaved: () => void; flash: (m: string) => void }> = ({ comp, entry, allTeams, flash }) => {
   const open = isPhaseOpen(comp, 'long_term');
   const s = comp.config?.scoring?.long_term ?? {};
   const [champion, setChampion] = useState<string | null>(entry?.longTerm?.champion_team_id ?? null);
@@ -168,13 +168,22 @@ const PicksSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; allTe
   const [goals, setGoals] = useState<string>(entry?.longTerm?.total_goals_prediction?.toString() ?? '');
   const [picking, setPicking] = useState<null | 'champion' | 'finalist'>(null);
   const [pickScorer, setPickScorer] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const first = useRef(true);
   const teamById = (id: string | null) => allTeams.find(t => t.id === id) ?? null;
   const scorerById = (id: string | null) => comp.players.find(p => p.id === id) ?? null;
 
-  const save = async () => {
-    const { error } = await saveLongTerm(comp.id, champion, finalist, goals ? parseInt(goals) : null, scorer);
-    if (error) flash(error.message); else onSaved();
-  };
+  // Auto-save long-term picks (debounced) — no button, no full reload.
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    if (!open) return;
+    setStatus('saving');
+    const t = setTimeout(async () => {
+      const { error } = await saveLongTerm(comp.id, champion, finalist, goals ? parseInt(goals) : null, scorer);
+      if (error) { setStatus('idle'); flash(error.message); } else setStatus('saved');
+    }, 600);
+    return () => clearTimeout(t);
+  }, [champion, finalist, scorer, goals]);
 
   return (
     <div className="space-y-3">
@@ -197,7 +206,13 @@ const PicksSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; allTe
           placeholder="e.g. 140" className="w-full mt-2 bg-deep-navy border border-white/10 rounded-lg px-3 py-2 text-text-primary disabled:opacity-50" />
         <p className="text-[11px] text-text-disabled mt-1.5">Closest guess wins ties between equal scores.</p>
       </div>
-      {open && <button onClick={save} className="w-full bg-electric-blue text-deep-navy font-bold py-3 rounded-xl">Save picks</button>}
+      {open && (
+        <p className="text-center text-xs h-4">
+          {status === 'saving' ? <span className="text-text-disabled">Saving…</span>
+            : status === 'saved' ? <span className="text-lime-glow">✓ Saved automatically</span>
+            : <span className="text-text-disabled">Your picks save automatically</span>}
+        </p>
+      )}
 
       {picking && (
         <PickerModal title="Choose a team" items={allTeams.map(t => ({ id: t.id, label: t.name, team: t }))}
@@ -288,7 +303,13 @@ const GroupsSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onSa
 const DailySection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onSaved: () => void; flash: (m: string) => void }> = ({ comp, entry, onSaved, flash }) => {
   const d = comp.config?.scoring?.daily ?? {};
   const isPredictable = (m: TQMatch) => m.status === 'scheduled' && (m.start_time == null || new Date(m.start_time).getTime() > Date.now());
-  const upcoming = comp.officialMatches.filter(isPredictable);
+  const isToday = (m: TQMatch) => {
+    if (!m.start_time) return false;
+    const dt = new Date(m.start_time), now = new Date();
+    return dt.getFullYear() === now.getFullYear() && dt.getMonth() === now.getMonth() && dt.getDate() === now.getDate();
+  };
+  // Daily = only TODAY's matches to predict; results below stay visible.
+  const upcoming = comp.officialMatches.filter(m => isPredictable(m) && isToday(m));
   const past = comp.officialMatches.filter(m => !isPredictable(m));
   const pickOf = (id: string) => entry?.dailyPicks.find(p => p.match_id === id) ?? null;
 
@@ -310,7 +331,7 @@ const DailySection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onSav
       {/* To predict */}
       {upcoming.length > 0
         ? upcoming.map(m => <DailyMatchCard key={m.id} comp={comp} match={m} existing={pickOf(m.id)} onSaved={onSaved} flash={flash} />)
-        : <p className="text-sm text-text-disabled text-center py-2">No matches to predict right now — results below.</p>}
+        : <p className="text-sm text-text-disabled text-center py-2">No matches today — come back on the next match day.</p>}
 
       {/* Previous predictions / results (always visible underneath) */}
       {past.length > 0 && (
@@ -323,15 +344,23 @@ const DailySection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onSav
   );
 };
 
-const DailyMatchCard: React.FC<{ comp: TQCompetition; match: TQMatch; existing: TQDailyPick | null; onSaved: () => void; flash: (m: string) => void }> = ({ comp, match, existing, onSaved, flash }) => {
+const DailyMatchCard: React.FC<{ comp: TQCompetition; match: TQMatch; existing: TQDailyPick | null; onSaved: () => void; flash: (m: string) => void }> = ({ comp, match, existing, flash }) => {
   const [a, setA] = useState<number>(existing?.predicted_score_a ?? 0);
   const [b, setB] = useState<number>(existing?.predicted_score_b ?? 0);
+  const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>(existing ? 'saved' : 'idle');
+  const first = useRef(true);
   const resultLabel = a > b ? `${match.team_a?.short_name} win` : a < b ? `${match.team_b?.short_name} win` : 'Draw';
 
-  const save = async () => {
-    const { error } = await saveDailyPrediction(comp.id, match.id, a, b, null);
-    if (error) flash(error.message); else onSaved();
-  };
+  // Auto-save the score (debounced) — no button, no full reload.
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    setStatus('saving');
+    const t = setTimeout(async () => {
+      const { error } = await saveDailyPrediction(comp.id, match.id, a, b, null);
+      if (error) { setStatus('idle'); flash(error.message); } else setStatus('saved');
+    }, 600);
+    return () => clearTimeout(t);
+  }, [a, b]);
 
   return (
     <div className="bg-navy-accent rounded-xl p-4">
@@ -345,7 +374,11 @@ const DailyMatchCard: React.FC<{ comp: TQCompetition; match: TQMatch; existing: 
         <div className="flex flex-col items-center gap-2 flex-1"><TeamChip team={match.team_b} /><Stepper value={b} onChange={setB} /></div>
       </div>
       <p className="text-center text-xs text-electric-blue font-semibold mt-3">{resultLabel} · {a}-{b}</p>
-      <button onClick={save} className="w-full mt-3 bg-electric-blue text-deep-navy font-bold py-2.5 rounded-xl text-sm">{existing ? 'Update score' : 'Save score'}</button>
+      <p className="text-center text-[11px] mt-2 h-4">
+        {status === 'saving' ? <span className="text-text-disabled">Saving…</span>
+          : status === 'saved' ? <span className="text-lime-glow">✓ Saved automatically</span>
+          : <span className="text-text-disabled">Adjust the score — saves automatically</span>}
+      </p>
     </div>
   );
 };
@@ -381,7 +414,7 @@ const Stepper: React.FC<{ value: number; onChange: (v: number) => void; disabled
   </div>
 );
 // ── Bracket (living: predict the advancing team per tie, round by round) ─────
-const BracketSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onSaved: () => void; flash: (m: string) => void }> = ({ comp, entry, onSaved, flash }) => {
+const BracketSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onSaved: () => void; flash: (m: string) => void }> = ({ comp, entry, flash }) => {
   const rounds = comp.format.knockout_rounds;
   const matchesOf = (r: string) => comp.knockoutMatches.filter(m => m.knockout_round === r);
 
@@ -396,18 +429,29 @@ const BracketSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onS
     }
   }
   const [picks, setPicks] = useState(init);
+  const [savingRounds, setSavingRounds] = useState<Record<string, 'saving' | 'saved'>>({});
+  const lastSaved = useRef<Record<string, string>>({});
   const setWinner = (round: string, matchId: string, teamId: string) =>
     setPicks(p => ({ ...p, [round]: { ...p[round], [matchId]: teamId } }));
 
-  const saveRound = async (round: string) => {
-    const all = matchesOf(round);
-    const winners = all.map(m => picks[round]?.[m.id]).filter(Boolean) as string[];
-    const { error } = await saveBracketPrediction(comp.id, round, winners);
-    if (error) { flash(error.message); return; }
-    const missing = all.length - winners.length;
-    if (missing > 0) flash(`Saved · ${missing} match${missing > 1 ? 'es' : ''} still to predict`);
-    onSaved();
-  };
+  // Auto-save each round (debounced) whenever its picks change — no button, no reload.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      for (const r of rounds) {
+        const winners = matchesOf(r).map(m => picks[r]?.[m.id]).filter(Boolean) as string[];
+        const key = winners.join(',');
+        if (lastSaved.current[r] === undefined) { lastSaved.current[r] = key; continue; } // skip initial seed
+        if (lastSaved.current[r] === key) continue;
+        lastSaved.current[r] = key;
+        setSavingRounds(s => ({ ...s, [r]: 'saving' }));
+        saveBracketPrediction(comp.id, r, winners).then(({ error }) => {
+          if (error) { flash(error.message); setSavingRounds(s => { const n = { ...s }; delete n[r]; return n; }); }
+          else setSavingRounds(s => ({ ...s, [r]: 'saved' }));
+        });
+      }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [picks]);
 
   const anyPlayable = rounds.some(r => matchesOf(r).length > 0);
 
@@ -471,7 +515,13 @@ const BracketSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onS
                       </div>
                     );
                   })}
-                  {open && <button onClick={() => saveRound(round)} className="w-full mt-1 bg-electric-blue text-deep-navy font-bold py-2 rounded-lg text-sm">Save {ROUND_LABEL[round] ?? round}</button>}
+                  {open && (
+                    <p className="text-center text-[11px] mt-1 h-4">
+                      {savingRounds[round] === 'saving' ? <span className="text-text-disabled">Saving…</span>
+                        : savingRounds[round] === 'saved' ? <span className="text-lime-glow">✓ Saved automatically</span>
+                        : <span className="text-text-disabled">Picks save automatically</span>}
+                    </p>
+                  )}
                 </div>}
           </div>
         );
