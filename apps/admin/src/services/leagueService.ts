@@ -8,6 +8,23 @@ export const leagueService = {
     return await supabase.functions.invoke('import-league-full', { body: { league_api_id: leagueApiId, season } });
   },
 
+  /** Seed status for a league: how many teams / players / fixtures are in the warehouse. */
+  async getSeedStatus(leagueId: string): Promise<{ teams: number; players: number; fixtures: number }> {
+    if (!supabase) return { teams: 0, players: 0, fixtures: 0 };
+    const [teamRes, fxRes, idRes] = await Promise.all([
+      supabase.from('fb_team_league_participation').select('team_id', { count: 'exact', head: true }).eq('league_id', leagueId),
+      supabase.from('fb_fixtures').select('id', { count: 'exact', head: true }).eq('league_id', leagueId),
+      supabase.from('fb_team_league_participation').select('team_id').eq('league_id', leagueId),
+    ]);
+    const ids = (idRes.data ?? []).map((r: any) => r.team_id);
+    let players = 0;
+    if (ids.length) {
+      const pr = await supabase.from('fb_player_team_association').select('player_id', { count: 'exact', head: true }).in('team_id', ids);
+      players = pr.count ?? 0;
+    }
+    return { teams: teamRes.count ?? 0, players, fixtures: fxRes.count ?? 0 };
+  },
+
   /** Show/hide a league in the app. */
   async setVisibility(leagueId: string, isVisible: boolean): Promise<{ error: any }> {
     if (!supabase) return { error: new Error('Supabase not initialized') };

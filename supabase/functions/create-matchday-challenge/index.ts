@@ -15,7 +15,8 @@ Deno.serve(async (req) => {
     const b = await req.json()
     const { name, league_ids = [], fixture_ids = [], mode = 'matchdays', entry_cost = 0,
       min_players = 0, max_players = 0, minimum_level = 'Rookie', is_visible = true,
-      game_type = 'betting', rules_html = null, tier = 'amateur', duration_type = 'flash' } = b
+      game_type = 'betting', rules_html = null, tier = 'amateur', duration_type = 'flash',
+      required_badges = [], requires_subscription = false } = b
     if (!name || !Array.isArray(fixture_ids) || fixture_ids.length === 0) throw new Error('name and at least one fixture are required')
     if (!['betting', 'prediction'].includes(game_type)) throw new Error('game_type must be betting or prediction')
 
@@ -46,7 +47,7 @@ Deno.serve(async (req) => {
       entry_cost, status: 'draft', is_visible, rules_html,
       league_id: league_ids[0] ?? null, source_league_id: league_ids[0] ?? null,
       rules: { tier, duration_type, period_type: mode, minimum_players: min_players, maximum_players: max_players },
-      entry_conditions: { minimum_level, required_badges: [], requires_subscription: false },
+      entry_conditions: { minimum_level, required_badges, requires_subscription },
     }).select('id').single()
     if (chErr) throw new Error(`challenge: ${chErr.message}`)
     const challengeId = ch!.id

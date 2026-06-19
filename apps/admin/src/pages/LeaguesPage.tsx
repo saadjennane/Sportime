@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, Edit2, Trash2, RefreshCw, Download, Users, Eye, EyeOff } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, RefreshCw, Download, Users, Eye, EyeOff, Database } from 'lucide-react';
 import { leagueService } from '../services/leagueService';
 import type { LeagueWithTeamCount } from '../types/football';
 import { LeagueFormModal } from '../components/admin/LeagueFormModal';
@@ -9,6 +9,11 @@ import { syncLeagueTeams, syncLeagueFull, type SyncProgress } from '../services/
 const mockAddToast = (message: string, type: 'success' | 'error' | 'info') => {
   console.log(`[${type.toUpperCase()}]`, message);
 };
+
+/** One line of a league's warehouse seed status (green ✓ when present, red ✗ when empty). */
+function SeedBit({ label, n }: { label: string; n: number }) {
+  return <span className={n > 0 ? 'text-lime-glow' : 'text-hot-red'}>{label} {n} {n > 0 ? '✓' : '✗'}</span>;
+}
 
 export function LeaguesPage() {
   const [leagues, setLeagues] = useState<LeagueWithTeamCount[]>([]);
@@ -30,6 +35,8 @@ export function LeaguesPage() {
   const [season, setSeason] = useState<number | ''>('');
   const [isBulkImporting, setIsBulkImporting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [seedStatus, setSeedStatus] = useState<Record<string, { teams: number; players: number; fixtures: number }>>({});
+  const [seedingId, setSeedingId] = useState<string | null>(null);
 
   useEffect(() => {
     loadLeagues();
@@ -49,9 +56,27 @@ export function LeaguesPage() {
       console.error(error);
     } else {
       setLeagues(data || []);
+      loadSeedStatus(data || []);
     }
 
     setLoading(false);
+  };
+
+  const loadSeedStatus = async (list: LeagueWithTeamCount[]) => {
+    const entries = await Promise.all(list.map(async (l) => [l.id, await leagueService.getSeedStatus(l.id)] as const));
+    setSeedStatus(Object.fromEntries(entries));
+  };
+
+  // Seed teams + players + fixtures for one league into the warehouse (import-league-full).
+  const handleSeedAll = async (league: LeagueWithTeamCount) => {
+    if (!league.api_id) { mockAddToast('League needs an API ID to seed', 'error'); return; }
+    const s = (season || 2026) as number;
+    setSeedingId(league.id);
+    const { data, error } = await leagueService.importFull(league.api_id, s);
+    if (!error && data?.ok) mockAddToast(`${league.name} ${s}: ${data.teams} teams, ${data.players} players, ${data.fixtures} fixtures`, 'success');
+    else mockAddToast(`Seed failed: ${error?.message || data?.error || 'unknown'}`, 'error');
+    setSeedingId(null);
+    await loadLeagues();
   };
 
   const loadSyncStatus = async () => {
@@ -386,6 +411,9 @@ export function LeaguesPage() {
                   <th className="px-4 py-3 text-left text-sm font-semibold text-text-secondary">
                     Teams
                   </th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-text-secondary">
+                    Seed status
+                  </th>
                   <th className="px-4 py-3 text-right text-sm font-semibold text-text-secondary">
                     Actions
                   </th>
@@ -425,6 +453,15 @@ export function LeaguesPage() {
                         {league.team_count || 0}
                       </span>
                     </td>
+                    <td className="px-4 py-3 text-xs whitespace-nowrap">
+                      {seedStatus[league.id] ? (
+                        <div className="flex flex-col gap-0.5">
+                          <SeedBit label="Teams" n={seedStatus[league.id].teams} />
+                          <SeedBit label="Players" n={seedStatus[league.id].players} />
+                          <SeedBit label="Fixtures" n={seedStatus[league.id].fixtures} />
+                        </div>
+                      ) : <span className="text-text-disabled">…</span>}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
                         <button
@@ -444,6 +481,16 @@ export function LeaguesPage() {
                             title="Sync Teams"
                           >
                             <Users className="w-4 h-4 text-lime-glow" />
+                          </button>
+                        )}
+                        {league.api_id && (
+                          <button
+                            onClick={() => handleSeedAll(league)}
+                            disabled={seedingId === league.id}
+                            className="p-2 hover:bg-background-dark rounded transition-colors disabled:opacity-50"
+                            title="Seed all (teams + players + fixtures) into the warehouse — uses the Season field above (defaults to 2026)"
+                          >
+                            <Database className={`w-4 h-4 text-warm-yellow ${seedingId === league.id ? 'animate-pulse' : ''}`} />
                           </button>
                         )}
                         <button

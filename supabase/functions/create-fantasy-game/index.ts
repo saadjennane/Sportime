@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
     const b = await req.json()
     const { name, league_ids = [], fixture_ids = [], mode = 'matchdays', entry_cost = 0,
       min_players = 0, max_players = 0, minimum_level = 'Rookie', is_visible = true, rules_html = null,
-      tier = 'amateur', duration_type = 'flash' } = b
+      tier = 'amateur', duration_type = 'flash', required_badges = [], requires_subscription = false } = b
     if (!name || !Array.isArray(fixture_ids) || fixture_ids.length === 0) throw new Error('name and at least one fixture are required')
 
     const asCaller = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } })
@@ -43,8 +43,8 @@ Deno.serve(async (req) => {
     const { data: fg, error: fgErr } = await db.from('fantasy_games').insert({
       name, status: 'Upcoming', start_date, end_date, entry_cost, total_players: 0,
       league_id: null, source_league_id: league_ids[0] ?? null, tier, duration_type, // gameweeks carry the leagues by name
-      minimum_level, required_badges: [], min_players: mn, max_players: mx, is_visible, rules_html,
-      requires_subscription: false,
+      minimum_level, required_badges, min_players: mn, max_players: mx, is_visible, rules_html,
+      requires_subscription,
     }).select('id').single()
     if (fgErr) throw new Error(`fantasy_game: ${fgErr.message}`)
     const gameId = fg!.id

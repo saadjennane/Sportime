@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
       const h = apiToUuid[f.teams.home.id], a = apiToUuid[f.teams.away.id]
       if (!h || !a) continue
       fxRows.push({
-        api_id: f.fixture.id, league_id: leagueId, home_team_id: h, away_team_id: a,
+        api_id: f.fixture.id, league_id: leagueId, season, home_team_id: h, away_team_id: a,
         date: f.fixture.date, status: f.fixture.status.short,
         goals_home: f.goals.home, goals_away: f.goals.away, round: f.league?.round ?? null,
       })

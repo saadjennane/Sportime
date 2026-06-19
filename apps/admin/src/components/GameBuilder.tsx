@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   listCompetitions, getCompetitionDetail, createFromLeague, setStatus, updateCompetition,
-  resolveCompetition, generateBracket, getLeaderboard, listSourceLeagues, seedContent,
+  resolveCompetition, generateBracket, getLeaderboard, listSourceLeagues, listBadges,
   listAnnouncements, createAnnouncement, deleteAnnouncement,
   listLeaguesFull, searchFixtures, createMatchdayChallenge, createFantasyGame, listChallenges,
   setChallengeStatus, setChallengeVisibility, listFantasyGames, setFantasyStatus, setFantasyVisibility,
@@ -59,7 +59,8 @@ export default function GameBuilder() {
   const [creating, setCreating] = useState<null | 'tq' | 'betting' | 'prediction' | 'fantasy'>(null);
   const [msg, setMsg] = useState('');
   const [manageId, setManageId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', league_api_id: 0, season: 2026, entry_cost: computeCost('amateur', 'season'), tier: 'amateur', duration: 'season', override: false, min_players: '', max_players: '', minimum_level: 'Rookie', is_visible: true, opens_at: '', rules_html: '' });
+  const [form, setForm] = useState({ name: '', league_api_id: 0, season: 2026, entry_cost: computeCost('amateur', 'season'), tier: 'amateur', duration: 'season', override: false, min_players: '', max_players: '', minimum_level: 'Rookie', is_visible: true, opens_at: '', rules_html: '', requires_subscription: false, required_badges: [] as string[] });
+  const [badges, setBadges] = useState<any[]>([]);
 
   const [leaguesById, setLeaguesById] = useState<Record<string, string>>({});
   const [rewardPacks, setRewardPacks] = useState<any[]>([]);
@@ -70,7 +71,7 @@ export default function GameBuilder() {
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 5000); };
   const reload = async () => { setComps(await listCompetitions()); setChallenges(await listChallenges()); setFantasyGames(await listFantasyGames()); setRewardPacks(await listRewardPacks()); };
-  useEffect(() => { reload(); listSourceLeagues().then(setLeagues); listLeaguesFull().then(ls => setLeaguesById(Object.fromEntries(ls.map((l: any) => [l.id, l.name])))); }, []);
+  useEffect(() => { reload(); listSourceLeagues().then(setLeagues); listBadges().then(setBadges); listLeaguesFull().then(ls => setLeaguesById(Object.fromEntries(ls.map((l: any) => [l.id, l.name])))); }, []);
 
   const assignPack = async (type: 'tq' | 'betting' | 'prediction' | 'fantasy', gameId: string, packId: string) => {
     const pack = rewardPacks.find(p => p.id === packId);
@@ -113,6 +114,7 @@ export default function GameBuilder() {
       max_players: form.max_players ? Number(form.max_players) : null,
       minimum_level: form.minimum_level, is_visible: form.is_visible,
       opens_at: form.opens_at || null, tier: form.tier, duration_type: form.duration,
+      requires_subscription: form.requires_subscription, required_badges: form.required_badges,
     });
     if (error || !(data as any)?.ok) return flash(`Failed: ${error?.message || (data as any)?.error}`);
     if (form.rules_html) await updateCompetition((data as any).competition_id, { rules_html: form.rules_html });
@@ -167,7 +169,7 @@ export default function GameBuilder() {
       {editingPack !== undefined && <RewardPackBuilder initialPack={editingPack} onSaved={() => { setEditingPack(undefined); reload(); }} onClose={() => setEditingPack(undefined)} />}
 
       {(creating === 'betting' || creating === 'prediction' || creating === 'fantasy') &&
-        <MatchGameCreate gameType={creating} onCreated={() => { setCreating(null); reload(); }} flash={flash} />}
+        <MatchGameCreate gameType={creating} badges={badges} onCreated={() => { setCreating(null); reload(); }} flash={flash} />}
 
       {creating === 'tq' && (
         <div className="bg-surface border border-border-subtle rounded-xl p-5 grid md:grid-cols-2 gap-4">
@@ -193,6 +195,9 @@ export default function GameBuilder() {
           <label className="flex items-center gap-2 text-sm text-text-secondary">
             <input type="checkbox" checked={form.is_visible} onChange={e => setForm({ ...form, is_visible: e.target.checked })} /> Visible in app
           </label>
+          <ConditionsFields requiresSub={form.requires_subscription} badges={badges} selected={form.required_badges}
+            onSub={v => setForm({ ...form, requires_subscription: v })}
+            onToggleBadge={id => setForm(f => ({ ...f, required_badges: f.required_badges.includes(id) ? f.required_badges.filter(x => x !== id) : [...f.required_badges, id] }))} />
           <div className="md:col-span-2">
             <span className="text-xs text-text-secondary">Rules</span>
             <div className="mt-1"><RichText value={form.rules_html} onChange={v => setForm({ ...form, rules_html: v })} placeholder="Tournament rules, scoring, prizes…" /></div>
@@ -310,8 +315,6 @@ function ManagePanel({ id, onChange, flash }: { id: string; onChange: () => void
   const [ann, setAnn] = useState<any[]>([]);
   const [aForm, setAForm] = useState({ title: '', body: '', phase_key: '', celebrate: false });
   const [loadErr, setLoadErr] = useState<string | null>(null);
-  const [seeding, setSeeding] = useState(false);
-  const [seedMsg, setSeedMsg] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const reload = async () => {
@@ -348,32 +351,6 @@ function ManagePanel({ id, onChange, flash }: { id: string; onChange: () => void
     if (error) flash(`${label}: ${error.message}`); else { flash(`${label} ✓`); await reload(); onChange(); }
   };
 
-  // Backfill players (from squads) + matches (from /fixtures). The edge function reads
-  // the league + season LINKED to this competition — so no input is needed. We only
-  // prompt as a fallback for legacy competitions that have no source league recorded.
-  const seedNow = async () => {
-    let lg: number | null = null, season: number | null = null;
-    if (!c.source_league_id) {
-      const v = prompt('This game has no linked league. Enter the API league id to seed from (e.g. 1 = World Cup):');
-      if (!v) return;
-      lg = Number(v);
-      season = Number(prompt('Season (e.g. 2026):', String(c.source_season ?? 2026)) || 0) || null;
-    }
-    setSeeding(true);
-    setSeedMsg('⏳ Seeding… fetching national squads + fixtures from API-Football (can take 30–60s, please wait).');
-    try {
-      const { data, error } = await seedContent(id, lg, season);
-      const r = data as any;
-      if (error || r?.ok === false) setSeedMsg(`⚠️ Seed failed: ${error?.message || r?.error || 'unknown error'}`);
-      else setSeedMsg(`✅ Seeded ${r?.players ?? 0} players and ${r?.matches ?? 0} matches${r?.note ? ` — ${r.note}` : ''}.`);
-      await reload(); onChange();
-    } catch (e: any) {
-      setSeedMsg(`⚠️ Seed failed: ${e?.message ?? e}`);
-    } finally {
-      setSeeding(false);
-    }
-  };
-
   return (
     <div ref={panelRef} className="bg-surface border border-border-subtle rounded-xl p-5 space-y-4">
       <div className="flex items-center justify-between">
@@ -400,19 +377,10 @@ function ManagePanel({ id, onChange, flash }: { id: string; onChange: () => void
             </label>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={seedNow} disabled={seeding} className="bg-warm-yellow/15 text-warm-yellow px-3 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed" title="Seed players (squads) + matches (fixtures) from API-Football — uses the league linked to this game">
-              {seeding ? '⏳ Seeding…' : '⚽ Seed players + matches'}
-            </button>
             <button onClick={() => act(() => generateBracket(id), 'Generate bracket')} className="bg-electric-blue/15 text-electric-blue px-3 py-2 rounded-lg text-sm font-semibold">Generate bracket</button>
             <button onClick={() => act(() => resolveCompetition(id), 'Resolve & recalc')} className="bg-lime-glow/15 text-lime-glow px-3 py-2 rounded-lg text-sm font-semibold">Resolve &amp; recalc scores</button>
             <button onClick={() => { if (confirm('Distribute rewards to winners? This credits real value and cannot be undone.')) act(() => distributeRewards('tq', id), 'Distribute rewards'); }} className="bg-warm-yellow/15 text-warm-yellow px-3 py-2 rounded-lg text-sm font-semibold">💸 Distribute rewards</button>
           </div>
-          {seedMsg && (
-            <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${seedMsg.startsWith('⚠️') ? 'bg-hot-red/10 text-hot-red' : seedMsg.startsWith('✅') ? 'bg-lime-glow/10 text-lime-glow' : 'bg-electric-blue/10 text-electric-blue'}`}>
-              {seeding && <span className="inline-block h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" />}
-              <span>{seedMsg}</span>
-            </div>
-          )}
           {(detail.format?.groups_count != null) && (
             <p className="text-xs text-text-disabled">Currently: {detail.groups?.length ?? 0} groups · {detail.groupTeams?.length ?? 0} teams · {detail.matches?.length ?? 0} matches in this game.</p>
           )}
@@ -466,13 +434,13 @@ function ManagePanel({ id, onChange, flash }: { id: string; onChange: () => void
 
 const GAME_LABELS: Record<string, string> = { betting: 'Match Day Challenge', prediction: 'Swipe Prediction', fantasy: 'Sportime Fantasy' };
 
-function MatchGameCreate({ gameType, onCreated, flash }: { gameType: 'betting' | 'prediction' | 'fantasy'; onCreated: () => void; flash: (m: string) => void }) {
+function MatchGameCreate({ gameType, badges, onCreated, flash }: { gameType: 'betting' | 'prediction' | 'fantasy'; badges: any[]; onCreated: () => void; flash: (m: string) => void }) {
   const [leagues, setLeagues] = useState<any[]>([]);
   const [sel, setSel] = useState<Set<string>>(new Set()); // league ids
   const [from, setFrom] = useState(''); const [to, setTo] = useState('');
   const [fixtures, setFixtures] = useState<any[]>([]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [f, setF] = useState({ name: '', mode: 'matchdays', entry_cost: computeCost('amateur', 'flash'), tier: 'amateur', duration: 'flash', override: false, min_players: '', max_players: '', minimum_level: 'Rookie', is_visible: true, rules_html: '' });
+  const [f, setF] = useState({ name: '', mode: 'matchdays', entry_cost: computeCost('amateur', 'flash'), tier: 'amateur', duration: 'flash', override: false, min_players: '', max_players: '', minimum_level: 'Rookie', is_visible: true, rules_html: '', requires_subscription: false, required_badges: [] as string[] });
 
   useEffect(() => { listLeaguesFull().then(setLeagues); }, []);
   const toggleLeague = (id: string) => setSel(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -489,6 +457,7 @@ function MatchGameCreate({ gameType, onCreated, flash }: { gameType: 'betting' |
       entry_cost: Number(f.entry_cost) || 0, min_players: Number(f.min_players) || 0,
       max_players: Number(f.max_players) || 0, minimum_level: f.minimum_level, is_visible: f.is_visible,
       rules_html: f.rules_html || null, tier: f.tier, duration_type: f.duration,
+      requires_subscription: f.requires_subscription, required_badges: f.required_badges,
     };
     const { data, error } = gameType === 'fantasy'
       ? await createFantasyGame(payload)
@@ -541,6 +510,9 @@ function MatchGameCreate({ gameType, onCreated, flash }: { gameType: 'betting' |
         <Field label="Min players"><input type="number" value={f.min_players} onChange={e => setF({ ...f, min_players: e.target.value })} className="inp" /></Field>
         <Field label="Max players"><input type="number" value={f.max_players} onChange={e => setF({ ...f, max_players: e.target.value })} className="inp" /></Field>
         <label className="flex items-center gap-2 text-sm text-text-secondary mt-5"><input type="checkbox" checked={f.is_visible} onChange={e => setF({ ...f, is_visible: e.target.checked })} /> Visible in app</label>
+        <ConditionsFields requiresSub={f.requires_subscription} badges={badges} selected={f.required_badges}
+          onSub={v => setF({ ...f, requires_subscription: v })}
+          onToggleBadge={id => setF(p => ({ ...p, required_badges: p.required_badges.includes(id) ? p.required_badges.filter(x => x !== id) : [...p.required_badges, id] }))} />
       </div>
       <div>
         <span className="text-xs text-text-secondary">Rules</span>
@@ -589,4 +561,30 @@ function PackCell({ value, packs, onChange }: { value: string | null; packs: any
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <label className="block"><span className="text-xs text-text-secondary">{label}</span><div className="mt-1">{children}</div></label>;
+}
+
+/** Premium + required-badges entry conditions, shared by every game create form. */
+function ConditionsFields({ requiresSub, badges, selected, onSub, onToggleBadge }: {
+  requiresSub: boolean; badges: any[]; selected: string[];
+  onSub: (v: boolean) => void; onToggleBadge: (id: string) => void;
+}) {
+  return (
+    <div className="md:col-span-3 border-t border-border-subtle pt-3 space-y-2">
+      <span className="text-xs text-text-secondary font-semibold">Entry conditions</span>
+      <label className="flex items-center gap-2 text-sm text-text-secondary">
+        <input type="checkbox" checked={requiresSub} onChange={e => onSub(e.target.checked)} /> 💎 Requires Premium (subscribers only)
+      </label>
+      <div>
+        <span className="text-xs text-text-disabled">Required badges {selected.length ? `(${selected.length})` : '(none)'}</span>
+        <div className="flex flex-wrap gap-1.5 mt-1">
+          {badges.length === 0 && <span className="text-xs text-text-disabled">No active badges defined.</span>}
+          {badges.map(b => {
+            const on = selected.includes(b.id);
+            return <button key={b.id} type="button" onClick={() => onToggleBadge(b.id)}
+              className={`px-2 py-1 rounded-lg text-xs font-semibold border ${on ? 'border-electric-blue bg-electric-blue/10 text-electric-blue' : 'border-border-subtle text-text-secondary'}`}>{b.name}</button>;
+          })}
+        </div>
+      </div>
+    </div>
+  );
 }

@@ -99,6 +99,12 @@ export async function deleteAnnouncement(id: string) {
   return supabase.from('tq_announcements').delete().eq('id', id);
 }
 
+/** Active badges, for the "Required badges" entry condition picker. */
+export async function listBadges() {
+  const { data } = await supabase.from('badges').select('id, name, icon_url').eq('is_active', true).order('name');
+  return data ?? [];
+}
+
 /** Leagues available as a Tournament Quest source (national-team cups have standings groups). */
 export async function listSourceLeagues() {
   const { data } = await supabase.from('fb_leagues').select('api_id, name').order('name');
