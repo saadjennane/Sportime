@@ -62,9 +62,16 @@ export const TournamentQuestPage: React.FC<Props> = ({ competitionId, userId, on
         if (picks.length < g.qualified_count) p.groups++;
       }
     }
+    const today = new Date();
+    const isToday = (t: string | null) => {
+      if (!t) return false;
+      const d = new Date(t);
+      return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
+    };
     for (const m of comp.officialMatches) {
       const predictable = m.status === 'scheduled' && (m.start_time == null || new Date(m.start_time).getTime() > Date.now());
-      if (predictable && !(entry?.dailyPicks ?? []).some(dp => dp.match_id === m.id)) p.daily++;
+      // Daily badge = only TODAY's predictable matches not yet predicted (matches the Daily list).
+      if (predictable && isToday(m.start_time) && !(entry?.dailyPicks ?? []).some(dp => dp.match_id === m.id)) p.daily++;
     }
     for (const r of comp.format.knockout_rounds) {
       if (!isPhaseOpen(comp, r)) continue;
