@@ -26,7 +26,8 @@ export async function listMyMRGames(userId: string) {
   const { data } = await supabase.from('mr_participants')
     .select('game:mr_games(id, name, status, pot_amount, fixture_id, fixture:fb_fixtures(date, status, goals_home, goals_away, home:fb_teams!fb_fixtures_home_team_id_fkey(name,logo_url), away:fb_teams!fb_fixtures_away_team_id_fkey(name,logo_url)))')
     .eq('user_id', userId);
-  return (data ?? []).map((r: any) => r.game).filter((g: any) => g && LIVE_STATUSES.includes(g.status));
+  // Return all of the user's MR games (the Live tab groups them by phase, incl. finished).
+  return (data ?? []).map((r: any) => r.game).filter(Boolean);
 }
 
 /** Create (or no-op) a Match Royale game for a fixture, on demand. Returns the game id. */

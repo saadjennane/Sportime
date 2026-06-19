@@ -260,6 +260,23 @@ export async function getFantasyBoosters(): Promise<FantasyBoosterRow[]> {
   return data || [];
 }
 
+/**
+ * Which booster (1/2/3) the user has committed on each game week of a Fantasy game.
+ * Used to enforce "one use of each booster per game": a booster set on a game week
+ * other than the one being edited is considered consumed and can't be re-applied.
+ */
+export async function getGameBoosterUsage(gameId: string, userId: string): Promise<Record<string, number>> {
+  const { data } = await supabase
+    .from('user_fantasy_teams')
+    .select('game_week_id, booster_used')
+    .eq('game_id', gameId)
+    .eq('user_id', userId)
+    .not('booster_used', 'is', null);
+  const usage: Record<string, number> = {};
+  (data || []).forEach((r: any) => { if (r.booster_used != null) usage[r.game_week_id] = r.booster_used; });
+  return usage;
+}
+
 // ============================================================================
 // Mapper Functions (Database -> Frontend Types)
 // ============================================================================
@@ -361,7 +378,8 @@ export interface GameWeekSimulationResult {
 export function processGameWeek(
   userTeam: UserFantasyTeam,
   allPlayers: FantasyPlayer[],
-  gameWeekStats: Record<string, PlayerGameWeekStats>
+  gameWeekStats: Record<string, PlayerGameWeekStats>,
+  autoSub: boolean = false
 ): { simulationResult: GameWeekSimulationResult, updatedTeam: UserFantasyTeam } {
   const playerResults: GameWeekSimulationResult['playerResults'] = {};
   const playerPoints: Record<string, number> = {};
@@ -393,6 +411,29 @@ export function processGameWeek(
     } else {
       boosterStatus = "Recovery Boost ignored: No target player selected.";
     }
+  }
+
+  // 1b. Auto-substitution (finished game weeks only): a starter who played 0 minutes
+  // is replaced by the bench sub of the SAME position who played. Captaincy migrates.
+  if (autoSub) {
+    const mins = (id: string) => (gameWeekStats[id]?.minutes_played ?? 0);
+    const posOf = (id: string) => allPlayers.find(p => p.id === id)?.position;
+    const ns: string[] = [...teamForProcessing.starters];
+    const nb: string[] = [...teamForProcessing.substitutes];
+    let cap = teamForProcessing.captain_id;
+    for (let i = 0; i < ns.length; i++) {
+      const sid = ns[i];
+      if (mins(sid) > 0) continue;
+      const pos = posOf(sid);
+      const subIdx = nb.findIndex((subId) => posOf(subId) === pos && mins(subId) > 0);
+      if (subIdx === -1) continue;
+      const subId = nb[subIdx];
+      ns[i] = subId; nb[subIdx] = sid;
+      if (cap === sid) cap = subId;
+    }
+    teamForProcessing.starters = ns;
+    teamForProcessing.substitutes = nb;
+    teamForProcessing.captain_id = cap;
   }
 
   // 2. Calculate points and new fatigue for each starter

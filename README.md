@@ -1,4 +1,4 @@
-# ⚽ Sportime
+ne # ⚽ Sportime
 
 > Fantasy sports prediction platform with real-time betting, challenges, and social features
 

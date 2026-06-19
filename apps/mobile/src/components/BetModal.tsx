@@ -173,7 +173,7 @@ export const BetModal: React.FC<BetModalProps> = ({
       <div className="modal-base max-w-sm w-full p-6 space-y-5">
 
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-text-primary">{userBet ? 'Modify Bet' : 'Place Bet'}</h2>
+          <h2 className="text-2xl font-bold text-text-primary">{userBet ? 'Modify Pick' : 'Make Pick'}</h2>
           <button
             onClick={onClose}
             className="p-2 text-text-secondary hover:bg-white/10 rounded-full transition-colors"
@@ -231,7 +231,7 @@ export const BetModal: React.FC<BetModalProps> = ({
 
         <div>
           <label className="block text-xs font-semibold text-text-disabled uppercase mb-2">
-            Bet Amount
+            Pick Amount
           </label>
           <div className="relative">
             <Coins className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-warm-yellow" />
@@ -253,7 +253,7 @@ export const BetModal: React.FC<BetModalProps> = ({
             </p>
           )}
           {overLevelLimit && (
-            <p className="text-xs text-hot-red mt-1">You can bet up to {maxPerLevel?.toLocaleString()} coins at your current level.</p>
+            <p className="text-xs text-hot-red mt-1">You can pick up to {maxPerLevel?.toLocaleString()} coins at your current level.</p>
           )}
           {overBalance && (
             <p className="text-xs text-hot-red mt-1">Insufficient balance (available: {(availableFunds).toLocaleString()} coins).</p>
@@ -269,14 +269,6 @@ export const BetModal: React.FC<BetModalProps> = ({
                   {quickAmount === effectiveMax ? 'Max' : formatQuickAmount(quickAmount)}
                 </button>
               ))}
-              {effectiveMax > 0 && (
-                <button
-                  onClick={() => setAmount(Math.floor(effectiveMax).toString())}
-                  className="py-2 px-3 bg-electric-blue text-white rounded-lg text-sm font-semibold hover:bg-electric-blue/90 transition-colors"
-                >
-                  All In
-                </button>
-              )}
             </div>
           )}
         </div>
@@ -300,14 +292,14 @@ export const BetModal: React.FC<BetModalProps> = ({
                 onClick={handleCancelBetClick}
                 className="flex-1 py-3.5 px-6 bg-hot-red/20 hover:bg-hot-red/30 rounded-xl font-bold text-hot-red transition-colors"
               >
-                Cancel Bet
+                Cancel Pick
               </button>
               <button
                 onClick={handleConfirm}
                 disabled={isConfirmDisabled}
                 className="primary-button flex-1"
               >
-                Modify Bet
+                Modify Pick
               </button>
             </div>
           ) : (
@@ -323,7 +315,7 @@ export const BetModal: React.FC<BetModalProps> = ({
                 disabled={isConfirmDisabled}
                 className="primary-button flex-1"
               >
-                Confirm Bet
+                Confirm Pick
               </button>
             </div>
           )}

@@ -22,7 +22,7 @@ const UpcomingPage: React.FC<UpcomingPageProps> = ({ groupedMatches, orderedLeag
         <div className="card-base p-8 text-center">
           <div className="text-6xl mb-4">📅</div>
           <p className="text-text-secondary font-medium">No upcoming matches at the moment.</p>
-          <p className="text-sm text-text-disabled mt-2">Check the Admin page to add a new match!</p>
+          <p className="text-sm text-text-disabled mt-2">Check back soon — new fixtures land here every day.</p>
         </div>
       ) : (
         orderedLeagues.map((leagueName, index) => {

@@ -50,7 +50,6 @@ import * as streakService from './services/streakService';
 // Load diagnostic tools in dev mode
 if (import.meta.env.DEV) {
   import('./utils/spinDiagnostic');
-  import('./utils/spinTestHelper');
 }
 // Heavy, rarely-entry pages — lazy-loaded so they stay out of the initial bundle.
 const LiveGameSetupPage = lazy(() => import('./pages/live-game/LiveGameSetupPage'));
@@ -70,13 +69,17 @@ const LiveFantasyGame = lazy(() => import('./pages/live-game/LiveFantasyGame'));
 import { OnboardingFlow } from './components/OnboardingFlow';
 import { isBefore, parseISO, differenceInHours } from 'date-fns';
 import { TicketWalletModal } from './components/TicketWalletModal';
-import { SpinWheel } from './components/SpinWheel';
+import { SpinwheelModal } from './components/funzone/SpinwheelModal';
 import { LiveGameModal } from './components/modals/LiveGameModal';
-import { createLiveGame as createLiveGameSupabase, getGameByFixture as getLiveGameByFixture } from './services/liveGameService';
+import { createLiveGame as createLiveGameSupabase, getGameByFixture as getLiveGameByFixture, getMyMatchModes, MatchModes } from './services/liveGameService';
+import { claimPremiumDaily } from './services/premiumService';
+import { configurePurchases } from './services/premiumPurchaseService';
 import { NotificationCenter } from './components/notifications/NotificationCenter';
 import FunZonePage from './pages/FunZonePage';
 import { PremiumModal } from './components/premium/PremiumModal';
 import { CoinShopModal } from './components/shop/CoinShopModal';
+import { ResultsModal } from './components/modals/ResultsModal';
+import { EmptyState } from './components/EmptyState';
 import { DailyStreakModal } from './components/streaks/DailyStreakModal';
 import { ContextualPremiumPrompt } from './components/premium/ContextualPremiumPrompt';
 import { useActivityTracker } from './hooks/useActivityTracker';
@@ -132,6 +135,8 @@ function App() {
   // True once the app has finished its first load — used to keep background
   // refreshes (e.g. on app resume) from re-showing the full-screen loader.
   const initialLoadDoneRef = useRef(false);
+  const premiumClaimedRef = useRef(false);
+  const rcConfiguredRef = useRef(false);
 
   // Hide the native splash only once the first real screen is ready, so the
   // user goes straight from splash to UI (no "Loading..." flash in between).
@@ -148,6 +153,7 @@ function App() {
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
   const [isPremiumModalOpen, setIsPremiumModalOpen] = useState(false);
   const [isCoinShopModalOpen, setIsCoinShopModalOpen] = useState(false);
+  const [resultsModal, setResultsModal] = useState<{ isOpen: boolean; fixtureId: string | null; matchName: string | null }>({ isOpen: false, fixtureId: null, matchName: null });
   const [dailyStreakData, setDailyStreakData] = useState<{ isOpen: boolean; streakDay: number }>({ isOpen: false, streakDay: 0 });
   const [contextualPrompt, setContextualPrompt] = useState<{ type: ContextualPromptType; isOpen: boolean } | null>(null);
 
@@ -161,6 +167,7 @@ function App() {
   const [mrForMatch, setMrForMatch] = useState<{ id: string; pot_amount: number | null } | null>(null);
   const [openMRGame, setOpenMRGame] = useState<string | null>(null);
   const [lfForMatch, setLfForMatch] = useState<{ id: string } | null>(null);
+  const [matchModes, setMatchModes] = useState<MatchModes | null>(null);
   const [openLFGame, setOpenLFGame] = useState<string | null>(null);
 
   // --- Active Live Game (Supabase) ---
@@ -349,7 +356,10 @@ function App() {
   const [activeFantasyGameId, setActiveFantasyGameId] = useState<string | null>(null);
   const [activeTournamentId, setActiveTournamentId] = useState<string | null>(null);
   const [activeLiveGame, setActiveLiveGame] = useState<{ id: string; status: 'Upcoming' | 'Ongoing' | 'Finished' } | null>(null);
-  const [boosterInfoPreferences, setBoosterInfoPreferences] = useState<{ x2: boolean, x3: boolean }>({ x2: false, x3: false });
+  const [boosterInfoPreferences, setBoosterInfoPreferences] = useState<{ x2: boolean, x3: boolean }>(() => {
+    try { const s = localStorage.getItem('boosterInfoPreferences'); if (s) return JSON.parse(s); } catch { /* ignore */ }
+    return { x2: false, x3: false };
+  });
   const [challengeToJoin, setChallengeToJoin] = useState<SportimeGame | null>(null);
   const [masterpassTiers, setMasterpassTiers] = useState<Set<string>>(new Set());
   const [masterpassInvite, setMasterpassInvite] = useState<{ inviteId: string; token: string } | null>(null);
@@ -458,16 +468,30 @@ function App() {
     setLiveGameModalState(prev => ({ ...prev, isLoading: true }));
 
     try {
+      const fixtureId = liveGameModalState.matchId;
+      // You can only join a live prediction once. If you already have a (non-finished)
+      // game for this fixture, open THAT one (it shows your existing prediction) instead
+      // of creating/joining another — same behaviour as opening it from the Live tab.
+      if (supabase && profile) {
+        const { data: myGames } = await supabase.rpc('get_user_live_games', { p_user_id: profile.id });
+        const mine = (Array.isArray(myGames) ? myGames : []).find((g: any) => g.fixture_id === fixtureId && g.status !== 'finished');
+        if (mine) {
+          setActiveLiveGameSupabase({ id: mine.id, fixtureId: mine.fixture_id, mode: (mine.mode as 'free' | 'ranked') ?? 'free' });
+          return;
+        }
+      }
+
       const cost = mode === 'ranked' ? (entryCost ?? 1000) : 0;
       // Players who join the same match compete together: reuse an existing
       // (non-finished) game for this fixture instead of creating a duplicate.
-      const existing = await getLiveGameByFixture(liveGameModalState.matchId).catch(() => null);
-      const game = (existing && existing.status !== 'finished')
+      const existing = await getLiveGameByFixture(fixtureId).catch(() => null);
+      const reuse = !!(existing && existing.status !== 'finished');
+      const game = reuse
         ? existing
-        : await createLiveGameSupabase({ fixtureId: liveGameModalState.matchId, mode, entryCost: cost });
+        : await createLiveGameSupabase({ fixtureId, mode, entryCost: cost });
 
       if (game) {
-        addToast(`${mode === 'free' ? 'Free' : 'Stakes'} game created!`, 'success');
+        addToast(reuse ? 'Joined the game!' : `${mode === 'free' ? 'Free' : 'Stakes'} game created!`, 'success');
         // Navigate to live game lobby
         setActiveLiveGameSupabase({
           id: game.id,
@@ -502,6 +526,27 @@ function App() {
     setAuthFlow(isGuest ? 'guest' : 'authenticated');
 
     initializeUserSpinState(profile.id);
+
+    // RevenueCat: identify the user for purchases (no-op until the plugin is installed/configured).
+    if (!isGuest && !rcConfiguredRef.current) {
+      rcConfiguredRef.current = true;
+      configurePurchases(profile.id).catch(() => {});
+    }
+
+    // Premium: claim today's perks (coins + spins) once per session. Idempotent per day server-side.
+    if (!isGuest && profile.is_subscriber && !premiumClaimedRef.current) {
+      premiumClaimedRef.current = true;
+      claimPremiumDaily().then(r => {
+        if (r.ok && !r.already && ((r.coins ?? 0) > 0 || (r.spins ?? 0) > 0 || (r.tickets ?? 0) > 0)) {
+          const parts = [
+            (r.coins ?? 0) > 0 ? `+${r.coins} coins` : null,
+            (r.spins ?? 0) > 0 ? `+${r.spins} spin` : null,
+            (r.tickets ?? 0) > 0 ? `+${r.tickets} ticket` : null,
+          ].filter(Boolean);
+          addToast(`Premium daily: ${parts.join(' · ')} 🎁`, 'success');
+        }
+      }).catch(() => {});
+    }
 
     // DISABLED: Streak system temporarily disabled
     // if (!isGuest) {
@@ -759,6 +804,7 @@ function App() {
   const handleUpdateBoosterPreferences = (booster: 'x2' | 'x3') => {
     const newPrefs = { ...boosterInfoPreferences, [booster]: true };
     setBoosterInfoPreferences(newPrefs);
+    try { localStorage.setItem('boosterInfoPreferences', JSON.stringify(newPrefs)); } catch { /* ignore */ }
     addToast(`Preference saved. This dialog will not show again for ${booster.toUpperCase()}.`, 'info');
   };
   
@@ -879,9 +925,11 @@ function App() {
   const handleViewTournament = async (competitionId: string) => {
     if (!profile || isGuest) { handleTriggerSignUp(); return; }
     setActiveTournamentId(competitionId);
-    // create the entry (free) so it shows in My Games, then refresh the catalog
+    // Create the entry (free quest) so it shows in My Games. Surface failures instead of
+    // swallowing them — a silent failure here makes later prediction saves error out.
     const { joinTournament } = await import('./services/tournamentService');
-    await joinTournament(profile.id, competitionId).catch(() => {});
+    const { error } = await joinTournament(profile.id, competitionId);
+    if (error) addToast(`Could not join the tournament: ${error.message}`, 'error');
     refreshChallenges();
   };
   
@@ -1010,20 +1058,22 @@ function App() {
     if (!profile) return;
 
     const gameType = challengeToJoin?.game_type;
+
+    // Tournament Quest is a FREE quest — join + open it whatever the entry method,
+    // never charging coins/ticket/MasterPass (kept consistent across all paths).
+    if (gameType === 'tournament') {
+      setChallengeToJoin(null);
+      handleViewTournament(challengeId);
+      return;
+    }
+
     if (method === 'masterpass') {
-      const gt = (gameType === 'tournament' ? 'tournament' : gameType === 'fantasy' ? 'fantasy' : 'betting') as 'tournament' | 'fantasy' | 'betting';
+      const gt = (gameType === 'fantasy' ? 'fantasy' : 'betting') as 'fantasy' | 'betting';
       const res = await useMasterpass(gt, challengeId);
       setChallengeToJoin(null);
       if (!(res as any)?.ok) { addToast((res as any)?.error === 'no_masterpass' ? 'No MasterPass for this tier' : ((res as any)?.error || 'Failed to use MasterPass'), 'error'); return; }
       await reloadProfile(); await refreshChallenges();
       setMasterpassInvite({ inviteId: (res as any).invite_id, token: (res as any).token });
-      return;
-    }
-
-    // Tournament Quest: coins/ticket entry = join + open it.
-    if (gameType === 'tournament') {
-      setChallengeToJoin(null);
-      handleViewTournament(challengeId);
       return;
     }
 
@@ -1191,7 +1241,7 @@ function App() {
   }, [games, myLiveGames]);
 
   // Squads (real, Supabase) — replaces the mock leagues for list/create/join.
-  const { squads: realSquads, refetch: refetchSquads } = useSquads(profile?.id ?? null);
+  const { squads: realSquads, refetch: refetchSquads, isLoading: squadsLoading } = useSquads(profile?.id ?? null);
   const myLeagues = realSquads as unknown as typeof userLeagues;
   // Any squad I belong to can have games linked (the RPC validates membership).
   const myAdminLeagues = realSquads as unknown as typeof userLeagues;
@@ -1321,9 +1371,10 @@ function App() {
         }
       } catch { /* fall through to the create modal */ }
     }
-    setMrForMatch(null); setLfForMatch(null);
+    setMrForMatch(null); setLfForMatch(null); setMatchModes(null);
     getMRGameByFixture(matchId).then((g: any) => setMrForMatch(g)).catch(() => setMrForMatch(null));
     getLFGameByFixture(matchId).then((g: any) => setLfForMatch(g)).catch(() => setLfForMatch(null));
+    if (profile && !isGuest) getMyMatchModes(matchId, profile.id).then(setMatchModes).catch(() => setMatchModes(null));
     setLiveGameModalState({ isOpen: true, matchId, matchName, isLoading: false });
   };
 
@@ -1400,11 +1451,7 @@ function App() {
 
     if (activeChallengeId) {
       if (USE_SUPABASE && activeChallengeMatchesLoading) {
-        return (
-          <div className="min-h-screen flex items-center justify-center bg-deep-navy">
-            <div className="text-2xl font-semibold text-text-secondary">Loading challenge...</div>
-          </div>
-        );
+        return <PageLoader />;
       }
 
       const challenge = games.find(c => c.id === activeChallengeId && c.game_type === 'betting');
@@ -1415,12 +1462,14 @@ function App() {
 
         // Wait for matches to be loaded before creating user entry
         if (USE_SUPABASE && matchesForChallenge.length === 0 && !activeChallengeMatchesLoading) {
-          // Matches loaded but empty - show message
+          // Matches loaded but empty
           return (
-            <div className="min-h-screen flex flex-col items-center justify-center bg-deep-navy p-4">
-              <div className="text-xl font-semibold text-text-secondary mb-4">No matches available for this challenge</div>
-              <button onClick={() => setActiveChallengeId(null)} className="text-electric-blue font-semibold">Back to Games</button>
-            </div>
+            <EmptyState
+              glyph="⚽"
+              title="No matches yet"
+              subtitle="This game's fixtures haven't been set yet. Check back soon."
+              cta={{ label: '← Back to Games', onClick: () => setActiveChallengeId(null) }}
+            />
           );
         }
 
@@ -1429,7 +1478,6 @@ function App() {
         // If existingEntry has empty dailyEntries but we have matches, regenerate dailyEntries
         let userEntry = existingEntry;
         if (existingEntry && existingEntry.dailyEntries.length === 0 && matchesForChallenge.length > 0) {
-          console.log('[App] Regenerating dailyEntries for existing entry with', matchesForChallenge.length, 'matches');
           const freshEntry = createEmptyChallengeEntry(activeChallengeId, profile.id, matchesForChallenge);
           userEntry = { ...existingEntry, dailyEntries: freshEntry.dailyEntries };
         } else if (!existingEntry && USE_SUPABASE) {
@@ -1487,10 +1535,11 @@ function App() {
           leagueMembers={leagueMembers}
           leagueGames={leagueGames}
           onLinkGame={handleOpenLinkGameFlow}
+          addToast={addToast}
         />
       );
     }
-    
+
     if (activeTournamentId && profile) {
       return <Suspense fallback={<PageLoader />}>
         <TournamentQuestPage competitionId={activeTournamentId} userId={profile.id} onBack={() => setActiveTournamentId(null)} />
@@ -1499,6 +1548,16 @@ function App() {
 
     if (activeFantasyGameId) {
       const game = games.find(g => g.id === activeFantasyGameId && g.game_type === 'fantasy');
+      if (game && profile && !(game as FantasyGame).gameWeeks?.length) {
+        return (
+          <EmptyState
+            glyph="📅"
+            title="No game weeks yet"
+            subtitle="This Fantasy game has no game weeks set up. Check back soon."
+            cta={{ label: '← Back to Games', onClick: () => setActiveFantasyGameId(null) }}
+          />
+        );
+      }
       if (game && profile) {
         return <FantasyGameWeekPage
           game={game as FantasyGame}
@@ -1512,6 +1571,7 @@ function App() {
           currentUserId={profile.id}
           onLinkGame={handleOpenLinkGameFlow}
           profile={profile}
+          addToast={addToast}
         />;
       }
     }
@@ -1599,30 +1659,33 @@ function App() {
       case 'matches':
         return (
           <ErrorBoundary>
-            <MatchesPage matches={matches} bets={bets} onBet={handleBetClick} onPlayGame={handlePlayGameClick} onBrowseGames={() => handlePageChange('challenges')} />
+            <MatchesPage matches={matches} bets={bets} onBet={handleBetClick} onPlayGame={handlePlayGameClick} onViewResults={(fixtureId, matchName) => setResultsModal({ isOpen: true, fixtureId, matchName })} onBrowseGames={() => handlePageChange('challenges')} />
           </ErrorBoundary>
         );
       case 'challenges':
-        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} onViewTournament={handleViewTournament} joinedGameIds={joinedChallengeSet} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} onRefresh={refreshChallenges} onShowLiveGames={() => setShowLiveGames(true)} pendingInviteGameIds={new Set(Object.keys(pendingInvites))} onReopenInvite={reopenInvite} />;
+        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} onViewTournament={handleViewTournament} joinedGameIds={joinedChallengeSet} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} isLoading={challengesLoading} onRefresh={refreshChallenges} onShowLiveGames={() => setShowLiveGames(true)} pendingInviteGameIds={new Set(Object.keys(pendingInvites))} onReopenInvite={reopenInvite} />;
       case 'squads':
           return <LeaguesListPage
-              leagues={myLeagues}
+              leagues={realSquads}
+              isLoading={squadsLoading}
               onCreate={() => setShowCreateLeagueModal(true)}
               onViewLeague={setActiveLeagueId}
+              onJoin={handleJoinLeague}
+              onRefresh={refetchSquads}
           />;
       case 'funzone':
-        return <FunZonePage profile={profile} onOpenSpinWheel={handleOpenSpinWheel} addToast={addToast} />;
+        return <FunZonePage profile={profile} addToast={addToast} onRequireAuth={handleTriggerSignUp} />;
       case 'admin':
         return <AdminPage profile={profile} addToast={addToast} />;
       case 'profile':
         if (profile && !isGuest) {
           // Use Supabase streak data if available, fallback to mock for guests/errors
           const profileStreaks = supabaseStreak ? [supabaseStreak] : userStreaks;
-          return <ProfilePage profile={profile} levels={levelsConfig} allBadges={badges} userBadges={userBadges} userStreaks={profileStreaks} onUpdateProfile={handleUpdateProfile} onUpdateEmail={handleUpdateEmail} onSignOut={handleSignOut} onDeleteAccount={handleDeleteAccount} onOpenSpinWheel={handleOpenSpinWheel} onOpenPremiumModal={() => setIsPremiumModalOpen(true)} />;
+          return <ProfilePage profile={profile} levels={levelsConfig} allBadges={badges} userBadges={userBadges} userStreaks={profileStreaks} onUpdateProfile={handleUpdateProfile} onUpdateEmail={handleUpdateEmail} onSignOut={handleSignOut} onDeleteAccount={handleDeleteAccount} onOpenSpinWheel={handleOpenSpinWheel} onOpenPremiumModal={() => setIsPremiumModalOpen(true)} onGoToShop={() => setIsCoinShopModalOpen(true)} />;
         }
         return null;
       default:
-        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} onViewTournament={handleViewTournament} joinedGameIds={joinedChallengeSet} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} onRefresh={refreshChallenges} onShowLiveGames={() => setShowLiveGames(true)} pendingInviteGameIds={new Set(Object.keys(pendingInvites))} onReopenInvite={reopenInvite} />;
+        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} onViewTournament={handleViewTournament} joinedGameIds={joinedChallengeSet} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} isLoading={challengesLoading} onRefresh={refreshChallenges} onShowLiveGames={() => setShowLiveGames(true)} pendingInviteGameIds={new Set(Object.keys(pendingInvites))} onReopenInvite={reopenInvite} />;
     }
   }
   
@@ -1797,11 +1860,12 @@ function App() {
       tickets={profile ? userTickets.filter(t => t.user_id === profile.id) : []}
     />
     {spinWheelState.isOpen && spinWheelState.tier && profile && (
-      <SpinWheel
+      <SpinwheelModal
         isOpen={spinWheelState.isOpen}
         onClose={() => setSpinWheelState({ isOpen: false, tier: null })}
         tier={spinWheelState.tier}
         userId={profile.id}
+        addToast={addToast}
       />
     )}
     <LiveGameModal
@@ -1813,6 +1877,7 @@ function App() {
         isLoading={liveGameModalState.isLoading}
         userBalance={profile?.coins_balance ?? 0}
         userTier={profile?.level ?? profile?.current_level ?? 'rookie'}
+        modes={matchModes}
         matchRoyalePot={mrForMatch?.pot_amount ?? null}
         onPlayMatchRoyale={async () => { const fx = liveGameModalState.matchId; const nm = liveGameModalState.matchName ?? 'Match Royale'; setLiveGameModalState({ isOpen: false, matchId: null, matchName: null, isLoading: false }); let id = mrForMatch?.id ?? null; if (!id && fx) { id = await createMRGame(fx, nm).catch(() => null); if (!id) { addToast('Could not start Match Royale', 'error'); return; } } setOpenMRGame(id); }}
         liveFantasyReady={!!lfForMatch}
@@ -1838,7 +1903,16 @@ function App() {
       isOpen={isPremiumModalOpen}
       onClose={() => setIsPremiumModalOpen(false)}
       onSubscribe={handleSubscribe}
+      addToast={addToast}
+      onPurchased={() => reloadProfile()}
     />
+    <ResultsModal
+      isOpen={resultsModal.isOpen}
+      onClose={() => setResultsModal({ isOpen: false, fixtureId: null, matchName: null })}
+      fixtureId={resultsModal.fixtureId}
+      matchName={resultsModal.matchName}
+    />
+
     <CoinShopModal
       isOpen={isCoinShopModalOpen}
       onClose={() => setIsCoinShopModalOpen(false)}

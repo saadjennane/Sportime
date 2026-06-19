@@ -1,6 +1,7 @@
 import React from 'react';
 import { Challenge, LeaderboardEntry } from '../types';
 import { Trophy, Medal, Award } from 'lucide-react';
+import { PremiumBadge } from './premium/PremiumBadge';
 
 interface LeaderboardProps {
   challenge: Challenge;
@@ -36,8 +37,9 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ challenge, leaderboard
                 }`}
               >
                 <div className="w-7 flex justify-center flex-shrink-0">{getRankIcon(entry.rank)}</div>
-                <div className={`flex-1 font-semibold truncate ${isYou ? 'text-electric-blue' : 'text-text-primary'}`}>
-                  {entry.username}
+                <div className={`flex-1 min-w-0 flex items-center gap-1.5 font-semibold ${isYou ? 'text-electric-blue' : 'text-text-primary'}`}>
+                  <span className="truncate">{entry.username}</span>
+                  {entry.isSubscriber && <PremiumBadge size={10} />}
                 </div>
                 <div className="text-right">
                   <p className="font-bold text-lime-glow">{entry.points.toLocaleString()} pts</p>

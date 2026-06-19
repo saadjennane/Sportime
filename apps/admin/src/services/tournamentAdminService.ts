@@ -63,6 +63,17 @@ export async function createFromLeague(p: any) {
   return supabase.functions.invoke('tq-create-from-league', { body: p });
 }
 
+/** Backfill an existing competition's content: players (always) + matches (needs league+season). */
+export async function seedContent(competitionId: string, leagueApiId?: number | null, season?: number | null) {
+  return supabase.functions.invoke('tq-create-from-league', {
+    body: {
+      competition_id: competitionId,
+      ...(leagueApiId ? { league_api_id: leagueApiId } : {}),
+      ...(season ? { season } : {}),
+    },
+  });
+}
+
 export async function setStatus(id: string, status: string) {
   return supabase.from('tq_competitions').update({ status }).eq('id', id);
 }

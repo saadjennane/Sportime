@@ -62,11 +62,11 @@ export const GameWeekConditions: React.FC<GameWeekConditionsProps> = ({ gameWeek
   }, [team]);
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg">
+    <div className="card-base">
       <button onClick={() => setIsOpen(!isOpen)} className="w-full flex justify-between items-center p-4 text-left">
-        <h3 className="font-bold text-gray-800">Game Week Conditions</h3>
+        <h3 className="font-bold text-text-primary">Game Week Conditions</h3>
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-gray-500">
+          <span className="text-sm font-semibold text-text-secondary">
             ✅ {validationResults.metCount} / {validationResults.totalCount} met
           </span>
           <ChevronDown className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
@@ -81,7 +81,7 @@ export const GameWeekConditions: React.FC<GameWeekConditionsProps> = ({ gameWeek
             transition={{ duration: 0.3, ease: "easeInOut" }}
             className="overflow-hidden"
           >
-            <div className="px-4 pb-4 space-y-4 border-t border-gray-100">
+            <div className="px-4 pb-4 space-y-4 border-t border-white/10">
               {/* Conditions List */}
               <div className="space-y-1.5 pt-3">
                 {gameWeek.conditions?.map(c => {
@@ -89,26 +89,26 @@ export const GameWeekConditions: React.FC<GameWeekConditionsProps> = ({ gameWeek
                   return (
                     <div key={c.key} className="flex items-center gap-2 text-sm">
                       {isMet ? (
-                        <CheckCircle size={16} className="text-green-500 flex-shrink-0" />
+                        <CheckCircle size={16} className="text-lime-glow flex-shrink-0" />
                       ) : (
                         <div className="w-4 h-4 flex-shrink-0" /> // Placeholder for alignment
                       )}
-                      <span className={isMet ? 'text-gray-800' : 'text-gray-500'}>{c.text}</span>
+                      <span className={isMet ? 'text-text-primary' : 'text-text-secondary'}>{c.text}</span>
                     </div>
                   );
-                }) || <p className="text-sm text-gray-500">No special conditions this week.</p>}
+                }) || <p className="text-sm text-text-secondary">No special conditions this week.</p>}
               </div>
 
               {/* Bonuses List */}
               <div className="space-y-1.5 pt-2">
-                 <h4 className="font-semibold text-sm text-gray-600">Optional Team Bonuses</h4>
-                 <p className={`flex items-center gap-2 text-sm ${activeBonus === 'no_star' ? 'font-bold text-purple-700' : 'text-gray-500'}`}>
+                 <h4 className="font-semibold text-sm text-text-secondary">Optional Team Bonuses</h4>
+                 <p className={`flex items-center gap-2 text-sm ${activeBonus === 'no_star' ? 'font-bold text-neon-cyan' : 'text-text-secondary'}`}>
                     💪 No Star Bonus — +25% if no Star Players
                  </p>
-                 <p className={`flex items-center gap-2 text-sm ${activeBonus === 'crazy' ? 'font-bold text-purple-700' : 'text-gray-500'}`}>
+                 <p className={`flex items-center gap-2 text-sm ${activeBonus === 'crazy' ? 'font-bold text-neon-cyan' : 'text-text-secondary'}`}>
                     🎢 Crazy Boost — +40% if 100% Wild Cards
                  </p>
-                 <p className={`flex items-center gap-2 text-sm ${activeBonus === 'vintage' ? 'font-bold text-purple-700' : 'text-gray-500'}`}>
+                 <p className={`flex items-center gap-2 text-sm ${activeBonus === 'vintage' ? 'font-bold text-neon-cyan' : 'text-text-secondary'}`}>
                     🧓 Vintage Boost — +20% if average age ≥ 30
                  </p>
               </div>

@@ -68,7 +68,7 @@ export const MatchDaySwitcher: React.FC<MatchDaySwitcherProps> = ({ gameWeeks, s
       {canScrollLeft && (
         <button
           onClick={() => handleScroll('left')}
-          className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-navy-accent/80 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md border border-white/10 hover:bg-navy-accent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+          className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-navy-accent/80 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md border border-white/10 hover:bg-navy-accent opacity-90 transition-opacity duration-300"
           aria-label="Scroll left"
         >
           <ChevronLeft size={20} className="text-text-primary" />
@@ -109,7 +109,7 @@ export const MatchDaySwitcher: React.FC<MatchDaySwitcherProps> = ({ gameWeeks, s
       {canScrollRight && (
         <button
           onClick={() => handleScroll('right')}
-          className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-navy-accent/80 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md border border-white/10 hover:bg-navy-accent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+          className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-navy-accent/80 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md border border-white/10 hover:bg-navy-accent opacity-90 transition-opacity duration-300"
           aria-label="Scroll right"
         >
           <ChevronRight size={20} className="text-text-primary" />

@@ -10,7 +10,7 @@ import { checkEligibility } from '../lib/eligibility';
 import { GameSection } from '../components/GameSection';
 import { EmptyState } from '../components/EmptyState';
 import { parseISO } from 'date-fns';
-import { Zap, Clock, Flag, Trophy, Flame } from 'lucide-react';
+import { Zap, Clock, Flag, Trophy, Flame, Loader2, Search } from 'lucide-react';
 import { calculateBettingGameState, safeParseISO, parseEndDateLocal, getBettingGameDeadline, calculateGameState, getGameDeadline, areAllMatchesFinished } from '../services/gameStateService';
 import { hasViewedResults, markResultsViewed } from '../services/resultsViewedService';
 
@@ -127,6 +127,7 @@ interface GamesListPageProps {
   myGamesCount: number;
   profile: Profile | null;
   userTickets: UserTicket[];
+  isLoading?: boolean;
   onRefresh?: () => void | Promise<void>;
   onShowLiveGames?: () => void;
   pendingInviteGameIds?: Set<string>;
@@ -134,9 +135,16 @@ interface GamesListPageProps {
 }
 
 const GamesListPage: React.FC<GamesListPageProps> = (props) => {
-  const { games, userChallengeEntries, userSwipeEntries, userFantasyTeams, joinedGameIds, onJoinChallenge, onViewChallenge, onJoinSwipeGame, onPlaySwipeGame, onViewFantasyGame, onViewTournament, profile, userTickets, onRefresh, onShowLiveGames, pendingInviteGameIds, onReopenInvite } = props;
+  const { games, userChallengeEntries, userSwipeEntries, userFantasyTeams, joinedGameIds, onJoinChallenge, onViewChallenge, onJoinSwipeGame, onPlaySwipeGame, onViewFantasyGame, onViewTournament, myGamesCount, profile, userTickets, isLoading, onRefresh, onShowLiveGames, pendingInviteGameIds, onReopenInvite } = props;
 
   const [activeTab, setActiveTab] = useState<GamesTab>('my-games');
+  const tabTouched = React.useRef(false);
+  const selectTab = (t: GamesTab) => { tabTouched.current = true; hapticImpact('light'); setActiveTab(t); };
+
+  // New user (no games joined) lands on Browse instead of an empty My Games — unless they picked a tab.
+  React.useEffect(() => {
+    if (!tabTouched.current && !isLoading && myGamesCount === 0) setActiveTab('browse');
+  }, [isLoading, myGamesCount]);
   const [filters, setFilters] = useState<GameFilters>({
     type: 'all',
     format: 'all',
@@ -146,6 +154,8 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
   });
   const [viewingRewardsFor, setViewingRewardsFor] = useState<SportimeGame | null>(null);
   const [viewingInfoFor, setViewingInfoFor] = useState<SportimeGame | null>(null);
+
+  const hasActiveFilters = filters.type !== 'all' || filters.format !== 'all' || filters.tier !== 'all' || filters.duration !== 'all' || filters.eligibleOnly;
 
   const myGameIds = useMemo(() => {
     if (!profile) return new Set();
@@ -285,7 +295,7 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       const endParsed = safeParseISO(game.end_date);
       const endDatePassed = endParsed ? endParsed < now : false;
 
-      if (realStatus === 'Finished' || realStatus === 'Cancelled' || endDatePassed) {
+      if (realStatus === 'Finished' || realStatus === 'Cancelled' || endDatePassed || game.status === 'Finished') {
         past.push(game);
       } else {
         // Check if entry is still open
@@ -315,9 +325,11 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
     const now = new Date();
     const realStatus = getRealGameStatus(game, now);
     const entryOpen = isEntryOpen(game);
+    // Matchless games (e.g. tournaments) carry their finished state on game.status.
+    const serverFinished = game.status === 'Finished' || game.status === 'Cancelled';
 
     // Finished games
-    if (realStatus === 'Finished' || realStatus === 'Cancelled') {
+    if (realStatus === 'Finished' || realStatus === 'Cancelled' || serverFinished) {
       return 'RESULTS';
     }
 
@@ -433,7 +445,7 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       {/* Tab Switcher */}
       <div className="flex items-center gap-1 bg-navy-accent rounded-xl p-1">
         <button
-          onClick={() => { hapticImpact('light'); setActiveTab('my-games'); }}
+          onClick={() => selectTab('my-games')}
           className={`flex-1 p-3 rounded-lg font-semibold transition-all text-sm ${
             activeTab === 'my-games'
               ? 'bg-electric-blue text-white shadow'
@@ -443,26 +455,29 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
           My Games
         </button>
         <button
-          onClick={() => { hapticImpact('light'); setActiveTab('browse'); }}
+          onClick={() => selectTab('browse')}
           className={`flex-1 p-3 rounded-lg font-semibold transition-all text-sm ${
             activeTab === 'browse'
               ? 'bg-electric-blue text-white shadow'
               : 'text-text-secondary hover:text-text-primary'
           }`}
         >
-          Browse Games
+          Browse
         </button>
         {onShowLiveGames && (
           <button
             onClick={() => { hapticImpact('light'); onShowLiveGames(); }}
-            title="Live Games"
-            className="flex-shrink-0 w-11 p-3 rounded-lg text-warm-yellow hover:bg-warm-yellow/10 transition-all flex items-center justify-center"
+            className="flex-shrink-0 flex items-center gap-1 px-3 py-3 rounded-lg text-warm-yellow bg-warm-yellow/10 hover:bg-warm-yellow/20 transition-all font-semibold text-sm"
           >
-            <Zap size={18} />
+            <Zap size={16} /> Live
           </button>
         )}
       </div>
 
+      {isLoading && games.length === 0 ? (
+        <div className="flex justify-center py-16"><Loader2 className="animate-spin text-electric-blue" size={32} /></div>
+      ) : (
+      <>
       {/* My Games Tab */}
       {activeTab === 'my-games' && (
         (playNowGames.length === 0 && awaitingGames.length === 0 && recentlyFinishedGames.length === 0 && pastGamesSection.length === 0) ? (
@@ -522,17 +537,26 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
         <>
           <GamesFilterPanel filters={filters} onFilterChange={setFilters} />
 
-          {/* Available Games - displayed directly */}
-          <div className="space-y-4">
-            {availableGames.length > 0 ? (
-              availableGames.map(game => renderGameCard(game, false))
-            ) : (
-              <div className="card-base p-8 text-center">
-                <p className="text-text-secondary text-sm">No games available to join.</p>
-                <p className="text-text-secondary text-xs mt-2">Check back later or adjust your filters.</p>
+          {/* Available Games */}
+          {availableGames.length > 0 ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-lime-glow px-1">
+                <Zap size={18} />
+                <h2 className="font-bold">Available</h2>
+                <span className="text-xs font-bold bg-lime-glow/15 px-2 py-0.5 rounded-full">{availableGames.length}</span>
               </div>
-            )}
-          </div>
+              {availableGames.map(game => renderGameCard(game, false))}
+            </div>
+          ) : (
+            <EmptyState
+              glyph={<Search size={48} className="text-text-disabled" />}
+              title="No games to join"
+              subtitle={hasActiveFilters ? 'No game matches your filters right now.' : 'Nothing open to join — check back soon.'}
+              cta={hasActiveFilters
+                ? { label: '✕ Clear filters', onClick: () => setFilters({ type: 'all', format: 'all', tier: 'all', duration: 'all', eligibleOnly: false }) }
+                : undefined}
+            />
+          )}
 
           {/* In Progress Games Section - collapsed by default */}
           <GameSection
@@ -556,6 +580,8 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
             {pastGames.map(game => renderGameCard(game, false))}
           </GameSection>
         </>
+      )}
+      </>
       )}
 
       {/* Modals */}

@@ -53,6 +53,7 @@ export interface SwipePredictionRecord {
   };
   points_earned: number;
   is_correct: boolean | null;
+  booster?: 'x2' | 'x3' | null;
   created_at: string;
   updated_at: string;
 }
@@ -319,10 +320,6 @@ export async function getMatchdayWithFixtures(matchdayId: string) {
     throw error;
   }
 
-  // Debug logging
-  console.log('Matchday data:', data);
-  console.log('Fixtures count:', data?.matchday_fixtures?.length || 0);
-
   // Detect and sync missing odds (fire and forget)
   const fixtures = data?.matchday_fixtures?.map((mf: any) => ({
     id: mf.fixture?.id,
@@ -418,6 +415,33 @@ export async function savePrediction(params: {
     .eq('fixture_id', params.fixtureId)
     .maybeSingle();
   return data as SwipePredictionRecord | null;
+}
+
+// ── Boosters (one x2 + one x3 per game) ──
+export interface BoosterUse { fixture_id: string; matchday_id: string; booster: 'x2' | 'x3'; }
+
+/** Set / move / clear a booster on a predicted, not-yet-started match. */
+export async function setSwipeBooster(
+  challengeId: string, matchdayId: string, fixtureId: string, booster: 'x2' | 'x3' | null
+): Promise<void> {
+  const { error } = await supabase.rpc('swipe_set_booster', {
+    p_challenge_id: challengeId,
+    p_matchday_id: matchdayId,
+    p_fixture_id: fixtureId,
+    p_booster: booster,
+  });
+  if (error) throw error;
+}
+
+/** Which boosters the user has placed across the whole game. */
+export async function getChallengeBoosters(challengeId: string, userId: string): Promise<BoosterUse[]> {
+  const { data } = await supabase
+    .from('swipe_predictions')
+    .select('fixture_id, matchday_id, booster')
+    .eq('challenge_id', challengeId)
+    .eq('user_id', userId)
+    .not('booster', 'is', null);
+  return (data || []) as BoosterUse[];
 }
 
 /**
@@ -570,12 +594,23 @@ export async function getChallengeLeaderboard(
 
   if (error) throw error;
 
+  // Correct picks per user across the whole challenge (from swipe_predictions.is_correct).
+  const correctByUser: Record<string, number> = {};
+  const { data: correctRows } = await supabase
+    .from('swipe_predictions')
+    .select('user_id')
+    .eq('challenge_id', challengeId)
+    .eq('is_correct', true);
+  (correctRows || []).forEach((r: any) => {
+    correctByUser[r.user_id] = (correctByUser[r.user_id] || 0) + 1;
+  });
+
   return (data || []).map((entry, index) => ({
     rank: index + 1,
     username: entry.user.username || 'Unknown',
     points: entry.points,
     userId: entry.user_id,
-    correct_picks: 0, // Will be calculated from matchday_participants
+    correct_picks: correctByUser[entry.user_id] || 0,
     submission_timestamp: new Date(entry.created_at).getTime(),
   }));
 }

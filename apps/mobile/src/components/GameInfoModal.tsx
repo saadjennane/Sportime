@@ -87,7 +87,7 @@ function normalizeGame(game: GameInfo): {
 }
 
 const gameTypeLabels: Record<GameType, string> = {
-  betting: 'Betting',
+  betting: "Pick'em",
   prediction: 'Prediction',
   fantasy: 'Fantasy',
   'fantasy-live': 'Fantasy Live',

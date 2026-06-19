@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { X, Trophy, Medal, Award, Info } from 'lucide-react';
 import { FantasyLeaderboardEntry, Profile, UserLeague, LeagueMember, LeagueGame, FantasyGame, FantasyGameWeek, LeaderboardPeriod, Game } from '../types';
+import { PremiumBadge } from './premium/PremiumBadge';
+import { fetchSubscriberSet } from '../services/premiumService';
 import { LeaderboardLeagueSwitcher } from './leagues/LeaderboardLeagueSwitcher';
 import { useMockStore } from '../store/useMockStore';
 import { getFantasyLeaderboardForWeeks } from '../services/fantasyService';
@@ -27,11 +29,14 @@ const getRankIcon = (rank: number) => {
   return <span className="font-bold text-text-secondary w-5 text-center">{rank}</span>;
 };
 
-const LeaderboardRow: React.FC<{ entry: FantasyLeaderboardEntry, isUser: boolean }> = ({ entry, isUser }) => (
+const LeaderboardRow: React.FC<{ entry: FantasyLeaderboardEntry, isUser: boolean, isSub?: boolean }> = ({ entry, isUser, isSub }) => (
   <div className={`flex items-center p-3 rounded-xl ${isUser ? 'bg-electric-blue/10 border-2 border-electric-blue/50' : 'bg-deep-navy'}`}>
     <div className="w-8 flex justify-center">{getRankIcon(entry.rank)}</div>
     <img src={entry.avatar} className="w-10 h-10 rounded-full mx-2" alt={entry.username} />
-    <p className="flex-1 font-semibold text-text-primary">{entry.username}</p>
+    <p className="flex-1 min-w-0 flex items-center gap-1.5 font-semibold text-text-primary">
+      <span className="truncate">{entry.username}</span>
+      {isSub && <PremiumBadge size={10} />}
+    </p>
     <p className="font-bold text-warm-yellow">{entry.totalPoints} pts</p>
   </div>
 );
@@ -109,6 +114,15 @@ export const FantasyLeaderboardModal: React.FC<FantasyLeaderboardModalProps> = (
       .map((entry, index) => ({ ...entry, rank: index + 1, boosterUsed: null }));
   }, [serverEntries, activeFilterLeagueId, leagueMembers, currentUserId]);
 
+  // Premium badges: which displayed players are subscribers.
+  const [subSet, setSubSet] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const ids = displayedLeaderboard.map(e => e.userId).filter(Boolean);
+    let cancelled = false;
+    fetchSubscriberSet(ids).then(s => { if (!cancelled) setSubSet(s); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [displayedLeaderboard]);
+
   const handleApplyFilter = (period: LeaderboardPeriod) => {
     if (leagueGame) {
       setLoading(true);
@@ -180,11 +194,11 @@ export const FantasyLeaderboardModal: React.FC<FantasyLeaderboardModalProps> = (
             {userEntry && (
               <div className="space-y-2 mb-4 sticky top-0 bg-navy-accent py-2 z-10">
                   <p className="text-xs text-center font-semibold text-text-disabled uppercase">Your Position</p>
-                  <LeaderboardRow entry={userEntry} isUser={true} />
+                  <LeaderboardRow entry={userEntry} isUser={true} isSub={subSet.has(userEntry.userId)} />
                   <hr className="border-dashed border-disabled my-2" />
               </div>
             )}
-            {displayedLeaderboard.filter(e => e.userId !== currentUserId).map(entry => <LeaderboardRow key={entry.rank} entry={entry} isUser={false} />)}
+            {displayedLeaderboard.filter(e => e.userId !== currentUserId).map(entry => <LeaderboardRow key={entry.rank} entry={entry} isUser={false} isSub={subSet.has(entry.userId)} />)}
           </div>
 
           {isCurrentUserAdmin && activeFilterLeagueId && (

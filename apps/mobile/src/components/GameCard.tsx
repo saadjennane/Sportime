@@ -127,7 +127,7 @@ function getProgressStatus(
 }
 
 const gameTypeDetails: Record<GameType, { tag: string; color: string }> = {
-  betting: { tag: 'Betting', color: 'bg-electric-blue/20 text-electric-blue' },
+  betting: { tag: "Pick'em", color: 'bg-electric-blue/20 text-electric-blue' },
   prediction: { tag: 'Prediction', color: 'bg-neon-cyan/20 text-neon-cyan' },
   fantasy: { tag: 'Fantasy', color: 'bg-lime-glow/20 text-lime-glow' },
   'fantasy-live': { tag: 'Fantasy Live', color: 'bg-purple-600/20 text-purple-400' },
@@ -146,7 +146,7 @@ const tournamentTierDetails: Record<TournamentType, { label: string; color: stri
 
 // Per-type visual identity: icon + name + chip colour + left rail colour.
 const gameTypeVisual: Record<string, { name: string; Icon: any; chip: string; rail: string; dot: string }> = {
-  betting:        { name: 'Betting',    Icon: Target, chip: 'bg-electric-blue/20 text-electric-blue', rail: 'bg-electric-blue', dot: 'bg-electric-blue' },
+  betting:        { name: "Pick'em",    Icon: Target, chip: 'bg-electric-blue/20 text-electric-blue', rail: 'bg-electric-blue', dot: 'bg-electric-blue' },
   prediction:     { name: 'Prediction', Icon: Layers, chip: 'bg-neon-cyan/20 text-neon-cyan',         rail: 'bg-neon-cyan',     dot: 'bg-neon-cyan' },
   fantasy:        { name: 'Fantasy',    Icon: Shirt,  chip: 'bg-lime-glow/20 text-lime-glow',         rail: 'bg-lime-glow',     dot: 'bg-lime-glow' },
   'fantasy-live': { name: 'Fantasy Live', Icon: Shirt, chip: 'bg-purple-600/20 text-purple-400',      rail: 'bg-purple-500',    dot: 'bg-purple-400' },

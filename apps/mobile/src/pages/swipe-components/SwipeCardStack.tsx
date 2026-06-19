@@ -5,26 +5,33 @@
  * All callbacks from parent are passed directly - no useCallback needed here.
  */
 
-import React, { useState, memo } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { X, Loader2 } from 'lucide-react';
+import { X, Undo2 } from 'lucide-react';
 import type { SwipeMatch, SwipePredictionOutcome } from '../../types';
 import type { SwipePredictionRecord } from '../../services/swipeGameService';
 import { SwipeCard } from '../../components/SwipeCard';
 import { SwipeTutorialModal } from '../../components/SwipeTutorialModal';
 import { mapPredictionToOutcome } from '../../features/swipe/swipeMappers';
 import { hapticImpact } from '../../native/haptics';
+import { SwipeBoosterBar, GameBoosters } from './SwipeBoosterBar';
+
+type BoosterType = 'x2' | 'x3';
 
 interface SwipeCardStackProps {
   matches: SwipeMatch[];
   predictions: Record<string, SwipePredictionRecord>;
   hasSeenTutorial: boolean;
   onDismissTutorial: (dontShowAgain: boolean) => void;
-  onSwipe: (matchId: string, prediction: SwipePredictionOutcome) => void;
+  onSwipe: (matchId: string, prediction: SwipePredictionOutcome, booster?: BoosterType) => void;
+  onUndo?: (matchId: string) => void;
   onComplete: () => void;
   onExit: () => void;
   /** If true, show all matches (including already predicted) for editing */
   editMode?: boolean;
+  gameBoosters?: GameBoosters;
+  currentMatchdayId?: string | null;
+  onCancelBooster?: (fixtureId: string) => void;
 }
 
 export const SwipeCardStack = memo<SwipeCardStackProps>(function SwipeCardStack({
@@ -33,11 +40,16 @@ export const SwipeCardStack = memo<SwipeCardStackProps>(function SwipeCardStack(
   hasSeenTutorial,
   onDismissTutorial,
   onSwipe,
+  onUndo,
   onComplete,
   onExit,
   editMode = false,
+  gameBoosters,
+  currentMatchdayId,
+  onCancelBooster,
 }) {
   const [showTutorial, setShowTutorial] = useState(!hasSeenTutorial);
+  const [armedBooster, setArmedBooster] = useState<BoosterType | null>(null);
 
   // In edit mode, show ALL matches; otherwise only unpredicted
   const matchesToShow = editMode ? matches : matches.filter(m => !predictions[m.id]);
@@ -46,14 +58,29 @@ export const SwipeCardStack = memo<SwipeCardStackProps>(function SwipeCardStack(
     // Start from the end (stack displays top card last)
     return matchesToShow.length - 1;
   });
-  const [isSaving, setIsSaving] = useState(false);
+  // Last committed pick, so it can be undone in-deck.
+  const [lastSwiped, setLastSwiped] = useState<string | null>(null);
   // True while the last card is flying off, before we switch to the recap —
   // keeps the AnimatePresence mounted so the exit animation actually plays.
   const [exiting, setExiting] = useState(false);
 
+  // Keep the index in range if the deck shrinks/grows after an external refresh.
+  useEffect(() => {
+    setCurrentIndex(idx => Math.min(idx, matchesToShow.length - 1));
+  }, [matchesToShow.length]);
+
   function handleCloseTutorial(dontShowAgain: boolean) {
     setShowTutorial(false);
     onDismissTutorial(dontShowAgain);
+  }
+
+  // Undo the last swipe: remove its pick (re-shows the card) and step back.
+  function handleUndo() {
+    if (!lastSwiped) return;
+    hapticImpact('light');
+    onUndo?.(lastSwiped);
+    setCurrentIndex(prev => prev + 1);
+    setLastSwiped(null);
   }
 
   function handleSwipe(matchId: string, prediction: SwipePredictionOutcome) {
@@ -73,8 +100,10 @@ export const SwipeCardStack = memo<SwipeCardStackProps>(function SwipeCardStack(
     // Tactile feedback at the moment a prediction is committed (native only).
     hapticImpact('medium');
 
-    // Call parent handler
-    onSwipe(matchId, prediction);
+    // Call parent handler (carries the armed booster so it sticks to this match).
+    onSwipe(matchId, prediction, armedBooster ?? undefined);
+    setLastSwiped(matchId);
+    if (armedBooster) setArmedBooster(null);
 
     // Move to next card
     if (currentIndex <= 0) {
@@ -158,12 +187,6 @@ export const SwipeCardStack = memo<SwipeCardStackProps>(function SwipeCardStack(
       </button>
 
       <div className="relative w-[90vw] max-w-sm h-[60vh] flex items-center justify-center" style={{ touchAction: 'none' }}>
-        {isSaving && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm rounded-3xl z-50">
-            <Loader2 className="animate-spin text-electric-blue" size={32} />
-          </div>
-        )}
-
         <AnimatePresence>
           {cardsToRender.map((match, index) => {
             const isTop = index === cardsToRender.length - 1;
@@ -171,6 +194,10 @@ export const SwipeCardStack = memo<SwipeCardStackProps>(function SwipeCardStack(
             const currentPrediction = predictionRecord
               ? mapPredictionToOutcome(predictionRecord.prediction)
               : undefined;
+            // Top card previews the armed booster; any card shows its committed booster.
+            const cardBooster = (isTop ? armedBooster : null) ?? predictionRecord?.booster ?? undefined;
+            // Real odds are always > 1.0 — block swiping until they're synced.
+            const oddsReady = match.odds.teamA > 1 && match.odds.draw > 1 && match.odds.teamB > 1;
 
             return (
               <SwipeCard
@@ -179,17 +206,43 @@ export const SwipeCardStack = memo<SwipeCardStackProps>(function SwipeCardStack(
                 onSwipe={handleSwipe}
                 isTop={isTop}
                 currentPrediction={currentPrediction}
+                booster={cardBooster ?? undefined}
+                oddsReady={oddsReady}
               />
             );
           })}
         </AnimatePresence>
       </div>
 
-      {/* Progress indicator */}
-      <div className="absolute bottom-6 text-center text-text-secondary font-semibold bg-navy-accent backdrop-blur-sm px-4 py-2 rounded-full border border-white/10">
-        <p>
-          {swipedCount} / {matchesToShow.length}
-        </p>
+      {/* Boosters bar */}
+      {gameBoosters && (
+        <div className="absolute bottom-20">
+          <SwipeBoosterBar
+            gameBoosters={gameBoosters}
+            currentMatchdayId={currentMatchdayId ?? null}
+            armed={armedBooster}
+            onArm={setArmedBooster}
+            onCancel={(fid) => onCancelBooster?.(fid)}
+            armHint="Swipe a match to apply this booster"
+          />
+        </div>
+      )}
+
+      {/* Progress indicator + Undo */}
+      <div className="absolute bottom-6 flex items-center gap-3">
+        <div className="text-center text-text-secondary font-semibold bg-navy-accent backdrop-blur-sm px-4 py-2 rounded-full border border-white/10">
+          <p>
+            {swipedCount} / {matchesToShow.length}
+          </p>
+        </div>
+        {lastSwiped && onUndo && (
+          <button
+            onClick={handleUndo}
+            className="flex items-center gap-1.5 bg-navy-accent backdrop-blur-sm px-4 py-2 rounded-full border border-white/10 text-warm-yellow font-semibold hover:bg-white/5 active:scale-95 transition-all"
+          >
+            <Undo2 size={16} /> Undo
+          </button>
+        )}
       </div>
 
       {showTutorial && <SwipeTutorialModal onClose={handleCloseTutorial} />}

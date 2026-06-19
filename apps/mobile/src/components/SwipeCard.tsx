@@ -10,6 +10,10 @@ interface SwipeCardProps {
   onSwipe: (matchId: string, prediction: SwipePredictionOutcome) => void;
   isTop: boolean;
   currentPrediction?: SwipePredictionOutcome;
+  /** When set, frames the card and stamps the booster (x2 = blue, x3 = red). */
+  booster?: 'x2' | 'x3';
+  /** False when odds aren't synced yet — the card can't be swiped. */
+  oddsReady?: boolean;
 }
 
 const swipeThreshold = 50;
@@ -58,7 +62,7 @@ const cardVariants = {
   }
 };
 
-export const SwipeCard = memo<SwipeCardProps>(function SwipeCard({ match, onSwipe, isTop, currentPrediction }) {
+export const SwipeCard = memo<SwipeCardProps>(function SwipeCard({ match, onSwipe, isTop, currentPrediction, booster, oddsReady = true }) {
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const [exitDirection, setExitDirection] = useState<'left' | 'right' | 'up' | null>(null);
@@ -123,7 +127,7 @@ export const SwipeCard = memo<SwipeCardProps>(function SwipeCard({ match, onSwip
 
   const kickoffLabel = (() => {
     try {
-      return format(parseISO(match.kickoffTime), 'd-M-yyyy - HH:mm');
+      return format(parseISO(match.kickoffTime), 'EEE, MMM d · HH:mm');
     } catch {
       return match.kickoffTime;
     }
@@ -137,14 +141,33 @@ export const SwipeCard = memo<SwipeCardProps>(function SwipeCard({ match, onSwip
       animate="animate"
       exit="exit"
       custom={exitDirection}
-      drag={isTop}
+      drag={isTop && oddsReady}
       dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
       onDrag={handleDrag}
       onDragEnd={handleDragEnd}
       style={{ x, y, rotate }}
       whileTap={{ scale: 0.98, cursor: 'grabbing' }}
-      className={`absolute w-[90vw] max-w-sm h-[60vh] bg-navy-accent border border-white/10 rounded-3xl shadow-2xl p-6 flex flex-col justify-between cursor-grab ${isTop ? '' : 'pointer-events-none'}`}
+      className={`absolute w-[90vw] max-w-sm h-[60vh] bg-navy-accent rounded-3xl shadow-2xl p-6 flex flex-col justify-between cursor-grab ${isTop ? '' : 'pointer-events-none'} ${
+        booster === 'x2' ? 'border-2 border-electric-blue ring-2 ring-electric-blue/40'
+        : booster === 'x3' ? 'border-2 border-hot-red ring-2 ring-hot-red/40'
+        : 'border border-white/10'}`}
     >
+      {/* Odds not synced yet — block swiping */}
+      {isTop && !oddsReady && (
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-2 pointer-events-none">
+          <span className="w-2.5 h-2.5 rounded-full bg-warm-yellow animate-pulse" />
+          <p className="text-sm font-semibold text-warm-yellow bg-deep-navy/80 px-3 py-1.5 rounded-lg">Odds loading…</p>
+        </div>
+      )}
+
+      {/* Booster stamp */}
+      {booster && (
+        <div className={`absolute top-4 right-4 z-10 text-2xl font-extrabold px-3 py-1 rounded-xl rotate-[12deg] border-2 ${
+          booster === 'x2' ? 'text-electric-blue border-electric-blue bg-electric-blue/10'
+          : 'text-hot-red border-hot-red bg-hot-red/10'}`}>
+          {booster}
+        </div>
+      )}
       {isTop && (
         <>
           <motion.div style={{ opacity: opacityLeft }} className="absolute top-1/2 left-4 -translate-y-1/2 text-lime-glow font-bold text-3xl border-4 border-lime-glow px-4 py-2 rounded-xl rotate-[-15deg] pointer-events-none bg-lime-glow/10">
@@ -179,7 +202,7 @@ export const SwipeCard = memo<SwipeCardProps>(function SwipeCard({ match, onSwip
         </div>
       </div>
 
-      {/* Kickoff date at the bottom — formatted d-M-yyyy - HH:mm */}
+      {/* Kickoff date at the bottom — formatted EEE, MMM d · HH:mm */}
       <div className="text-center">
         <p className="text-sm text-text-secondary font-semibold">{kickoffLabel}</p>
       </div>

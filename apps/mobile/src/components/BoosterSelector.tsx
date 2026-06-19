@@ -27,16 +27,16 @@ const BoosterButton: React.FC<BoosterButtonProps> = ({ type, onClick, onCancel, 
   const baseClasses = "w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg border-2 transition-all duration-200";
   const colorClasses = {
     x2: {
-      base: 'bg-blue-100 text-blue-600 border-blue-300',
-      armed: 'ring-4 ring-blue-300 shadow-lg',
-      disabled: 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed',
-      applied: 'bg-blue-500 text-white border-blue-600 shadow-md',
+      base: 'bg-electric-blue/15 text-electric-blue border-electric-blue/40',
+      armed: 'ring-4 ring-electric-blue/40 shadow-lg',
+      disabled: 'bg-navy-accent text-text-disabled border-disabled cursor-not-allowed',
+      applied: 'bg-electric-blue text-white border-electric-blue shadow-md',
     },
     x3: {
-      base: 'bg-red-100 text-red-600 border-red-300',
-      armed: 'ring-4 ring-red-300 shadow-lg',
-      disabled: 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed',
-      applied: 'bg-red-500 text-white border-red-600 shadow-md',
+      base: 'bg-hot-red/15 text-hot-red border-hot-red/40',
+      armed: 'ring-4 ring-hot-red/40 shadow-lg',
+      disabled: 'bg-navy-accent text-text-disabled border-disabled cursor-not-allowed',
+      applied: 'bg-hot-red text-white border-hot-red shadow-md',
     }
   };
 
@@ -58,7 +58,7 @@ const BoosterButton: React.FC<BoosterButtonProps> = ({ type, onClick, onCancel, 
          <button
             onClick={(e) => { e.stopPropagation(); onCancel(); }}
             aria-label={`Cancel ${type} booster`}
-            className="absolute -top-1 -right-1 bg-white rounded-full text-gray-500 hover:text-red-500 z-10 flex items-center justify-center"
+            className="absolute -top-1 -right-1 bg-navy-accent rounded-full text-text-secondary hover:text-hot-red z-10 flex items-center justify-center"
          >
            <XCircle size={16} />
          </button>

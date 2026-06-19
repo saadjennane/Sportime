@@ -173,26 +173,20 @@ export function mapOutcomeToPrediction(outcome: SwipePredictionOutcome): 'home' 
 }
 
 /**
- * Get best odds from multiple bookmakers with reasonable defaults
- * Default odds (1.5, 3.5, 2.5) represent typical balanced match odds
+ * Get best odds. Returns 0 when no real odds exist (sentinel) — real odds are always
+ * > 1.0, so the UI detects "odds loading" and blocks the pick instead of faking numbers.
  */
 function getBestOdds(oddsArray?: Array<{ home_win: number; draw: number; away_win: number }>) {
-  // Reasonable default odds if none available
-  const DEFAULT_ODDS = { home: 1.5, draw: 3.5, away: 2.5 };
-
-  if (!oddsArray || oddsArray.length === 0) {
-    console.warn('No odds available, using defaults');
-    return DEFAULT_ODDS;
-  }
+  const NO_ODDS = { home: 0, draw: 0, away: 0 };
+  if (!oddsArray || oddsArray.length === 0) return NO_ODDS;
 
   // Take first odds (should be prioritized bookmaker from query)
   const odds = oddsArray[0];
 
-  // Validate each odds value - must be > 1.0 to be realistic
   return {
-    home: odds.home_win && odds.home_win > 1.0 ? odds.home_win : DEFAULT_ODDS.home,
-    draw: odds.draw && odds.draw > 1.0 ? odds.draw : DEFAULT_ODDS.draw,
-    away: odds.away_win && odds.away_win > 1.0 ? odds.away_win : DEFAULT_ODDS.away,
+    home: odds.home_win && odds.home_win > 1.0 ? odds.home_win : 0,
+    draw: odds.draw && odds.draw > 1.0 ? odds.draw : 0,
+    away: odds.away_win && odds.away_win > 1.0 ? odds.away_win : 0,
   };
 }
 

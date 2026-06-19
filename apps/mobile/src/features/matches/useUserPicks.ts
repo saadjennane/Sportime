@@ -80,7 +80,9 @@ export function useUserPicks(userBets: Bet[] = []): UseUserPicksReturn {
             league:fb_leagues!fb_fixtures_league_id_fkey(
               id,
               name,
-              logo
+              logo,
+              api_league_id,
+              season
             ),
             odds:fb_odds(home_win, draw, away_win, bookmaker_name)
           `)
@@ -111,7 +113,9 @@ export function useUserPicks(userBets: Bet[] = []): UseUserPicksReturn {
             league:fb_leagues!fb_fixtures_league_id_fkey(
               id,
               name,
-              logo
+              logo,
+              api_league_id,
+              season
             ),
             odds:fb_odds(home_win, draw, away_win, bookmaker_name)
           `)
@@ -145,7 +149,7 @@ export function useUserPicks(userBets: Bet[] = []): UseUserPicksReturn {
 
       const { data: teamsData } = await supabase
         .from('fb_teams')
-        .select('id, name, logo_url')
+        .select('id, name, logo_url, api_id')
         .in('id', allTeamIds);
 
       const teamsMap = new Map(teamsData?.map(t => [t.id, t]) || []);
@@ -229,6 +233,23 @@ export function useUserPicks(userBets: Bet[] = []): UseUserPicksReturn {
                   }
                 : undefined,
             result,
+            // Stats drawer needs API IDs. Built only when fixture + both teams have api_id,
+            // mirroring MatchesPage.toLegacyMatch so stats work from Picks/Finished/History too.
+            meta: (() => {
+              const fixtureId = typeof fixture.api_id === 'number' ? fixture.api_id : NaN;
+              const homeApi = typeof homeTeam.api_id === 'number' ? homeTeam.api_id : NaN;
+              const awayApi = typeof awayTeam.api_id === 'number' ? awayTeam.api_id : NaN;
+              return Number.isFinite(fixtureId) && Number.isFinite(homeApi) && Number.isFinite(awayApi)
+                ? {
+                    fixtureId,
+                    leagueId: fixture.league_id,
+                    apiLeagueId: fixture.league?.api_league_id ?? null,
+                    season: fixture.league?.season ?? null,
+                    homeTeamId: homeApi,
+                    awayTeamId: awayApi,
+                  }
+                : undefined;
+            })(),
           };
 
           return {

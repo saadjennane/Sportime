@@ -3,6 +3,7 @@ import { ArrowLeft, Search, X, Flame, Trophy, Share2 } from 'lucide-react';
 import { getGridToday, finishPlayer, getPuzzleStats, replayGame, GridToday } from '../services/puzzleService';
 import { getGridIndex, searchPlayers, fits, cellRarity, GridPlayer, GridCrit } from '../services/gridService';
 import { IndexedPlayer } from '../services/playerIndexService';
+import { GameResultModal } from '../components/funzone/GameResultModal';
 
 const DURATION = 180;
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -11,9 +12,9 @@ const doneKey = (g: string) => `sportime_gd_done_${g}`;
 const readDone = (g: string) => { try { const r = localStorage.getItem(doneKey(g)); return r ? JSON.parse(r) : null; } catch { return null; } };
 const saveDone = (g: string, date: string, st: any) => { try { for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k?.startsWith('sportime_gd_done_')) { try { if (JSON.parse(localStorage.getItem(k)!).date !== date) localStorage.removeItem(k); } catch { /**/ } } } localStorage.setItem(doneKey(g), JSON.stringify({ date, ...st })); } catch { /**/ } };
 
-interface Props { userId: string; onBack: () => void; addToast: (m: string, t: 'success' | 'error' | 'info') => void }
+interface Props { userId: string; onBack: () => void; addToast: (m: string, t: 'success' | 'error' | 'info') => void; initialLevel?: string }
 
-const GuessGridGame: React.FC<Props> = ({ onBack, addToast }) => {
+const GuessGridGame: React.FC<Props> = ({ onBack, addToast, initialLevel }) => {
   const [data, setData] = useState<GridToday | null>(null);
   const [loading, setLoading] = useState(true);
   const [ready, setReady] = useState(false);
@@ -43,7 +44,7 @@ const GuessGridGame: React.FC<Props> = ({ onBack, addToast }) => {
       const local = d.game ? readDone(d.game.id) : null;
       setData(d); if (d.level) setPickLevel(d.level);
       getPuzzleStats(undefined as any, 'grid').then(setStats).catch(() => {});
-      if (!d.has_prefs) { setConfig(true); return; }
+      if (!level && !d.has_prefs) { setConfig(true); return; }
       if (!d.game || !d.payload) return;
       if (d.play?.finished_at || local) {
         setCells(local?.cells ?? {});
@@ -54,7 +55,7 @@ const GuessGridGame: React.FC<Props> = ({ onBack, addToast }) => {
     } catch { addToast('Could not load', 'error'); }
     finally { setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(initialLevel); }, [load]);
   useEffect(() => { getGridIndex().then(setIndex).catch(() => {}); }, []);
   useEffect(() => {
     if (summary || !ready) return;
@@ -144,21 +145,20 @@ const GuessGridGame: React.FC<Props> = ({ onBack, addToast }) => {
   </div>);
 
   if (summary) {
-    const hasPct = summary.percentile != null;
-    const bucket = !hasPct ? '…' : summary.percentile <= 1 ? 'Top 1%' : summary.percentile <= 5 ? 'Top 5%' : summary.percentile <= 25 ? 'Top 25%' : summary.percentile <= 50 ? 'Top 50%' : 'Top 75%';
-    return Shell(<div className="text-center py-8">
-      <Trophy size={44} className="text-warm-yellow mx-auto mb-3" />
-      <h1 onClick={() => { devTaps.current += 1; if (devTaps.current >= 4) setDev(true); }} className="text-2xl font-extrabold text-text-primary">Time!</h1>
-      <p className="text-text-secondary">{summary.rounds_solved}/9 boxes · {summary.players ?? distinct} players</p>
-      <div className="grid grid-cols-3 gap-3 mt-6">
-        <div className="card-base p-3"><p className="text-xs text-text-secondary">Boxes</p><p className="text-base font-bold text-lime-glow">{summary.rounds_solved}/9</p></div>
-        <div className="card-base p-3"><p className="text-xs text-text-secondary">Percentile</p><p className="text-base font-bold text-lime-glow">{bucket}</p></div>
-        <div className="card-base p-3"><p className="text-xs text-text-secondary">Streak</p><p className="text-base font-bold text-hot-red">🔥 {summary.streak ?? '…'}</p></div>
-      </div>
-      <button onClick={shareReview} className="mt-5 w-full bg-lime-glow text-deep-navy font-extrabold py-3 rounded-xl flex items-center justify-center gap-2"><Share2 size={18} /> Share result</button>
-      {dev && <button onClick={replay} className="mt-3 text-electric-blue font-semibold text-sm">🔄 Play again</button>}
-      <button onClick={onBack} className="mt-3 w-full bg-navy-accent text-text-primary font-bold py-3 rounded-xl">Go to FunZone</button>
-    </div>);
+    return (
+      <GameResultModal
+        meta={{ icon: '⬛', label: 'Box2Box', accent: 'from-hot-red/30 to-warm-yellow/10' }}
+        gameType="grid"
+        statsLevel={data?.level}
+        xp={100}
+        hero={{ primary: `${summary.rounds_solved}/9 boxes`, sub: `${summary.players ?? distinct} players · ${data?.level ?? ''} difficulty` }}
+        percentile={summary.percentile}
+        onShare={shareReview}
+        onReplay={dev ? replay : undefined}
+        onBack={onBack}
+        onHeroTap={() => { devTaps.current += 1; if (devTaps.current >= 4) setDev(true); }}
+      />
+    );
   }
 
   if (!ready) return Shell(

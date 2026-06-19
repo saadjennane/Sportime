@@ -138,8 +138,6 @@ export async function detectAndSyncMissingOdds(
 export function hasMatchesWithMissingOdds(
   matches: Array<{ odds: { teamA: number; draw: number; teamB: number } }>
 ): boolean {
-  return matches.some(m =>
-    (m.odds.teamA === 1.5 && m.odds.draw === 3.5 && m.odds.teamB === 2.5) ||
-    (m.odds.teamA === 1 && m.odds.draw === 1 && m.odds.teamB === 1)
-  );
+  // Real odds are always > 1.0; anything <= 1 (incl. the 0 sentinel) means odds aren't ready.
+  return matches.some(m => m.odds.teamA <= 1 || m.odds.draw <= 1 || m.odds.teamB <= 1);
 }

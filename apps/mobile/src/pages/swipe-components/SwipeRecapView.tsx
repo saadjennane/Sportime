@@ -23,6 +23,7 @@ import { MatchDaySwitcher } from '../../components/fantasy/MatchDaySwitcher';
 import { GameInfoModal } from '../../components/GameInfoModal';
 import { LinkGameButton } from '../../components/leagues/LinkGameButton';
 import { mapPredictionToOutcome, extractMatchdayNumber } from '../../features/swipe/swipeMappers';
+import { SwipeBoosterBar, GameBoosters } from './SwipeBoosterBar';
 
 interface Challenge {
   id: string;
@@ -52,6 +53,10 @@ interface SwipeRecapViewProps {
   userLeagues: UserLeague[];
   leagueMembers: LeagueMember[];
   leagueGames: LeagueGame[];
+  gameBoosters?: GameBoosters;
+  currentMatchdayId?: string | null;
+  onApplyBooster?: (fixtureId: string, type: 'x2' | 'x3') => void;
+  onCancelBooster?: (fixtureId: string) => void;
 }
 
 // Stable empty array to prevent re-renders
@@ -121,9 +126,14 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
   userLeagues,
   leagueMembers,
   leagueGames,
+  gameBoosters,
+  currentMatchdayId,
+  onApplyBooster,
+  onCancelBooster,
 }) {
   const [isPicksVisible, setIsPicksVisible] = useState(true);
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
+  const [armedBooster, setArmedBooster] = useState<'x2' | 'x3' | null>(null);
 
   if (!challenge || !currentMatchday) {
     return (
@@ -170,7 +180,7 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
 
   // Calculate deadline from first match kickoff (more reliable than DB value)
   const deadline = firstMatchKickoff
-    ? format(new Date(firstMatchKickoff), "MMM d, yyyy 'at' h:mm a")
+    ? format(new Date(firstMatchKickoff), 'EEE, MMM d · HH:mm')
     : null;
 
   // Convert matchdays to switcher format
@@ -327,6 +337,19 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
         </div>
       )}
 
+      {isEditable && gameBoosters && onApplyBooster && (
+        <div className="card-base p-3">
+          <SwipeBoosterBar
+            gameBoosters={gameBoosters}
+            currentMatchdayId={currentMatchdayId ?? null}
+            armed={armedBooster}
+            onArm={setArmedBooster}
+            onCancel={(fid) => onCancelBooster?.(fid)}
+            armHint="Tap a predicted match below to apply"
+          />
+        </div>
+      )}
+
       <div className="card-base p-4">
         <div className="mb-4">
           <div className="flex justify-between items-center text-left">
@@ -405,12 +428,31 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
                       <div className="flex items-center gap-3 py-2">
                         <div className="flex-1 h-px bg-white/10"></div>
                         <span className="text-xs font-semibold text-text-secondary uppercase">
-                          {format(new Date(match.kickoffTime), 'EEEE, MMM d')}
+                          {format(new Date(match.kickoffTime), 'EEE, MMM d')}
                         </span>
                         <div className="flex-1 h-px bg-white/10"></div>
                       </div>
                     )}
-                    <div className="bg-deep-navy rounded-xl p-3 space-y-3">
+                    <div className={`bg-deep-navy rounded-xl p-3 space-y-3 ${
+                      predictionRecord?.booster === 'x2' ? 'ring-2 ring-electric-blue'
+                      : predictionRecord?.booster === 'x3' ? 'ring-2 ring-hot-red' : ''}`}>
+                  {/* Booster: applied stamp (with cancel) or apply-here button while arming */}
+                  {predictionRecord?.booster ? (
+                    <div className="flex items-center justify-between">
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-lg ${
+                        predictionRecord.booster === 'x2' ? 'text-electric-blue bg-electric-blue/15' : 'text-hot-red bg-hot-red/15'}`}>
+                        {predictionRecord.booster} boosted
+                      </span>
+                      {isEditable && onCancelBooster && (
+                        <button onClick={() => onCancelBooster(match.id)} className="text-xs text-text-secondary hover:text-hot-red">Cancel</button>
+                      )}
+                    </div>
+                  ) : (armedBooster && isEditable && predictionRecord && onApplyBooster) ? (
+                    <button onClick={() => { onApplyBooster(match.id, armedBooster); setArmedBooster(null); }}
+                      className="w-full text-xs font-bold text-warm-yellow bg-warm-yellow/15 border border-warm-yellow/30 rounded-lg py-1.5 hover:bg-warm-yellow/25">
+                      Apply {armedBooster} here
+                    </button>
+                  ) : null}
                   <div className="flex justify-end items-center gap-2 text-sm">
                     {/* Kickoff time */}
                     {match.kickoffTime && (
@@ -467,7 +509,7 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
                       )}
                       <span className="text-xs truncate max-w-[70px]">{abbreviateTeamName(match.teamA.name)}</span>
                       {isEditable && (
-                        <span className="text-xs opacity-70">@{match.odds.teamA.toFixed(2)}</span>
+                        <span className="text-xs opacity-70">{match.odds.teamA > 1 ? `@${match.odds.teamA.toFixed(2)}` : "—"}</span>
                       )}
                     </button>
                     <button
@@ -483,7 +525,7 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
                       <span className="text-lg">🤝</span>
                       <span className="text-xs">Draw</span>
                       {isEditable && (
-                        <span className="text-xs opacity-70">@{match.odds.draw.toFixed(2)}</span>
+                        <span className="text-xs opacity-70">{match.odds.draw > 1 ? `@${match.odds.draw.toFixed(2)}` : "—"}</span>
                       )}
                     </button>
                     <button
@@ -510,7 +552,7 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
                       )}
                       <span className="text-xs truncate max-w-[70px]">{abbreviateTeamName(match.teamB.name)}</span>
                       {isEditable && (
-                        <span className="text-xs opacity-70">@{match.odds.teamB.toFixed(2)}</span>
+                        <span className="text-xs opacity-70">{match.odds.teamB > 1 ? `@${match.odds.teamB.toFixed(2)}` : "—"}</span>
                       )}
                     </button>
                   </div>

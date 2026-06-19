@@ -24,8 +24,15 @@ import type {
   LeagueGame,
   Game,
 } from '../types';
-import type { ChallengeMatchday, SwipePredictionRecord } from '../services/swipeGameService';
+import type { ChallengeMatchday, SwipePredictionRecord, BoosterUse } from '../services/swipeGameService';
 import * as swipeService from '../services/swipeGameService';
+
+type BoosterType = 'x2' | 'x3';
+interface GameBoosters { x2: BoosterUse | null; x3: BoosterUse | null; }
+const deriveBoosters = (uses: BoosterUse[]): GameBoosters => ({
+  x2: uses.find(u => u.booster === 'x2') || null,
+  x3: uses.find(u => u.booster === 'x3') || null,
+});
 import {
   fixturesToSwipeMatches,
   mapOutcomeToPrediction,
@@ -90,6 +97,7 @@ interface SwipeFlowPageProps {
   leagueMembers: LeagueMember[];
   leagueGames: LeagueGame[];
   onLinkGame: (game: Game) => void;
+  addToast?: (message: string, type?: 'success' | 'error' | 'info') => void;
 }
 
 // ============================================================================
@@ -139,10 +147,18 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
   leagueMembers,
   leagueGames,
   onLinkGame,
+  addToast,
 }) => {
   const [state, setState] = useState<SwipeState>(INITIAL_STATE);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [gameBoosters, setGameBoosters] = useState<GameBoosters>({ x2: null, x3: null });
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const reloadBoosters = async () => {
+    if (!userId) return;
+    try { setGameBoosters(deriveBoosters(await swipeService.getChallengeBoosters(challengeId, userId))); }
+    catch { /* ignore */ }
+  };
 
   // =========================================================================
   // DATA LOADING
@@ -268,6 +284,14 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
           if (!isMounted) return;
         }
 
+        // Load game-wide booster placements (one x2 + one x3 per game).
+        if (userId) {
+          try {
+            const uses = await swipeService.getChallengeBoosters(challengeId, userId);
+            if (isMounted) setGameBoosters(deriveBoosters(uses));
+          } catch { /* ignore */ }
+        }
+
         // Determine initial view based on matchday state and predictions
         const hasPredictions = Object.keys(predictions).length > 0;
 
@@ -283,8 +307,11 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
         // Otherwise, show cards if no predictions yet
         const initialView: ViewMode = isMatchdayLocked || hasPredictions ? 'recap' : 'cards';
 
-        setState({
-          view: initialView,
+        // On the silent odds-refresh (refreshKey > 0) we ONLY want fresh odds/data —
+        // keep the user where they are (recap/leaderboard/edit) instead of snapping back.
+        const isRefresh = refreshKey > 0;
+        setState(prev => ({
+          view: isRefresh ? prev.view : initialView,
           challenge: {
             id: challenge.id,
             name: challenge.name,
@@ -298,20 +325,18 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
           currentMatchday,
           matches,
           predictions,
-          leaderboard: [],
+          leaderboard: isRefresh ? prev.leaderboard : [],
           userStats,
-          userPosition: null,
+          userPosition: isRefresh ? prev.userPosition : null,
           error: null,
           isSaving: false,
-          editMode: false,
-        });
+          editMode: isRefresh ? prev.editMode : false,
+        }));
 
-        // Check if any matches have missing/default odds and schedule a refresh
-        // This happens after the sync-odds edge function is triggered by swipeGameService
+        // Check if any matches have missing/default odds and schedule a single refresh
+        // (after the sync-odds edge function triggered by swipeGameService).
         if (hasMatchesWithMissingOdds(matches) && refreshKey === 0) {
-          console.log('[SwipeFlowPage] Detected matches with missing odds, scheduling refresh in 10s...');
           refreshTimeoutRef.current = setTimeout(() => {
-            console.log('[SwipeFlowPage] Refreshing data after odds sync...');
             setRefreshKey(prev => prev + 1);
           }, 10000);
         }
@@ -341,11 +366,14 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
   // HANDLERS (plain functions, not useCallback - memo on children handles it)
   // =========================================================================
 
-  function handleSwipe(matchId: string, prediction: SwipePredictionOutcome) {
+  function handleSwipe(matchId: string, prediction: SwipePredictionOutcome, booster?: BoosterType) {
     if (!state.currentMatchday || !userId) return;
 
     const match = state.matches.find(m => m.id === matchId);
     if (!match) return;
+
+    // Remember the prior pick so we can roll back if the save fails.
+    const prevRecord = state.predictions[matchId];
 
     // Optimistic update
     const dbPrediction = mapOutcomeToPrediction(prediction);
@@ -389,21 +417,85 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
           away: match.odds.teamB,
         },
       })
-      .then(savedRecord => {
-        if (!savedRecord) return; // keep the optimistic record
-        // Update with the real persisted record
-        setState(prev => ({
-          ...prev,
-          predictions: {
-            ...prev.predictions,
-            [matchId]: savedRecord,
-          },
-        }));
+      .then(async savedRecord => {
+        // Update with the real persisted record (keep any optimistic booster).
+        if (savedRecord) {
+          setState(prev => ({
+            ...prev,
+            predictions: {
+              ...prev.predictions,
+              [matchId]: { ...savedRecord, booster: prev.predictions[matchId]?.booster ?? null },
+            },
+          }));
+        }
+        // Apply the booster only once the pick is actually persisted (avoids no_prediction).
+        if (booster && state.currentMatchday) {
+          await applyBooster(matchId, booster);
+        }
       })
       .catch(err => {
         console.error('[SwipeFlowPage] Error saving prediction:', err);
-        // Could show toast here, but keep optimistic update
+        // Roll back the optimistic pick and tell the user — never leave a phantom pick.
+        setState(prev => {
+          const next = { ...prev.predictions };
+          if (prevRecord) next[matchId] = prevRecord; else delete next[matchId];
+          return { ...prev, predictions: next };
+        });
+        const msg = String(err?.message || '').includes('odds_not_ready')
+          ? 'Odds not ready yet — try again in a moment'
+          : 'Could not save your pick — try again';
+        addToast?.(msg, 'error');
       });
+  }
+
+  // Undo the last pick (re-show its card so the user can re-pick).
+  function handleUndo(matchId: string) {
+    setState(prev => {
+      const next = { ...prev.predictions };
+      delete next[matchId];
+      return { ...prev, predictions: next };
+    });
+  }
+
+  // Apply a booster to a predicted match (one x2 + one x3 per game).
+  async function applyBooster(fixtureId: string, type: BoosterType) {
+    const md = state.currentMatchday;
+    if (!md) return;
+    // Optimistic: stamp this match, free the type from any other local match.
+    setState(prev => {
+      const next: Record<string, SwipePredictionRecord> = {};
+      for (const [fid, rec] of Object.entries(prev.predictions)) {
+        next[fid] = rec.booster === type && fid !== fixtureId ? { ...rec, booster: null } : rec;
+      }
+      if (next[fixtureId]) next[fixtureId] = { ...next[fixtureId], booster: type };
+      return { ...prev, predictions: next };
+    });
+    setGameBoosters(prev => ({ ...prev, [type]: { fixture_id: fixtureId, matchday_id: md.id, booster: type } }));
+    try {
+      await swipeService.setSwipeBooster(challengeId, md.id, fixtureId, type);
+      await reloadBoosters();
+    } catch {
+      addToast?.('Could not apply booster — try again', 'error');
+      await reloadBoosters();
+    }
+  }
+
+  async function handleCancelBooster(fixtureId: string) {
+    const md = state.currentMatchday;
+    if (!md) return;
+    const type = state.predictions[fixtureId]?.booster;
+    setState(prev => ({
+      ...prev,
+      predictions: { ...prev.predictions, [fixtureId]: { ...prev.predictions[fixtureId], booster: null } },
+    }));
+    if (type) setGameBoosters(prev => ({ ...prev, [type]: null }));
+    try {
+      await swipeService.setSwipeBooster(challengeId, md.id, fixtureId, null);
+      await reloadBoosters();
+    } catch {
+      addToast?.('Could not cancel booster — try again', 'error');
+      await reloadBoosters();
+    }
   }
 
   function handleSwipeComplete() {
@@ -529,9 +621,13 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
         hasSeenTutorial={hasSeenSwipeTutorial}
         onDismissTutorial={onDismissTutorial}
         onSwipe={handleSwipe}
+        onUndo={handleUndo}
         onComplete={handleSwipeComplete}
         onExit={state.editMode ? handleGoToRecap : onExit}
         editMode={state.editMode}
+        gameBoosters={gameBoosters}
+        currentMatchdayId={state.currentMatchday?.id ?? null}
+        onCancelBooster={handleCancelBooster}
       />
     );
   }
@@ -556,6 +652,10 @@ export const SwipeFlowPage: React.FC<SwipeFlowPageProps> = ({
         userLeagues={userLeagues}
         leagueMembers={leagueMembers}
         leagueGames={leagueGames}
+        gameBoosters={gameBoosters}
+        currentMatchdayId={state.currentMatchday?.id ?? null}
+        onApplyBooster={applyBooster}
+        onCancelBooster={handleCancelBooster}
       />
     );
   }

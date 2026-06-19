@@ -222,6 +222,43 @@ export async function editLivePrediction(gameId: string, home: number, away: num
 }
 
 /**
+ * Per-mode play state for a fixture's Play chooser: have I joined each live game,
+ * and completed its action (predicted / built XI)? Used to show status pills.
+ */
+export interface MatchModes {
+  prediction: { joined: boolean; predicted: { home: number; away: number } | null; status: string | null };
+  matchRoyale: { joined: boolean; partStatus: string | null; gameStatus: string | null } | null;
+  liveFantasy: { joined: boolean; complete: boolean; status: string | null } | null;
+}
+
+export async function getMyMatchModes(fixtureId: string, userId: string): Promise<MatchModes | null> {
+  if (!supabase) return null;
+
+  // Live Prediction — the user's (non-finished or any) game for this fixture.
+  const { data: lg } = await supabase.rpc('get_user_live_games', { p_user_id: userId });
+  const pred = (Array.isArray(lg) ? lg : []).find((g: any) => g.fixture_id === fixtureId);
+  const prediction = { joined: !!pred, predicted: pred?.predicted_score ?? null, status: pred?.status ?? null };
+
+  // Match Royale — most recent game for the fixture + my participation.
+  let matchRoyale: MatchModes['matchRoyale'] = null;
+  const { data: mrG } = await supabase.from('mr_games').select('id, status').eq('fixture_id', fixtureId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+  if (mrG?.id) {
+    const { data: part } = await supabase.from('mr_participants').select('status').eq('game_id', mrG.id).eq('user_id', userId).maybeSingle();
+    matchRoyale = { joined: !!part, partStatus: part?.status ?? null, gameStatus: mrG.status ?? null };
+  }
+
+  // Live Fantasy — most recent game for the fixture + my team.
+  let liveFantasy: MatchModes['liveFantasy'] = null;
+  const { data: lfG } = await supabase.from('lf_games').select('id, status').eq('fixture_id', fixtureId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+  if (lfG?.id) {
+    const { data: team } = await supabase.from('lf_teams').select('captain_player_id').eq('game_id', lfG.id).eq('user_id', userId).maybeSingle();
+    liveFantasy = { joined: !!team, complete: !!team?.captain_player_id, status: lfG.status ?? null };
+  }
+
+  return { prediction, matchRoyale, liveFantasy };
+}
+
+/**
  * Join a game using friend code
  */
 export async function joinByFriendCode(code: string): Promise<LiveGameEntry | null> {

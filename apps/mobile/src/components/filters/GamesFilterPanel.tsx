@@ -91,7 +91,7 @@ export const GamesFilterPanel: React.FC<GamesFilterPanelProps> = ({ filters, onF
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <select name="type" value={filters.type} onChange={handleSelectChange} className="input-base text-sm">
                   <option value="all">All Types</option>
-                  <option value="betting">Betting</option>
+                  <option value="betting">Pick'em</option>
                   <option value="prediction">Prediction</option>
                   <option value="fantasy">Fantasy</option>
                 </select>

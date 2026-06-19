@@ -1318,6 +1318,7 @@ export interface ChallengeLeaderboardRow {
   username: string
   points: number
   rank: number
+  isSubscriber?: boolean
 }
 
 /**
@@ -1337,19 +1338,20 @@ export async function fetchChallengeLeaderboard(challengeId: string): Promise<Ch
   const ids = (parts as Array<{ user_id: string }>).map(p => p.user_id)
   const { data: profs } = await supabase
     .from('profiles')
-    .select('id, username, display_name')
+    .select('id, username, display_name, is_subscriber')
     .in('id', ids)
 
-  const nameById = new Map<string, string>(
-    ((profs as Array<{ id: string; username: string | null; display_name: string | null }>) ?? [])
-      .map(p => [p.id, p.username || p.display_name || 'Player'] as [string, string])
+  const profById = new Map<string, { name: string; sub: boolean }>(
+    ((profs as Array<{ id: string; username: string | null; display_name: string | null; is_subscriber: boolean | null }>) ?? [])
+      .map(p => [p.id, { name: p.username || p.display_name || 'Player', sub: !!p.is_subscriber }] as [string, { name: string; sub: boolean }])
   )
 
   return (parts as Array<{ user_id: string; points: number | null; rank: number | null }>).map((p, i) => ({
     userId: p.user_id,
-    username: nameById.get(p.user_id) ?? 'Player',
+    username: profById.get(p.user_id)?.name ?? 'Player',
     points: p.points ?? 0,
     rank: p.rank ?? i + 1,
+    isSubscriber: profById.get(p.user_id)?.sub ?? false,
   }))
 }
 
@@ -1446,7 +1448,7 @@ function extractMatchdayNumber(round: string): number {
 }
 
 function preferOdds(raw: RawMatchday['matchday_fixtures'][number]['fixture']['odds']): { teamA: number; draw: number; teamB: number } {
-  const defaultOdds = { teamA: 1, draw: 1, teamB: 1 }
+  const defaultOdds = { teamA: 0, draw: 0, teamB: 0 }
   if (!raw) return defaultOdds
   const oddsArray = Array.isArray(raw) ? raw : [raw]
   if (oddsArray.length === 0) return defaultOdds
@@ -1597,15 +1599,12 @@ async function buildMatchesFromChallengeMatches(challengeId: string, rows: Chall
               : 'teamB'
           : undefined
 
-      // Fetch real odds from oddsMap, fallback to defaults
+      // Fetch real odds from oddsMap. 0 = no real odds yet (the UI shows "odds loading"
+      // and the bet is disabled — real odds are always > 1.0).
       const fixtureId = match.fixture_id
       const odds = fixtureId && oddsMap.has(fixtureId)
         ? oddsMap.get(fixtureId)!
-        : {
-            teamA: 2.0,
-            draw: 3.2,
-            teamB: 2.4,
-          }
+        : { teamA: 0, draw: 0, teamB: 0 }
 
       return {
         // Use fixture_id to match with challenge_bets.challenge_match_id
@@ -1917,9 +1916,7 @@ export async function fetchChallengeMatches(challengeId: string) {
     throw countError
   }
 
-  console.log('[fetchChallengeMatches] challengeRow.challenge_matchdays:', challengeRow.challenge_matchdays)
   let matches = buildChallengeMatches(challengeId, challengeRow.challenge_matchdays as RawMatchday[])
-  console.log('[fetchChallengeMatches] Built matches from matchdays:', matches.length)
 
   // Filter matches by end_date using date-only string comparison to avoid timezone issues
   // new Date("2025-12-06") creates UTC midnight, but setHours() uses local time
@@ -1933,12 +1930,10 @@ export async function fetchChallengeMatches(challengeId: string) {
       return matchDateStr <= endDateStr
     })
     if (matches.length < beforeFilter) {
-      console.log(`[fetchChallengeMatches] Filtered out ${beforeFilter - matches.length} matches after end_date (${challengeRow.end_date})`)
     }
   }
 
   if (matches.length === 0) {
-    console.log('[fetchChallengeMatches] No matches from matchdays, trying challenge_matches fallback...')
     const { data: directRows, error: directError } = await supabase
       .from('challenge_matches')
       .select(`
@@ -1974,7 +1969,6 @@ export async function fetchChallengeMatches(challengeId: string) {
 
   // 3rd fallback: Auto-generate matches from fb_fixtures for betting games
   if (matches.length === 0 && challengeRow.game_type?.toLowerCase() === 'betting') {
-    console.log('[fetchChallengeMatches] No matches found, auto-generating from fb_fixtures...')
     const leagueId = (challengeRow.challenge_leagues as Array<{ league_id: string }> | null)?.[0]?.league_id
 
     if (leagueId) {
@@ -2015,7 +2009,6 @@ export async function fetchChallengeMatches(challengeId: string) {
       if (fixturesError) {
         console.error('[fetchChallengeMatches] Failed to fetch fb_fixtures', fixturesError)
       } else if (fixturesData && fixturesData.length > 0) {
-        console.log('[fetchChallengeMatches] Found', fixturesData.length, 'fixtures from fb_fixtures')
 
         // Group fixtures by matchday based on period_type
         const matchdayMap = new Map<string, Array<typeof fixturesData[0]>>()
@@ -2086,7 +2079,6 @@ export async function fetchChallengeMatches(challengeId: string) {
           }
         })
 
-        console.log('[fetchChallengeMatches] Auto-generated', matches.length, 'matches from fb_fixtures')
       }
     }
   }
@@ -2100,7 +2092,6 @@ export async function fetchChallengeMatches(challengeId: string) {
   )
 
   if (matchesWithDefaultOdds.length > 0) {
-    console.log(`[fetchChallengeMatches] ${matchesWithDefaultOdds.length} matches have default odds, triggering sync...`)
 
     // Get league_id from challenge_leagues
     const leagueId = (challengeRow.challenge_leagues as Array<{ league_id: string }> | null)?.[0]?.league_id
@@ -2217,9 +2208,9 @@ export async function fetchFixtureOdds(fixtureId: string): Promise<{
   }
 
   return {
-    teamA: selectedOdds.home_win ?? 2.0,
-    draw: selectedOdds.draw ?? 3.2,
-    teamB: selectedOdds.away_win ?? 2.4,
+    teamA: selectedOdds.home_win ?? 0,
+    draw: selectedOdds.draw ?? 0,
+    teamB: selectedOdds.away_win ?? 0,
   }
 }
 
@@ -2269,9 +2260,9 @@ export async function fetchMultipleFixtureOdds(
     }
 
     oddsMap.set(fixtureId, {
-      teamA: selectedOdds.home_win ?? 2.0,
-      draw: selectedOdds.draw ?? 3.2,
-      teamB: selectedOdds.away_win ?? 2.4,
+      teamA: selectedOdds.home_win ?? 0,
+      draw: selectedOdds.draw ?? 0,
+      teamB: selectedOdds.away_win ?? 0,
     })
   }
 

@@ -26,6 +26,11 @@ export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ 
   // so the displayed odds always match what the server actually scored.
   const displayOdds = match.status === 'played' && bet?.oddsSnapshot ? bet.oddsSnapshot : odds;
 
+  // Real odds are always > 1.0; <= 1 means odds aren't synced yet → not bettable.
+  const oddsReady = match.status === 'played'
+    ? true
+    : displayOdds.teamA > 1 && displayOdds.draw > 1 && displayOdds.teamB > 1;
+
   // No level-based bet limits in betting games - only the daily 1000 coins limit applies
   const effectiveMaxAmount = maxAmount;
 
@@ -84,13 +89,13 @@ export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ 
     return (
       <button
         onClick={() => handlePredictionClick(prediction)}
-        disabled={disabled}
+        disabled={disabled || !oddsReady}
         className={`flex-1 p-2 border-2 rounded-lg text-center transition-all ${
           isSelected ? 'bg-electric-blue/20 border-electric-blue' : 'bg-deep-navy border-disabled hover:border-electric-blue/50'
-        } ${disabled ? 'cursor-not-allowed bg-navy-accent' : ''} ${isWinningOutcome ? '!bg-lime-glow/20 !border-lime-glow' : ''}`}
+        } ${disabled || !oddsReady ? 'cursor-not-allowed bg-navy-accent' : ''} ${isWinningOutcome ? '!bg-lime-glow/20 !border-lime-glow' : ''}`}
       >
         <div className="text-sm font-semibold text-text-primary">{label}</div>
-        <div className="text-xs text-electric-blue">@{odd.toFixed(2)}</div>
+        <div className="text-xs text-electric-blue">{oddsReady ? `@${odd.toFixed(2)}` : '—'}</div>
       </button>
     );
   };
@@ -98,7 +103,7 @@ export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ 
   return (
     <div className={`bg-navy-accent rounded-xl p-3 space-y-3 border-2 relative ${selectedPrediction ? 'border-electric-blue/50' : 'border-transparent'} ${disabled && match.status === 'played' ? 'opacity-70' : ''}`}>
       {isBoosted && (
-        <span className={`absolute -top-2 -right-2 text-xs font-bold px-2 py-1 rounded-full text-white shadow-lg ${boosterType === 'x2' ? 'bg-blue-500' : 'bg-red-500'}`}>
+        <span className={`absolute -top-2 -right-2 text-xs font-bold px-2 py-1 rounded-full text-white shadow-lg ${boosterType === 'x2' ? 'bg-electric-blue' : 'bg-hot-red'}`}>
           {boosterType === 'x2' ? 'x2 🔥' : 'x3 🚀'}
         </span>
       )}
@@ -113,6 +118,12 @@ export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ 
         }
         status={match.status === 'played' ? { text: 'FT', variant: 'finished' } : undefined}
       />
+      {!oddsReady && (
+        <div className="flex items-center justify-center gap-2 text-xs text-text-disabled bg-deep-navy/60 rounded-lg py-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-warm-yellow animate-pulse" />
+          Odds loading — pick available shortly
+        </div>
+      )}
       <div className="flex gap-2">
         <BetOption label={teamA.name} odd={displayOdds.teamA} prediction="teamA" />
         <BetOption label="Draw" odd={displayOdds.draw} prediction="draw" />
@@ -123,7 +134,7 @@ export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ 
           type="number"
           value={amount}
           onChange={handleAmountChange}
-          placeholder="Bet amount"
+          placeholder="Pick amount"
           disabled={!selectedPrediction || disabled}
           max={effectiveMaxAmount}
           min="0"
@@ -137,7 +148,7 @@ export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ 
                 onClick={() => onBetChange(selectedPrediction, qAmount)}
                 className="flex-1 py-1.5 px-2 bg-deep-navy hover:bg-electric-blue/20 rounded-lg text-xs font-semibold text-text-secondary hover:text-electric-blue transition-colors"
               >
-                {qAmount === effectiveMaxAmount ? 'All In' : qAmount.toLocaleString()}
+                {qAmount === effectiveMaxAmount ? 'Max' : qAmount.toLocaleString()}
               </button>
             ))}
           </div>
@@ -162,17 +173,13 @@ export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ 
       {/* Bet Result Summary - Show when match is played and user had a bet */}
       {match.status === 'played' && bet && bet.amount > 0 && (
         <div className="mt-3 p-3 rounded-lg bg-deep-navy border border-white/10">
-          {/* Score */}
-          <div className="text-center text-lg font-bold text-text-primary mb-2">
-            {teamA.name} {match.score?.teamA ?? '?'} - {match.score?.teamB ?? '?'} {teamB.name}
-          </div>
-          {/* Bet result */}
+          {/* Pick result (score already shown in the header row above) */}
           <div className="flex items-center justify-center gap-2">
             {bet.prediction === match.result ? (
               <>
                 <CheckCircle2 className="text-lime-glow" size={18} />
                 <span className="text-lime-glow font-bold">
-                  Won +{Math.round(bet.amount * odds[bet.prediction])} coins
+                  Won +{Math.round(bet.pointsEarned ?? bet.amount * displayOdds[bet.prediction])} coins
                 </span>
               </>
             ) : (
@@ -185,10 +192,10 @@ export const ChallengeBetController: React.FC<ChallengeBetControllerProps> = ({ 
             )}
           </div>
           <div className="text-center text-xs text-text-secondary mt-1">
-            Bet: {bet.amount} on {
+            Pick: {bet.amount} on {
               bet.prediction === 'teamA' ? teamA.name :
               bet.prediction === 'teamB' ? teamB.name : 'Draw'
-            } @{odds[bet.prediction].toFixed(2)}
+            } @{displayOdds[bet.prediction].toFixed(2)}
           </div>
         </div>
       )}

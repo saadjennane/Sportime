@@ -9,6 +9,7 @@ import { MatchDaySwitcher } from '../components/fantasy/MatchDaySwitcher';
 import { addDays, parseISO, isBefore, format } from 'date-fns';
 import { GameInfoModal } from '../components/GameInfoModal';
 import { LinkGameButton } from '../components/leagues/LinkGameButton';
+import { PullToRefresh } from '../components/PullToRefresh';
 
 interface ChallengeRoomPageProps {
   challenge: Challenge;
@@ -65,6 +66,9 @@ const getGroupKeyForMatch = (match: ChallengeMatch, periodType: 'matchdays' | 'c
 const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   const { challenge, matches, userEntry, onUpdateDailyBets, onSetDailyBooster, onBack, onViewLeaderboard, boosterInfoPreferences, onUpdateBoosterPreferences, onLinkGame, profile, userLeagues, leagueMembers, leagueGames, onRefreshMatches } = props;
 
+  // Per-group bankroll — honor the challenge's configured balance (leaderboard uses it too).
+  const dailyBalance = challenge.challengeBalance ?? 1000;
+
   // Open the room scrolled to the top (the shared scroll region keeps its position).
   useEffect(() => {
     document.getElementById('app-scroll')?.scrollTo({ top: 0 });
@@ -82,7 +86,6 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
     if (!hasLiveMatches) return;
 
     const interval = setInterval(() => {
-      console.log('[ChallengeRoomPage] Auto-refreshing match scores...');
       onRefreshMatches();
     }, 20000); // 20 seconds
 
@@ -289,18 +292,12 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   // Get bets and calculate remaining balance for current group
   // For calendar mode, we need to aggregate bets across all matchdays in the group
   const { groupBets, remainingGroupBalance, groupBooster } = useMemo(() => {
-    if (!currentGroup) return { groupBets: [], remainingGroupBalance: 1000, groupBooster: undefined };
+    if (!currentGroup) return { groupBets: [], remainingGroupBalance: dailyBalance, groupBooster: undefined };
 
     // Get all daily entries that belong to this group
-    const dailyBalance = 1000;
     let totalBet = 0;
     let bets: ChallengeBet[] = [];
     let booster: BoosterSelection | undefined;
-
-    // DEBUG: Log IDs for comparison
-    console.log('[DEBUG groupBets] Challenge:', challenge.name);
-    console.log('[DEBUG groupBets] Match IDs in group:', currentGroup.matches.map(m => m.id));
-    console.log('[DEBUG groupBets] All bet challengeMatchIds:', userEntry.dailyEntries.flatMap(d => d.bets.map(b => b.challengeMatchId)));
 
     currentGroup.matchdays.forEach(matchday => {
       const dailyEntry = userEntry.dailyEntries.find(d => d.day === matchday);
@@ -308,9 +305,6 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
         // Only include bets for matches that are actually in this group
         const matchIdsInGroup = new Set(currentGroup.matches.map(m => m.id));
         const groupBetsFromDay = dailyEntry.bets.filter(b => matchIdsInGroup.has(b.challengeMatchId));
-
-        // DEBUG: Log filtering results
-        console.log('[DEBUG groupBets] Matchday:', matchday, 'All bets:', dailyEntry.bets.length, 'Filtered bets:', groupBetsFromDay.length);
 
         bets = [...bets, ...groupBetsFromDay];
         totalBet += groupBetsFromDay.reduce((sum, b) => sum + b.amount, 0);
@@ -328,17 +322,11 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   const handleBetChange = (matchId: string, prediction: 'teamA' | 'draw' | 'teamB' | null, amount: number) => {
     // Find which matchday this match belongs to
     const match = matches.find(m => m.id === matchId);
-    if (!match) {
-      console.log('[handleBetChange] Match not found:', matchId);
-      return;
-    }
-
-    console.log('[handleBetChange] Processing bet for match day:', match.day, 'Available dailyEntries:', userEntry.dailyEntries.map(d => d.day));
+    if (!match) return;
 
     let dailyEntry = userEntry.dailyEntries.find(d => d.day === match.day);
     if (!dailyEntry) {
       // Create a new daily entry for this day if it doesn't exist
-      console.log('[handleBetChange] Creating new dailyEntry for day:', match.day);
       dailyEntry = { day: match.day, bets: [] };
       // We'll pass the new bets directly since we're updating anyway
     }
@@ -351,7 +339,7 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
       // Auto-allocate full daily balance if there's only one match in this group
       let finalAmount = amount;
       if (currentGroup && currentGroup.matches.length === 1 && amount === 0) {
-        finalAmount = 1000; // dailyBalance
+        finalAmount = dailyBalance;
       }
       newBets = [...otherBets, { challengeMatchId: matchId, prediction, amount: finalAmount }];
     }
@@ -406,7 +394,7 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   };
 
   // Authoritative rank from the server leaderboard (settle-computed).
-  const { rows: leaderboardRows } = useChallengeLeaderboard(challenge.id);
+  const { rows: leaderboardRows, refresh: refreshLeaderboard } = useChallengeLeaderboard(challenge.id);
   const { rank, totalPlayers } = useMemo(() => {
     const me = leaderboardRows.find(r => r.userId === userEntry.user_id);
     return {
@@ -415,7 +403,14 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
     };
   }, [leaderboardRows, userEntry.user_id, challenge.totalPlayers]);
 
-  const dailyBalance = 1000;
+  // Keep the in-room rank fresh while matches are live (alongside the 20s score poll).
+  useEffect(() => {
+    const LIVE_STATUSES = ['1H', 'HT', '2H', 'ET', 'P', 'BT', 'SUSP', 'INT', 'LIVE'];
+    const hasLive = matches.some(m => m.status && LIVE_STATUSES.includes(m.status.toUpperCase()));
+    if (!hasLive) return;
+    const interval = setInterval(() => { refreshLeaderboard(); }, 20000);
+    return () => clearInterval(interval);
+  }, [matches, refreshLeaderboard]);
 
   const formatNumberShort = (num: number) => {
     if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
@@ -466,6 +461,7 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   const challengeTotalPoints = userEntry.serverPoints ?? calculateChallengePoints(userEntry, matches);
 
   return (
+    <PullToRefresh onRefresh={async () => { onRefreshMatches?.(); refreshLeaderboard(); }}>
     <div className="space-y-6">
       {/* Header with Back, Total Points (centered), and Actions — stays fixed on scroll */}
       <header className="sticky top-0 z-20 -mx-4 px-4 py-3 bg-deep-navy flex items-center justify-between">
@@ -593,7 +589,7 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
                       <div key={`sep-${dateKey}`} className="flex items-center gap-2 py-2">
                         <div className="flex-1 h-px bg-white/10" />
                         <span className="text-xs text-text-secondary font-medium">
-                          {format(new Date(dateKey), 'EEE, MMM d')}
+                          {format(parseISO(dateKey), 'EEE, MMM d')}
                         </span>
                         <div className="flex-1 h-px bg-white/10" />
                       </div>
@@ -604,7 +600,6 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
                   dateMatches.forEach(match => {
                     const bet = groupBets.find(b => b.challengeMatchId === match.id);
                     const locked = isMatchLocked(match);
-                    console.log('[BET DEBUG]', match.teamA.name, 'vs', match.teamB.name, { kickoffTime: match.kickoffTime, locked, challengeStatus: challenge.status, now: Date.now(), kickoffMs: match.kickoffTime ? new Date(match.kickoffTime).getTime() : null });
                     elements.push(
                       <ChallengeBetController
                         key={match.id}
@@ -641,6 +636,7 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
       )}
       <GameInfoModal isOpen={isInfoModalOpen} onClose={() => setIsInfoModalOpen(false)} game={challenge} />
     </div>
+    </PullToRefresh>
   );
 };
 

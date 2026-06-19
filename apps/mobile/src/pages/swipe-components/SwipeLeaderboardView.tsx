@@ -133,8 +133,10 @@ export const SwipeLeaderboardView = memo<SwipeLeaderboardViewProps>(function Swi
 
         <div className="space-y-2">
           {displayedLeaderboard.length === 0 ? (
-            <div className="text-center py-8 text-text-disabled">
-              <p>No participants yet</p>
+            <div className="card-base p-8 text-center">
+              <div className="text-5xl mb-3">🏁</div>
+              <p className="text-text-secondary font-medium">No players yet</p>
+              <p className="text-sm text-text-disabled mt-1">Be the first to make your picks.</p>
             </div>
           ) : (
             displayedLeaderboard.map(entry => {

@@ -115,7 +115,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onBet, onViewStats,
             disabled={!hasAnyOdds}
             className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-electric-blue rounded-lg text-sm font-bold text-white hover:bg-electric-blue/90 transition-colors disabled:opacity-50"
           >
-            <TrendingUp size={14} /> Bet
+            <TrendingUp size={14} /> Pick
           </button>
         ) : isLive ? (
           <div className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-navy-accent/50 rounded-lg text-sm font-semibold text-text-disabled">

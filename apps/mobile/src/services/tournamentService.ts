@@ -13,7 +13,7 @@ export interface TQFormat {
   groups_count: number; teams_count: number; teams_per_group: number;
   knockout_participants: number; knockout_rounds: string[]; best_thirds: number; third_place_match: boolean;
 }
-export interface TQLongTerm { champion_team_id: string | null; finalist_team_id: string | null; top_scorer_player_id: number | null; total_goals_prediction: number | null; points_awarded: number; }
+export interface TQLongTerm { champion_team_id: string | null; finalist_team_id: string | null; top_scorer_player_id: string | null; total_goals_prediction: number | null; points_awarded: number; }
 export interface TQGroupPick { group_id: string; predicted_team_id: string; predicted_position: number; points_awarded: number; }
 export interface TQDailyPick { match_id: string; predicted_result: string | null; predicted_goal_diff_bucket: string | null; predicted_first_scorer_team_id: string | null; predicted_score_a: number | null; predicted_score_b: number | null; points_awarded: number; }
 export interface TQBracketPick { round_key: string; predicted_winner_team_id: string; points_awarded: number; }
@@ -30,23 +30,30 @@ export interface TQLeaderboardRow { rank: number; total_score: number; tiebreak_
 
 // ── Catalog (surface competitions in the games list) ─────────────────────────
 export async function getTournamentCatalogGames(): Promise<any[]> {
+  // Include 'resolved' (finished) so completed tournaments still surface (as RESULTS)
+  // instead of vanishing from the list.
   const { data, error } = await supabase
     .from('tq_competitions')
     .select('id, name, start_date, end_date, status, entry_cost')
-    .in('status', ['open', 'running']);
+    .in('status', ['open', 'running', 'resolved']);
   if (error || !data) return [];
-  const out: any[] = [];
-  for (const c of data as any[]) {
-    const { count } = await supabase.from('tq_entries').select('*', { count: 'exact', head: true }).eq('competition_id', c.id);
-    out.push({
-      id: c.id, name: c.name, game_type: 'tournament',
-      start_date: c.start_date, end_date: c.end_date,
-      entry_cost: c.entry_cost ?? 0, tier: 'amateur', status: 'Open', format: 'tournament',
-      sport: 'football', totalPlayers: count ?? 0, participants: [], rewards: [],
-      minimum_level: 'Rookie', requires_subscription: false,
-    });
+
+  // One query for all participant counts (was an N+1 loop).
+  const ids = (data as any[]).map(c => c.id);
+  const counts: Record<string, number> = {};
+  if (ids.length) {
+    const { data: entryRows } = await supabase.from('tq_entries').select('competition_id').in('competition_id', ids);
+    (entryRows ?? []).forEach((r: any) => { counts[r.competition_id] = (counts[r.competition_id] ?? 0) + 1; });
   }
-  return out;
+
+  return (data as any[]).map(c => ({
+    id: c.id, name: c.name, game_type: 'tournament',
+    start_date: c.start_date, end_date: c.end_date,
+    entry_cost: c.entry_cost ?? 0, tier: 'amateur',
+    status: c.status === 'resolved' ? 'Finished' : 'Open', format: 'tournament',
+    sport: 'football', totalPlayers: counts[c.id] ?? 0, participants: [], rewards: [],
+    minimum_level: 'Rookie', requires_subscription: false,
+  }));
 }
 
 // ── Full competition (groups, teams, official matches, format, phases) ───────
@@ -76,10 +83,23 @@ export async function getTournament(competitionId: string): Promise<TQCompetitio
   const phaseState: Record<string, any> = {};
   for (const w of (windows ?? []) as any[]) phaseState[w.phase_key] = { state: w.state, locks_at: w.locks_at };
 
+  // Guard against a null/malformed format from the RPC (a mis-configured competition
+  // must never crash the screen). Always expose a valid shape with an array of rounds.
+  const rawFmt = fmt as any;
+  const format: TQFormat = {
+    groups_count: rawFmt?.groups_count ?? groups.length,
+    teams_count: rawFmt?.teams_count ?? 0,
+    teams_per_group: rawFmt?.teams_per_group ?? 0,
+    knockout_participants: rawFmt?.knockout_participants ?? 0,
+    knockout_rounds: Array.isArray(rawFmt?.knockout_rounds) ? rawFmt.knockout_rounds : [],
+    best_thirds: rawFmt?.best_thirds ?? 0,
+    third_place_match: rawFmt?.third_place_match ?? false,
+  };
+
   return {
     id: comp.id, name: comp.name, slug: comp.slug, status: comp.status,
     start_date: comp.start_date, end_date: comp.end_date, config: comp.config_json,
-    format: fmt as TQFormat, groups, officialMatches: (matchRows ?? []) as any[],
+    format, groups, officialMatches: (matchRows ?? []) as any[],
     knockoutMatches: (koRows ?? []) as any[], players: (playerRows ?? []) as any[], phaseState,
   };
 }
@@ -110,7 +130,7 @@ export async function getTournamentLeaderboard(competitionId: string): Promise<T
 export async function joinTournament(userId: string, competitionId: string) {
   return supabase.rpc('tq_join_competition', { p_user_id: userId, p_competition_id: competitionId });
 }
-export async function saveLongTerm(competitionId: string, championId: string | null, finalistId: string | null, totalGoals: number | null, topScorer: number | null = null) {
+export async function saveLongTerm(competitionId: string, championId: string | null, finalistId: string | null, totalGoals: number | null, topScorer: string | null = null) {
   return supabase.rpc('tq_save_long_term', { p_comp: competitionId, p_champion: championId, p_finalist: finalistId, p_top_scorer: topScorer, p_total_goals: totalGoals, p_extras: {} });
 }
 export async function saveGroupPrediction(competitionId: string, groupId: string, picks: { team_id: string; position: number }[]) {

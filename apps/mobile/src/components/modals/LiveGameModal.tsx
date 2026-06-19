@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, Loader2, ChevronRight, Crosshair, Trophy, Star } from 'lucide-react';
+import { MatchModes } from '../../services/liveGameService';
 
 interface LiveGameModalProps {
   isOpen: boolean;
@@ -15,11 +16,42 @@ interface LiveGameModalProps {
   liveFantasyReady?: boolean;            // lineup published -> playable
   onPlayLiveFantasy?: () => void;
   onNotifyLineups?: () => void;
+  modes?: MatchModes | null;             // per-mode joined/done state for the status pills
 }
 
-/** Live Games chooser for a match: Live Prediction + Match Royale. */
+type Pill = { t: string; c: string } | null;
+const SETTLED = ['finished', 'settled', 'closed', 'paid'];
+const RESULTS: Pill = { t: 'Results', c: 'bg-warm-yellow/15 text-warm-yellow' };
+
+const predictionPill = (m?: MatchModes | null): Pill => {
+  if (!m) return null;
+  if (SETTLED.includes(m.prediction.status ?? '')) return RESULTS;
+  if (m.prediction.predicted) return { t: `✓ ${m.prediction.predicted.home}-${m.prediction.predicted.away}`, c: 'bg-lime-glow/15 text-lime-glow' };
+  if (m.prediction.joined) return { t: 'Joined', c: 'bg-electric-blue/15 text-electric-blue' };
+  return null;
+};
+const mrPill = (m?: MatchModes | null): Pill => {
+  if (!m?.matchRoyale) return null;
+  if (SETTLED.includes(m.matchRoyale.gameStatus ?? '')) return RESULTS;
+  if (m.matchRoyale.joined) return m.matchRoyale.partStatus === 'eliminated'
+    ? { t: 'Out', c: 'bg-hot-red/15 text-hot-red' }
+    : { t: '✓ In', c: 'bg-lime-glow/15 text-lime-glow' };
+  return null;
+};
+const lfPill = (m?: MatchModes | null): Pill => {
+  if (!m?.liveFantasy) return null;
+  if (SETTLED.includes(m.liveFantasy.status ?? '')) return RESULTS;
+  if (m.liveFantasy.complete) return { t: '✓ XI set', c: 'bg-lime-glow/15 text-lime-glow' };
+  if (m.liveFantasy.joined) return { t: 'In progress', c: 'bg-warm-yellow/15 text-warm-yellow' };
+  return null;
+};
+
+const PillTag: React.FC<{ pill: Pill }> = ({ pill }) =>
+  pill ? <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg flex-shrink-0 ${pill.c}`}>{pill.t}</span> : null;
+
+/** Live Games chooser for a match: Live Prediction, Match Royale, Live Fantasy. */
 export const LiveGameModal: React.FC<LiveGameModalProps> = ({
-  isOpen, onClose, matchName, onSelectMode, isLoading, matchRoyalePot, onPlayMatchRoyale, liveFantasyReady, onPlayLiveFantasy, onNotifyLineups,
+  isOpen, onClose, matchName, onSelectMode, isLoading, onPlayMatchRoyale, liveFantasyReady, onPlayLiveFantasy, onNotifyLineups, modes,
 }) => {
   if (!isOpen) return null;
   return (
@@ -41,8 +73,9 @@ export const LiveGameModal: React.FC<LiveGameModalProps> = ({
               <div className="w-11 h-11 rounded-xl bg-electric-blue/15 flex items-center justify-center flex-shrink-0"><Crosshair size={22} className="text-electric-blue" /></div>
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-text-primary">Live Prediction</p>
-                <p className="text-xs text-text-secondary">Predict the final score + bonus questions · free</p>
+                <p className="text-xs text-text-secondary">Predict the final score + bonus questions</p>
               </div>
+              <PillTag pill={predictionPill(modes)} />
               <ChevronRight size={20} className="text-text-disabled flex-shrink-0" />
             </button>
 
@@ -53,8 +86,9 @@ export const LiveGameModal: React.FC<LiveGameModalProps> = ({
                 <div className="w-11 h-11 rounded-xl bg-warm-yellow/15 flex items-center justify-center flex-shrink-0"><Trophy size={22} className="text-warm-yellow" /></div>
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-text-primary">Match Royale</p>
-                  <p className="text-xs text-text-secondary">Survive the match{matchRoyalePot ? ` · ${matchRoyalePot} coins pot` : ''}</p>
+                  <p className="text-xs text-text-secondary">Survive the match — last picks standing win</p>
                 </div>
+                <PillTag pill={mrPill(modes)} />
                 <ChevronRight size={20} className="text-text-disabled flex-shrink-0" />
               </button>
             )}
@@ -67,6 +101,7 @@ export const LiveGameModal: React.FC<LiveGameModalProps> = ({
                 <p className="font-bold text-text-primary">Live Fantasy</p>
                 <p className="text-xs text-text-secondary">{liveFantasyReady ? 'Build a 7-man XI from both teams · follow it live' : '🔔 Notify me when lineups are published'}</p>
               </div>
+              <PillTag pill={lfPill(modes)} />
               <ChevronRight size={20} className="text-text-disabled flex-shrink-0" />
             </button>
           </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Profile, LevelConfig, Badge, UserBadge, UserStreak, SpinTier } from '../types';
-import { User, Shield, Settings, Flame, Edit, Globe, Award, Target, Gift, BarChart2, List } from 'lucide-react';
+import { User, Shield, Settings, Edit, Globe, Award, Target, Gift, BarChart2, List, Ticket, Coins, ChevronRight, Plus } from 'lucide-react';
 import { ProfileSettingsModal } from '../components/profile/ProfileSettingsModal';
 import { getLevelBetLimit } from '../config/constants';
 import { useSpinStore } from '../store/useSpinStore';
@@ -8,14 +8,24 @@ import { UserProfileStats } from '../components/profile/UserProfileStats';
 import { DisplayName } from '../components/shared/DisplayName';
 import { PremiumUnlockCard } from '../components/premium/PremiumUnlockCard';
 import { PremiumStatusCard } from '../components/premium/PremiumStatusCard';
-import { XPProgressBar } from '../components/progression/XPProgressBar';
+import { PremiumStatsModal } from '../components/premium/PremiumStatsModal';
+import { PremiumBadge } from '../components/premium/PremiumBadge';
 import { BadgeDisplay } from '../components/progression/BadgeDisplay';
 import { useProgression } from '../hooks/useProgression';
+import { getTicketCounts, TicketCounts } from '../services/ticketService';
 import { supabase } from '../services/supabase';
 
 // Level name -> icon (real levels_config has no icon column).
 const LEVEL_ICONS: Record<string, string> = {
   'Rookie': '🌱', 'Rising Star': '⭐', 'Pro': '🎯', 'Elite': '💎', 'Legend': '🔥', 'GOAT': '🐐',
+};
+const LEVEL_ORDER = ['Rookie', 'Rising Star', 'Pro', 'Elite', 'Legend', 'GOAT'];
+
+// Tier colors shared by tickets & spins.
+const TIER_STYLE: Record<'amateur' | 'master' | 'apex', { ring: string; text: string; dot: string }> = {
+  amateur: { ring: 'border-lime-glow/40', text: 'text-lime-glow', dot: 'bg-lime-glow' },
+  master: { ring: 'border-warm-yellow/40', text: 'text-warm-yellow', dot: 'bg-warm-yellow' },
+  apex: { ring: 'border-hot-red/40', text: 'text-hot-red', dot: 'bg-hot-red' },
 };
 
 interface ProfilePageProps {
@@ -30,19 +40,35 @@ interface ProfilePageProps {
   onDeleteAccount: () => void;
   onOpenSpinWheel: (tier: SpinTier) => void;
   onOpenPremiumModal: () => void;
+  onGoToShop?: () => void;
 }
 
 const ProfilePage: React.FC<ProfilePageProps> = (props) => {
-  const { profile, onOpenSpinWheel, onOpenPremiumModal } = props;
+  const { profile, onOpenSpinWheel, onOpenPremiumModal, onGoToShop } = props;
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'stats'>('overview');
+  const [showPredStats, setShowPredStats] = useState(false);
 
   const userSpinState = useSpinStore(state => state.userSpinStates[profile.id]);
+  const spins = userSpinState?.availableSpins;
 
   // Real progression — single source of truth for level + XP.
   const { progression } = useProgression(profile.id);
   const levelName = progression?.level_name ?? 'Rookie';
   const levelIcon = LEVEL_ICONS[levelName] ?? '🌱';
+  const currentLevel = progression?.current_level ?? 1;
+  const nextLevelName = currentLevel < LEVEL_ORDER.length ? LEVEL_ORDER[currentLevel] : null;
+  const xpTotal = progression?.xp_total ?? 0;
+  const xpToNext = progression?.xp_to_next_level ?? 0;
+  const progressPct = Math.min(Math.max(progression?.progress_percentage ?? 0, 0), 100);
+
+  // Tournament tickets (amateur / master / apex) — real inventory.
+  const [tickets, setTickets] = useState<TicketCounts>({ amateur: 0, master: 0, apex: 0 });
+  useEffect(() => {
+    let cancelled = false;
+    getTicketCounts(profile.id).then(t => { if (!cancelled) setTickets(t); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [profile.id]);
 
   // Favorite club / national team — resolved from real catalogs (fb_teams / countries).
   const [favoriteClub, setFavoriteClub] = useState<{ name: string; logo: string | null } | null>(null);
@@ -62,85 +88,74 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
 
   const preferencesSkipped = !profile.is_guest && !profile.favorite_club && !profile.favorite_national_team;
   const levelBetLimit = getLevelBetLimit(levelName);
-  const maxBetLabel =
-    levelBetLimit === null ? 'No Limit' : `${levelBetLimit.toLocaleString()} coins`;
-
-  const PreferenceItem: React.FC<{
-    icon: React.ReactNode;
-    label: string;
-    value?: string;
-    valueIcon?: string | React.ReactNode;
-    onClick: () => void;
-  }> = ({ icon, label, value, valueIcon, onClick }) => (
-    <div className="bg-deep-navy p-4 rounded-xl">
-        <p className="text-xs font-semibold text-text-disabled mb-2 flex items-center gap-1.5">{icon} {label}</p>
-        {value ? (
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 font-semibold text-text-primary">
-                    {typeof valueIcon === 'string' ? <img src={valueIcon} alt={value} className="w-6 h-6" /> : valueIcon}
-                    <span>{value}</span>
-                </div>
-                <button onClick={onClick} className="text-xs font-bold text-electric-blue hover:underline">Change</button>
-            </div>
-        ) : (
-            <button onClick={onClick} className="w-full text-left text-sm font-semibold text-text-disabled hover:text-electric-blue">
-                Tap to choose
-            </button>
-        )}
-    </div>
-  );
-
-  const SpinTierButton: React.FC<{ tier: 'amateur' | 'master' | 'apex', spins: number }> = ({ tier, spins }) => {
-    const colors = {
-      amateur: 'border-lime-glow text-lime-glow',
-      master: 'border-warm-yellow text-warm-yellow',
-      apex: 'border-hot-red text-hot-red',
-    };
-    return (
-      <button
-        onClick={() => onOpenSpinWheel(tier)}
-        disabled={spins <= 0}
-        className={`flex-1 flex flex-col items-center justify-center p-3 rounded-xl border-2 ${colors[tier]} bg-deep-navy/50 disabled:opacity-50 disabled:border-disabled disabled:text-text-disabled`}
-      >
-        <span className="font-bold capitalize">{tier}</span>
-        <span className="text-xs">({spins} spins)</span>
-      </button>
-    );
-  };
+  const maxBetLabel = levelBetLimit === null ? 'No Limit' : levelBetLimit.toLocaleString();
 
   const TabButton: React.FC<{ label: string; icon: React.ReactNode; isActive: boolean; onClick: () => void; }> = ({ label, icon, isActive, onClick }) => (
-    <button
-      onClick={onClick}
-      className={`flex-1 flex items-center justify-center gap-2 p-2 rounded-lg font-semibold transition-all text-sm ${isActive ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'}`}
-    >
+    <button onClick={onClick}
+      className={`flex-1 flex items-center justify-center gap-2 p-2 rounded-lg font-semibold transition-all text-sm ${isActive ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'}`}>
       {icon} {label}
     </button>
   );
 
+  // A small tier chip used for both tickets and spins; tappable when actionable.
+  const TierChip: React.FC<{ tier: 'amateur' | 'master' | 'apex'; count: number; onClick?: () => void }> = ({ tier, count, onClick }) => {
+    const s = TIER_STYLE[tier];
+    const active = count > 0;
+    return (
+      <button onClick={onClick} disabled={!onClick || !active}
+        className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2 transition
+          ${active ? `${s.ring} bg-deep-navy` : 'border-white/5 bg-deep-navy/40 opacity-50'}
+          ${onClick && active ? 'active:scale-95 hover:bg-white/5' : ''}`}>
+        <span className={`w-1.5 h-1.5 rounded-full ${active ? s.dot : 'bg-text-disabled'}`} />
+        <span className={`text-xs font-semibold capitalize ${active ? 'text-text-primary' : 'text-text-disabled'}`}>{tier}</span>
+        <span className={`text-sm font-bold ${active ? s.text : 'text-text-disabled'}`}>{count}</span>
+      </button>
+    );
+  };
+
   return (
     <>
-      <div className="space-y-6 animate-scale-in">
-        {/* Profile Header */}
-        <div className="card-base p-5 flex flex-col items-center space-y-3 relative">
+      <div className="space-y-4 animate-scale-in">
+        {/* 1 — Identity + Level + XP (merged, no redundancy) */}
+        <div className="card-base p-5 relative">
           <button onClick={() => setIsSettingsOpen(true)} className="absolute top-4 right-4 p-2 text-text-secondary hover:bg-white/10 rounded-full">
             <Settings size={20} />
           </button>
-          <div className="relative">
-            <div className="w-24 h-24 bg-gradient-to-br from-electric-blue to-neon-cyan p-1 rounded-full">
-              {profile.profile_picture_url ? (
-                <img src={profile.profile_picture_url} alt="Profile" className="w-full h-full rounded-full object-cover border-4 border-navy-accent" />
-              ) : (
-                <div className="w-full h-full rounded-full bg-navy-accent flex items-center justify-center">
-                  <User className="w-12 h-12 text-electric-blue" />
-                </div>
-              )}
+          <div className="flex items-center gap-4">
+            <div className="relative flex-shrink-0">
+              <div className="w-20 h-20 bg-gradient-to-br from-electric-blue to-neon-cyan p-1 rounded-full">
+                {profile.profile_picture_url ? (
+                  <img src={profile.profile_picture_url} alt="Profile" className="w-full h-full rounded-full object-cover border-4 border-navy-accent" />
+                ) : (
+                  <div className="w-full h-full rounded-full bg-navy-accent flex items-center justify-center">
+                    <User className="w-10 h-10 text-electric-blue" />
+                  </div>
+                )}
+              </div>
+              <span className="absolute -bottom-1 -right-1 bg-navy-accent p-1 rounded-full text-xl shadow-md border-2 border-neon-cyan/50">{levelIcon}</span>
             </div>
-            <span className="absolute bottom-0 right-0 bg-navy-accent p-1.5 rounded-full text-2xl shadow-md border-2 border-neon-cyan/50">{levelIcon}</span>
+            <div className="min-w-0 flex-1 pr-8">
+              <div className="flex items-center gap-1.5">
+                <DisplayName profile={profile} className="text-xl font-bold text-text-primary truncate" />
+                {profile.is_subscriber && <PremiumBadge size={13} />}
+              </div>
+              <p className="text-xs text-text-disabled truncate">@{profile.username}</p>
+              <p className="text-sm font-semibold text-electric-blue mt-0.5">{levelIcon} {levelName}</p>
+            </div>
           </div>
-          <div className="text-center">
-            <DisplayName profile={profile} className="text-2xl font-bold text-text-primary" />
-            <p className="text-sm text-text-disabled">@{profile.username}</p>
-            <p className="text-sm font-semibold text-electric-blue mt-1">{levelName}</p>
+
+          {/* Inline XP bar */}
+          <div className="mt-4">
+            <div className="flex justify-between items-baseline mb-1">
+              <span className="text-sm font-bold text-text-primary">{xpTotal.toLocaleString()} XP</span>
+              {nextLevelName
+                ? <span className="text-xs text-text-secondary">{xpToNext.toLocaleString()} XP to <span className="font-semibold text-text-primary">{nextLevelName}</span></span>
+                : <span className="text-xs font-bold text-warm-yellow">MAX LEVEL 🐐</span>}
+            </div>
+            <div className="w-full bg-deep-navy rounded-full h-2.5 overflow-hidden shadow-inner">
+              <div className="bg-gradient-to-r from-electric-blue via-neon-cyan to-lime-glow h-2.5 rounded-full transition-all duration-500"
+                style={{ width: `${nextLevelName ? progressPct : 100}%` }} />
+            </div>
           </div>
         </div>
 
@@ -151,77 +166,88 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
         </div>
 
         {activeTab === 'overview' && (
-          <div className="space-y-6">
+          <div className="space-y-4">
+            {/* Premium */}
             {profile.is_subscriber && profile.subscription_expires_at ? (
-              <PremiumStatusCard expiryDate={profile.subscription_expires_at} />
+              <>
+                <PremiumStatusCard expiryDate={profile.subscription_expires_at} />
+                <button onClick={() => setShowPredStats(true)}
+                  className="w-full flex items-center gap-3 p-3.5 rounded-2xl card-base active:scale-[0.99] transition-transform text-left">
+                  <div className="w-9 h-9 rounded-xl bg-warm-yellow/15 flex items-center justify-center"><Target size={18} className="text-warm-yellow" /></div>
+                  <span className="flex-1 font-bold text-text-primary text-sm">Prediction stats</span>
+                  <ChevronRight size={18} className="text-text-disabled" />
+                </button>
+              </>
             ) : (
               <PremiumUnlockCard onClick={onOpenPremiumModal} />
             )}
-            {preferencesSkipped && (
-              <div className="bg-gradient-to-r from-warm-yellow to-orange-500 text-deep-navy p-4 rounded-2xl shadow-lg flex items-center gap-3">
-                <Flame className="flex-shrink-0" />
-                <div>
-                  <h4 className="font-bold">Complete your profile!</h4>
-                  <p className="text-sm">Choose your fan preferences to unlock fan stats and community leagues.</p>
+
+            {/* 2 — Wallet & limit (compact 2-tile row) */}
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={onGoToShop} disabled={!onGoToShop}
+                className="card-base p-3.5 flex items-center gap-3 text-left relative hover:bg-white/5 transition disabled:hover:bg-transparent">
+                <Coins size={22} className="text-warm-yellow flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-semibold text-text-disabled uppercase tracking-wide">Coins</p>
+                  <p className="text-lg font-bold text-text-primary truncate">{(profile.coins_balance ?? 0).toLocaleString()}</p>
+                </div>
+                {onGoToShop && (
+                  <span className="flex-shrink-0 w-7 h-7 rounded-full bg-electric-blue text-white flex items-center justify-center shadow"><Plus size={16} /></span>
+                )}
+              </button>
+              <div className="card-base p-3.5 flex items-center gap-3">
+                <Target size={22} className="text-lime-glow flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold text-text-disabled uppercase tracking-wide">Max bet</p>
+                  <p className="text-lg font-bold text-text-primary truncate">{maxBetLabel}</p>
                 </div>
               </div>
-            )}
-{/* DISABLED: Streak system temporarily disabled
-            <DailyStreakTracker streak={userStreak} />
-*/}
-            {userSpinState && (
-              <div className="card-base p-5 space-y-3">
-                <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2"><Gift size={20} className="text-warm-yellow" /> Spin the Wheel</h3>
+            </div>
+
+            {/* 3 — Play credits: tickets + spins */}
+            <div className="card-base p-4 space-y-3">
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-text-secondary flex items-center gap-1.5"><Ticket size={14} /> Tournament tickets</p>
                 <div className="flex gap-2">
-                  <SpinTierButton tier="amateur" spins={userSpinState.availableSpins.amateur} />
-                  <SpinTierButton tier="master" spins={userSpinState.availableSpins.master} />
-                  <SpinTierButton tier="apex" spins={userSpinState.availableSpins.apex} />
+                  <TierChip tier="amateur" count={tickets.amateur} />
+                  <TierChip tier="master" count={tickets.master} />
+                  <TierChip tier="apex" count={tickets.apex} />
                 </div>
               </div>
-            )}
-            <div className="card-base p-5 space-y-3">
-              <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2"><Edit size={20} className="text-electric-blue" /> Fan Preferences</h3>
-              <PreferenceItem 
-                  icon={<Award size={16} />}
-                  label="Favorite Club"
-                  value={favoriteClub?.name}
-                  valueIcon={favoriteClub?.logo}
-                  onClick={() => setIsSettingsOpen(true)}
-              />
-              <PreferenceItem
-                  icon={<Globe size={16} />}
-                  label="Favorite National Team"
-                  value={favoriteNationalTeam?.name}
-                  valueIcon={favoriteNationalTeam?.flag
-                    ? <img src={favoriteNationalTeam.flag} alt={favoriteNationalTeam.name} className="w-6 h-6 object-contain" />
-                    : undefined}
-                  onClick={() => setIsSettingsOpen(true)}
-              />
-            </div>
-
-            {/* ✅ New XP Progress Component with real-time updates */}
-            <XPProgressBar userId={profile.id} />
-            <div className="card-base p-5">
-              <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2 mb-2">
-                  <Target size={20} className="text-lime-glow" /> Betting Limit
-              </h3>
-              <div className="bg-deep-navy p-3 rounded-lg text-center">
-                  <p className="text-sm text-text-secondary">Max bet per match</p>
-                  <p className="text-2xl font-bold text-warm-yellow">
-                      {maxBetLabel}
-                  </p>
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-text-secondary flex items-center gap-1.5"><Gift size={14} /> Spins ready <span className="text-text-disabled font-normal">· tap to play</span></p>
+                <div className="flex gap-2">
+                  <TierChip tier="amateur" count={spins?.amateur ?? 0} onClick={() => onOpenSpinWheel('amateur')} />
+                  <TierChip tier="master" count={spins?.master ?? 0} onClick={() => onOpenSpinWheel('master')} />
+                  <TierChip tier="apex" count={spins?.apex ?? 0} onClick={() => onOpenSpinWheel('apex')} />
+                </div>
               </div>
-              {levelName !== 'GOAT' && (
-                  <p className="text-xs text-text-disabled text-center mt-2">
-                      Next level unlocks higher limits!
-                  </p>
-              )}
             </div>
 
-            {/* ✅ New Badge Display Component with dynamic badge loading */}
-            <div className="card-base p-5">
-              <h3 className="text-lg font-bold text-text-secondary flex items-center gap-2 mb-4">
-                <Shield size={20} className="text-neon-cyan" /> Badges
+            {/* Complete-profile nudge (only if both prefs empty) */}
+            {preferencesSkipped && (
+              <button onClick={() => setIsSettingsOpen(true)}
+                className="w-full bg-gradient-to-r from-warm-yellow to-orange-500 text-deep-navy p-3 rounded-xl shadow flex items-center justify-between gap-3">
+                <span className="text-sm font-bold text-left">Choose your fan preferences to unlock fan stats & leagues.</span>
+                <ChevronRight className="flex-shrink-0" size={18} />
+              </button>
+            )}
+
+            {/* 4 — Fan preferences (compact rows) */}
+            <div className="card-base p-4 space-y-2.5">
+              <h3 className="text-sm font-bold text-text-secondary flex items-center gap-2"><Edit size={16} className="text-electric-blue" /> Fan Preferences</h3>
+              <PrefRow icon={<Award size={15} />} label="Favorite Club" valueText={favoriteClub?.name}
+                valueIcon={favoriteClub?.logo ? <img src={favoriteClub.logo} alt="" className="w-5 h-5 object-contain" /> : undefined}
+                onClick={() => setIsSettingsOpen(true)} />
+              <PrefRow icon={<Globe size={15} />} label="National Team" valueText={favoriteNationalTeam?.name}
+                valueIcon={favoriteNationalTeam?.flag ? <img src={favoriteNationalTeam.flag} alt="" className="w-5 h-5 object-contain" /> : undefined}
+                onClick={() => setIsSettingsOpen(true)} />
+            </div>
+
+            {/* 5 — Badges */}
+            <div className="card-base p-4">
+              <h3 className="text-sm font-bold text-text-secondary flex items-center gap-2 mb-3">
+                <Shield size={16} className="text-neon-cyan" /> Badges
               </h3>
               <BadgeDisplay userId={profile.id} showLocked={true} />
             </div>
@@ -232,14 +258,23 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
           <UserProfileStats userId={profile.id} />
         )}
 
-        <ProfileSettingsModal
-          isOpen={isSettingsOpen} 
-          onClose={() => setIsSettingsOpen(false)} 
-          {...props}
-        />
+        <ProfileSettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} {...props} />
+        {showPredStats && <PremiumStatsModal userId={profile.id} onClose={() => setShowPredStats(false)} />}
       </div>
     </>
   );
 };
+
+// Compact single-line preference row.
+const PrefRow: React.FC<{ icon: React.ReactNode; label: string; valueText?: string; valueIcon?: React.ReactNode; onClick: () => void; }> = ({ icon, label, valueText, valueIcon, onClick }) => (
+  <button onClick={onClick} className="w-full bg-deep-navy rounded-lg px-3 py-2.5 flex items-center justify-between hover:bg-white/5 transition">
+    <span className="text-xs font-semibold text-text-disabled flex items-center gap-1.5">{icon} {label}</span>
+    {valueText ? (
+      <span className="flex items-center gap-1.5 font-semibold text-text-primary text-sm">{valueIcon}{valueText}</span>
+    ) : (
+      <span className="text-xs font-semibold text-electric-blue">Tap to choose</span>
+    )}
+  </button>
+);
 
 export default ProfilePage;

@@ -64,9 +64,12 @@ export const MatchStatsDrawer: React.FC<MatchStatsDrawerProps> = ({ match, onClo
 
   useEffect(() => {
     if (match) {
-      setActiveTab('form'); // Reset to form tab on new match
+      // Smart default: a live/finished match opens on Events (goals/cards) when the
+      // API data is available; an upcoming match opens on Form (pre-match context).
+      const isLiveOrPlayed = !!match.isLive || match.status === 'played';
+      setActiveTab(isLiveOrPlayed && extrasParams ? 'events' : 'form');
     }
-  }, [match]);
+  }, [match, extrasParams]);
 
   const renderContent = () => {
     if (error && !loading) {

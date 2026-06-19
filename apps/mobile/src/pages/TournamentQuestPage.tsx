@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Trophy, Lock, Check, X, Clock, Star, Crown, Medal } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, Trophy, Lock, Check, X, Clock, Star, Crown, Medal, Loader2 } from 'lucide-react';
+import { PullToRefresh } from '../components/PullToRefresh';
 import {
-  TQCompetition, TQEntry, TQLeaderboardRow, TQTeam,
+  TQCompetition, TQEntry, TQLeaderboardRow, TQTeam, TQMatch, TQDailyPick,
   getTournament, getMyTournamentEntry, getTournamentLeaderboard, isPhaseOpen,
   saveLongTerm, saveGroupPrediction, saveDailyPrediction, saveBracketPrediction,
 } from '../services/tournamentService';
@@ -29,25 +30,65 @@ export const TournamentQuestPage: React.FC<Props> = ({ competitionId, userId, on
   const [loading, setLoading] = useState(true);
   const [lbOpen, setLbOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  // Bumped on every reload so the sections (which seed local state from `entry` at
+  // mount) remount and reflect server-recomputed picks/points.
+  const [version, setVersion] = useState(0);
 
   const reload = async () => {
     const [c, e, l] = await Promise.all([
       getTournament(competitionId), getMyTournamentEntry(competitionId, userId), getTournamentLeaderboard(competitionId),
     ]);
-    setComp(c); setEntry(e); setLb(l); setLoading(false);
+    setComp(c); setEntry(e); setLb(l); setLoading(false); setVersion(v => v + 1);
   };
   useEffect(() => { setLoading(true); reload(); }, [competitionId]);
 
   const allTeams = useMemo(() => comp?.groups.flatMap(g => g.teams) ?? [], [comp]);
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2200); };
 
+  // Pending predictions per tab (badges show only while the relevant phase is OPEN).
+  const pending = useMemo<Record<Tab, number>>(() => {
+    const p: Record<Tab, number> = { picks: 0, groups: 0, daily: 0, bracket: 0 };
+    if (!comp) return p;
+    if (isPhaseOpen(comp, 'long_term')) {
+      const lt = entry?.longTerm;
+      if (!lt?.champion_team_id) p.picks++;
+      if (!lt?.finalist_team_id) p.picks++;
+      if (!lt?.top_scorer_player_id) p.picks++;
+      if (lt?.total_goals_prediction == null) p.picks++;
+    }
+    if (isPhaseOpen(comp, 'group')) {
+      for (const g of comp.groups) {
+        const picks = (entry?.groupPicks ?? []).filter(pk => pk.group_id === g.id);
+        if (picks.length < g.qualified_count) p.groups++;
+      }
+    }
+    for (const m of comp.officialMatches) {
+      const predictable = m.status === 'scheduled' && (m.start_time == null || new Date(m.start_time).getTime() > Date.now());
+      if (predictable && !(entry?.dailyPicks ?? []).some(dp => dp.match_id === m.id)) p.daily++;
+    }
+    for (const r of comp.format.knockout_rounds) {
+      if (!isPhaseOpen(comp, r)) continue;
+      for (const m of comp.knockoutMatches.filter(km => km.knockout_round === r)) {
+        const hasPick = (entry?.bracketPicks ?? []).some(bp => bp.round_key === r && (bp.predicted_winner_team_id === m.team_a?.id || bp.predicted_winner_team_id === m.team_b?.id));
+        if (!hasPick) p.bracket++;
+      }
+    }
+    return p;
+  }, [comp, entry]);
+
   if (loading || !comp) {
-    return <div className="min-h-screen bg-deep-navy flex items-center justify-center text-text-secondary">Loading…</div>;
+    return (
+      <div className="min-h-screen bg-deep-navy flex flex-col items-center justify-center gap-3 text-text-secondary">
+        <Loader2 className="animate-spin text-electric-blue" size={32} />
+        <span className="text-sm font-semibold">Loading tournament…</span>
+      </div>
+    );
   }
 
   const total = entry?.total_score ?? 0;
 
   return (
+    <PullToRefresh onRefresh={reload}>
     <div className="min-h-screen bg-deep-navy text-text-primary pb-24">
       {/* Header */}
       <div className="px-4 pt-4 pb-3 border-b border-white/10 bg-navy-accent">
@@ -74,17 +115,20 @@ export const TournamentQuestPage: React.FC<Props> = ({ competitionId, userId, on
       <div className="flex border-b border-white/10 bg-navy-accent sticky top-0 z-10">
         {(['picks', 'groups', 'daily', 'bracket'] as Tab[]).map(t => (
           <button key={t} onClick={() => setTab(t)}
-            className={`flex-1 py-3 text-xs font-semibold capitalize ${tab === t ? 'text-electric-blue border-b-2 border-electric-blue' : 'text-text-secondary'}`}>
-            {t === 'picks' ? 'My Picks' : t}
+            className={`relative flex-1 py-3 text-xs font-semibold capitalize ${tab === t ? 'text-electric-blue border-b-2 border-electric-blue' : 'text-text-secondary'}`}>
+            {t === 'picks' ? 'My Picks' : t === 'daily' ? 'Daily' : t}
+            {pending[t] > 0 && (
+              <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-hot-red text-white text-[10px] font-bold flex items-center justify-center">{pending[t]}</span>
+            )}
           </button>
         ))}
       </div>
 
       <div className="p-4">
-        {tab === 'picks' && <PicksSection comp={comp} entry={entry} allTeams={allTeams} onSaved={() => { reload(); flash('Picks saved'); }} flash={flash} />}
-        {tab === 'groups' && <GroupsSection comp={comp} entry={entry} onSaved={() => { reload(); flash('Group saved'); }} flash={flash} />}
-        {tab === 'daily' && <DailySection comp={comp} entry={entry} onSaved={() => { reload(); flash('Prediction saved'); }} flash={flash} />}
-        {tab === 'bracket' && <BracketSection comp={comp} entry={entry} onSaved={() => { reload(); flash('Bracket saved'); }} flash={flash} />}
+        {tab === 'picks' && <PicksSection key={`picks-${version}`} comp={comp} entry={entry} allTeams={allTeams} onSaved={() => { reload(); flash('Picks saved'); }} flash={flash} />}
+        {tab === 'groups' && <GroupsSection key={`groups-${version}`} comp={comp} entry={entry} onSaved={() => { reload(); flash('Group saved'); }} flash={flash} />}
+        {tab === 'daily' && <DailySection key={`daily-${version}`} comp={comp} entry={entry} onSaved={() => { reload(); flash('Prediction saved'); }} flash={flash} />}
+        {tab === 'bracket' && <BracketSection key={`bracket-${version}`} comp={comp} entry={entry} onSaved={() => { reload(); flash('Bracket saved'); }} flash={flash} />}
       </div>
 
       {toast && <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-electric-blue text-deep-navy font-bold px-4 py-2 rounded-full text-sm z-50 animate-scale-in">{toast}</div>}
@@ -93,7 +137,13 @@ export const TournamentQuestPage: React.FC<Props> = ({ competitionId, userId, on
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end z-50" onClick={() => setLbOpen(false)}>
           <div className="bg-navy-accent w-full rounded-t-3xl max-h-[80vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-3"><h2 className="font-bold text-lg">Leaderboard</h2><button onClick={() => setLbOpen(false)}><X size={22} className="text-text-secondary" /></button></div>
-            {lb.length === 0 ? <p className="text-text-disabled text-sm">No scores yet.</p> : lb.map(r => (
+            {lb.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="text-4xl mb-2">🏁</div>
+                <p className="text-text-secondary text-sm font-medium">No scores yet</p>
+                <p className="text-text-disabled text-xs mt-1">Be the first to make your predictions.</p>
+              </div>
+            ) : lb.map(r => (
               <div key={r.user_id} className="flex items-center gap-3 py-2 border-b border-white/5">
                 <span className="w-6 font-bold text-text-secondary">{r.rank}</span>
                 <span className="flex-1 truncate">{r.username ?? 'Player'}</span>
@@ -104,6 +154,7 @@ export const TournamentQuestPage: React.FC<Props> = ({ competitionId, userId, on
         </div>
       )}
     </div>
+    </PullToRefresh>
   );
 };
 
@@ -183,10 +234,10 @@ const GroupsSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onSa
   }
   const [sel, setSel] = useState<Record<string, string[]>>(initial);
 
-  const persist = async (groupId: string, ids: string[]) => {
+  const persist = async (groupId: string, ids: string[], prev: string[]) => {
     const picks = ids.map((team_id, i) => ({ team_id, position: i + 1 }));
-    const { error } = await saveGroupPrediction(comp.id, groupId, picks); // silent
-    if (error) flash(error.message);
+    const { error } = await saveGroupPrediction(comp.id, groupId, picks);
+    if (error) { flash(error.message); setSel(p => ({ ...p, [groupId]: prev })); } // rollback
   };
   const toggle = (groupId: string, teamId: string, max: number) => {
     const cur = sel[groupId] ?? [];
@@ -195,7 +246,7 @@ const GroupsSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onSa
     else if (cur.length >= max) return;
     else next = [...cur, teamId];
     setSel(prev => ({ ...prev, [groupId]: next }));
-    persist(groupId, next);
+    persist(groupId, next, cur);
   };
 
   return (
@@ -233,68 +284,91 @@ const GroupsSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onSa
   );
 };
 
-// ── Daily (predict the 90' score, then a conditional bonus question) ─────────
+// ── Daily scores (predict the exact score of every official match — no bonus) ─
 const DailySection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onSaved: () => void; flash: (m: string) => void }> = ({ comp, entry, onSaved, flash }) => {
-  const match = comp.officialMatches.find(m => m.status === 'scheduled') ?? comp.officialMatches[0];
   const d = comp.config?.scoring?.daily ?? {};
-  const cardsLine = d.cards_line ?? 3.5;
-  const existing = entry?.dailyPicks.find(p => p.match_id === match?.id);
+  const isPredictable = (m: TQMatch) => m.status === 'scheduled' && (m.start_time == null || new Date(m.start_time).getTime() > Date.now());
+  const upcoming = comp.officialMatches.filter(isPredictable);
+  const past = comp.officialMatches.filter(m => !isPredictable(m));
+  const pickOf = (id: string) => entry?.dailyPicks.find(p => p.match_id === id) ?? null;
+
+  if (comp.officialMatches.length === 0) return (
+    <div className="card-base p-8 text-center">
+      <div className="text-5xl mb-3">📅</div>
+      <p className="text-text-secondary font-medium">No official matches yet</p>
+      <p className="text-sm text-text-disabled mt-1">Come back on match days to predict the scores.</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-bold text-text-primary">Daily Predictions</h2>
+      <div className="bg-navy-accent/60 rounded-xl px-3 py-2.5 text-[11px] text-text-secondary">
+        <b className="text-text-primary">Scoring:</b> result +{d.result ?? 10} · exact score +{d.exact_score ?? 12} · goal-margin distance (0→15, 1→10, 2→5, 3→2, 4+→0)
+      </div>
+
+      {/* To predict */}
+      {upcoming.length > 0
+        ? upcoming.map(m => <DailyMatchCard key={m.id} comp={comp} match={m} existing={pickOf(m.id)} onSaved={onSaved} flash={flash} />)
+        : <p className="text-sm text-text-disabled text-center py-2">No matches to predict right now — results below.</p>}
+
+      {/* Previous predictions / results (always visible underneath) */}
+      {past.length > 0 && (
+        <div className="space-y-2 pt-2">
+          <p className="text-xs font-bold text-text-secondary uppercase tracking-wider">Previous predictions</p>
+          {past.map(m => <DailyResultCard key={m.id} match={m} existing={pickOf(m.id)} />)}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const DailyMatchCard: React.FC<{ comp: TQCompetition; match: TQMatch; existing: TQDailyPick | null; onSaved: () => void; flash: (m: string) => void }> = ({ comp, match, existing, onSaved, flash }) => {
   const [a, setA] = useState<number>(existing?.predicted_score_a ?? 0);
   const [b, setB] = useState<number>(existing?.predicted_score_b ?? 0);
-  const [bonus, setBonus] = useState<string | null>(existing?.predicted_bonus ?? null);
-
-  const qType = a > 0 && b > 0 ? 'first_scorer' : (a > 0) !== (b > 0) ? 'half' : 'cards';
-  const prevType = useRef(qType);
-  useEffect(() => { if (prevType.current !== qType) { setBonus(null); prevType.current = qType; } }, [qType]);
-
-  if (!match) return <p className="text-text-disabled text-sm">No official match scheduled right now. Check back on match days.</p>;
-  const locked = match.status !== 'scheduled' || (match.start_time != null && new Date(match.start_time).getTime() <= Date.now());
   const resultLabel = a > b ? `${match.team_a?.short_name} win` : a < b ? `${match.team_b?.short_name} win` : 'Draw';
 
   const save = async () => {
-    const { error } = await saveDailyPrediction(comp.id, match.id, a, b, bonus);
+    const { error } = await saveDailyPrediction(comp.id, match.id, a, b, null);
     if (error) flash(error.message); else onSaved();
   };
 
   return (
-    <div className="space-y-4">
-      {/* Scoring system */}
-      <div className="bg-navy-accent/60 rounded-xl px-3 py-2.5 text-[11px] text-text-secondary">
-        <b className="text-text-primary">Scoring:</b> result +{d.result ?? 10} · exact score +{d.exact_score ?? 12} · goal-margin distance (0→15, 1→10, 2→5, 3→2, 4+→0) · bonus +{d.bonus ?? 8}
+    <div className="bg-navy-accent rounded-xl p-4">
+      <div className="flex items-center justify-between text-xs text-text-secondary mb-3">
+        <span className="flex items-center gap-1"><Star size={12} className="text-warm-yellow" /> Official match</span>
+        {match.start_time && <span className="flex items-center gap-1"><Clock size={12} /> {new Date(match.start_time).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
       </div>
-
-      <div className="bg-navy-accent rounded-xl p-4">
-        <div className="flex items-center justify-between text-xs text-text-secondary mb-3">
-          <span className="flex items-center gap-1"><Star size={12} className="text-warm-yellow" /> Official match</span>
-          {match.start_time && <span className="flex items-center gap-1"><Clock size={12} /> {new Date(match.start_time).toLocaleString()}</span>}
-        </div>
-        {/* Score steppers */}
-        <div className="flex items-center justify-around">
-          <div className="flex flex-col items-center gap-2 flex-1"><TeamChip team={match.team_a} /><Stepper value={a} onChange={setA} disabled={locked} /></div>
-          <span className="text-text-disabled px-2">–</span>
-          <div className="flex flex-col items-center gap-2 flex-1"><TeamChip team={match.team_b} /><Stepper value={b} onChange={setB} disabled={locked} /></div>
-        </div>
-        <p className="text-center text-xs text-electric-blue font-semibold mt-3">{resultLabel} · {a}-{b}</p>
+      <div className="flex items-center justify-around">
+        <div className="flex flex-col items-center gap-2 flex-1"><TeamChip team={match.team_a} /><Stepper value={a} onChange={setA} /></div>
+        <span className="text-text-disabled px-2">–</span>
+        <div className="flex flex-col items-center gap-2 flex-1"><TeamChip team={match.team_b} /><Stepper value={b} onChange={setB} /></div>
       </div>
+      <p className="text-center text-xs text-electric-blue font-semibold mt-3">{resultLabel} · {a}-{b}</p>
+      <button onClick={save} className="w-full mt-3 bg-electric-blue text-deep-navy font-bold py-2.5 rounded-xl text-sm">{existing ? 'Update score' : 'Save score'}</button>
+    </div>
+  );
+};
 
-      {locked && <LockedBanner text="This match is locked (kick-off passed)." />}
-
-      {/* Conditional bonus question */}
-      <div>
-        <p className="text-sm font-semibold text-text-secondary mb-2">Bonus question</p>
-        {qType === 'first_scorer' && (
-          <Seg options={[[match.team_a?.id ?? 'A', `${match.team_a?.short_name} first`], [match.team_b?.id ?? 'B', `${match.team_b?.short_name} first`]]} value={bonus} onChange={setBonus} disabled={locked} />
-        )}
-        {qType === 'half' && (
-          <Seg options={[['first', '1st-half goal'], ['second', '2nd-half goal']]} value={bonus} onChange={setBonus} disabled={locked} />
-        )}
-        {qType === 'cards' && (
-          <Seg options={[['under', `Under ${cardsLine} cards`], ['over', `Over ${cardsLine} cards`]]} value={bonus} onChange={setBonus} disabled={locked} />
-        )}
+// Read-only result of a past official match: final score + your pick + points.
+const DailyResultCard: React.FC<{ match: TQMatch; existing: TQDailyPick | null }> = ({ match, existing }) => {
+  const resolved = match.score_a != null && match.score_b != null;
+  const pts = existing?.points_awarded ?? 0;
+  return (
+    <div className="bg-deep-navy rounded-xl p-3 border border-white/5">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+        <div className="flex justify-end min-w-0"><TeamChip team={match.team_a} size="sm" /></div>
+        <span className="text-sm font-bold text-text-primary tabular-nums">{resolved ? `${match.score_a}-${match.score_b}` : 'vs'}</span>
+        <div className="flex justify-start min-w-0"><TeamChip team={match.team_b} size="sm" /></div>
       </div>
-
-      {!locked && <button onClick={save} className="w-full bg-electric-blue text-deep-navy font-bold py-3 rounded-xl">Save prediction</button>}
-      {existing && existing.points_awarded > 0 && <p className="text-center text-lime-glow font-bold">+{existing.points_awarded} pts</p>}
+      <div className="flex items-center justify-between mt-2 text-[11px]">
+        <span className="text-text-disabled">
+          {existing ? `Your pick: ${existing.predicted_score_a}-${existing.predicted_score_b}` : 'Not predicted'}
+        </span>
+        {existing
+          ? (pts > 0 ? <span className="font-bold text-lime-glow">+{pts} pts</span> : resolved ? <span className="text-text-disabled">0 pts</span> : <span className="text-warm-yellow">pending</span>)
+          : <span className="text-text-disabled">—</span>}
+      </div>
     </div>
   );
 };
@@ -306,15 +380,6 @@ const Stepper: React.FC<{ value: number; onChange: (v: number) => void; disabled
     <button disabled={disabled} onClick={() => onChange(Math.min(9, value + 1))} className="w-8 h-8 rounded-full bg-deep-navy text-text-primary font-bold disabled:opacity-40">+</button>
   </div>
 );
-const Seg: React.FC<{ options: [string, string][]; value: string | null; onChange: (v: string) => void; disabled?: boolean }> = ({ options, value, onChange, disabled }) => (
-  <div className="flex gap-2">
-    {options.map(([val, label]) => (
-      <button key={val} disabled={disabled} onClick={() => onChange(val)}
-        className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border ${value === val ? 'border-electric-blue bg-electric-blue/15 text-electric-blue' : 'border-white/5 bg-navy-accent text-text-secondary'} disabled:opacity-50`}>{label}</button>
-    ))}
-  </div>
-);
-
 // ── Bracket (living: predict the advancing team per tie, round by round) ─────
 const BracketSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onSaved: () => void; flash: (m: string) => void }> = ({ comp, entry, onSaved, flash }) => {
   const rounds = comp.format.knockout_rounds;
@@ -335,9 +400,13 @@ const BracketSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onS
     setPicks(p => ({ ...p, [round]: { ...p[round], [matchId]: teamId } }));
 
   const saveRound = async (round: string) => {
-    const winners = matchesOf(round).map(m => picks[round]?.[m.id]).filter(Boolean) as string[];
+    const all = matchesOf(round);
+    const winners = all.map(m => picks[round]?.[m.id]).filter(Boolean) as string[];
     const { error } = await saveBracketPrediction(comp.id, round, winners);
-    if (error) flash(error.message); else onSaved();
+    if (error) { flash(error.message); return; }
+    const missing = all.length - winners.length;
+    if (missing > 0) flash(`Saved · ${missing} match${missing > 1 ? 'es' : ''} still to predict`);
+    onSaved();
   };
 
   const anyPlayable = rounds.some(r => matchesOf(r).length > 0);
@@ -349,6 +418,8 @@ const BracketSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onS
         const matches = matchesOf(round);
         const open = isPhaseOpen(comp, round);
         const weight = comp.config?.scoring?.bracket?.[round];
+        const pickedCount = matches.filter(m => picks[round]?.[m.id]).length;
+        const incomplete = open && pickedCount < matches.length;
         return (
           <div key={round} className="bg-navy-accent rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
@@ -359,20 +430,27 @@ const BracketSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onS
             </div>
             {matches.length === 0
               ? <p className="text-xs text-text-disabled">Teams set once the previous round finishes.</p>
-              : <div className="space-y-2">
+              : <div className="space-y-3">
+                  {/* Completion counter */}
+                  {open && (
+                    <p className={`text-[11px] font-semibold ${incomplete ? 'text-warm-yellow' : 'text-lime-glow'}`}>
+                      {pickedCount}/{matches.length} predicted{incomplete ? ' — pick the rest before kick-off' : ' ✓'}
+                    </p>
+                  )}
                   {matches.map(m => {
                     const pick = picks[round]?.[m.id];
                     const resolved = m.winner_team_id != null;
-                    const center = (resolved && m.score_a != null) ? `${m.score_a}-${m.score_b}`
-                      : m.start_time ? new Date(m.start_time).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-                      : 'vs';
+                    const caption = resolved ? 'Result'
+                      : m.start_time ? new Date(m.start_time).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                      : 'Date TBD';
+                    const centerScore = (resolved && m.score_a != null) ? `${m.score_a}-${m.score_b}` : 'vs';
                     const teamBtn = (t: TQTeam | null) => {
                       if (!t) return <div className="flex-1" />;
                       const chosen = pick === t.id;
                       const won = resolved && m.winner_team_id === t.id;
                       return (
                         <button disabled={!open || resolved} onClick={() => setWinner(round, m.id, t.id)}
-                          className={`flex-1 flex items-center gap-1.5 px-2 py-2 rounded-lg border text-left min-w-0 ${
+                          className={`flex-1 flex items-center gap-1.5 px-2 py-2.5 rounded-lg border text-left min-w-0 ${
                             won ? 'border-lime-glow bg-lime-glow/10'
                             : chosen ? 'border-electric-blue bg-electric-blue/10'
                             : 'border-white/5 bg-deep-navy'} disabled:opacity-70`}>
@@ -382,14 +460,18 @@ const BracketSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onS
                       );
                     };
                     return (
-                      <div key={m.id} className="flex items-center gap-1.5">
-                        {teamBtn(m.team_a)}
-                        <span className={`shrink-0 w-16 text-center text-[10px] font-semibold ${resolved && m.score_a != null ? 'text-text-primary' : 'text-text-disabled'}`}>{center}</span>
-                        {teamBtn(m.team_b)}
+                      <div key={m.id} className="space-y-1">
+                        {/* Date/time as a caption — keeps the center column tiny so nothing wraps. */}
+                        <p className="text-[10px] text-text-disabled text-center">{caption}</p>
+                        <div className="flex items-center gap-1.5">
+                          {teamBtn(m.team_a)}
+                          <span className={`shrink-0 w-9 text-center text-xs font-bold ${resolved && m.score_a != null ? 'text-text-primary' : 'text-text-disabled'}`}>{centerScore}</span>
+                          {teamBtn(m.team_b)}
+                        </div>
                       </div>
                     );
                   })}
-                  {open && <button onClick={() => saveRound(round)} className="w-full mt-2 bg-electric-blue text-deep-navy font-bold py-2 rounded-lg text-sm">Save {ROUND_LABEL[round] ?? round}</button>}
+                  {open && <button onClick={() => saveRound(round)} className="w-full mt-1 bg-electric-blue text-deep-navy font-bold py-2 rounded-lg text-sm">Save {ROUND_LABEL[round] ?? round}</button>}
                 </div>}
           </div>
         );

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Flame, Snowflake, Trophy, Share2, Shuffle, Lightbulb } from 'lucide-react';
 import { getConnectionsToday, finishPlayer, getPuzzleStats, replayGame, ConnectionsToday, ConnGroup } from '../services/puzzleService';
+import { GameResultModal } from '../components/funzone/GameResultModal';
 
 const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 const COLOR = { yellow: 'bg-warm-yellow', green: 'bg-lime-glow', blue: 'bg-electric-blue', purple: 'bg-purple-500' } as Record<string, string>;
@@ -150,30 +151,30 @@ const GuessConnectionsGame: React.FC<Props> = ({ onBack, addToast }) => {
 
   if (summary) {
     const won = summary.rounds_solved >= 4;
-    const hasPct = summary.percentile != null;
-    const bucket = !hasPct ? '…' : summary.percentile <= 1 ? 'Top 1%' : summary.percentile <= 5 ? 'Top 5%' : summary.percentile <= 25 ? 'Top 25%' : summary.percentile <= 50 ? 'Top 50%' : 'Top 75%';
-    return Shell(<div className="text-center py-6">
-      <Trophy size={44} className={`mx-auto mb-3 ${won ? 'text-warm-yellow' : 'text-text-disabled'}`} />
-      <h1 onClick={() => { devTaps.current += 1; if (devTaps.current >= 4) setDev(true); }} className="text-2xl font-extrabold text-text-primary">{won ? 'Solved!' : 'Out of lives'}</h1>
-      <p className="text-text-secondary">{Math.min(4, summary.rounds_solved)}/4 groups</p>
-      {/* the solution */}
-      <div className="space-y-2 mt-5 text-left">
-        {pl.groups.map(g => (
-          <div key={g.key} className={`${COLOR[g.color]} rounded-xl px-3 py-2 text-deep-navy`}>
-            <p className="text-[11px] font-extrabold uppercase">{g.label}</p>
-            <p className="text-sm font-bold">{g.playerIds.map(nameOf).map(shortName).join(', ')}</p>
+    return (
+      <GameResultModal
+        meta={{ icon: '🧠', label: 'Connections', accent: 'from-purple-500/30 to-electric-blue/10' }}
+        gameType="connections"
+        statsLevel="daily"
+        xp={100}
+        hero={{ primary: won ? 'Solved!' : 'Out of lives', sub: `${Math.min(4, summary.rounds_solved)}/4 groups`, win: won }}
+        percentile={summary.percentile}
+        detail={
+          <div className="space-y-2 text-left">
+            {pl.groups.map(g => (
+              <div key={g.key} className={`${COLOR[g.color]} rounded-xl px-3 py-2 text-deep-navy`}>
+                <p className="text-[11px] font-extrabold uppercase">{g.label}</p>
+                <p className="text-sm font-bold">{g.playerIds.map(nameOf).map(shortName).join(', ')}</p>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-      <div className="grid grid-cols-3 gap-3 mt-6">
-        <div className="card-base p-3"><p className="text-xs text-text-secondary">Time</p><p className="text-base font-bold text-text-primary">{fmtTime(Math.floor((summary.time_ms || 0) / 1000))}</p></div>
-        <div className="card-base p-3"><p className="text-xs text-text-secondary">Percentile</p><p className="text-base font-bold text-lime-glow">{bucket}</p></div>
-        <div className="card-base p-3"><p className="text-xs text-text-secondary">Streak</p><p className="text-base font-bold text-hot-red">🔥 {summary.streak ?? '…'}</p></div>
-      </div>
-      <button onClick={shareReview} className="mt-5 w-full bg-lime-glow text-deep-navy font-extrabold py-3 rounded-xl flex items-center justify-center gap-2"><Share2 size={18} /> Share result</button>
-      {dev && <button onClick={replay} className="mt-3 text-electric-blue font-semibold text-sm">🔄 Play again</button>}
-      <button onClick={onBack} className="mt-3 w-full bg-navy-accent text-text-primary font-bold py-3 rounded-xl">Go to FunZone</button>
-    </div>);
+        }
+        onShare={shareReview}
+        onReplay={dev ? replay : undefined}
+        onBack={onBack}
+        onHeroTap={() => { devTaps.current += 1; if (devTaps.current >= 4) setDev(true); }}
+      />
+    );
   }
 
   return Shell(<>

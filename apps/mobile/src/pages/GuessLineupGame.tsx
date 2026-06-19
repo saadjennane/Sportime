@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Flame, Snowflake, Trophy, Share2 } from 'lucide-react';
 import { getLineupToday, finishPlayer, getPuzzleStats, LineupToday, LineupRoundPayload } from '../services/puzzleService';
+import { GameResultModal } from '../components/funzone/GameResultModal';
 import { GuessLineupPitch, PitchCell } from '../components/GuessLineupPitch';
 import { WordleHole, wordleFeedback, fbEmoji } from '../components/WordleHole';
 
@@ -26,9 +27,9 @@ const teamLogo = (id: number) => `https://media.api-sports.io/football/teams/${i
 
 type HoleState = { rows: string[]; solved: boolean; gaveUp: boolean };
 
-interface Props { userId: string; onBack: () => void; addToast: (m: string, t: 'success' | 'error' | 'info') => void }
+interface Props { userId: string; onBack: () => void; addToast: (m: string, t: 'success' | 'error' | 'info') => void; initialHoles?: number }
 
-const GuessLineupGame: React.FC<Props> = ({ onBack, addToast }) => {
+const GuessLineupGame: React.FC<Props> = ({ onBack, addToast, initialHoles }) => {
   const [data, setData] = useState<LineupToday | null>(null);
   const dataRef = useRef<LineupToday | null>(null); dataRef.current = data;
   const [loading, setLoading] = useState(true);
@@ -57,7 +58,7 @@ const GuessLineupGame: React.FC<Props> = ({ onBack, addToast }) => {
       const local = d.game ? readDone(d.game.id) : null;
       setData(d); setPickScope(d.scope ?? 'big'); setPickHoles(d.holes ?? 3);
       getPuzzleStats(undefined as any, 'guess_lineup').then(setStats).catch(() => {});
-      if (!d.has_prefs) { setConfig(true); return; }
+      if (!holes && !d.has_prefs) { setConfig(true); return; }
       if (!d.game) return;
       if (d.play?.finished_at || local) {
         setSummary(local?.summary ?? { ok: true, rounds_solved: d.play?.rounds_solved ?? 0, pending: true });
@@ -69,7 +70,7 @@ const GuessLineupGame: React.FC<Props> = ({ onBack, addToast }) => {
     } catch { addToast('Could not load — tap to retry', 'error'); setConfig(true); }
     finally { setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load('big', initialHoles); }, [load]);
   useEffect(() => { if (summary && data?.game) saveDone(data.game.id, data.date, summary, prog); }, [summary]);
   useEffect(() => {
     if (summary || ready || config || !data?.game) return;
@@ -156,13 +157,6 @@ const GuessLineupGame: React.FC<Props> = ({ onBack, addToast }) => {
     <div className="py-4">
       <h1 className="text-2xl font-extrabold text-text-primary text-center mb-1">Missing XI</h1>
       <p className="text-text-secondary text-center text-sm mb-6">Rebuild the lineup — each player is a mini Wordle.</p>
-      <p className="text-xs font-bold text-text-secondary mb-2">TEAMS</p>
-      <div className="grid grid-cols-2 gap-2 mb-5">
-        {(['big', 'all'] as const).map(s => (
-          <button key={s} onClick={() => setPickScope(s)} className={`p-3 rounded-xl border text-sm font-bold ${pickScope === s ? 'border-electric-blue bg-electric-blue/10 text-text-primary' : 'border-white/10 text-text-secondary'}`}>
-            {s === 'big' ? 'Only big clubs' : 'All teams'}</button>
-        ))}
-      </div>
       <p className="text-xs font-bold text-text-secondary mb-2">DIFFICULTY · players to find</p>
       <div className="grid grid-cols-3 gap-2 mb-5">
         {[3, 6, 11].map(h => (
@@ -205,24 +199,27 @@ const GuessLineupGame: React.FC<Props> = ({ onBack, addToast }) => {
   }
 
   if (summary) {
-    const hasPct = summary.percentile != null;
-    const bucket = !hasPct ? '…' : summary.percentile <= 1 ? 'Top 1%' : summary.percentile <= 5 ? 'Top 5%' : summary.percentile <= 25 ? 'Top 25%' : summary.percentile <= 50 ? 'Top 50%' : 'Top 75%';
-    return Shell(<div className="text-center py-8">
-      <Trophy size={44} className="text-warm-yellow mx-auto mb-3" />
-      <h1 className="text-2xl font-extrabold text-text-primary">Done!</h1>
-      <p className="text-text-secondary">{summary.rounds_solved}/{holes.length} found</p>
-      {summary.freeze_gained && <div className="mt-3 inline-flex items-center gap-2 bg-electric-blue/15 text-electric-blue rounded-full px-4 py-1.5 text-sm font-bold"><Snowflake size={14} /> +1 Freeze earned!</div>}
-      <div className="grid grid-cols-2 gap-3 mt-6">
-        <div className="card-base p-3"><p className="text-xs text-text-secondary">Time</p><p className="text-lg font-bold text-text-primary">{fmtTime(Math.floor((summary.time_ms || 0) / 1000))}</p></div>
-        <div className="card-base p-3"><p className="text-xs text-text-secondary">Percentile</p><p className="text-lg font-bold text-lime-glow">{bucket}</p></div>
-        <div className="card-base p-3"><p className="text-xs text-text-secondary">Streak</p><p className="text-lg font-bold text-hot-red">🔥 {summary.streak ?? '…'}</p></div>
-        <div className="card-base p-3"><p className="text-xs text-text-secondary">Guesses</p><p className="text-lg font-bold text-text-primary">{totalGuesses()}</p></div>
-      </div>
-      <button onClick={() => setReview(true)} className="mt-5 w-full border border-electric-blue/40 text-electric-blue font-bold py-2.5 rounded-xl">See lineup</button>
-      <button onClick={shareReview} className="mt-3 w-full bg-lime-glow text-deep-navy font-extrabold py-3 rounded-xl flex items-center justify-center gap-2"><Share2 size={18} /> Share result</button>
-      <button onClick={() => setConfig(true)} className="mt-3 text-electric-blue font-semibold text-sm">Change setup</button>
-      <button onClick={onBack} className="mt-4 w-full bg-navy-accent text-text-primary font-bold py-3 rounded-xl">Go to FunZone</button>
-    </div>);
+    return (
+      <GameResultModal
+        meta={{ icon: '🧩', label: 'Guess Lineup', accent: 'from-emerald-500/30 to-electric-blue/10' }}
+        gameType="guess_lineup"
+        statsLevel={data?.holes ? `big_${data.holes}` : undefined}
+        xp={100}
+        hero={{ primary: 'Done!', sub: `${summary.rounds_solved}/${holes.length} found`, win: true }}
+        percentile={summary.percentile}
+        detail={summary.freeze_gained
+          ? <div className="flex justify-center"><span className="inline-flex items-center gap-2 bg-electric-blue/15 text-electric-blue rounded-full px-4 py-1.5 text-sm font-bold"><Snowflake size={14} /> +1 Freeze earned!</span></div>
+          : undefined}
+        extraActions={
+          <>
+            <button onClick={() => setReview(true)} className="mt-3 w-full border border-electric-blue/40 text-electric-blue font-bold py-2.5 rounded-xl">See lineup</button>
+            <button onClick={() => setConfig(true)} className="mt-2 w-full text-electric-blue font-semibold text-sm py-1.5">Change setup</button>
+          </>
+        }
+        onShare={shareReview}
+        onBack={onBack}
+      />
+    );
   }
 
   if (!data?.game) return Shell(

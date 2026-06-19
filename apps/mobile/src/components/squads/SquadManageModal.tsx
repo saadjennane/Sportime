@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Squad, Profile } from '../../types';
 import { X, Trash2, UserX, LogOut } from 'lucide-react';
+import { PremiumBadge } from '../premium/PremiumBadge';
 
 interface SquadManageModalProps {
   isOpen: boolean;
@@ -64,7 +65,7 @@ export const SquadManageModal: React.FC<SquadManageModalProps> = ({ isOpen, onCl
             {members.length > 0 ? members.map(member => (
               <div key={member.id} className="flex items-center bg-gray-50 p-2 rounded-lg">
                 <img src={member.profile_picture_url || `https://api.dicebear.com/8.x/bottts/svg?seed=${member.id}`} alt={member.username || 'user'} className="w-8 h-8 rounded-full object-cover" />
-                <p className="flex-1 ml-3 font-semibold text-sm">{member.username}</p>
+                <p className="flex-1 ml-3 font-semibold text-sm flex items-center gap-1.5 min-w-0"><span className="truncate">{member.username}</span>{member.is_subscriber && <PremiumBadge size={10} />}</p>
                 <button onClick={() => onRemoveMember(squad.id, member.id)} className="p-2 text-red-500 hover:bg-red-100 rounded-full">
                   <UserX size={16} />
                 </button>

@@ -305,6 +305,31 @@ serve(async (req) => {
         continue
       }
 
+      // ── Auto-substitution (only once the game week is final): a starter who played
+      // 0 minutes is replaced by the bench sub of the SAME position who played
+      // (one sub per position → formation always stays valid). Captaincy migrates.
+      if (gameWeek.status === 'finished') {
+        const posById = new Map((players || []).map(p => [p.id, mapPosition((p as any).position)]))
+        const mins = (id: string) => (statsMap.get(id)?.minutes_played ?? 0)
+        const newStarters = [...team.starters]
+        const newSubs = [...team.substitutes]
+        let cap = team.captain_id
+        for (let i = 0; i < newStarters.length; i++) {
+          const sid = newStarters[i]
+          if (mins(sid) > 0) continue
+          const pos = posById.get(sid)
+          const subIdx = newSubs.findIndex((subId: string) => posById.get(subId) === pos && mins(subId) > 0)
+          if (subIdx === -1) continue
+          const subId = newSubs[subIdx]
+          newStarters[i] = subId
+          newSubs[subIdx] = sid
+          if (cap === sid) cap = subId
+        }
+        team.starters = newStarters
+        team.substitutes = newSubs
+        team.captain_id = cap
+      }
+
       // Calculate points for each starter
       let teamTotalPoints = 0
       const playerPoints: Record<string, number> = {}
@@ -372,6 +397,14 @@ serve(async (req) => {
           const newFatigue = calculateFatigue(fatigue, playerStatus, false)
           newFatigueState[player.id] = newFatigue
         }
+      }
+
+      // Substitutes (incl. any auto-subbed-out DNP) rest — preserve & recover their
+      // fatigue so a 0-minute player never consumes fatigue.
+      for (const subId of team.substitutes) {
+        const status = playerStatusMap.get(subId) || 'Wild'
+        const f = currentFatigueState[subId] || 100
+        newFatigueState[subId] = calculateFatigue(f, status, false)
       }
 
       // Apply team bonuses

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../../services/supabase';
 import { joinLiveGame, submitLivePrediction, editLivePrediction } from '../../services/liveGameService';
 import { MatchHeaderRow } from '../../components/matches/MatchHeaderRow';
+import { PremiumBadge } from '../../components/premium/PremiumBadge';
 import { ChevronLeft, Minus, Plus, Trophy, Loader2, Pencil, AlertTriangle } from 'lucide-react';
 
 interface Props {
@@ -313,7 +314,10 @@ const Leaderboard: React.FC<{ entries: any[]; phase: string; userId: string }> =
             return (
               <div key={p.id} className={`flex items-center gap-3 p-2 rounded-lg ${me ? 'bg-electric-blue/10' : 'bg-deep-navy'}`}>
                 <span className="w-5 text-center font-bold text-text-secondary text-sm">{i + 1}</span>
-                <span className="flex-1 font-semibold text-text-primary text-sm truncate">{name}</span>
+                <span className="flex-1 min-w-0 flex items-center gap-1.5 font-semibold text-text-primary text-sm">
+                  <span className="truncate">{name}</span>
+                  {p.is_subscriber && <PremiumBadge size={10} />}
+                </span>
                 {phase !== 'results' && p.predicted_score && (
                   <span className="text-xs text-text-disabled">{p.predicted_score.home}-{p.predicted_score.away}</span>
                 )}

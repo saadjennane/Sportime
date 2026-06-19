@@ -101,6 +101,7 @@ export interface LeaderboardEntry {
   finalCoins: number;
   points: number;
   userId?: string;
+  isSubscriber?: boolean;
 }
 
 export interface Profile {

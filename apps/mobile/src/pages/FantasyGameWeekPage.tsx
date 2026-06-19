@@ -1,13 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { FantasyGame, UserFantasyTeam, FantasyPlayer, PlayerPosition, Booster, Profile, UserLeague, LeagueMember, LeagueGame, Game } from '../../types';
-import { Info, Trophy, X, Check, Target, ArrowLeft, Replace, Trash2 } from 'lucide-react';
+import { Info, Trophy, X, Check, Target, ArrowLeft, Replace, Trash2, Star } from 'lucide-react';
 import { FantasyPlayerModal } from '../components/FantasyPlayerModal';
 import { FantasyPlayerStatsModal } from '../components/fantasy/FantasyPlayerStatsModal';
 import { FantasyLeaderboardModal } from '../components/FantasyLeaderboardModal';
 import { mockBoosters } from '../data/mockFantasy.tsx';
 import { BoosterSelectionModal } from '../components/BoosterSelectionModal';
 import { FantasyRulesModal } from '../components/FantasyRulesModal';
-import { processGameWeek, getFantasyGameWeekStats } from '../services/fantasyService';
+import { processGameWeek, getFantasyGameWeekStats, getGameBoosterUsage } from '../services/fantasyService';
 import { useFantasyPlayers, useFantasyTeam } from '../hooks/useFantasy';
 import { mockPlayerLast10Stats } from '../data/mockPlayerStats';
 import { GameWeekConditions } from '../components/fantasy/GameWeekConditions';
@@ -30,10 +30,11 @@ interface FantasyGameWeekPageProps {
   currentUserId: string;
   onLinkGame: (game: Game) => void;
   profile: Profile;
+  addToast?: (message: string, type?: 'success' | 'error' | 'info') => void;
 }
 
 export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) => {
-  const { game, allPlayers: propPlayers, onBack, initialLeagueContext, allUsers, userLeagues, leagueMembers, leagueGames, currentUserId, onLinkGame, profile } = props;
+  const { game, allPlayers: propPlayers, onBack, initialLeagueContext, allUsers, userLeagues, leagueMembers, leagueGames, currentUserId, onLinkGame, profile, addToast } = props;
 
   // Real data (Supabase) — replaces the previous mock store + mock players.
   const { players: hookPlayers } = useFantasyPlayers();
@@ -55,6 +56,12 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
   const isLive = selectedGameWeek.status === 'live';
   const isFinished = selectedGameWeek.status === 'finished';
   const isLiveOrFinished = isLive || isFinished;
+
+  // Expected starters for this formation (e.g. "2-3-1" = 6 outfield + 1 GK = 7).
+  const expectedStarters = (selectedGameWeek.formationConstraint || '2-3-1').split('-').reduce((a, b) => a + Number(b), 0) + 1;
+  // Entry deadline = gameweek start; edits lock at kickoff even if the status feed lags.
+  const deadlinePassed = selectedGameWeek.startDate ? new Date(selectedGameWeek.startDate) <= new Date() : false;
+  const editLocked = isLiveOrFinished || deadlinePassed;
   
   const { team: rawTeam, saveTeam } = useFantasyTeam(currentUserId, selectedMatchDayId);
   // Compose against a real team, or a fresh empty one when none exists yet.
@@ -77,7 +84,8 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
 
   const { simulationResult } = useMemo(() => {
     if (!userTeam || !isLiveOrFinished) return { simulationResult: null };
-    const { simulationResult } = processGameWeek(userTeam, allPlayers, gwStats);
+    // Apply auto-subs only once the game week is final (minutes are then definitive).
+    const { simulationResult } = processGameWeek(userTeam, allPlayers, gwStats, isFinished);
     // For a FINISHED game week, display the server's stored points (source of truth)
     // instead of the client recompute, so there is no client/server mismatch.
     if (isFinished && simulationResult && userTeam.player_points && Object.keys(userTeam.player_points).length > 0) {
@@ -140,8 +148,22 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
   }, [starters, selectedGameWeek.conditions]);
 
   const handleUpdateUserTeam = (updatedTeam: UserFantasyTeam) => {
-    void saveTeam(updatedTeam); // persist to Supabase
     setIsTeamConfirmed(false); // Re-enable confirmation on any edit
+    void (async () => {
+      try {
+        const ok = await saveTeam(updatedTeam); // persist to Supabase
+        if (ok === false) addToast?.('Could not save your team — try again', 'error');
+      } catch {
+        addToast?.('Could not save your team — try again', 'error');
+      }
+    })();
+  };
+
+  // Set / unset the captain (the single biggest scoring lever — ×bonus + Double Impact).
+  const handleMakeCaptain = (player: FantasyPlayer) => {
+    if (editLocked || !userTeam) return;
+    handleUpdateUserTeam({ ...userTeam, captain_id: userTeam.captain_id === player.id ? '' : player.id });
+    setActionSheet(null);
   };
 
   const handlePitchSlotClick = (position: PlayerPosition, player: FantasyPlayer | null, slotIndex: number = 0) => {
@@ -151,6 +173,7 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
         }
         return;
     }
+    if (deadlinePassed) return;
 
     if (selectedForSwap) {
       if (player) {
@@ -172,7 +195,7 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
   };
 
   const handleRemoveFromFormation = (p: FantasyPlayer) => {
-    if (isLiveOrFinished) return;
+    if (editLocked) return;
     const newPositions = { ...(userTeam.playerPositions || {}) };
     const newSlots = { ...(userTeam.playerSlots || {}) };
     delete newPositions[p.id];
@@ -188,7 +211,7 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
   };
 
   const handleBenchSlotClick = (position: PlayerPosition, player: FantasyPlayer | null) => {
-    if (isLiveOrFinished) return;
+    if (editLocked) return;
     if (player) {
       setSelectedForSwap(current => (current?.id === player.id ? null : player));
     } else {
@@ -197,7 +220,7 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
   };
 
   const handleSelectPlayerFromModal = (selectedPlayer: FantasyPlayer) => {
-    if (!userTeam || !editingSlot || isLiveOrFinished) return;
+    if (!userTeam || !editingSlot || editLocked) return;
 
     const { playerToReplaceId } = editingSlot;
     const newStartersIds = [...starters.map(p => p.id)];
@@ -249,20 +272,25 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
   };
   
   const handleBoosterSelect = (booster: Booster, targetId?: string) => {
-    if (!userTeam || isLiveOrFinished) return;
+    if (!userTeam || editLocked) return;
     handleUpdateUserTeam({ ...userTeam, booster_used: booster.id, booster_target_id: targetId });
     setIsBoosterModalOpen(false);
   };
-  
+
   const handleCancelBooster = () => {
-    if (!userTeam || isLiveOrFinished) return;
+    if (!userTeam || editLocked) return;
     handleUpdateUserTeam({ ...userTeam, booster_used: null, booster_target_id: null });
   };
 
   const handleConfirmTeam = () => {
-    if (isLiveOrFinished || !areConditionsMet) return;
-    console.log("Team confirmed:", userTeam);
+    if (isLiveOrFinished) return;
+    if (deadlinePassed) { addToast?.('The deadline for this game week has passed', 'error'); return; }
+    const missing = expectedStarters - starters.length;
+    if (missing > 0) { addToast?.(`Complete your XI — ${missing} slot${missing > 1 ? 's' : ''} left`, 'error'); return; }
+    if (!captainId) { addToast?.('Pick a captain before confirming ⭐', 'error'); return; }
+    if (!areConditionsMet) { addToast?.('Your team violates this game week\'s rules', 'error'); return; }
     setIsTeamConfirmed(true);
+    addToast?.(`Team confirmed for ${selectedGameWeek.name} ✓`, 'success');
   };
   
   const handleSubstitution = (dnpPlayerId: string, subPlayerId: string) => {
@@ -277,7 +305,23 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
     setSubstitutingPlayer(null);
   };
 
-  const selectedBooster = mockBoosters.find(b => b.id === userTeam?.booster_used);
+  // Real booster availability: each booster (1/2/3) is usable once per game. A booster
+  // committed to ANOTHER game week is "used"; the one on the current week is the active pick.
+  const [boosterUsage, setBoosterUsage] = useState<Record<string, number>>({});
+  useEffect(() => {
+    let cancelled = false;
+    getGameBoosterUsage(game.id, currentUserId).then(u => { if (!cancelled) setBoosterUsage(u); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [game.id, currentUserId, selectedMatchDayId, userTeam?.booster_used]);
+
+  const boosters = useMemo(() => {
+    const usedElsewhere = new Set(
+      Object.entries(boosterUsage).filter(([gwId]) => gwId !== selectedMatchDayId).map(([, b]) => b)
+    );
+    return mockBoosters.map(b => ({ ...b, used: usedElsewhere.has(b.id) }));
+  }, [boosterUsage, selectedMatchDayId]);
+
+  const selectedBooster = boosters.find(b => b.id === userTeam?.booster_used);
 
   return (
     <div className="space-y-4 pb-28">
@@ -310,8 +354,12 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
         </div>
       ) : isFinished ? (
          <div className="text-center text-sm font-bold p-2 rounded-lg bg-lime-glow/20 text-lime-glow flex items-center justify-center gap-2"><Check size={16} /> Game Week Finished</div>
+      ) : deadlinePassed ? (
+        <div className="text-center text-sm font-bold p-2 rounded-lg bg-warm-yellow/15 text-warm-yellow flex items-center justify-center gap-2"><Check size={16} /> Locked — deadline passed</div>
       ) : (
-        <div className="text-center text-xs font-semibold p-2 rounded-lg bg-navy-accent text-text-secondary">Team edit available until deadline</div>
+        <div className="text-center text-xs font-semibold p-2 rounded-lg bg-navy-accent text-text-secondary">
+          Editable until kickoff{selectedGameWeek.startDate ? ` · ${new Date(selectedGameWeek.startDate).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}
+        </div>
       )}
       
       <GameWeekConditions gameWeek={selectedGameWeek} team={starters} />
@@ -324,7 +372,7 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
 
       <Bench substitutes={substitutes} onSlotClick={handleBenchSlotClick} captainId={captainId} selectedForSwap={selectedForSwap} isLive={isLiveOrFinished} />
       
-      {!isLiveOrFinished && (
+      {!editLocked && (
         <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
           {selectedBooster ? (
             <div className="flex items-center justify-center gap-2 font-semibold py-3 rounded-xl shadow-lg transition-all bg-gradient-to-r from-warm-yellow to-orange-500 text-white">
@@ -333,14 +381,14 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
               <button onClick={handleCancelBooster} disabled={isLiveOrFinished} className="ml-1 text-white/80 hover:text-white disabled:opacity-50" aria-label="Cancel booster"><X size={16}/></button>
             </div>
           ) : (
-            <button onClick={() => setIsBoosterModalOpen(true)} disabled={isLiveOrFinished} className="flex items-center justify-center gap-2 font-semibold py-3 rounded-xl shadow-lg transition-all disabled:bg-disabled disabled:text-text-disabled disabled:opacity-70 bg-navy-accent hover:bg-white/10"><Target size={18} /> <span>Booster ({mockBoosters.filter(b => !b.used).length})</span></button>
+            <button onClick={() => setIsBoosterModalOpen(true)} disabled={isLiveOrFinished} className="flex items-center justify-center gap-2 font-semibold py-3 rounded-xl shadow-lg transition-all disabled:bg-disabled disabled:text-text-disabled disabled:opacity-70 bg-navy-accent hover:bg-white/10"><Target size={18} /> <span>Booster ({boosters.filter(b => !b.used).length})</span></button>
           )}
 
-          <button onClick={handleConfirmTeam} disabled={!areConditionsMet || isTeamConfirmed || isLiveOrFinished} title={!areConditionsMet ? "Your team violates GameWeek rules." : ""} className="flex-1 flex items-center justify-center gap-2 font-semibold py-3 rounded-xl shadow-lg transition-all primary-button"><Check size={18} /> {isTeamConfirmed ? 'Team Confirmed' : 'Confirm Team'}</button>
+          <button onClick={handleConfirmTeam} disabled={isTeamConfirmed || editLocked} className="flex-1 flex items-center justify-center gap-2 font-semibold py-3 rounded-xl shadow-lg transition-all primary-button"><Check size={18} /> {isTeamConfirmed ? 'Team Confirmed' : 'Confirm Team'}</button>
         </div>
       )}
 
-      {isLive && dnpStarters.length > 0 && <p className="text-center text-xs text-warm-yellow">A player in your starting lineup did not play. Tap them to make a substitution.</p>}
+      {isLive && dnpStarters.length > 0 && <p className="text-center text-xs text-warm-yellow">A starter hasn't played yet. If they finish on 0 minutes, your bench sub of that position is auto‑substituted at the final whistle — or tap them to sub now.</p>}
 
       {/* MODALS */}
       <FantasyPlayerModal isOpen={!!editingSlot} onClose={() => setEditingSlot(null)} position={editingSlot?.position || 'Attacker'} allPlayers={allPlayers} onSelectPlayer={handleSelectPlayerFromModal} selectedPlayerIds={[...userTeam.starters, ...userTeam.substitutes]} />
@@ -354,10 +402,15 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
               <p className="font-bold text-text-primary truncate">{actionSheet.player.name}</p>
             </div>
             <button onClick={() => { setStatsPlayer(actionSheet.player); setActionSheet(null); }} className="w-full text-left px-3 py-3 rounded-lg hover:bg-white/5 text-text-primary font-semibold flex items-center gap-3"><Info size={18} /> Stats</button>
-            {!isLiveOrFinished && (
+            {!editLocked && (
+              <button onClick={() => handleMakeCaptain(actionSheet.player)} className="w-full text-left px-3 py-3 rounded-lg hover:bg-warm-yellow/10 text-warm-yellow font-semibold flex items-center gap-3">
+                <Star size={18} /> {captainId === actionSheet.player.id ? 'Remove captain' : 'Make captain'}
+              </button>
+            )}
+            {!editLocked && (
               <button onClick={() => { setEditingSlot({ position: actionSheet.position, playerToReplaceId: actionSheet.player.id, isBench: false, slotIndex: actionSheet.slotIndex }); setActionSheet(null); }} className="w-full text-left px-3 py-3 rounded-lg hover:bg-white/5 text-text-primary font-semibold flex items-center gap-3"><Replace size={18} /> Replace</button>
             )}
-            {!isLiveOrFinished && (
+            {!editLocked && (
               <button onClick={() => { handleRemoveFromFormation(actionSheet.player); setActionSheet(null); }} className="w-full text-left px-3 py-3 rounded-lg hover:bg-hot-red/10 text-hot-red font-semibold flex items-center gap-3"><Trash2 size={18} /> Remove</button>
             )}
             <button onClick={() => setActionSheet(null)} className="w-full text-center px-3 py-2.5 mt-1 text-text-secondary font-semibold">Cancel</button>
@@ -366,7 +419,7 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
       )}
       <FantasyPlayerStatsModal isOpen={!!statsPlayer} onClose={() => setStatsPlayer(null)} player={statsPlayer} />
       <FantasyLeaderboardModal isOpen={isLeaderboardOpen} onClose={() => setIsLeaderboardOpen(false)} game={game} initialLeagueContext={initialLeagueContext} allUsers={allUsers} userLeagues={userLeagues} leagueMembers={leagueMembers} leagueGames={leagueGames} currentUserId={currentUserId} />
-      <BoosterSelectionModal isOpen={isBoosterModalOpen} onClose={() => setIsBoosterModalOpen(false)} boosters={mockBoosters} onSelect={handleBoosterSelect} teamPlayers={starters} />
+      <BoosterSelectionModal isOpen={isBoosterModalOpen} onClose={() => setIsBoosterModalOpen(false)} boosters={boosters} onSelect={handleBoosterSelect} teamPlayers={starters} />
       <FantasyRulesModal isOpen={isRulesModalOpen} onClose={() => setIsRulesModalOpen(false)} />
       {substitutingPlayer && (
         <SubstitutionModal

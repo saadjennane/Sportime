@@ -4,6 +4,7 @@ import {
   getPlayerToday, setPuzzlePrefs, puzzleStart, finishPlayer, getPuzzleStats,
   PuzzleHint, PuzzleScope, PlayerToday, PlayerRound,
 } from '../services/puzzleService';
+import { GameResultModal } from '../components/funzone/GameResultModal';
 
 // reveal the first n characters of a name; mask the rest (keep spaces/punctuation)
 const maskName = (name: string, n: number) => name.split('').map((ch, i) => i < n ? ch : (/[\s.\-']/.test(ch) ? ch : '_')).join('');
@@ -22,7 +23,7 @@ const saveDone = (gameId: string, date: string, summary: any, rounds: any) => {
 };
 import { getPlayerIndex, searchPlayers, IndexedPlayer } from '../services/playerIndexService';
 
-interface Props { userId: string; onBack: () => void; addToast: (m: string, t: 'success' | 'error' | 'info') => void; }
+interface Props { userId: string; onBack: () => void; addToast: (m: string, t: 'success' | 'error' | 'info') => void; initialScope?: PuzzleScope; initialHint?: PuzzleHint; }
 
 const HINTS: { key: PuzzleHint; title: string; desc: string; emoji: string }[] = [
   { key: 'easy', title: 'Easy', desc: 'Full career trail shown', emoji: '🟢' },
@@ -36,7 +37,7 @@ const SCOPES: { key: PuzzleScope; title: string; desc: string; emoji: string }[]
 const HINT_COOLDOWN = 5000;
 const clubLogo = (id: number) => `https://media.api-sports.io/football/teams/${id}.png`;
 
-export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
+export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast, initialScope, initialHint }) => {
   const [data, setData] = useState<PlayerToday | null>(null);
   const [loading, setLoading] = useState(true);
   const [config, setConfig] = useState(false);
@@ -85,7 +86,13 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
     setReady(!(d.rounds ?? []).some(r => r.attempt?.guesses?.length));
     setLoading(false);
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (initialScope && initialHint) {
+      (async () => { try { await setPuzzlePrefs(initialScope, initialHint, 'guess_player'); } catch { /* fall back to current prefs */ } load(initialScope); })();
+    } else {
+      load();
+    }
+  }, [load]);
   useEffect(() => { getPlayerIndex().then(setIndex).catch(() => {}); }, []);   // autocomplete index, non-blocking
   useEffect(() => { if (summary && data?.game) saveDone(data.game.id, data.date, summary, data.rounds); }, [summary]);   // persist "played today"
   useEffect(() => {
@@ -269,27 +276,27 @@ export const GuessPlayerGame: React.FC<Props> = ({ onBack, addToast }) => {
   }
 
   if (summary) {
-    const hasPct = summary.percentile != null;
-    const pct = hasPct ? Math.max(1, Math.round(summary.percentile)) : 0;
-    const bucket = !hasPct ? '…' : pct <= 1 ? 'Top 1%' : pct <= 5 ? 'Top 5%' : pct <= 25 ? 'Top 25%' : pct <= 50 ? 'Top 50%' : 'Top 75%';
-    const totalGuesses = (data?.rounds ?? []).reduce((s, r) => s + (r.attempt?.attempts ?? 0), 0);
-    return wrap(<div className="text-center py-8">
-      <Trophy size={44} className="text-warm-yellow mx-auto mb-3" />
-      <h1 className="text-2xl font-extrabold text-text-primary">Done!</h1>
-      <p className="text-text-secondary">{summary.rounds_solved}/{data?.rounds?.length} solved</p>
-      {summary.freeze_gained && <div className="mt-3 inline-flex items-center gap-2 bg-electric-blue/15 text-electric-blue rounded-full px-4 py-1.5 text-sm font-bold"><Snowflake size={14} /> +1 Freeze earned!</div>}
-      <div className="grid grid-cols-2 gap-3 mt-6">
-        <div className="card-base p-3"><p className="text-xs text-text-secondary">Time</p><p className="text-lg font-bold text-text-primary">{fmtTime(Math.floor((summary.time_ms || 0) / 1000))}</p></div>
-        <div className="card-base p-3"><p className="text-xs text-text-secondary">Guesses</p><p className="text-lg font-bold text-text-primary">{totalGuesses}</p></div>
-        <div className="card-base p-3"><p className="text-xs text-text-secondary">Percentile</p><p className="text-lg font-bold text-lime-glow">{bucket}</p></div>
-        <div className="card-base p-3"><p className="text-xs text-text-secondary">Streak</p><p className="text-lg font-bold text-hot-red">🔥 {summary.streak ?? '…'}</p></div>
-      </div>
-      <p className="text-text-secondary text-sm mt-4 font-medium">You solved today's game — see you tomorrow! 👋</p>
-      <button onClick={() => setReview(true)} className="mt-5 w-full border border-electric-blue/40 text-electric-blue font-bold py-2.5 rounded-xl">See players</button>
-      <button onClick={shareReview} className="mt-3 w-full bg-lime-glow text-deep-navy font-extrabold py-3 rounded-xl flex items-center justify-center gap-2"><Share2 size={18} /> Share result</button>
-      <button onClick={() => setConfig(true)} className="mt-3 text-electric-blue font-semibold text-sm">Change setup</button>
-      <button onClick={onBack} className="mt-4 w-full bg-navy-accent text-text-primary font-bold py-3 rounded-xl">Go to FunZone</button>
-    </div>);
+    return (
+      <GameResultModal
+        meta={{ icon: '🕵️', label: 'Guess Player', accent: 'from-warm-yellow/30 to-hot-red/10' }}
+        gameType="guess_player"
+        statsLevel={data?.scope}
+        xp={100}
+        hero={{ primary: 'Done!', sub: `${summary.rounds_solved}/${data?.rounds?.length} solved`, win: true }}
+        percentile={summary.percentile}
+        detail={summary.freeze_gained
+          ? <div className="flex justify-center"><span className="inline-flex items-center gap-2 bg-electric-blue/15 text-electric-blue rounded-full px-4 py-1.5 text-sm font-bold"><Snowflake size={14} /> +1 Freeze earned!</span></div>
+          : undefined}
+        extraActions={
+          <>
+            <button onClick={() => setReview(true)} className="mt-3 w-full border border-electric-blue/40 text-electric-blue font-bold py-2.5 rounded-xl">See players</button>
+            <button onClick={() => setConfig(true)} className="mt-2 w-full text-electric-blue font-semibold text-sm py-1.5">Change setup</button>
+          </>
+        }
+        onShare={shareReview}
+        onBack={onBack}
+      />
+    );
   }
 
   // active round

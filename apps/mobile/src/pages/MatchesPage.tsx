@@ -23,10 +23,11 @@ interface MatchesPageProps {
   bets: Bet[];
   onBet: (match: Match, prediction: 'teamA' | 'draw' | 'teamB', odds: number) => void;
   onPlayGame: (matchId: string, matchName: string) => void;
+  onViewResults?: (fixtureId: string, matchName: string) => void;
   onBrowseGames?: () => void;
 }
 
-const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayGame, onBrowseGames }) => {
+const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayGame, onViewResults, onBrowseGames }) => {
   const [activeTab, setActiveTab] = useState<Tab>('today');
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
@@ -332,7 +333,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
           totalPicks={finishedHeaderStats.totalPicks}
           earnings={finishedHeaderStats.net}
           onViewStats={setSelectedMatchForStats}
-          onPlayGame={onPlayGame}
+          onViewResults={onViewResults}
           orderedLeagues={effectiveOrderedLeagues}
           onOpenHistory={() => setIsHistoryOpen(true)}
         />
@@ -355,6 +356,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
           bets={bets}
           onClose={() => setIsHistoryOpen(false)}
           onViewStats={setSelectedMatchForStats}
+          onViewResults={onViewResults}
         />
       )}
     </div>

@@ -65,6 +65,7 @@ const LeaderboardPage: React.FC<LeaderboardPageProps> = (props) => {
       finalCoins: challenge.challengeBalance + r.points,
       rank: r.rank,
       userId: r.userId,
+      isSubscriber: r.isSubscriber,
     }));
   }, [serverRows, currentUserId, challenge.challengeBalance]);
 

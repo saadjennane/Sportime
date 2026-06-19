@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Search, X, Flame, Trophy, Share2, Clock } from 'lucide-react';
 import { getRapidToday, finishPlayer, getPuzzleStats, replayGame, RapidToday } from '../services/puzzleService';
+import { GameResultModal } from '../components/funzone/GameResultModal';
 import { getGridIndex, searchPlayers, fits, GridPlayer, GridCrit } from '../services/gridService';
 import { IndexedPlayer } from '../services/playerIndexService';
 
@@ -10,9 +11,9 @@ const doneKey = (g: string) => `sportime_rf_done_${g}`;
 const readDone = (g: string) => { try { const r = localStorage.getItem(doneKey(g)); return r ? JSON.parse(r) : null; } catch { return null; } };
 const saveDone = (g: string, date: string, st: any) => { try { for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k?.startsWith('sportime_rf_done_')) { try { if (JSON.parse(localStorage.getItem(k)!).date !== date) localStorage.removeItem(k); } catch { /**/ } } } localStorage.setItem(doneKey(g), JSON.stringify({ date, ...st })); } catch { /**/ } };
 
-interface Props { userId: string; onBack: () => void; addToast: (m: string, t: 'success' | 'error' | 'info') => void }
+interface Props { userId: string; onBack: () => void; addToast: (m: string, t: 'success' | 'error' | 'info') => void; initialLevel?: string }
 
-const RapidFireGame: React.FC<Props> = ({ onBack, addToast }) => {
+const RapidFireGame: React.FC<Props> = ({ onBack, addToast, initialLevel }) => {
   const [data, setData] = useState<RapidToday | null>(null);
   const [loading, setLoading] = useState(true);
   const [config, setConfig] = useState(false);
@@ -39,7 +40,7 @@ const RapidFireGame: React.FC<Props> = ({ onBack, addToast }) => {
       const local = d.game ? readDone(d.game.id) : null;
       setData(d); if (d.level) setPickLevel(d.level);
       getPuzzleStats(undefined as any, 'rapid').then(setStats).catch(() => {});
-      if (!d.has_prefs) { setConfig(true); return; }
+      if (!level && !d.has_prefs) { setConfig(true); return; }
       if (!d.game || !d.payload) return;
       if (d.play?.finished_at || local) {
         setNamed(local?.named ?? []);
@@ -50,7 +51,7 @@ const RapidFireGame: React.FC<Props> = ({ onBack, addToast }) => {
     } catch { addToast('Could not load', 'error'); }
     finally { setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(initialLevel); }, [load]);
   useEffect(() => { getGridIndex().then(setIndex).catch(() => {}); }, []);
   useEffect(() => {
     if (summary || !ready) return;
@@ -127,22 +128,23 @@ const RapidFireGame: React.FC<Props> = ({ onBack, addToast }) => {
   </div>);
 
   if (summary) {
-    const hasPct = summary.percentile != null;
-    const bucket = !hasPct ? '…' : summary.percentile <= 1 ? 'Top 1%' : summary.percentile <= 5 ? 'Top 5%' : summary.percentile <= 25 ? 'Top 25%' : summary.percentile <= 50 ? 'Top 50%' : 'Top 75%';
-    return Shell(<div className="text-center py-8">
-      <Trophy size={44} className="text-warm-yellow mx-auto mb-3" />
-      <h1 onClick={() => { devTaps.current += 1; if (devTaps.current >= 4) setDev(true); }} className="text-2xl font-extrabold text-text-primary">Time!</h1>
-      <p className="text-text-secondary">{summary.rounds_solved} / {pl.total} named</p>
-      <div className="grid grid-cols-3 gap-3 mt-6">
-        <div className="card-base p-3"><p className="text-xs text-text-secondary">Named</p><p className="text-base font-bold text-lime-glow">{summary.rounds_solved}</p></div>
-        <div className="card-base p-3"><p className="text-xs text-text-secondary">Percentile</p><p className="text-base font-bold text-lime-glow">{bucket}</p></div>
-        <div className="card-base p-3"><p className="text-xs text-text-secondary">Streak</p><p className="text-base font-bold text-hot-red">🔥 {summary.streak ?? '…'}</p></div>
-      </div>
-      {named.length > 0 && <div className="mt-5 flex flex-wrap gap-1.5 justify-center">{named.map(p => <span key={p.id} className="text-xs bg-lime-glow/15 text-lime-glow rounded-full px-2.5 py-1 font-semibold">{p.name}</span>)}</div>}
-      <button onClick={shareReview} className="mt-5 w-full bg-lime-glow text-deep-navy font-extrabold py-3 rounded-xl flex items-center justify-center gap-2"><Share2 size={18} /> Share result</button>
-      {dev && <button onClick={replay} className="mt-3 text-electric-blue font-semibold text-sm">🔄 Play again</button>}
-      <button onClick={onBack} className="mt-3 w-full bg-navy-accent text-text-primary font-bold py-3 rounded-xl">Go to FunZone</button>
-    </div>);
+    return (
+      <GameResultModal
+        meta={{ icon: '⚡', label: 'Rapid Fire', accent: 'from-warm-yellow/30 to-lime-glow/10' }}
+        gameType="rapid"
+        statsLevel={data?.level}
+        xp={50}
+        hero={{ primary: `${summary.rounds_solved} / ${pl.total} named`, win: true }}
+        percentile={summary.percentile}
+        detail={named.length > 0
+          ? <div className="flex flex-wrap gap-1.5 justify-center">{named.map(p => <span key={p.id} className="text-xs bg-lime-glow/15 text-lime-glow rounded-full px-2.5 py-1 font-semibold">{p.name}</span>)}</div>
+          : undefined}
+        onShare={shareReview}
+        onReplay={dev ? replay : undefined}
+        onBack={onBack}
+        onHeroTap={() => { devTaps.current += 1; if (devTaps.current >= 4) setDev(true); }}
+      />
+    );
   }
 
   if (!ready) return Shell(

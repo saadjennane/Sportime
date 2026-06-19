@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   listCompetitions, createCompetition, updateCompetition, getCompetitionDetail,
   importGroups, setFinalRank, updateMatch, setPhaseState,
-  generateBracket, advanceRound, resolveCompetition,
+  generateBracket, advanceRound, resolveCompetition, seedContent,
 } from '../services/tournamentAdminService';
 
 const STATUSES = ['draft', 'open', 'running', 'resolved', 'archived'];
@@ -144,6 +144,11 @@ function CompetitionEditor({ detail, onChange, flash }: { detail: any; onChange:
       {/* Bracket actions */}
       <Section title="Bracket & scoring actions">
         <div className="flex flex-wrap gap-2">
+          <button onClick={() => {
+            const lg = prompt('League api id to seed matches (e.g. 1 = World Cup). Leave blank to seed players only:', '');
+            const sn = lg ? prompt('Season (e.g. 2026):', '2026') : '';
+            act(() => seedContent(comp.id, lg ? Number(lg) : null, sn ? Number(sn) : null), 'Seed content');
+          }} className="bg-amber-600 text-white px-3 py-2 rounded-lg text-sm font-semibold">Seed content (players + matches)</button>
           <button onClick={() => act(() => generateBracket(comp.id), 'Generate bracket')} className="bg-indigo-600 text-white px-3 py-2 rounded-lg text-sm font-semibold">Generate bracket</button>
           {rounds.map(r => (
             <button key={r} onClick={() => act(() => advanceRound(comp.id, r), `Advance ${r}`)} className="bg-indigo-100 text-indigo-700 px-3 py-2 rounded-lg text-sm font-semibold">Advance {r} →</button>

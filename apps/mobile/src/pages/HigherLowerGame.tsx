@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Flame, ChevronUp, ChevronDown, Trophy, Share2 } from 'lucide-react';
 import { getHlToday, submitHl, getPuzzleStats, HlToday } from '../services/puzzleService';
+import { GameResultModal } from '../components/funzone/GameResultModal';
 import { getValueIndex, HL_CRITERIA, critByKey, ValuePlayer, HlCriterion } from '../services/valueService';
 
-interface Props { userId: string; onBack: () => void; addToast: (m: string, t: 'success' | 'error' | 'info') => void }
+interface Props { userId: string; onBack: () => void; addToast: (m: string, t: 'success' | 'error' | 'info') => void; initialCriterion?: string }
 
-const HigherLowerGame: React.FC<Props> = ({ onBack, addToast }) => {
+const HigherLowerGame: React.FC<Props> = ({ onBack, addToast, initialCriterion }) => {
   const [data, setData] = useState<HlToday | null>(null);
   const [loading, setLoading] = useState(true);
   const [config, setConfig] = useState(false);
@@ -30,11 +31,11 @@ const HigherLowerGame: React.FC<Props> = ({ onBack, addToast }) => {
       const d = await getHlToday(criterion);
       setData(d); if (d.criterion) setPickCrit(d.criterion);
       getPuzzleStats(undefined as any, 'higherlower').then(setStats).catch(() => {});
-      if (!d.has_prefs) setConfig(true);
+      if (!criterion && !d.has_prefs) setConfig(true);
     } catch { addToast('Could not load', 'error'); }
     finally { setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(initialCriterion); }, [load]);
   useEffect(() => { getValueIndex().then(setIndex).catch(() => {}); }, []);
 
   const confirmConfig = async () => { setConfig(false); setSummary(null); setPlaying(false); await load(pickCrit); };
@@ -113,21 +114,22 @@ const HigherLowerGame: React.FC<Props> = ({ onBack, addToast }) => {
   if (!data?.game) return Shell(<div className="text-center py-20 text-text-secondary">Unavailable today.</div>);
 
   if (summary) {
-    const hasPct = summary.percentile != null;
-    const bucket = !hasPct ? '…' : summary.percentile <= 1 ? 'Top 1%' : summary.percentile <= 5 ? 'Top 5%' : summary.percentile <= 25 ? 'Top 25%' : summary.percentile <= 50 ? 'Top 50%' : 'Top 75%';
-    return Shell(<div className="text-center py-10">
-      <Trophy size={44} className="text-warm-yellow mx-auto mb-3" />
-      <h1 className="text-2xl font-extrabold text-text-primary">Streak: {summary.streak}</h1>
-      <p className="text-text-secondary">{crit.emoji} {crit.label}</p>
-      <div className="grid grid-cols-2 gap-3 mt-6">
-        <div className="card-base p-3"><p className="text-xs text-text-secondary">Best</p><p className="text-lg font-bold text-lime-glow">🔥 {summary.best ?? summary.streak}</p></div>
-        <div className="card-base p-3"><p className="text-xs text-text-secondary">Percentile</p><p className="text-lg font-bold text-lime-glow">{bucket}</p></div>
-      </div>
-      <button onClick={start} className="mt-6 w-full bg-electric-blue text-white font-extrabold py-3.5 rounded-xl">Play again</button>
-      <button onClick={() => navigator.clipboard?.writeText(`Higher or Lower (${crit.label}) — streak ${summary.streak} 🔥`).then(() => addToast('Copied!', 'success'))} className="mt-3 w-full bg-lime-glow text-deep-navy font-extrabold py-3 rounded-xl flex items-center justify-center gap-2"><Share2 size={18} /> Share</button>
-      <button onClick={() => setConfig(true)} className="mt-3 text-electric-blue font-semibold text-sm">Change stat</button>
-      <button onClick={onBack} className="mt-3 w-full bg-navy-accent text-text-primary font-bold py-3 rounded-xl">Go to FunZone</button>
-    </div>);
+    return (
+      <GameResultModal
+        meta={{ icon: '⬆️', label: 'Higher / Lower', accent: 'from-lime-glow/30 to-emerald-500/10' }}
+        gameType="higherlower"
+        statsLevel={data?.criterion}
+        xp={50}
+        hero={{ primary: `Streak: ${summary.streak}`, sub: `${crit.emoji} ${crit.label}`, win: true }}
+        percentile={summary.percentile}
+        extraActions={
+          <button onClick={() => setConfig(true)} className="mt-2 w-full text-electric-blue font-semibold text-sm py-1.5">Change stat</button>
+        }
+        onShare={() => navigator.clipboard?.writeText(`Higher or Lower (${crit.label}) — streak ${summary.streak} 🔥`).then(() => addToast('Copied!', 'success'))}
+        onReplay={start}
+        onBack={onBack}
+      />
+    );
   }
 
   if (!playing) return Shell(
