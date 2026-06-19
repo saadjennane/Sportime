@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   listCompetitions, getCompetitionDetail, createFromLeague, setStatus, updateCompetition,
   resolveCompetition, generateBracket, getLeaderboard, listSourceLeagues, seedContent,
@@ -309,10 +309,35 @@ function ManagePanel({ id, onChange, flash }: { id: string; onChange: () => void
   const [tab, setTab] = useState<'lifecycle' | 'leaderboard' | 'announce'>('lifecycle');
   const [ann, setAnn] = useState<any[]>([]);
   const [aForm, setAForm] = useState({ title: '', body: '', phase_key: '', celebrate: false });
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
-  const reload = async () => { setDetail(await getCompetitionDetail(id)); setLb(await getLeaderboard(id)); setAnn(await listAnnouncements(id)); };
+  const reload = async () => {
+    try {
+      setLoadErr(null);
+      const d = await getCompetitionDetail(id);
+      setDetail(d);
+      if (!d?.comp) { setLoadErr('Could not load this game — no row returned (permission / RLS, or the competition was deleted).'); return; }
+      setLb(await getLeaderboard(id));
+      setAnn(await listAnnouncements(id));
+    } catch (e: any) {
+      console.error('[ManagePanel] load failed', e);
+      setLoadErr(e?.message ?? 'Failed to load game details.');
+    }
+  };
   useEffect(() => { reload(); }, [id]);
-  if (!detail?.comp) return null;
+  // Always scroll the panel into view so a click on "Manage" is never a silent no-op.
+  useEffect(() => { panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, [id]);
+
+  if (!detail?.comp) {
+    return (
+      <div ref={panelRef} className="bg-surface border border-border-subtle rounded-xl p-5">
+        {loadErr
+          ? <div className="space-y-2"><p className="text-hot-red text-sm font-semibold">⚠️ {loadErr}</p><button onClick={reload} className="text-electric-blue text-sm font-semibold">Retry</button></div>
+          : <p className="text-text-secondary text-sm">Loading game…</p>}
+      </div>
+    );
+  }
   const c = detail.comp;
   const rounds: string[] = detail.format?.knockout_rounds ?? [];
 
@@ -335,7 +360,7 @@ function ManagePanel({ id, onChange, flash }: { id: string; onChange: () => void
   };
 
   return (
-    <div className="bg-surface border border-border-subtle rounded-xl p-5 space-y-4">
+    <div ref={panelRef} className="bg-surface border border-border-subtle rounded-xl p-5 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-text-primary">{c.name}</h2>
         <p className="text-sm text-text-secondary">{detail.format?.groups_count} groups · {detail.format?.knockout_participants} qualify · {rounds.join(' → ')}</p>
