@@ -135,16 +135,12 @@ interface GamesListPageProps {
 }
 
 const GamesListPage: React.FC<GamesListPageProps> = (props) => {
-  const { games, userChallengeEntries, userSwipeEntries, userFantasyTeams, joinedGameIds, onJoinChallenge, onViewChallenge, onJoinSwipeGame, onPlaySwipeGame, onViewFantasyGame, onViewTournament, myGamesCount, profile, userTickets, isLoading, onRefresh, onShowLiveGames, pendingInviteGameIds, onReopenInvite } = props;
+  const { games, userChallengeEntries, userSwipeEntries, userFantasyTeams, joinedGameIds, onJoinChallenge, onViewChallenge, onJoinSwipeGame, onPlaySwipeGame, onViewFantasyGame, onViewTournament, profile, userTickets, isLoading, onRefresh, onShowLiveGames, pendingInviteGameIds, onReopenInvite } = props;
 
   const [activeTab, setActiveTab] = useState<GamesTab>('my-games');
   const tabTouched = React.useRef(false);
   const selectTab = (t: GamesTab) => { tabTouched.current = true; hapticImpact('light'); setActiveTab(t); };
 
-  // New user (no games joined) lands on Browse instead of an empty My Games — unless they picked a tab.
-  React.useEffect(() => {
-    if (!tabTouched.current && !isLoading && myGamesCount === 0) setActiveTab('browse');
-  }, [isLoading, myGamesCount]);
   const [filters, setFilters] = useState<GameFilters>({
     type: 'all',
     format: 'all',
@@ -166,6 +162,12 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
     joinedGameIds?.forEach(id => ids.add(id)); // tournament (and other) joins from the catalog
     return ids;
   }, [userChallengeEntries, userSwipeEntries, userFantasyTeams, joinedGameIds, profile]);
+
+  // Default to "My Games". Only a user who has NEVER joined any game (past or present)
+  // lands on Browse instead — returning players with only finished games still open on My Games.
+  React.useEffect(() => {
+    if (!tabTouched.current && !isLoading && myGameIds.size === 0) setActiveTab('browse');
+  }, [isLoading, myGameIds]);
 
   const processedGames = useMemo(() => {
     return games
