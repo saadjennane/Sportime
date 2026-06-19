@@ -75,7 +75,7 @@ import { createLiveGame as createLiveGameSupabase, getGameByFixture as getLiveGa
 import { claimPremiumDaily } from './services/premiumService';
 import { configurePurchases } from './services/premiumPurchaseService';
 import { NotificationCenter } from './components/notifications/NotificationCenter';
-import FunZonePage from './pages/FunZonePage';
+import FanPulsePage from './pages/FanPulsePage';
 import { PremiumModal } from './components/premium/PremiumModal';
 import { CoinShopModal } from './components/shop/CoinShopModal';
 import { ResultsModal } from './components/modals/ResultsModal';
@@ -1674,7 +1674,7 @@ function App() {
               onRefresh={refetchSquads}
           />;
       case 'funzone':
-        return <FunZonePage profile={profile} addToast={addToast} onRequireAuth={handleTriggerSignUp} />;
+        return <FanPulsePage profile={profile} />;
       case 'admin':
         return <AdminPage profile={profile} addToast={addToast} />;
       case 'profile':
