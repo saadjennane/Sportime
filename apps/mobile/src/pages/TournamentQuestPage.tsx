@@ -45,6 +45,13 @@ export const TournamentQuestPage: React.FC<Props> = ({ competitionId, userId, on
   const allTeams = useMemo(() => comp?.groups.flatMap(g => g.teams) ?? [], [comp]);
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2200); };
 
+  // Optimistic entry patches so the tab badges update the instant a prediction is saved
+  // (auto-save is silent — no reload — so we reflect the change locally).
+  const markDaily = (matchId: string, a: number, b: number) => setEntry(e => e && ({ ...e, dailyPicks: [...e.dailyPicks.filter(p => p.match_id !== matchId), { match_id: matchId, predicted_score_a: a, predicted_score_b: b, points_awarded: null } as any] }));
+  const markGroup = (groupId: string, teamIds: string[]) => setEntry(e => e && ({ ...e, groupPicks: [...e.groupPicks.filter(p => p.group_id !== groupId), ...teamIds.map((predicted_team_id, i) => ({ group_id: groupId, predicted_team_id, predicted_position: i + 1 } as any))] }));
+  const markLongTerm = (patch: any) => setEntry(e => e && ({ ...e, longTerm: { ...(e.longTerm ?? {}), ...patch } }));
+  const markBracket = (round: string, winners: string[]) => setEntry(e => e && ({ ...e, bracketPicks: [...e.bracketPicks.filter(p => p.round_key !== round), ...winners.map(w => ({ round_key: round, predicted_winner_team_id: w } as any))] }));
+
   // Pending predictions per tab (badges show only while the relevant phase is OPEN).
   const pending = useMemo<Record<Tab, number>>(() => {
     const p: Record<Tab, number> = { picks: 0, groups: 0, daily: 0, bracket: 0 };
@@ -132,10 +139,10 @@ export const TournamentQuestPage: React.FC<Props> = ({ competitionId, userId, on
       </div>
 
       <div className="p-4">
-        {tab === 'picks' && <PicksSection key={`picks-${version}`} comp={comp} entry={entry} allTeams={allTeams} onSaved={() => { reload(); flash('Picks saved'); }} flash={flash} />}
-        {tab === 'groups' && <GroupsSection key={`groups-${version}`} comp={comp} entry={entry} onSaved={() => { reload(); flash('Group saved'); }} flash={flash} />}
-        {tab === 'daily' && <DailySection key={`daily-${version}`} comp={comp} entry={entry} onSaved={() => { reload(); flash('Prediction saved'); }} flash={flash} />}
-        {tab === 'bracket' && <BracketSection key={`bracket-${version}`} comp={comp} entry={entry} onSaved={() => { reload(); flash('Bracket saved'); }} flash={flash} />}
+        {tab === 'picks' && <PicksSection key={`picks-${version}`} comp={comp} entry={entry} allTeams={allTeams} onPredicted={markLongTerm} flash={flash} />}
+        {tab === 'groups' && <GroupsSection key={`groups-${version}`} comp={comp} entry={entry} onPredicted={markGroup} flash={flash} />}
+        {tab === 'daily' && <DailySection key={`daily-${version}`} comp={comp} entry={entry} onPredicted={markDaily} flash={flash} />}
+        {tab === 'bracket' && <BracketSection key={`bracket-${version}`} comp={comp} entry={entry} onPredicted={markBracket} flash={flash} />}
       </div>
 
       {toast && <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-electric-blue text-deep-navy font-bold px-4 py-2 rounded-full text-sm z-50 animate-scale-in">{toast}</div>}
@@ -166,7 +173,7 @@ export const TournamentQuestPage: React.FC<Props> = ({ competitionId, userId, on
 };
 
 // ── My Picks ─────────────────────────────────────────────────────────────────
-const PicksSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; allTeams: TQTeam[]; onSaved: () => void; flash: (m: string) => void }> = ({ comp, entry, allTeams, flash }) => {
+const PicksSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; allTeams: TQTeam[]; onPredicted: (patch: any) => void; flash: (m: string) => void }> = ({ comp, entry, allTeams, onPredicted, flash }) => {
   const open = isPhaseOpen(comp, 'long_term');
   const s = comp.config?.scoring?.long_term ?? {};
   const [champion, setChampion] = useState<string | null>(entry?.longTerm?.champion_team_id ?? null);
@@ -187,7 +194,8 @@ const PicksSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; allTe
     setStatus('saving');
     const t = setTimeout(async () => {
       const { error } = await saveLongTerm(comp.id, champion, finalist, goals ? parseInt(goals) : null, scorer);
-      if (error) { setStatus('idle'); flash(error.message); } else setStatus('saved');
+      if (error) { setStatus('idle'); flash(error.message); }
+      else { setStatus('saved'); onPredicted({ champion_team_id: champion, finalist_team_id: finalist, top_scorer_player_id: scorer, total_goals_prediction: goals ? parseInt(goals) : null }); }
     }, 600);
     return () => clearTimeout(t);
   }, [champion, finalist, scorer, goals]);
@@ -246,7 +254,7 @@ const PickRow: React.FC<{ icon: React.ReactNode; label: string; value: React.Rea
 );
 
 // ── Groups (silent auto-save, qualifiers float to the top in pick order) ─────
-const GroupsSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onSaved: () => void; flash: (m: string) => void }> = ({ comp, entry, onSaved, flash }) => {
+const GroupsSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onPredicted: (groupId: string, teamIds: string[]) => void; flash: (m: string) => void }> = ({ comp, entry, onPredicted, flash }) => {
   const open = isPhaseOpen(comp, 'group');
   const sc = comp.config?.scoring?.group ?? {};
   const initial: Record<string, string[]> = {};
@@ -260,6 +268,7 @@ const GroupsSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onSa
     const picks = ids.map((team_id, i) => ({ team_id, position: i + 1 }));
     const { error } = await saveGroupPrediction(comp.id, groupId, picks);
     if (error) { flash(error.message); setSel(p => ({ ...p, [groupId]: prev })); } // rollback
+    else onPredicted(groupId, ids);
   };
   const toggle = (groupId: string, teamId: string, max: number) => {
     const cur = sel[groupId] ?? [];
@@ -307,7 +316,7 @@ const GroupsSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onSa
 };
 
 // ── Daily scores (predict the exact score of every official match — no bonus) ─
-const DailySection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onSaved: () => void; flash: (m: string) => void }> = ({ comp, entry, onSaved, flash }) => {
+const DailySection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onPredicted: (matchId: string, a: number, b: number) => void; flash: (m: string) => void }> = ({ comp, entry, onPredicted, flash }) => {
   const d = comp.config?.scoring?.daily ?? {};
   const isPredictable = (m: TQMatch) => m.status === 'scheduled' && (m.start_time == null || new Date(m.start_time).getTime() > Date.now());
   const isToday = (m: TQMatch) => {
@@ -337,7 +346,7 @@ const DailySection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onSav
 
       {/* To predict */}
       {upcoming.length > 0
-        ? upcoming.map(m => <DailyMatchCard key={m.id} comp={comp} match={m} existing={pickOf(m.id)} onSaved={onSaved} flash={flash} />)
+        ? upcoming.map(m => <DailyMatchCard key={m.id} comp={comp} match={m} existing={pickOf(m.id)} onPredicted={onPredicted} flash={flash} />)
         : <p className="text-sm text-text-disabled text-center py-2">No matches today — come back on the next match day.</p>}
 
       {/* Previous predictions / results (always visible underneath) */}
@@ -351,7 +360,7 @@ const DailySection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onSav
   );
 };
 
-const DailyMatchCard: React.FC<{ comp: TQCompetition; match: TQMatch; existing: TQDailyPick | null; onSaved: () => void; flash: (m: string) => void }> = ({ comp, match, existing, flash }) => {
+const DailyMatchCard: React.FC<{ comp: TQCompetition; match: TQMatch; existing: TQDailyPick | null; onPredicted: (matchId: string, a: number, b: number) => void; flash: (m: string) => void }> = ({ comp, match, existing, onPredicted, flash }) => {
   const [a, setA] = useState<number | null>(existing?.predicted_score_a ?? null);
   const [b, setB] = useState<number | null>(existing?.predicted_score_b ?? null);
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>(existing ? 'saved' : 'idle');
@@ -366,7 +375,8 @@ const DailyMatchCard: React.FC<{ comp: TQCompetition; match: TQMatch; existing: 
     setStatus('saving');
     const t = setTimeout(async () => {
       const { error } = await saveDailyPrediction(comp.id, match.id, a, b, null);
-      if (error) { setStatus('idle'); flash(error.message); } else setStatus('saved');
+      if (error) { setStatus('idle'); flash(error.message); }
+      else { setStatus('saved'); onPredicted(match.id, a, b); }
     }, 600);
     return () => clearTimeout(t);
   }, [a, b]);
@@ -425,7 +435,7 @@ const Stepper: React.FC<{ value: number | null; onChange: (v: number) => void; d
   </div>
 );
 // ── Bracket (living: predict the advancing team per tie, round by round) ─────
-const BracketSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onSaved: () => void; flash: (m: string) => void }> = ({ comp, entry, flash }) => {
+const BracketSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onPredicted: (round: string, winners: string[]) => void; flash: (m: string) => void }> = ({ comp, entry, onPredicted, flash }) => {
   const rounds = comp.format.knockout_rounds;
   const matchesOf = (r: string) => comp.knockoutMatches.filter(m => m.knockout_round === r);
 
@@ -457,7 +467,7 @@ const BracketSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onS
         setSavingRounds(s => ({ ...s, [r]: 'saving' }));
         saveBracketPrediction(comp.id, r, winners).then(({ error }) => {
           if (error) { flash(error.message); setSavingRounds(s => { const n = { ...s }; delete n[r]; return n; }); }
-          else setSavingRounds(s => ({ ...s, [r]: 'saved' }));
+          else { setSavingRounds(s => ({ ...s, [r]: 'saved' })); onPredicted(r, winners); }
         });
       }
     }, 600);
