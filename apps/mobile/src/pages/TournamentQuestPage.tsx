@@ -352,15 +352,17 @@ const DailySection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onSav
 };
 
 const DailyMatchCard: React.FC<{ comp: TQCompetition; match: TQMatch; existing: TQDailyPick | null; onSaved: () => void; flash: (m: string) => void }> = ({ comp, match, existing, flash }) => {
-  const [a, setA] = useState<number>(existing?.predicted_score_a ?? 0);
-  const [b, setB] = useState<number>(existing?.predicted_score_b ?? 0);
+  const [a, setA] = useState<number | null>(existing?.predicted_score_a ?? null);
+  const [b, setB] = useState<number | null>(existing?.predicted_score_b ?? null);
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>(existing ? 'saved' : 'idle');
   const first = useRef(true);
-  const resultLabel = a > b ? `${match.team_a?.short_name} win` : a < b ? `${match.team_b?.short_name} win` : 'Draw';
+  const bothSet = a !== null && b !== null;
+  const resultLabel = !bothSet ? null : (a! > b! ? `${match.team_a?.short_name} win` : a! < b! ? `${match.team_b?.short_name} win` : 'Draw');
 
-  // Auto-save the score (debounced) — no button, no full reload.
+  // Auto-save (debounced) — only once BOTH scores are set; dashes = not predicted yet.
   useEffect(() => {
     if (first.current) { first.current = false; return; }
+    if (a === null || b === null) return;
     setStatus('saving');
     const t = setTimeout(async () => {
       const { error } = await saveDailyPrediction(comp.id, match.id, a, b, null);
@@ -380,11 +382,13 @@ const DailyMatchCard: React.FC<{ comp: TQCompetition; match: TQMatch; existing: 
         <span className="text-text-disabled px-2">–</span>
         <div className="flex flex-col items-center gap-2 flex-1"><TeamChip team={match.team_b} /><Stepper value={b} onChange={setB} /></div>
       </div>
-      <p className="text-center text-xs text-electric-blue font-semibold mt-3">{resultLabel} · {a}-{b}</p>
+      <p className="text-center text-xs font-semibold mt-3 h-4">
+        {bothSet ? <span className="text-electric-blue">{resultLabel} · {a}-{b}</span> : <span className="text-text-disabled">Not predicted</span>}
+      </p>
       <p className="text-center text-[11px] mt-2 h-4">
         {status === 'saving' ? <span className="text-text-disabled">Saving…</span>
           : status === 'saved' ? <span className="text-lime-glow">✓ Saved automatically</span>
-          : <span className="text-text-disabled">Adjust the score — saves automatically</span>}
+          : <span className="text-text-disabled">Tap +/− to predict</span>}
       </p>
     </div>
   );
@@ -413,11 +417,11 @@ const DailyResultCard: React.FC<{ match: TQMatch; existing: TQDailyPick | null }
   );
 };
 
-const Stepper: React.FC<{ value: number; onChange: (v: number) => void; disabled?: boolean }> = ({ value, onChange, disabled }) => (
+const Stepper: React.FC<{ value: number | null; onChange: (v: number) => void; disabled?: boolean }> = ({ value, onChange, disabled }) => (
   <div className="flex items-center gap-3">
-    <button disabled={disabled} onClick={() => onChange(Math.max(0, value - 1))} className="w-8 h-8 rounded-full bg-deep-navy text-text-primary font-bold disabled:opacity-40">−</button>
-    <span className="text-2xl font-bold w-6 text-center">{value}</span>
-    <button disabled={disabled} onClick={() => onChange(Math.min(9, value + 1))} className="w-8 h-8 rounded-full bg-deep-navy text-text-primary font-bold disabled:opacity-40">+</button>
+    <button disabled={disabled} onClick={() => onChange(value == null ? 0 : Math.max(0, value - 1))} className="w-8 h-8 rounded-full bg-deep-navy text-text-primary font-bold disabled:opacity-40">−</button>
+    <span className={`text-2xl font-bold w-6 text-center ${value == null ? 'text-text-disabled' : ''}`}>{value == null ? '–' : value}</span>
+    <button disabled={disabled} onClick={() => onChange(value == null ? 1 : Math.min(9, value + 1))} className="w-8 h-8 rounded-full bg-deep-navy text-text-primary font-bold disabled:opacity-40">+</button>
   </div>
 );
 // ── Bracket (living: predict the advancing team per tie, round by round) ─────
