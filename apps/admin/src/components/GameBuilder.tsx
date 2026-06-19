@@ -310,6 +310,8 @@ function ManagePanel({ id, onChange, flash }: { id: string; onChange: () => void
   const [ann, setAnn] = useState<any[]>([]);
   const [aForm, setAForm] = useState({ title: '', body: '', phase_key: '', celebrate: false });
   const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [seeding, setSeeding] = useState(false);
+  const [seedMsg, setSeedMsg] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const reload = async () => {
@@ -346,17 +348,30 @@ function ManagePanel({ id, onChange, flash }: { id: string; onChange: () => void
     if (error) flash(`${label}: ${error.message}`); else { flash(`${label} ✓`); await reload(); onChange(); }
   };
 
-  // Backfill players (from squads) + matches (from /fixtures). League+season optional
-  // override — needed when the competition has no source league/season recorded.
+  // Backfill players (from squads) + matches (from /fixtures). The edge function reads
+  // the league + season LINKED to this competition — so no input is needed. We only
+  // prompt as a fallback for legacy competitions that have no source league recorded.
   const seedNow = async () => {
-    const lg = prompt('League API id for matches (e.g. 1 = World Cup). Leave empty to seed players only:');
-    const season = lg ? prompt('Season (e.g. 2026):', String(c.source_season ?? 2026)) : null;
-    flash('Seeding… (fetching squads + fixtures from the API)');
-    const { data, error } = await seedContent(id, lg ? Number(lg) : null, season ? Number(season) : null);
-    const r = data as any;
-    if (error || r?.ok === false) flash(`Seed failed: ${error?.message || r?.error}`);
-    else flash(`Seeded: ${r?.players ?? 0} players, ${r?.matches ?? 0} matches${r?.note ? ` — ${r.note}` : ''}`);
-    await reload(); onChange();
+    let lg: number | null = null, season: number | null = null;
+    if (!c.source_league_id) {
+      const v = prompt('This game has no linked league. Enter the API league id to seed from (e.g. 1 = World Cup):');
+      if (!v) return;
+      lg = Number(v);
+      season = Number(prompt('Season (e.g. 2026):', String(c.source_season ?? 2026)) || 0) || null;
+    }
+    setSeeding(true);
+    setSeedMsg('⏳ Seeding… fetching national squads + fixtures from API-Football (can take 30–60s, please wait).');
+    try {
+      const { data, error } = await seedContent(id, lg, season);
+      const r = data as any;
+      if (error || r?.ok === false) setSeedMsg(`⚠️ Seed failed: ${error?.message || r?.error || 'unknown error'}`);
+      else setSeedMsg(`✅ Seeded ${r?.players ?? 0} players and ${r?.matches ?? 0} matches${r?.note ? ` — ${r.note}` : ''}.`);
+      await reload(); onChange();
+    } catch (e: any) {
+      setSeedMsg(`⚠️ Seed failed: ${e?.message ?? e}`);
+    } finally {
+      setSeeding(false);
+    }
   };
 
   return (
@@ -385,11 +400,22 @@ function ManagePanel({ id, onChange, flash }: { id: string; onChange: () => void
             </label>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={seedNow} className="bg-warm-yellow/15 text-warm-yellow px-3 py-2 rounded-lg text-sm font-semibold" title="Seed players (squads) + matches (fixtures) from API-Football">⚽ Seed players + matches</button>
+            <button onClick={seedNow} disabled={seeding} className="bg-warm-yellow/15 text-warm-yellow px-3 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed" title="Seed players (squads) + matches (fixtures) from API-Football — uses the league linked to this game">
+              {seeding ? '⏳ Seeding…' : '⚽ Seed players + matches'}
+            </button>
             <button onClick={() => act(() => generateBracket(id), 'Generate bracket')} className="bg-electric-blue/15 text-electric-blue px-3 py-2 rounded-lg text-sm font-semibold">Generate bracket</button>
             <button onClick={() => act(() => resolveCompetition(id), 'Resolve & recalc')} className="bg-lime-glow/15 text-lime-glow px-3 py-2 rounded-lg text-sm font-semibold">Resolve &amp; recalc scores</button>
             <button onClick={() => { if (confirm('Distribute rewards to winners? This credits real value and cannot be undone.')) act(() => distributeRewards('tq', id), 'Distribute rewards'); }} className="bg-warm-yellow/15 text-warm-yellow px-3 py-2 rounded-lg text-sm font-semibold">💸 Distribute rewards</button>
           </div>
+          {seedMsg && (
+            <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${seedMsg.startsWith('⚠️') ? 'bg-hot-red/10 text-hot-red' : seedMsg.startsWith('✅') ? 'bg-lime-glow/10 text-lime-glow' : 'bg-electric-blue/10 text-electric-blue'}`}>
+              {seeding && <span className="inline-block h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" />}
+              <span>{seedMsg}</span>
+            </div>
+          )}
+          {(detail.format?.groups_count != null) && (
+            <p className="text-xs text-text-disabled">Currently: {detail.groups?.length ?? 0} groups · {detail.groupTeams?.length ?? 0} teams · {detail.matches?.length ?? 0} matches in this game.</p>
+          )}
         </div>
       )}
 
