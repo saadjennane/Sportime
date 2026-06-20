@@ -53,14 +53,30 @@ const Token: React.FC<{ name?: string; photo?: string | null; bucket: fp.Bucket;
   );
 };
 
-// Shared pitch chrome — a taller field that shows the formation's real rows.
+// Shared pitch chrome — a Sportime-branded field tilted into perspective (the grass
+// recedes toward the goal) while the player tokens stay upright and readable.
 const PitchField: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="rounded-2xl p-3 bg-gradient-to-b from-emerald-800/40 to-emerald-950/40 border border-emerald-500/20">
-    <div className="rounded-xl relative overflow-hidden" style={{ background: 'repeating-linear-gradient(180deg,#0c4a3e26 0 38px,#0c4a3e12 38px 76px)' }}>
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full border border-white/10" />
-      <div className="absolute inset-x-6 top-0 h-10 border-x border-b border-white/10 rounded-b-lg" />
-      <div className="relative flex flex-col gap-6 py-7">{children}</div>
+  <div className="relative rounded-2xl p-3 border border-neon-cyan/25 overflow-hidden bg-gradient-to-b from-navy-accent to-deep-navy">
+    {/* angled grass + markings (kept behind the tokens) */}
+    <div className="absolute inset-0 overflow-hidden" style={{ perspective: '820px' }}>
+      <div
+        className="absolute -inset-x-10 -top-2 bottom-0"
+        style={{
+          transformOrigin: 'center bottom',
+          transform: 'rotateX(32deg)',
+          background: 'repeating-linear-gradient(0deg, rgba(13,148,116,0.28) 0 40px, rgba(8,47,73,0.30) 40px 80px)',
+        }}
+      >
+        <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 w-32 h-32 rounded-full border border-neon-cyan/25" />
+        <div className="absolute left-0 right-0 top-1/2 border-t border-neon-cyan/15" />
+        <div className="absolute left-1/2 -translate-x-1/2 top-0 w-44 h-16 border-x border-b border-neon-cyan/20 rounded-b-2xl" />
+        <div className="absolute left-1/2 -translate-x-1/2 bottom-0 w-52 h-16 border-x border-t border-neon-cyan/20 rounded-t-2xl" />
+      </div>
     </div>
+    {/* brand glow from the far goal */}
+    <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(130% 75% at 50% -5%, rgba(34,211,238,0.12), transparent 55%)' }} />
+    {/* upright tokens */}
+    <div className="relative flex flex-col gap-6 py-7">{children}</div>
   </div>
 );
 
