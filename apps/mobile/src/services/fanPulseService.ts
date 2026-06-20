@@ -38,16 +38,40 @@ export async function getLegends(teamId: string): Promise<Legend[]> {
   return (data ?? []) as Legend[];
 }
 
-export async function getMyEntry(userId: string, scopeType: string, scopeRef: string): Promise<PulsePick[]> {
-  const { data } = await supabase.from('fan_pulse_entries').select('picks')
+export async function getMyEntry(userId: string, scopeType: string, scopeRef: string): Promise<{ formation: string; picks: PulsePick[] }> {
+  const { data } = await supabase.from('fan_pulse_entries').select('formation, picks')
     .eq('user_id', userId).eq('scope_type', scopeType).eq('scope_ref', scopeRef).maybeSingle();
-  return ((data as any)?.picks ?? []) as PulsePick[];
+  return { formation: (data as any)?.formation ?? '4-3-3', picks: ((data as any)?.picks ?? []) as PulsePick[] };
 }
 
 export async function saveEntry(userId: string, scopeType: string, scopeRef: string, formation: string, picks: PulsePick[]) {
   return supabase.from('fan_pulse_entries').upsert(
     { user_id: userId, scope_type: scopeType, scope_ref: scopeRef, formation, picks, updated_at: new Date().toISOString() },
     { onConflict: 'user_id,scope_type,scope_ref' });
+}
+
+export interface SquadPlayer { id: string; name: string; photo: string | null; position: Bucket; club: string | null; }
+const FB_POS: Record<Bucket, string> = { GK: 'Goalkeeper', DEF: 'Defender', MID: 'Midfielder', FWD: 'Attacker' };
+const toBucket = (p: string): Bucket => p === 'Goalkeeper' ? 'GK' : p === 'Defender' ? 'DEF' : p === 'Attacker' ? 'FWD' : 'MID';
+
+/** Search any player (transfer targets) by name, filtered to a position bucket. */
+export async function searchPlayers(query: string, bucket: Bucket): Promise<SquadPlayer[]> {
+  const { data } = await supabase.from('fb_players')
+    .select('id, name, photo, photo_url, position, fb_player_team_association(fb_teams(name))')
+    .ilike('name', `%${query}%`).eq('position', FB_POS[bucket]).limit(40);
+  return (data ?? []).map((p: any) => ({
+    id: p.id, name: p.name, photo: p.photo || p.photo_url || null, position: bucket,
+    club: p.fb_player_team_association?.[0]?.fb_teams?.name ?? null,
+  }));
+}
+
+/** The club's current squad (used to deduce "buys" and to power the sell list). */
+export async function getCurrentSquad(teamId: string): Promise<SquadPlayer[]> {
+  const { data } = await supabase.from('fb_player_team_association')
+    .select('fb_players(id, name, photo, photo_url, position)').eq('team_id', teamId).limit(80);
+  return (data ?? []).map((r: any) => r.fb_players).filter(Boolean).map((p: any) => ({
+    id: p.id, name: p.name, photo: p.photo || p.photo_url || null, position: toBucket(p.position), club: null,
+  }));
 }
 
 export async function getAggregate(scopeType: string, scopeRef: string): Promise<{ participants: number; players: AggPlayer[] }> {
