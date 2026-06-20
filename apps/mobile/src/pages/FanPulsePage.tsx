@@ -100,7 +100,7 @@ const PitchMarkings: React.FC = () => (
   </svg>
 );
 
-const PitchField: React.FC<{ children: React.ReactNode; onShare?: () => void; tall?: boolean }> = ({ children, onShare, tall }) => (
+const PitchField: React.FC<{ children: React.ReactNode; onShare?: () => void; tall?: boolean; topRight?: React.ReactNode }> = ({ children, onShare, tall, topRight }) => (
   <div className="relative rounded-2xl overflow-hidden border border-neon-cyan/20 bg-[#0c1828]">
     {/* field layer — stripes + markings + watermark tilted together for a subtle,
         coherent perspective (the goal recedes); tokens stay upright above it */}
@@ -113,11 +113,21 @@ const PitchField: React.FC<{ children: React.ReactNode; onShare?: () => void; ta
         <span className="absolute right-1 top-1/2 text-white/[0.05] font-extrabold tracking-[0.25em] text-base select-none pointer-events-none" style={{ writingMode: 'vertical-rl', transform: 'translateY(-50%) rotate(180deg)' }}>SPORTIME</span>
       </div>
     </div>
-    {onShare && (
-      <button onClick={onShare} aria-label="Share XI" className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-deep-navy/85 border border-neon-cyan/30 flex items-center justify-center text-neon-cyan active:scale-95">
-        <Share2 size={15} />
-      </button>
-    )}
+    {/* top bar: coach (left) · info + share (right) */}
+    <div className="absolute top-2 inset-x-2 z-10 flex items-start justify-between pointer-events-none">
+      <div className="flex flex-col items-center gap-0.5 pointer-events-auto">
+        <div className="w-11 h-11 rounded-full border-2 border-dashed border-warm-yellow/50 bg-deep-navy/70 flex items-center justify-center text-warm-yellow/70 text-lg font-bold">+</div>
+        <span className="px-1.5 py-[2px] rounded-md bg-deep-navy/85 border border-warm-yellow/30 text-[9px] font-bold tracking-wide text-warm-yellow/90">COACH</span>
+      </div>
+      <div className="flex items-center gap-2 pointer-events-auto">
+        {topRight}
+        {onShare && (
+          <button onClick={onShare} aria-label="Share XI" className="w-8 h-8 rounded-full bg-deep-navy/85 border border-neon-cyan/30 flex items-center justify-center text-neon-cyan active:scale-95">
+            <Share2 size={15} />
+          </button>
+        )}
+      </div>
+    </div>
     {/* upright tokens — The Pulse (tall) sits a bit longer than My XI */}
     <div className={`relative flex flex-col px-2 ${tall ? 'gap-11 py-12' : 'gap-9 py-10'}`}>{children}</div>
   </div>
@@ -147,7 +157,7 @@ const Pitch: React.FC<{ fname: string; picks: (fp.PulsePick | null)[]; onSlot?: 
 // ── Consensus XI on a pitch — the fan-favourite player per *slot*, so the layout
 // stays coherent with how fans picked (and mirrors a single voter exactly). Falls
 // back to filling each row by pick % when a slot has no data (legacy entries).
-const ConsensusXI: React.FC<{ agg: fp.Aggregate; fname: string; squadIds?: Set<string>; onShare?: () => void }> = ({ agg, fname, squadIds, onShare }) => {
+const ConsensusXI: React.FC<{ agg: fp.Aggregate; fname: string; squadIds?: Set<string>; onShare?: () => void; topRight?: React.ReactNode }> = ({ agg, fname, squadIds, onShare, topRight }) => {
   const formation = FORMATIONS[fname] ?? FORMATIONS['4-3-3'];
   const bySlot = new Map<number, fp.AggSlot>(agg.slots.map(s => [s.slot, s]));
   const placed = new Set(agg.slots.map(s => s.player_key));
@@ -156,7 +166,7 @@ const ConsensusXI: React.FC<{ agg: fp.Aggregate; fname: string; squadIds?: Set<s
   (Object.keys(leftover) as fp.Bucket[]).forEach(b => leftover[b].sort((a, c) => c.pct - a.pct));
   const rows = renderRows(fname);
   return (
-    <PitchField tall onShare={onShare}>
+    <PitchField tall onShare={onShare} topRight={topRight}>
       {rows.map((row, ri) => (
         <div key={ri} className="flex justify-around items-center px-1" style={rowDepth(ri, rows.length)}>
           {row.slots.map(i => { const p = bySlot.get(i) ?? leftover[formation[i]].shift(); return <Token key={i} name={p?.name} photo={p?.photo} bucket={formation[i]} empty={!p} badge={p ? `${p.pct}%` : undefined} buy={p && squadIds ? !squadIds.has(p.player_key) : false} />; })}
@@ -169,10 +179,10 @@ const ConsensusXI: React.FC<{ agg: fp.Aggregate; fname: string; squadIds?: Set<s
 // ── Aggregated pulse ────────────────────────────────────────────────────────
 const PulseView: React.FC<{ agg: fp.Aggregate; fname: string; clubName: string; label: string; squadIds?: Set<string> }> = ({ agg, fname, clubName, label, squadIds }) => {
   if (agg.participants === 0) return <div className="card-base p-8 text-center"><div className="text-4xl mb-2">📊</div><p className="text-text-secondary">No fan has voted yet. Be the first — build your XI!</p></div>;
+  const voted = <span className="px-2 py-1 rounded-full bg-deep-navy/85 border border-white/10 text-[11px] text-text-secondary"><b className="text-text-primary">{agg.participants}</b> voted</span>;
   return (
     <div className="space-y-3">
-      <p className="text-center text-sm text-text-secondary"><b className="text-text-primary">{agg.participants}</b> fan{agg.participants > 1 ? 's' : ''} voted</p>
-      <ConsensusXI agg={agg} fname={fname} squadIds={squadIds} onShare={() => shareLineup(consensusText(clubName, fname, agg, label))} />
+      <ConsensusXI agg={agg} fname={fname} squadIds={squadIds} topRight={voted} onShare={() => shareLineup(consensusText(clubName, fname, agg, label))} />
       <p className="text-center text-[11px] text-text-disabled font-semibold">⚡ The fans' consensus XI — % who picked each player{squadIds ? ' · €  = not in the current squad' : ''}</p>
     </div>
   );
