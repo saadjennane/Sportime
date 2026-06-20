@@ -62,13 +62,15 @@ export function useFinishedMatches(
           league_id,
           home_team_id,
           away_team_id,
-          league:fb_leagues!fb_fixtures_league_id_fkey(
+          league:fb_leagues!fb_fixtures_league_id_fkey!inner(
             id,
             name,
-            logo
+            logo,
+            is_visible
           ),
           odds:fb_odds(home_win, draw, away_win, bookmaker_name)
         `)
+        .eq('league.is_visible', true)
         .gte('date', fromDate.toISOString())
         .lte('date', today.toISOString())
         .in('status', FINISHED_STATUSES)

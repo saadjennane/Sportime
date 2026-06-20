@@ -125,10 +125,12 @@ export function useMatchesOfTheDay(): HookState {
     setIsLoading(true)
     setError(null)
     try {
-      // Step 1: Get imported league IDs from fb_leagues
+      // Step 1: Get visible league IDs from fb_leagues (is_visible gates the Today
+      // screen — hidden leagues still power player pools but aren't shown / pickable).
       const { data: importedLeagues, error: leaguesError } = await supabase
         .from('fb_leagues')
         .select('id')
+        .eq('is_visible', true)
 
       if (leaguesError) throw leaguesError
 
