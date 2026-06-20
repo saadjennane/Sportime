@@ -121,7 +121,7 @@ export async function getSellAggregate(scopeRef: string): Promise<{ participants
   return (data as any) ?? { participants: 0, players: [] };
 }
 
-export interface SquadPlayer { id: string; name: string; photo: string | null; position: Bucket; club: string | null; injured?: boolean; }
+export interface SquadPlayer { id: string; name: string; photo: string | null; position: Bucket; club: string | null; injured?: boolean; number?: number | null; }
 export interface SellItem { player_key: string; name: string; photo: string | null; }
 const FB_POS: Record<Bucket, string> = { GK: 'Goalkeeper', DEF: 'Defender', MID: 'Midfielder', FWD: 'Attacker' };
 const toBucket = (p: string): Bucket => p === 'Goalkeeper' ? 'GK' : p === 'Defender' ? 'DEF' : p === 'Attacker' ? 'FWD' : 'MID';
@@ -138,10 +138,11 @@ export async function searchPlayers(query: string, bucket?: Bucket): Promise<Squ
 /** The club's current squad (used to deduce "buys" and to power the sell list). */
 export async function getCurrentSquad(teamId: string): Promise<SquadPlayer[]> {
   const { data } = await supabase.from('fb_player_team_association')
-    .select('fb_players(id, name, photo, photo_url, position, injured)').eq('team_id', teamId).limit(80);
-  return (data ?? []).map((r: any) => r.fb_players).filter(Boolean).map((p: any) => ({
-    id: p.id, name: p.name, photo: p.photo || p.photo_url || null, position: toBucket(p.position), club: null, injured: !!p.injured,
-  }));
+    .select('shirt_number, fb_players(id, name, photo, photo_url, position, injured)').eq('team_id', teamId).limit(80);
+  return (data ?? []).filter((r: any) => r.fb_players).map((r: any) => ({
+    id: r.fb_players.id, name: r.fb_players.name, photo: r.fb_players.photo || r.fb_players.photo_url || null,
+    position: toBucket(r.fb_players.position), club: null, injured: !!r.fb_players.injured, number: r.shirt_number ?? null,
+  })).sort((a: SquadPlayer, b: SquadPlayer) => a.name.localeCompare(b.name));
 }
 
 export async function getAggregate(scopeType: string, scopeRef: string): Promise<Aggregate> {

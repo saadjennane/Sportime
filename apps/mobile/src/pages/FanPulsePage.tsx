@@ -362,6 +362,8 @@ const DreamBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, userI
     } else {
       setBench(prev => (prev.some(b => b.player_key === pl.id) || prev.length >= 14) ? prev : [...prev, { player_key: pl.id, name: pl.name, photo: pl.photo, position: pl.position, is_starter: false, slot: 11 + prev.length }]);
     }
+    // Organic cleanup: a player you keep in your XI/bench can't be on the sell list.
+    setSell(prev => prev.filter(s => s.player_key !== pl.id));
     setPickFor(null);
   };
   const filled = starters.filter(Boolean).length;
@@ -401,7 +403,7 @@ const DreamBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, userI
             {squad.length === 0 ? <span className="text-xs text-text-disabled">Current squad not seeded for this club.</span>
               : (
                 <div className="grid grid-cols-2 gap-1.5">
-                  {squad.map(s => <button key={s.id} onClick={() => toggleSell(s)} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border text-left truncate ${sellIds.has(s.id) ? 'border-hot-red bg-hot-red/15 text-hot-red line-through' : 'border-white/10 text-text-secondary'}`}>{s.name}</button>)}
+                  {squad.filter(s => !usedKeys.has(s.id)).map(s => <button key={s.id} onClick={() => toggleSell(s)} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border text-left truncate ${sellIds.has(s.id) ? 'border-hot-red bg-hot-red/15 text-hot-red line-through' : 'border-white/10 text-text-secondary'}`}>{s.number != null && <span className="text-text-disabled tabular-nums">{s.number} · </span>}{s.name}</button>)}
                 </div>
               )}
           </div>
