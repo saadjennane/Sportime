@@ -7,6 +7,7 @@ export interface TQGroup { id: string; name: string; sort_order: number; qualifi
 export interface TQMatch {
   id: string; team_a: TQTeam | null; team_b: TQTeam | null; start_time: string | null;
   status: string; is_official_quest_match: boolean; score_a: number | null; score_b: number | null;
+  odds_home: number | null; odds_draw: number | null; odds_away: number | null;
   first_scorer_team_id: string | null; knockout_round: string | null;
 }
 export interface TQFormat {
@@ -15,7 +16,7 @@ export interface TQFormat {
 }
 export interface TQLongTerm { champion_team_id: string | null; finalist_team_id: string | null; top_scorer_player_id: string | null; total_goals_prediction: number | null; points_awarded: number; }
 export interface TQGroupPick { group_id: string; predicted_team_id: string; predicted_position: number; points_awarded: number; }
-export interface TQDailyPick { match_id: string; predicted_result: string | null; predicted_goal_diff_bucket: string | null; predicted_first_scorer_team_id: string | null; predicted_score_a: number | null; predicted_score_b: number | null; points_awarded: number; }
+export interface TQDailyPick { match_id: string; predicted_result: string | null; locked_odds: number | null; predicted_goal_diff_bucket: string | null; predicted_first_scorer_team_id: string | null; predicted_score_a: number | null; predicted_score_b: number | null; points_awarded: number; }
 export interface TQBracketPick { round_key: string; predicted_winner_team_id: string; points_awarded: number; }
 export interface TQEntry {
   id: string; total_score: number; long_term_score: number; group_score: number; daily_score: number; bracket_score: number;
@@ -136,8 +137,8 @@ export async function saveLongTerm(competitionId: string, championId: string | n
 export async function saveGroupPrediction(competitionId: string, groupId: string, picks: { team_id: string; position: number }[]) {
   return supabase.rpc('tq_save_group_prediction', { p_comp: competitionId, p_group_id: groupId, p_picks: picks });
 }
-export async function saveDailyPrediction(competitionId: string, matchId: string, scoreA: number, scoreB: number, bonus: string | null) {
-  return supabase.rpc('tq_save_daily_prediction', { p_comp: competitionId, p_match_id: matchId, p_score_a: scoreA, p_score_b: scoreB, p_bonus: bonus });
+export async function saveDailyPrediction(competitionId: string, matchId: string, result: 'A' | 'B' | 'draw') {
+  return supabase.rpc('tq_save_daily_prediction', { p_comp: competitionId, p_match_id: matchId, p_result: result });
 }
 export async function saveBracketPrediction(competitionId: string, roundKey: string, teamIds: string[]) {
   return supabase.rpc('tq_save_bracket_prediction', { p_comp: competitionId, p_round_key: roundKey, p_team_ids: teamIds });

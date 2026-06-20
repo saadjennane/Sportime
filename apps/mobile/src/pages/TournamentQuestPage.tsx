@@ -47,7 +47,7 @@ export const TournamentQuestPage: React.FC<Props> = ({ competitionId, userId, on
 
   // Optimistic entry patches so the tab badges update the instant a prediction is saved
   // (auto-save is silent — no reload — so we reflect the change locally).
-  const markDaily = (matchId: string, a: number, b: number) => setEntry(e => e && ({ ...e, dailyPicks: [...e.dailyPicks.filter(p => p.match_id !== matchId), { match_id: matchId, predicted_score_a: a, predicted_score_b: b, points_awarded: null } as any] }));
+  const markDaily = (matchId: string, result: string) => setEntry(e => e && ({ ...e, dailyPicks: [...e.dailyPicks.filter(p => p.match_id !== matchId), { match_id: matchId, predicted_result: result, points_awarded: null } as any] }));
   const markGroup = (groupId: string, teamIds: string[]) => setEntry(e => e && ({ ...e, groupPicks: [...e.groupPicks.filter(p => p.group_id !== groupId), ...teamIds.map((predicted_team_id, i) => ({ group_id: groupId, predicted_team_id, predicted_position: i + 1 } as any))] }));
   const markLongTerm = (patch: any) => setEntry(e => e && ({ ...e, longTerm: { ...(e.longTerm ?? {}), ...patch } }));
   const markBracket = (round: string, winners: string[]) => setEntry(e => e && ({ ...e, bracketPicks: [...e.bracketPicks.filter(p => p.round_key !== round), ...winners.map(w => ({ round_key: round, predicted_winner_team_id: w } as any))] }));
@@ -308,7 +308,7 @@ const GroupsSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onPr
 };
 
 // ── Daily scores (predict the exact score of every official match — no bonus) ─
-const DailySection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onPredicted: (matchId: string, a: number, b: number) => void; flash: (m: string) => void }> = ({ comp, entry, onPredicted, flash }) => {
+const DailySection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onPredicted: (matchId: string, result: 'A' | 'B' | 'draw') => void; flash: (m: string) => void }> = ({ comp, entry, onPredicted, flash }) => {
   const d = comp.config?.scoring?.daily ?? {};
   const isPredictable = (m: TQMatch) => m.status === 'scheduled' && (m.start_time == null || new Date(m.start_time).getTime() > Date.now());
   const isToday = (m: TQMatch) => {
@@ -334,7 +334,7 @@ const DailySection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onPre
     <div className="space-y-4">
       <h2 className="text-lg font-bold text-text-primary">Daily Predictions</h2>
       <div className="bg-navy-accent/60 rounded-xl px-3 py-2.5 text-[11px] text-text-secondary">
-        <b className="text-text-primary">Scoring:</b> result +{d.result ?? 10} · exact score +{d.exact_score ?? 12} · goal-margin distance (0→15, 1→10, 2→5, 3→2, 4+→0)
+        <b className="text-text-primary">Scoring:</b> pick 1·X·2 — a correct result pays your <b className="text-text-primary">locked odds × 100</b> pts.
       </div>
 
       {/* To predict */}
@@ -353,54 +353,52 @@ const DailySection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onPre
   );
 };
 
-const DailyMatchCard: React.FC<{ comp: TQCompetition; match: TQMatch; existing: TQDailyPick | null; onPredicted: (matchId: string, a: number, b: number) => void; flash: (m: string) => void }> = ({ comp, match, existing, onPredicted, flash }) => {
-  const [a, setA] = useState<number | null>(existing?.predicted_score_a ?? null);
-  const [b, setB] = useState<number | null>(existing?.predicted_score_b ?? null);
+type Res = 'A' | 'B' | 'draw';
+const DailyMatchCard: React.FC<{ comp: TQCompetition; match: TQMatch; existing: TQDailyPick | null; onPredicted: (matchId: string, result: Res) => void; flash: (m: string) => void }> = ({ comp, match, existing, onPredicted, flash }) => {
+  const [pick, setPick] = useState<Res | null>((existing?.predicted_result as Res) ?? null);
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>(existing ? 'saved' : 'idle');
-  const first = useRef(true);
-  const bothSet = a !== null && b !== null;
-  const resultLabel = !bothSet ? null : (a! > b! ? `${match.team_a?.short_name} win` : a! < b! ? `${match.team_b?.short_name} win` : 'Draw');
-
-  // Auto-save (debounced) — only once BOTH scores are set; dashes = not predicted yet.
-  useEffect(() => {
-    if (first.current) { first.current = false; return; }
-    if (a === null || b === null) return;
-    setStatus('saving');
-    const t = setTimeout(async () => {
-      const { error } = await saveDailyPrediction(comp.id, match.id, a, b, null);
-      if (error) { setStatus('idle'); flash(error.message); }
-      else { setStatus('saved'); onPredicted(match.id, a, b); }
-    }, 600);
-    return () => clearTimeout(t);
-  }, [a, b]);
-
+  const oddsFor = (r: Res) => r === 'A' ? match.odds_home : r === 'B' ? match.odds_away : match.odds_draw;
+  const choose = async (r: Res) => {
+    setPick(r); setStatus('saving');
+    const { error } = await saveDailyPrediction(comp.id, match.id, r);
+    if (error) { setStatus('idle'); flash(error.message); } else { setStatus('saved'); onPredicted(match.id, r); }
+  };
+  const Btn: React.FC<{ r: Res; label: string }> = ({ r, label }) => {
+    const odds = oddsFor(r); const on = pick === r;
+    return (
+      <button onClick={() => choose(r)} className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 rounded-lg border ${on ? 'border-electric-blue bg-electric-blue/15' : 'border-white/10'}`}>
+        <span className="text-xs font-bold text-text-primary truncate max-w-full px-1">{label}</span>
+        <span className={`text-sm font-extrabold tabular-nums ${on ? 'text-electric-blue' : 'text-text-secondary'}`}>{odds != null ? Number(odds).toFixed(2) : '—'}</span>
+        {odds != null && <span className="text-[9px] text-lime-glow font-bold">+{Math.round(Number(odds) * 100)} pts</span>}
+      </button>
+    );
+  };
   return (
     <div className="bg-navy-accent rounded-xl p-4">
       <div className="flex items-center justify-between text-xs text-text-secondary mb-3">
-        <span className="flex items-center gap-1"><Star size={12} className="text-warm-yellow" /> Official match</span>
+        <span className="flex items-center gap-1"><Star size={12} className="text-warm-yellow" /> {match.team_a?.short_name} – {match.team_b?.short_name}</span>
         {match.start_time && <span className="flex items-center gap-1"><Clock size={12} /> {new Date(match.start_time).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
       </div>
-      <div className="flex items-center justify-around">
-        <div className="flex flex-col items-center gap-2 flex-1"><TeamChip team={match.team_a} /><Stepper value={a} onChange={setA} /></div>
-        <span className="text-text-disabled px-2">–</span>
-        <div className="flex flex-col items-center gap-2 flex-1"><TeamChip team={match.team_b} /><Stepper value={b} onChange={setB} /></div>
+      <div className="flex items-stretch gap-2">
+        <Btn r="A" label={match.team_a?.short_name ?? '1'} />
+        <Btn r="draw" label="Draw" />
+        <Btn r="B" label={match.team_b?.short_name ?? '2'} />
       </div>
-      <p className="text-center text-xs font-semibold mt-3 h-4">
-        {bothSet ? <span className="text-electric-blue">{resultLabel} · {a}-{b}</span> : <span className="text-text-disabled">Not predicted</span>}
-      </p>
       <p className="text-center text-[11px] mt-2 h-4">
         {status === 'saving' ? <span className="text-text-disabled">Saving…</span>
-          : status === 'saved' ? <span className="text-lime-glow">✓ Saved automatically</span>
-          : <span className="text-text-disabled">Tap +/− to predict</span>}
+          : status === 'saved' && pick ? <span className="text-lime-glow">✓ {pick === 'A' ? match.team_a?.short_name : pick === 'B' ? match.team_b?.short_name : 'Draw'} @ {Number(oddsFor(pick) ?? 0).toFixed(2)} — saved</span>
+          : <span className="text-text-disabled">Tap 1, X or 2</span>}
       </p>
     </div>
   );
 };
 
-// Read-only result of a past official match: final score + your pick + points.
+// Read-only result of a past official match: final score + your 1X2 pick + points.
 const DailyResultCard: React.FC<{ match: TQMatch; existing: TQDailyPick | null }> = ({ match, existing }) => {
   const resolved = match.score_a != null && match.score_b != null;
   const pts = existing?.points_awarded ?? 0;
+  const r = existing?.predicted_result;
+  const pickLabel = r === 'A' ? match.team_a?.short_name : r === 'B' ? match.team_b?.short_name : r === 'draw' ? 'Draw' : null;
   return (
     <div className="bg-deep-navy rounded-xl p-3 border border-white/5">
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
@@ -409,10 +407,8 @@ const DailyResultCard: React.FC<{ match: TQMatch; existing: TQDailyPick | null }
         <div className="flex justify-start min-w-0"><TeamChip team={match.team_b} size="sm" /></div>
       </div>
       <div className="flex items-center justify-between mt-2 text-[11px]">
-        <span className="text-text-disabled">
-          {existing ? `Your pick: ${existing.predicted_score_a}-${existing.predicted_score_b}` : 'Not predicted'}
-        </span>
-        {existing
+        <span className="text-text-disabled">{pickLabel ? `Your pick: ${pickLabel}${existing?.locked_odds ? ` @ ${Number(existing.locked_odds).toFixed(2)}` : ''}` : 'Not predicted'}</span>
+        {pickLabel
           ? (pts > 0 ? <span className="font-bold text-lime-glow">+{pts} pts</span> : resolved ? <span className="text-text-disabled">0 pts</span> : <span className="text-warm-yellow">pending</span>)
           : <span className="text-text-disabled">—</span>}
       </div>
