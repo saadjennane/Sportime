@@ -38,29 +38,37 @@ export async function getLegends(teamId: string): Promise<Legend[]> {
   return (data ?? []) as Legend[];
 }
 
-export async function getMyEntry(userId: string, scopeType: string, scopeRef: string): Promise<{ formation: string; picks: PulsePick[] }> {
-  const { data } = await supabase.from('fan_pulse_entries').select('formation, picks')
+export async function getMyEntry(userId: string, scopeType: string, scopeRef: string): Promise<{ formation: string; picks: PulsePick[]; sell: SellItem[] }> {
+  const { data } = await supabase.from('fan_pulse_entries').select('formation, picks, sell_list')
     .eq('user_id', userId).eq('scope_type', scopeType).eq('scope_ref', scopeRef).maybeSingle();
-  return { formation: (data as any)?.formation ?? '4-3-3', picks: ((data as any)?.picks ?? []) as PulsePick[] };
+  return { formation: (data as any)?.formation ?? '4-3-3', picks: ((data as any)?.picks ?? []) as PulsePick[], sell: ((data as any)?.sell_list ?? []) as SellItem[] };
 }
 
-export async function saveEntry(userId: string, scopeType: string, scopeRef: string, formation: string, picks: PulsePick[]) {
-  return supabase.from('fan_pulse_entries').upsert(
-    { user_id: userId, scope_type: scopeType, scope_ref: scopeRef, formation, picks, updated_at: new Date().toISOString() },
-    { onConflict: 'user_id,scope_type,scope_ref' });
+export async function saveEntry(userId: string, scopeType: string, scopeRef: string, formation: string, picks: PulsePick[], sellList?: SellItem[]) {
+  const row: any = { user_id: userId, scope_type: scopeType, scope_ref: scopeRef, formation, picks, updated_at: new Date().toISOString() };
+  if (sellList !== undefined) row.sell_list = sellList;
+  return supabase.from('fan_pulse_entries').upsert(row, { onConflict: 'user_id,scope_type,scope_ref' });
+}
+
+export async function getSellAggregate(scopeRef: string): Promise<{ participants: number; players: AggPlayer[] }> {
+  const { data } = await supabase.rpc('fan_pulse_sell_aggregate', { p_scope_ref: scopeRef });
+  return (data as any) ?? { participants: 0, players: [] };
 }
 
 export interface SquadPlayer { id: string; name: string; photo: string | null; position: Bucket; club: string | null; }
+export interface SellItem { player_key: string; name: string; photo: string | null; }
 const FB_POS: Record<Bucket, string> = { GK: 'Goalkeeper', DEF: 'Defender', MID: 'Midfielder', FWD: 'Attacker' };
 const toBucket = (p: string): Bucket => p === 'Goalkeeper' ? 'GK' : p === 'Defender' ? 'DEF' : p === 'Attacker' ? 'FWD' : 'MID';
 
-/** Search any player (transfer targets) by name, filtered to a position bucket. */
-export async function searchPlayers(query: string, bucket: Bucket): Promise<SquadPlayer[]> {
-  const { data } = await supabase.from('fb_players')
+/** Search any player (transfer targets) by name; optional position bucket filter (omit for bench). */
+export async function searchPlayers(query: string, bucket?: Bucket): Promise<SquadPlayer[]> {
+  let q = supabase.from('fb_players')
     .select('id, name, photo, photo_url, position, fb_player_team_association(fb_teams(name))')
-    .ilike('name', `%${query}%`).eq('position', FB_POS[bucket]).limit(40);
+    .ilike('name', `%${query}%`).limit(40);
+  if (bucket) q = q.eq('position', FB_POS[bucket]);
+  const { data } = await q;
   return (data ?? []).map((p: any) => ({
-    id: p.id, name: p.name, photo: p.photo || p.photo_url || null, position: bucket,
+    id: p.id, name: p.name, photo: p.photo || p.photo_url || null, position: toBucket(p.position),
     club: p.fb_player_team_association?.[0]?.fb_teams?.name ?? null,
   }));
 }

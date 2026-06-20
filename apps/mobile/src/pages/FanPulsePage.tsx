@@ -185,50 +185,128 @@ const LegendsBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, use
   );
 };
 
-// ── Dream builder ───────────────────────────────────────────────────────────
+// ── Dream builder (XI + bench up to 14 = 25-man squad + sell list) ──────────
 const DreamBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, userId }) => {
   const [squad, setSquad] = useState<fp.SquadPlayer[]>([]);
   const [tab, setTab] = useState<'mine' | 'pulse'>('mine');
   const [agg, setAgg] = useState<{ participants: number; players: fp.AggPlayer[] }>({ participants: 0, players: [] });
-  const [pickFor, setPickFor] = useState<number | null>(null);
-  const { formation: fname, setFormation, picks, setPicks, saveState } = usePulseEntry(userId, 'dream', club.id, '4-3-3');
+  const [sellAgg, setSellAgg] = useState<{ participants: number; players: fp.AggPlayer[] }>({ participants: 0, players: [] });
+  const [pickFor, setPickFor] = useState<number | 'bench' | null>(null);
+  const [fname, setFname] = useState('4-3-3');
+  const [starters, setStarters] = useState<(fp.PulsePick | null)[]>(Array(11).fill(null));
+  const [bench, setBench] = useState<fp.PulsePick[]>([]);
+  const [sell, setSell] = useState<fp.SellItem[]>([]);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const first = useRef(true);
   const formation = FORMATIONS[fname] ?? FORMATIONS['4-3-3'];
   const squadIds = useMemo(() => new Set(squad.map(s => s.id)), [squad]);
+  const sellIds = useMemo(() => new Set(sell.map(s => s.player_key)), [sell]);
 
-  useEffect(() => { fp.getCurrentSquad(club.id).then(setSquad); }, [club.id]);
-  useEffect(() => { if (tab === 'pulse') fp.getAggregate('dream', club.id).then(setAgg); }, [tab, club.id]);
-  const usedKeys = useMemo(() => new Set(picks.filter(Boolean).map(p => (p as fp.PulsePick).player_key)), [picks]);
+  useEffect(() => {
+    fp.getCurrentSquad(club.id).then(setSquad);
+    fp.getMyEntry(userId, 'dream', club.id).then(({ formation: f, picks, sell: sl }) => {
+      setFname(FORMATIONS[f] ? f : '4-3-3');
+      const st: (fp.PulsePick | null)[] = Array(11).fill(null); const bn: fp.PulsePick[] = [];
+      for (const p of picks) { if (p.is_starter && p.slot >= 0 && p.slot < 11) st[p.slot] = p; else bn.push(p); }
+      setStarters(st); setBench(bn); setSell(sl); first.current = true; setSaveState(picks.length ? 'saved' : 'idle');
+    });
+  }, [club.id, userId]);
 
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    setSaveState('saving');
+    const t = setTimeout(async () => {
+      const picks = [
+        ...(starters.filter(Boolean) as fp.PulsePick[]).map(p => ({ ...p, is_starter: true })),
+        ...bench.map((p, i) => ({ ...p, is_starter: false, slot: 11 + i })),
+      ];
+      const { error } = await fp.saveEntry(userId, 'dream', club.id, fname, picks, sell);
+      setSaveState(error ? 'idle' : 'saved');
+    }, 700);
+    return () => clearTimeout(t);
+  }, [starters, bench, sell, fname]);
+
+  useEffect(() => { if (tab === 'pulse') { fp.getAggregate('dream', club.id).then(setAgg); fp.getSellAggregate(club.id).then(setSellAgg); } }, [tab, club.id]);
+
+  const usedKeys = useMemo(() => new Set([...(starters.filter(Boolean) as fp.PulsePick[]), ...bench].map(p => p.player_key)), [starters, bench]);
   const changeFormation = (f: string) => {
     const nf = FORMATIONS[f]; const pools: Record<fp.Bucket, fp.PulsePick[]> = { GK: [], DEF: [], MID: [], FWD: [] };
-    picks.forEach(p => { if (p) pools[p.position].push(p); });
+    starters.forEach(p => { if (p) pools[p.position].push(p); });
     const next: (fp.PulsePick | null)[] = Array(11).fill(null);
     nf.forEach((b, slot) => { const pl = pools[b].shift(); if (pl) next[slot] = { ...pl, slot, position: b }; });
-    setFormation(f); setPicks(next);
+    setFname(f); setStarters(next);
   };
-  const assign = (slot: number, pl: fp.SquadPlayer | null) => {
-    setPicks(prev => { const next = [...prev]; if (pl) { for (let i = 0; i < next.length; i++) if (next[i]?.player_key === pl.id) next[i] = null; next[slot] = { player_key: pl.id, name: pl.name, photo: pl.photo, position: formation[slot], is_starter: true, slot }; } else next[slot] = null; return next; });
+  const place = (pl: fp.SquadPlayer) => {
+    if (typeof pickFor === 'number') {
+      const slot = pickFor;
+      setStarters(prev => { const next = [...prev]; for (let i = 0; i < next.length; i++) if (next[i]?.player_key === pl.id) next[i] = null; next[slot] = { player_key: pl.id, name: pl.name, photo: pl.photo, position: formation[slot], is_starter: true, slot }; return next; });
+      setBench(prev => prev.filter(b => b.player_key !== pl.id));
+    } else {
+      setBench(prev => (prev.some(b => b.player_key === pl.id) || prev.length >= 14) ? prev : [...prev, { player_key: pl.id, name: pl.name, photo: pl.photo, position: pl.position, is_starter: false, slot: 11 + prev.length }]);
+    }
     setPickFor(null);
   };
-  const filled = picks.filter(Boolean).length;
-  const buys = picks.filter(p => p && !squadIds.has(p.player_key)).length;
+  const filled = starters.filter(Boolean).length;
+  const buys = [...(starters.filter(Boolean) as fp.PulsePick[]), ...bench].filter(p => !squadIds.has(p.player_key)).length;
+  const toggleSell = (p: fp.SquadPlayer) => setSell(prev => prev.some(s => s.player_key === p.id) ? prev.filter(s => s.player_key !== p.id) : [...prev, { player_key: p.id, name: p.name, photo: p.photo }]);
+
   return (
     <div className="space-y-3">
       <Tabs tab={tab} setTab={setTab} />
       {tab === 'mine' ? (
         <>
           <div className="flex gap-1.5 overflow-x-auto pb-1">
-            {Object.keys(FORMATIONS).map(f => (
-              <button key={f} onClick={() => changeFormation(f)} className={`px-3 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap ${fname === f ? 'bg-electric-blue text-white' : 'bg-navy-accent text-text-secondary'}`}>{f}</button>
-            ))}
+            {Object.keys(FORMATIONS).map(f => <button key={f} onClick={() => changeFormation(f)} className={`px-3 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap ${fname === f ? 'bg-electric-blue text-white' : 'bg-navy-accent text-text-secondary'}`}>{f}</button>)}
           </div>
-          <Pitch formation={formation} picks={picks} onSlot={setPickFor} isBuy={k => !squadIds.has(k)} />
-          <p className="text-center text-[11px] text-warm-yellow h-4">{buys > 0 ? `€ ${buys} signing${buys > 1 ? 's' : ''} from outside the club` : ''}</p>
+          <Pitch formation={formation} picks={starters} onSlot={i => setPickFor(i)} isBuy={k => !squadIds.has(k)} />
+
+          <div>
+            <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Bench · {bench.length}/14</p>
+            <div className="flex flex-wrap gap-2">
+              {bench.map(b => (
+                <button key={b.player_key} onClick={() => setBench(prev => prev.filter(x => x.player_key !== b.player_key))} className="relative">
+                  <Token name={b.name} photo={b.photo} bucket={b.position} buy={!squadIds.has(b.player_key)} />
+                  <span className="absolute -top-0.5 right-1 bg-hot-red text-white rounded-full w-4 h-4 text-[9px] flex items-center justify-center font-bold">×</span>
+                </button>
+              ))}
+              {bench.length < 14 && <button onClick={() => setPickFor('bench')}><Token bucket="MID" empty /></button>}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Players to sell <span className="text-text-disabled normal-case lowercase">· tap to flag</span></p>
+            <div className="flex flex-wrap gap-1.5">
+              {squad.length === 0 ? <span className="text-xs text-text-disabled">Current squad not seeded for this club.</span>
+                : squad.map(s => <button key={s.id} onClick={() => toggleSell(s)} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border ${sellIds.has(s.id) ? 'border-hot-red bg-hot-red/15 text-hot-red line-through' : 'border-white/10 text-text-secondary'}`}>{surname(s.name)}</button>)}
+            </div>
+          </div>
+
+          <p className="text-center text-[11px] text-warm-yellow h-4">{buys > 0 ? `€ ${buys} signing${buys > 1 ? 's' : ''} from outside` : ''}</p>
           <SaveLine state={saveState} filled={filled} done="✓ Saved — see what every fan wants in The Pulse" />
         </>
-      ) : <PulseView agg={agg} squadIds={squadIds} />}
+      ) : (
+        <div className="space-y-4">
+          <PulseView agg={agg} squadIds={squadIds} />
+          {sellAgg.players.length > 0 && (
+            <div>
+              <p className="text-xs font-bold text-hot-red uppercase tracking-wider mb-1.5">Fans want to sell</p>
+              <div className="space-y-1.5">
+                {sellAgg.players.slice(0, 8).map(p => (
+                  <div key={p.player_key} className="bg-navy-accent rounded-lg p-2 flex items-center gap-2">
+                    {p.photo ? <img src={p.photo} className="w-8 h-8 rounded-full object-cover" alt="" /> : <div className="w-8 h-8 rounded-full bg-hot-red/30 flex items-center justify-center text-white font-bold text-[10px]">{initials(p.name)}</div>}
+                    <span className="flex-1 text-sm text-text-primary truncate">{p.name}</span>
+                    <div className="h-1.5 w-20 rounded-full bg-deep-navy overflow-hidden"><div className="h-full bg-hot-red rounded-full" style={{ width: `${p.pct}%` }} /></div>
+                    <span className="text-sm font-bold text-hot-red tabular-nums w-10 text-right">{p.pct}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {pickFor !== null && (
-        <SquadPicker bucket={formation[pickFor]} defaults={squad.filter(s => s.position === formation[pickFor])} clubName={club.name} usedKeys={usedKeys} currentKey={picks[pickFor]?.player_key} onClose={() => setPickFor(null)} onPick={p => assign(pickFor, p)} onClear={() => assign(pickFor, null)} />
+        <SquadPicker bucket={typeof pickFor === 'number' ? formation[pickFor] : undefined} defaults={typeof pickFor === 'number' ? squad.filter(s => s.position === formation[pickFor]) : squad} clubName={club.name} usedKeys={usedKeys} currentKey={typeof pickFor === 'number' ? starters[pickFor]?.player_key : undefined} onClose={() => setPickFor(null)} onPick={place} onClear={() => { if (typeof pickFor === 'number') { const slot = pickFor; setStarters(prev => { const n = [...prev]; n[slot] = null; return n; }); } setPickFor(null); }} />
       )}
     </div>
   );
@@ -269,7 +347,7 @@ const LegendPicker: React.FC<{ bucket: fp.Bucket; legends: fp.Legend[]; usedKeys
 };
 
 // ── Squad / transfer picker (async search any player) ───────────────────────
-const SquadPicker: React.FC<{ bucket: fp.Bucket; defaults: fp.SquadPlayer[]; clubName: string; usedKeys: Set<string>; currentKey?: string; onClose: () => void; onPick: (p: fp.SquadPlayer) => void; onClear: () => void }> = ({ bucket, defaults, clubName, usedKeys, currentKey, onClose, onPick, onClear }) => {
+const SquadPicker: React.FC<{ bucket?: fp.Bucket; defaults: fp.SquadPlayer[]; clubName: string; usedKeys: Set<string>; currentKey?: string; onClose: () => void; onPick: (p: fp.SquadPlayer) => void; onClear: () => void }> = ({ bucket, defaults, clubName, usedKeys, currentKey, onClose, onPick, onClear }) => {
   const [q, setQ] = useState('');
   const [results, setResults] = useState<fp.SquadPlayer[]>([]);
   const [busy, setBusy] = useState(false);
@@ -281,13 +359,13 @@ const SquadPicker: React.FC<{ bucket: fp.Bucket; defaults: fp.SquadPlayer[]; clu
   }, [q, bucket]);
   const list = q.trim().length >= 2 ? results : defaults;
   return (
-    <Sheet title={`Pick a ${BUCKET_LABEL[bucket]}`} onClose={onClose}>
+    <Sheet title={bucket ? `Pick a ${BUCKET_LABEL[bucket]}` : 'Add to the bench'} onClose={onClose}>
       <SearchBox q={q} setQ={setQ} placeholder={`${clubName} squad · or search any player to buy…`} />
       {busy && <div className="flex justify-center py-2"><Loader2 className="animate-spin text-electric-blue" size={18} /></div>}
       <div className="overflow-y-auto space-y-1 flex-1 min-h-0">
         {currentKey && <button onClick={onClear} className="w-full text-left text-sm text-hot-red py-2">Clear this spot</button>}
         {q.trim().length < 2 && <p className="text-[11px] text-text-disabled px-1">Current squad — or type a name to sign anyone</p>}
-        {list.slice(0, 60).map(p => <Row key={p.id} name={p.name} photo={p.photo} bucket={bucket} sub={p.club && p.club !== clubName ? `€ ${p.club}` : undefined} current={p.id === currentKey} used={usedKeys.has(p.id) && p.id !== currentKey} onClick={() => onPick(p)} />)}
+        {list.slice(0, 60).map(p => <Row key={p.id} name={p.name} photo={p.photo} bucket={bucket ?? p.position} sub={p.club && p.club !== clubName ? `€ ${p.club}` : undefined} current={p.id === currentKey} used={usedKeys.has(p.id) && p.id !== currentKey} onClick={() => onPick(p)} />)}
       </div>
     </Sheet>
   );
