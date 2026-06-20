@@ -486,6 +486,7 @@ const LegendPicker: React.FC<{ bucket: fp.Bucket; legends: fp.Legend[]; usedKeys
       <SearchBox q={q} setQ={setQ} placeholder={`Search ${legends.length} legends…`} />
       <div className="overflow-y-auto space-y-1 flex-1 min-h-0">
         {currentKey && <button onClick={onClear} className="w-full text-left text-sm text-hot-red py-2">Clear this spot</button>}
+        {list.length === 0 && <p className="text-center text-sm text-text-disabled py-6">No player</p>}
         {list.slice(0, 80).map(l => <Row key={l.id} name={l.name} photo={l.photo_url} bucket={bucket} current={l.player_key === currentKey} used={usedKeys.has(l.player_key) && l.player_key !== currentKey} onClick={() => onPick(l)} />)}
         {list.length > 80 && <p className="text-center text-[11px] text-text-disabled py-2">+{list.length - 80} more — refine your search</p>}
       </div>
@@ -512,6 +513,7 @@ const SquadPicker: React.FC<{ bucket?: fp.Bucket; defaults: fp.SquadPlayer[]; cl
       <div className="overflow-y-auto space-y-1 flex-1 min-h-0">
         {currentKey && <button onClick={onClear} className="w-full text-left text-sm text-hot-red py-2">Clear this spot</button>}
         {q.trim().length < 2 && <p className="text-[11px] text-text-disabled px-1">Current squad — or type a name to sign anyone</p>}
+        {!busy && q.trim().length >= 2 && list.length === 0 && <p className="text-center text-sm text-text-disabled py-6">No player</p>}
         {list.slice(0, 60).map(p => <Row key={p.id} name={p.name} photo={p.photo} bucket={bucket ?? p.position} sub={p.club && p.club !== clubName ? `€ ${p.club}` : undefined} current={p.id === currentKey} used={usedKeys.has(p.id) && p.id !== currentKey} onClick={() => onPick(p)} />)}
       </div>
     </Sheet>
@@ -519,8 +521,9 @@ const SquadPicker: React.FC<{ bucket?: fp.Bucket; defaults: fp.SquadPlayer[]; cl
 };
 
 const Sheet: React.FC<{ title: string; onClose: () => void; children: React.ReactNode }> = ({ title, onClose, children }) => (
-  <div className="fixed inset-0 z-[80] flex items-end bg-black/60" onClick={onClose}>
-    <div className="w-full max-w-md mx-auto bg-deep-navy rounded-t-2xl max-h-[80vh] flex flex-col p-4" onClick={e => e.stopPropagation()}>
+  // Anchored to the TOP so the search field stays visible above the keyboard.
+  <div className="fixed inset-0 z-[80] flex items-start justify-center bg-black/60 px-3 pt-[max(0.75rem,env(safe-area-inset-top))]" onClick={onClose}>
+    <div className="w-full max-w-md bg-deep-navy rounded-2xl max-h-[82vh] flex flex-col p-4" onClick={e => e.stopPropagation()}>
       <div className="flex items-center justify-between mb-2"><h3 className="font-bold text-text-primary">{title}</h3><button onClick={onClose}><X size={22} className="text-text-secondary" /></button></div>
       {children}
     </div>
