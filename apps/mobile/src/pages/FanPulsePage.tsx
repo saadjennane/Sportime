@@ -501,7 +501,10 @@ const HomeCard: React.FC<{ icon: React.ReactNode; title: string; desc: string; o
 
 const ClubPicker: React.FC<{ onPick: (c: fp.Club) => void; onClose: () => void }> = ({ onPick, onClose }) => {
   const [q, setQ] = useState(''); const [results, setResults] = useState<fp.Club[]>([]); const [busy, setBusy] = useState(false);
+  const [suggested, setSuggested] = useState<fp.Club[]>([]);
+  useEffect(() => { fp.getSuggestedClubs().then(setSuggested); }, []);
   useEffect(() => { if (q.trim().length < 2) { setResults([]); return; } setBusy(true); const t = setTimeout(async () => { setResults(await fp.searchClubs(q.trim())); setBusy(false); }, 300); return () => clearTimeout(t); }, [q]);
+  const showing = q.trim().length < 2 ? suggested : results;
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center px-3 pt-[max(1rem,env(safe-area-inset-top))]" onClick={onClose}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
@@ -513,7 +516,8 @@ const ClubPicker: React.FC<{ onPick: (c: fp.Club) => void; onClose: () => void }
         <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-disabled" />
           <input value={q} onChange={e => setQ(e.target.value)} autoFocus placeholder="Search a club… (e.g. Barcelona)" className="w-full pl-10 pr-4 py-3 bg-navy-accent border border-white/10 rounded-xl text-text-primary focus:outline-none focus:border-electric-blue" /></div>
         {busy && <div className="flex justify-center py-4"><Loader2 className="animate-spin text-electric-blue" size={22} /></div>}
-        <div className="space-y-1.5 mt-3 overflow-y-auto">{results.map(c => (
+        {q.trim().length < 2 && showing.length > 0 && <p className="text-[11px] uppercase tracking-wide text-text-disabled mt-3 mb-1">Popular clubs</p>}
+        <div className="space-y-1.5 overflow-y-auto">{showing.map(c => (
           <button key={c.id} onClick={() => onPick(c)} className="w-full flex items-center gap-3 p-3 bg-navy-accent rounded-xl hover:bg-white/5">
             {c.logo ? <img src={c.logo} className="w-8 h-8 object-contain" alt="" /> : <div className="w-8 h-8 rounded-full bg-electric-blue/20 flex items-center justify-center text-electric-blue text-xs font-bold">{initials(c.name)}</div>}
             <span className="text-text-primary font-medium">{c.name}</span>

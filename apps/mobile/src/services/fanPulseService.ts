@@ -40,6 +40,25 @@ export async function searchClubs(query: string): Promise<Club[]> {
   return (data ?? []).map(toClub);
 }
 
+// Default suggestions shown before the user searches — Barcelona first (only club
+// with seeded legends), then big recognizable clubs.
+const SUGGESTED = ['Barcelona', 'Real Madrid', 'Manchester City', 'Manchester United', 'Liverpool', 'Arsenal', 'Chelsea', 'Bayern', 'Paris', 'Juventus', 'Inter', 'Milan'];
+let suggestedCache: Club[] | null = null;
+export async function getSuggestedClubs(): Promise<Club[]> {
+  if (suggestedCache) return suggestedCache;
+  const { data } = await supabase.from('fb_teams').select('id, name, logo_url, logo')
+    .or(SUGGESTED.map(n => `name.ilike.%${n}%`).join(','));
+  const rank = (name: string) => { const i = SUGGESTED.findIndex(n => name.toLowerCase().includes(n.toLowerCase())); return i < 0 ? 99 : i; };
+  // De-dupe to one club per suggestion keyword (avoids "Inter Miami"/"Inter" clashes
+  // and reserve/women teams) and order by the curated priority.
+  const seen = new Set<number>(); const out: Club[] = [];
+  for (const t of (data ?? []).sort((a, b) => rank(a.name) - rank(b.name)).map(toClub)) {
+    const r = rank(t.name); if (seen.has(r)) continue; seen.add(r); out.push(t);
+  }
+  suggestedCache = out;
+  return out;
+}
+
 export async function getLegends(teamId: string): Promise<Legend[]> {
   const cached = legendsCache.get(teamId);
   if (cached) return cached;
