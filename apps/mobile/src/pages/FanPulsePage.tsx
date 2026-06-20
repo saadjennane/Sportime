@@ -42,6 +42,13 @@ const lineupText = (clubName: string, fname: string, picks: (fp.PulsePick | null
   return `${clubName} — ${label} (${fname})\n${lines.join('\n')}\n\nBuilt on Sportime · Fan Pulse`;
 };
 
+// Build share text for the aggregated consensus XI (laid out by slot).
+const consensusText = (clubName: string, fname: string, agg: fp.Aggregate, label: string): string => {
+  const picks: (fp.PulsePick | null)[] = Array(11).fill(null);
+  agg.slots.forEach(s => { if (s.slot >= 0 && s.slot < 11) picks[s.slot] = { player_key: s.player_key, name: s.name, photo: s.photo, position: s.position, is_starter: true, slot: s.slot }; });
+  return lineupText(clubName, fname, picks, label);
+};
+
 // Native share sheet (iOS WKWebView supports the Web Share API); clipboard fallback.
 const shareLineup = async (text: string) => {
   try { if ((navigator as any).share) { await (navigator as any).share({ title: 'My Fan Pulse XI', text }); return; } } catch { return; /* user cancelled */ }
@@ -52,19 +59,19 @@ const shareLineup = async (text: string) => {
 const Token: React.FC<{ name?: string; photo?: string | null; bucket: fp.Bucket; empty?: boolean; onTap?: () => void; buy?: boolean; badge?: string }> = ({ name, photo, bucket, empty, onTap, buy, badge }) => {
   const [err, setErr] = useState(false);
   return (
-    <button onClick={onTap} className="flex flex-col items-center gap-1 w-[66px]">
-      <div className="relative w-12 h-12">
+    <button onClick={onTap} className="flex flex-col items-center gap-1 w-[72px]">
+      <div className="relative w-14 h-14">
         {empty ? (
-          <div className="w-12 h-12 rounded-full border-2 border-dashed border-neon-cyan/40 bg-deep-navy/50 flex items-center justify-center text-neon-cyan/60 text-xl font-bold">+</div>
+          <div className="w-14 h-14 rounded-full border-2 border-dashed border-neon-cyan/40 bg-deep-navy/50 flex items-center justify-center text-neon-cyan/60 text-xl font-bold">+</div>
         ) : photo && !err ? (
-          <img src={photo} alt="" onError={() => setErr(true)} className="w-12 h-12 rounded-full object-cover border-2 border-white/60 shadow-lg" />
+          <img src={photo} alt="" onError={() => setErr(true)} className="w-14 h-14 rounded-full object-cover border-2 border-white/60 shadow-lg" />
         ) : (
-          <div className={`w-12 h-12 rounded-full bg-gradient-to-b ${POS_GRAD[bucket]} border-2 border-white/60 shadow-lg flex items-center justify-center text-white font-bold text-sm`}>{initials(name || '')}</div>
+          <div className={`w-14 h-14 rounded-full bg-gradient-to-b ${POS_GRAD[bucket]} border-2 border-white/60 shadow-lg flex items-center justify-center text-white font-bold text-base`}>{initials(name || '')}</div>
         )}
         {buy && <span className="absolute -top-1 -right-1 bg-warm-yellow text-deep-navy text-[8px] font-extrabold rounded-full w-4 h-4 flex items-center justify-center">€</span>}
       </div>
       {/* name pill */}
-      <span className={`px-1.5 py-[3px] rounded-md text-[10px] font-bold text-center leading-none truncate max-w-[66px] border ${empty ? 'bg-deep-navy/40 border-white/10 text-white/45' : 'bg-deep-navy/90 border-neon-cyan/35 text-white shadow'}`}>{empty ? bucket : surname(name || '')}</span>
+      <span className={`px-1.5 py-[3px] rounded-md text-[10px] font-bold text-center leading-none truncate max-w-[72px] border ${empty ? 'bg-deep-navy/40 border-white/10 text-white/45' : 'bg-deep-navy/90 border-neon-cyan/35 text-white shadow'}`}>{empty ? bucket : surname(name || '')}</span>
       {badge && <span className="px-1.5 py-[2px] rounded-md bg-electric-blue/20 border border-electric-blue/40 text-[9px] font-extrabold text-electric-blue leading-none">{badge}</span>}
     </button>
   );
@@ -93,7 +100,7 @@ const PitchMarkings: React.FC = () => (
   </svg>
 );
 
-const PitchField: React.FC<{ children: React.ReactNode; onShare?: () => void }> = ({ children, onShare }) => (
+const PitchField: React.FC<{ children: React.ReactNode; onShare?: () => void; tall?: boolean }> = ({ children, onShare, tall }) => (
   <div className="relative rounded-2xl overflow-hidden border border-neon-cyan/20 bg-[#0c1828]">
     {/* field layer — stripes + markings + watermark tilted together for a subtle,
         coherent perspective (the goal recedes); tokens stay upright above it */}
@@ -111,8 +118,8 @@ const PitchField: React.FC<{ children: React.ReactNode; onShare?: () => void }> 
         <Share2 size={15} />
       </button>
     )}
-    {/* upright tokens */}
-    <div className="relative flex flex-col gap-7 py-8 px-2">{children}</div>
+    {/* upright tokens — The Pulse (tall) sits a bit longer than My XI */}
+    <div className={`relative flex flex-col px-2 ${tall ? 'gap-11 py-12' : 'gap-9 py-10'}`}>{children}</div>
   </div>
 );
 
@@ -140,7 +147,7 @@ const Pitch: React.FC<{ fname: string; picks: (fp.PulsePick | null)[]; onSlot?: 
 // ── Consensus XI on a pitch — the fan-favourite player per *slot*, so the layout
 // stays coherent with how fans picked (and mirrors a single voter exactly). Falls
 // back to filling each row by pick % when a slot has no data (legacy entries).
-const ConsensusXI: React.FC<{ agg: fp.Aggregate; fname: string; squadIds?: Set<string> }> = ({ agg, fname, squadIds }) => {
+const ConsensusXI: React.FC<{ agg: fp.Aggregate; fname: string; squadIds?: Set<string>; onShare?: () => void }> = ({ agg, fname, squadIds, onShare }) => {
   const formation = FORMATIONS[fname] ?? FORMATIONS['4-3-3'];
   const bySlot = new Map<number, fp.AggSlot>(agg.slots.map(s => [s.slot, s]));
   const placed = new Set(agg.slots.map(s => s.player_key));
@@ -149,7 +156,7 @@ const ConsensusXI: React.FC<{ agg: fp.Aggregate; fname: string; squadIds?: Set<s
   (Object.keys(leftover) as fp.Bucket[]).forEach(b => leftover[b].sort((a, c) => c.pct - a.pct));
   const rows = renderRows(fname);
   return (
-    <PitchField>
+    <PitchField tall onShare={onShare}>
       {rows.map((row, ri) => (
         <div key={ri} className="flex justify-around items-center px-1" style={rowDepth(ri, rows.length)}>
           {row.slots.map(i => { const p = bySlot.get(i) ?? leftover[formation[i]].shift(); return <Token key={i} name={p?.name} photo={p?.photo} bucket={formation[i]} empty={!p} badge={p ? `${p.pct}%` : undefined} buy={p && squadIds ? !squadIds.has(p.player_key) : false} />; })}
@@ -160,45 +167,13 @@ const ConsensusXI: React.FC<{ agg: fp.Aggregate; fname: string; squadIds?: Set<s
 };
 
 // ── Aggregated pulse ────────────────────────────────────────────────────────
-const PulseView: React.FC<{ agg: fp.Aggregate; fname: string; squadIds?: Set<string> }> = ({ agg, fname, squadIds }) => {
-  const order: fp.Bucket[] = ['GK', 'DEF', 'MID', 'FWD'];
-  const topN: Record<fp.Bucket, number> = { GK: 1, DEF: 4, MID: 3, FWD: 3 };
+const PulseView: React.FC<{ agg: fp.Aggregate; fname: string; clubName: string; label: string; squadIds?: Set<string> }> = ({ agg, fname, clubName, label, squadIds }) => {
   if (agg.participants === 0) return <div className="card-base p-8 text-center"><div className="text-4xl mb-2">📊</div><p className="text-text-secondary">No fan has voted yet. Be the first — build your XI!</p></div>;
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <p className="text-center text-sm text-text-secondary"><b className="text-text-primary">{agg.participants}</b> fan{agg.participants > 1 ? 's' : ''} voted</p>
-      <ConsensusXI agg={agg} fname={fname} squadIds={squadIds} />
-      <p className="text-center text-[11px] text-text-disabled font-semibold">⚡ The fans' consensus XI — % who picked each player</p>
-      <p className="text-xs font-bold text-text-secondary uppercase tracking-wider pt-1">Full ranking</p>
-      {order.map(b => {
-        const list = agg.players.filter(p => p.position === b).sort((a, c) => c.pct - a.pct);
-        if (!list.length) return null;
-        return (
-          <div key={b}>
-            <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">{BUCKET_LABEL[b]}s</p>
-            <div className="space-y-1.5">
-              {list.map((p, i) => {
-                const buy = squadIds && !squadIds.has(p.player_key);
-                return (
-                  <div key={p.player_key} className="bg-navy-accent rounded-lg p-2 flex items-center gap-2">
-                    {p.photo ? <img src={p.photo} className="w-8 h-8 rounded-full object-cover" alt="" /> : <div className={`w-8 h-8 rounded-full bg-gradient-to-b ${POS_GRAD[b]} flex items-center justify-center text-white font-bold text-[10px]`}>{initials(p.name)}</div>}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1">
-                        {i < topN[b] && <Star size={11} className="text-warm-yellow shrink-0" />}
-                        <span className="text-sm text-text-primary font-medium truncate">{p.name}</span>
-                        {buy && <span className="text-[9px] font-bold text-warm-yellow bg-warm-yellow/15 px-1 rounded shrink-0">BUY</span>}
-                      </div>
-                      <div className="h-1.5 mt-1 rounded-full bg-deep-navy overflow-hidden"><div className="h-full bg-electric-blue rounded-full" style={{ width: `${p.pct}%` }} /></div>
-                    </div>
-                    <span className="text-sm font-bold text-electric-blue tabular-nums w-10 text-right">{p.pct}%</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
-      <p className="text-center text-[11px] text-text-disabled">⭐ consensus XI{squadIds ? ' · €/BUY = not in the current squad' : ''}</p>
+      <ConsensusXI agg={agg} fname={fname} squadIds={squadIds} onShare={() => shareLineup(consensusText(clubName, fname, agg, label))} />
+      <p className="text-center text-[11px] text-text-disabled font-semibold">⚡ The fans' consensus XI — % who picked each player{squadIds ? ' · €  = not in the current squad' : ''}</p>
     </div>
   );
 };
@@ -260,7 +235,7 @@ const LegendsBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, use
           <Pitch fname="4-3-3" picks={picks} onSlot={setPickFor} onShare={() => shareLineup(lineupText(club.name, '4-3-3', picks, 'All-time Legends XI'))} />
           <SaveLine state={saveState} filled={filled} done="✓ Your all-time XI is saved — see The Pulse" />
         </>
-      ) : <PulseView agg={agg} fname="4-3-3" />}
+      ) : <PulseView agg={agg} fname="4-3-3" clubName={club.name} label="Fans' Legends XI" />}
       {pickFor !== null && (
         <LegendPicker bucket={formation[pickFor]} legends={formation[pickFor] === 'GK' ? legends.filter(l => l.position === 'GK') : legends.filter(l => l.position !== 'GK')} usedKeys={usedKeys} currentKey={picks[pickFor]?.player_key} onClose={() => setPickFor(null)} onPick={l => assign(pickFor, l)} onClear={() => assign(pickFor, null)} />
       )}
@@ -376,7 +351,7 @@ const DreamBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, userI
         </>
       ) : (
         <div className="space-y-4">
-          <PulseView agg={agg} fname={fname} squadIds={squadIds} />
+          <PulseView agg={agg} fname={fname} clubName={club.name} label="Fans' Dream XI" squadIds={squadIds} />
           {sellAgg.players.length > 0 && (
             <div>
               <p className="text-xs font-bold text-hot-red uppercase tracking-wider mb-1.5">Fans want to sell</p>
@@ -441,7 +416,7 @@ const MatchXI: React.FC<{ club: fp.Club; userId: string; fixture: fp.MatchFixtur
           <Pitch fname="4-3-3" picks={picks} onSlot={setPickFor} onShare={() => shareLineup(lineupText(club.name, '4-3-3', picks, 'Matchday XI'))} />
           <SaveLine state={saveState} filled={filled} done="✓ Your matchday XI is saved — see The Pulse" />
         </>
-      ) : <PulseView agg={agg} fname="4-3-3" />}
+      ) : <PulseView agg={agg} fname="4-3-3" clubName={club.name} label="Fans' Matchday XI" />}
       {pickFor !== null && (
         <LegendPicker title={`Pick a ${BUCKET_LABEL[formation[pickFor]]}`} bucket={formation[pickFor]} legends={pool.filter(l => l.position === formation[pickFor])} usedKeys={usedKeys} currentKey={picks[pickFor]?.player_key} onClose={() => setPickFor(null)} onPick={l => assign(pickFor, l)} onClear={() => assign(pickFor, null)} />
       )}
