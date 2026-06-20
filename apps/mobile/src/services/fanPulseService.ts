@@ -8,6 +8,8 @@ export type Bucket = 'GK' | 'DEF' | 'MID' | 'FWD';
 export interface Legend { id: string; player_key: string; name: string; position: Bucket; photo_url: string | null; }
 export interface PulsePick { player_key: string; name: string; photo: string | null; position: Bucket; is_starter: boolean; slot: number; }
 export interface AggPlayer { player_key: string; name: string; photo: string | null; position: Bucket; count: number; pct: number; }
+export interface AggSlot extends AggPlayer { slot: number; }
+export interface Aggregate { participants: number; players: AggPlayer[]; slots: AggSlot[]; }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const toClub = (t: any): Club => ({ id: t.id, name: t.name, logo: t.logo || t.logo_url || null });
@@ -127,7 +129,7 @@ export async function getCurrentSquad(teamId: string): Promise<SquadPlayer[]> {
   }));
 }
 
-export async function getAggregate(scopeType: string, scopeRef: string): Promise<{ participants: number; players: AggPlayer[] }> {
+export async function getAggregate(scopeType: string, scopeRef: string): Promise<Aggregate> {
   const { data } = await supabase.rpc('fan_pulse_aggregate', { p_scope_type: scopeType, p_scope_ref: scopeRef });
-  return (data as any) ?? { participants: 0, players: [] };
+  return { participants: 0, players: [], slots: [], ...((data as any) ?? {}) };
 }

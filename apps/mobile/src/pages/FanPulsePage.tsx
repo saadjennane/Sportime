@@ -55,19 +55,22 @@ const Pitch: React.FC<{ formation: fp.Bucket[]; picks: (fp.PulsePick | null)[]; 
   </div>
 );
 
-// ── Consensus XI on a pitch (top player per slot, with %) ───────────────────
-const ConsensusXI: React.FC<{ agg: { participants: number; players: fp.AggPlayer[] }; squadIds?: Set<string> }> = ({ agg, squadIds }) => {
-  const counts: Record<fp.Bucket, number> = { GK: 1, DEF: 4, MID: 3, FWD: 3 };
-  const byB: Record<fp.Bucket, fp.AggPlayer[]> = { GK: [], DEF: [], MID: [], FWD: [] };
-  agg.players.forEach(p => byB[p.position]?.push(p));
-  (Object.keys(byB) as fp.Bucket[]).forEach(b => byB[b].sort((a, c) => c.pct - a.pct));
+// ── Consensus XI on a pitch — the fan-favourite player per *slot*, so the layout
+// stays coherent with how fans picked (and mirrors a single voter exactly). Falls
+// back to filling each row by pick % when a slot has no data (legacy entries).
+const ConsensusXI: React.FC<{ agg: fp.Aggregate; formation: fp.Bucket[]; squadIds?: Set<string> }> = ({ agg, formation, squadIds }) => {
+  const bySlot = new Map<number, fp.AggSlot>(agg.slots.map(s => [s.slot, s]));
+  const placed = new Set(agg.slots.map(s => s.player_key));
+  const leftover: Record<fp.Bucket, fp.AggPlayer[]> = { GK: [], DEF: [], MID: [], FWD: [] };
+  agg.players.filter(p => !placed.has(p.player_key)).forEach(p => leftover[p.position]?.push(p));
+  (Object.keys(leftover) as fp.Bucket[]).forEach(b => leftover[b].sort((a, c) => c.pct - a.pct));
   return (
     <div className="rounded-2xl p-3 bg-gradient-to-b from-emerald-800/40 to-emerald-950/40 border border-emerald-500/20">
       <div className="rounded-xl" style={{ background: 'repeating-linear-gradient(180deg,#0c4a3e22 0 28px,#0c4a3e11 28px 56px)' }}>
         <div className="flex flex-col gap-3 py-4">
-          {(['FWD', 'MID', 'DEF', 'GK'] as fp.Bucket[]).map(b => (
-            <div key={b} className="flex justify-around items-center px-1">
-              {Array.from({ length: counts[b] }).map((_, i) => { const p = byB[b][i]; return <Token key={i} name={p?.name} photo={p?.photo} bucket={b} empty={!p} badge={p ? `${p.pct}%` : undefined} buy={p && squadIds ? !squadIds.has(p.player_key) : false} />; })}
+          {rowsOf(formation).map(row => (
+            <div key={row.bucket} className="flex justify-around items-center px-1">
+              {row.slots.map(i => { const p = bySlot.get(i) ?? leftover[formation[i]].shift(); return <Token key={i} name={p?.name} photo={p?.photo} bucket={formation[i]} empty={!p} badge={p ? `${p.pct}%` : undefined} buy={p && squadIds ? !squadIds.has(p.player_key) : false} />; })}
             </div>
           ))}
         </div>
@@ -77,14 +80,14 @@ const ConsensusXI: React.FC<{ agg: { participants: number; players: fp.AggPlayer
 };
 
 // ── Aggregated pulse ────────────────────────────────────────────────────────
-const PulseView: React.FC<{ agg: { participants: number; players: fp.AggPlayer[] }; squadIds?: Set<string> }> = ({ agg, squadIds }) => {
+const PulseView: React.FC<{ agg: fp.Aggregate; formation: fp.Bucket[]; squadIds?: Set<string> }> = ({ agg, formation, squadIds }) => {
   const order: fp.Bucket[] = ['GK', 'DEF', 'MID', 'FWD'];
   const topN: Record<fp.Bucket, number> = { GK: 1, DEF: 4, MID: 3, FWD: 3 };
   if (agg.participants === 0) return <div className="card-base p-8 text-center"><div className="text-4xl mb-2">📊</div><p className="text-text-secondary">No fan has voted yet. Be the first — build your XI!</p></div>;
   return (
     <div className="space-y-4">
       <p className="text-center text-sm text-text-secondary"><b className="text-text-primary">{agg.participants}</b> fan{agg.participants > 1 ? 's' : ''} voted</p>
-      <ConsensusXI agg={agg} squadIds={squadIds} />
+      <ConsensusXI agg={agg} formation={formation} squadIds={squadIds} />
       <p className="text-center text-[11px] text-text-disabled font-semibold">⚡ The fans' consensus XI — % who picked each player</p>
       <p className="text-xs font-bold text-text-secondary uppercase tracking-wider pt-1">Full ranking</p>
       {order.map(b => {
@@ -153,7 +156,7 @@ const LegendsBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, use
   const [legends, setLegends] = useState<fp.Legend[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'mine' | 'pulse'>('mine');
-  const [agg, setAgg] = useState<{ participants: number; players: fp.AggPlayer[] }>({ participants: 0, players: [] });
+  const [agg, setAgg] = useState<fp.Aggregate>({ participants: 0, players: [], slots: [] });
   const [pickFor, setPickFor] = useState<number | null>(null);
   const { picks, setPicks, saveState } = usePulseEntry(userId, 'legends', club.id, '4-3-3');
   const formation = FORMATIONS['4-3-3'];
@@ -177,7 +180,7 @@ const LegendsBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, use
           <Pitch formation={formation} picks={picks} onSlot={setPickFor} />
           <SaveLine state={saveState} filled={filled} done="✓ Your all-time XI is saved — see The Pulse" />
         </>
-      ) : <PulseView agg={agg} />}
+      ) : <PulseView agg={agg} formation={formation} />}
       {pickFor !== null && (
         <LegendPicker bucket={formation[pickFor]} legends={formation[pickFor] === 'GK' ? legends.filter(l => l.position === 'GK') : legends.filter(l => l.position !== 'GK')} usedKeys={usedKeys} currentKey={picks[pickFor]?.player_key} onClose={() => setPickFor(null)} onPick={l => assign(pickFor, l)} onClear={() => assign(pickFor, null)} />
       )}
@@ -189,8 +192,8 @@ const LegendsBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, use
 const DreamBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, userId }) => {
   const [squad, setSquad] = useState<fp.SquadPlayer[]>([]);
   const [tab, setTab] = useState<'mine' | 'pulse'>('mine');
-  const [agg, setAgg] = useState<{ participants: number; players: fp.AggPlayer[] }>({ participants: 0, players: [] });
-  const [sellAgg, setSellAgg] = useState<{ participants: number; players: fp.AggPlayer[] }>({ participants: 0, players: [] });
+  const [agg, setAgg] = useState<fp.Aggregate>({ participants: 0, players: [], slots: [] });
+  const [sellAgg, setSellAgg] = useState<fp.Aggregate>({ participants: 0, players: [], slots: [] });
   const [pickFor, setPickFor] = useState<number | 'bench' | null>(null);
   const [fname, setFname] = useState('4-3-3');
   const [starters, setStarters] = useState<(fp.PulsePick | null)[]>(Array(11).fill(null));
@@ -286,7 +289,7 @@ const DreamBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, userI
         </>
       ) : (
         <div className="space-y-4">
-          <PulseView agg={agg} squadIds={squadIds} />
+          <PulseView agg={agg} formation={formation} squadIds={squadIds} />
           {sellAgg.players.length > 0 && (
             <div>
               <p className="text-xs font-bold text-hot-red uppercase tracking-wider mb-1.5">Fans want to sell</p>
@@ -328,7 +331,7 @@ const MatchBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, userI
 
 const MatchXI: React.FC<{ club: fp.Club; userId: string; fixture: fp.MatchFixture; squad: fp.SquadPlayer[] }> = ({ club, userId, fixture, squad }) => {
   const [tab, setTab] = useState<'mine' | 'pulse'>('mine');
-  const [agg, setAgg] = useState<{ participants: number; players: fp.AggPlayer[] }>({ participants: 0, players: [] });
+  const [agg, setAgg] = useState<fp.Aggregate>({ participants: 0, players: [], slots: [] });
   const [pickFor, setPickFor] = useState<number | null>(null);
   const { picks, setPicks, saveState } = usePulseEntry(userId, 'match', fixture.id, '4-3-3');
   const formation = FORMATIONS['4-3-3'];
@@ -351,7 +354,7 @@ const MatchXI: React.FC<{ club: fp.Club; userId: string; fixture: fp.MatchFixtur
           <Pitch formation={formation} picks={picks} onSlot={setPickFor} />
           <SaveLine state={saveState} filled={filled} done="✓ Your matchday XI is saved — see The Pulse" />
         </>
-      ) : <PulseView agg={agg} />}
+      ) : <PulseView agg={agg} formation={formation} />}
       {pickFor !== null && (
         <LegendPicker title={`Pick a ${BUCKET_LABEL[formation[pickFor]]}`} bucket={formation[pickFor]} legends={pool.filter(l => l.position === formation[pickFor])} usedKeys={usedKeys} currentKey={picks[pickFor]?.player_key} onClose={() => setPickFor(null)} onPick={l => assign(pickFor, l)} onClear={() => assign(pickFor, null)} />
       )}
