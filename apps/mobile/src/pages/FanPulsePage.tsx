@@ -56,7 +56,7 @@ const shareLineup = async (text: string) => {
 };
 
 // ── Player token ────────────────────────────────────────────────────────────
-const Token: React.FC<{ name?: string; photo?: string | null; bucket: fp.Bucket; empty?: boolean; onTap?: () => void; buy?: boolean; badge?: string }> = ({ name, photo, bucket, empty, onTap, buy, badge }) => {
+const Token: React.FC<{ name?: string; photo?: string | null; bucket: fp.Bucket; empty?: boolean; onTap?: () => void; buy?: boolean; badge?: string; injured?: boolean }> = ({ name, photo, bucket, empty, onTap, buy, badge, injured }) => {
   const [err, setErr] = useState(false);
   return (
     <button onClick={onTap} className="flex flex-col items-center gap-1 w-[72px]">
@@ -70,8 +70,11 @@ const Token: React.FC<{ name?: string; photo?: string | null; bucket: fp.Bucket;
         )}
         {buy && <span className="absolute -top-1 -right-1 bg-warm-yellow text-deep-navy text-[8px] font-extrabold rounded-full w-4 h-4 flex items-center justify-center">€</span>}
       </div>
-      {/* name pill */}
-      <span className={`px-1.5 py-[3px] rounded-md text-[10px] font-bold text-center leading-none truncate max-w-[72px] border ${empty ? 'bg-deep-navy/40 border-white/10 text-white/45' : 'bg-deep-navy/90 border-neon-cyan/35 text-white shadow'}`}>{empty ? bucket : surname(name || '')}</span>
+      {/* name pill (with an injury cross beside it when injured) */}
+      <span className={`px-1.5 py-[3px] rounded-md text-[10px] font-bold text-center leading-none truncate max-w-[72px] border inline-flex items-center gap-1 ${empty ? 'bg-deep-navy/40 border-white/10 text-white/45' : 'bg-deep-navy/90 border-neon-cyan/35 text-white shadow'}`}>
+        <span className="truncate">{empty ? bucket : surname(name || '')}</span>
+        {injured && <span className="text-hot-red font-extrabold shrink-0" title="Injured">✕</span>}
+      </span>
       {badge && <span className="px-1.5 py-[2px] rounded-md bg-electric-blue/20 border border-electric-blue/40 text-[9px] font-extrabold text-electric-blue leading-none">{badge}</span>}
     </button>
   );
@@ -154,14 +157,14 @@ const rowDepth = (ri: number, total: number): React.CSSProperties => {
   return { paddingInline: `${(1 - t) * 15}%`, transform: `scale(${0.86 + 0.14 * t})` };
 };
 
-const Pitch: React.FC<{ fname: string; picks: (fp.PulsePick | null)[]; onSlot?: (i: number) => void; isBuy?: (key: string) => boolean; onShare?: () => void; coach?: fp.CoachPick | null; onCoach?: () => void; hideCoach?: boolean }> = ({ fname, picks, onSlot, isBuy, onShare, coach, onCoach, hideCoach }) => {
+const Pitch: React.FC<{ fname: string; picks: (fp.PulsePick | null)[]; onSlot?: (i: number) => void; isBuy?: (key: string) => boolean; onShare?: () => void; coach?: fp.CoachPick | null; onCoach?: () => void; hideCoach?: boolean; injuredKeys?: Set<string> }> = ({ fname, picks, onSlot, isBuy, onShare, coach, onCoach, hideCoach, injuredKeys }) => {
   const formation = FORMATIONS[fname] ?? FORMATIONS['4-3-3'];
   const rows = renderRows(fname);
   return (
     <PitchField onShare={onShare} coach={coach} onCoach={onCoach} hideCoach={hideCoach}>
       {rows.map((row, ri) => (
         <div key={ri} className="flex justify-around items-center px-1" style={rowDepth(ri, rows.length)}>
-          {row.slots.map(i => { const p = picks[i]; return <Token key={i} name={p?.name} photo={p?.photo} bucket={formation[i]} empty={!p} onTap={onSlot ? () => onSlot(i) : undefined} buy={p && isBuy ? isBuy(p.player_key) : false} />; })}
+          {row.slots.map(i => { const p = picks[i]; return <Token key={i} name={p?.name} photo={p?.photo} bucket={formation[i]} empty={!p} onTap={onSlot ? () => onSlot(i) : undefined} buy={p && isBuy ? isBuy(p.player_key) : false} injured={!!(p && injuredKeys?.has(p.player_key))} />; })}
         </div>
       ))}
     </PitchField>
@@ -433,6 +436,7 @@ const MatchXI: React.FC<{ club: fp.Club; userId: string; fixture: fp.MatchFixtur
   const { picks, setPicks, saveState } = usePulseEntry(userId, 'match', fixture.id, '4-3-3');
   const formation = FORMATIONS['4-3-3'];
   const pool = useMemo<fp.Legend[]>(() => squad.map(s => ({ id: s.id, player_key: s.id, name: s.name, position: s.position, photo_url: s.photo })), [squad]);
+  const injuredKeys = useMemo(() => new Set(squad.filter(s => s.injured).map(s => s.id)), [squad]);
   useEffect(() => { if (tab === 'pulse') fp.getAggregate('match', fixture.id).then(setAgg); }, [tab, fixture.id]);
   const usedKeys = useMemo(() => new Set(picks.filter(Boolean).map(p => (p as fp.PulsePick).player_key)), [picks]);
   const assign = (slot: number, l: fp.Legend | null) => { setPicks(prev => { const next = [...prev]; if (l) { for (let i = 0; i < next.length; i++) if (next[i]?.player_key === l.player_key) next[i] = null; next[slot] = { player_key: l.player_key, name: l.name, photo: l.photo_url, position: formation[slot], is_starter: true, slot }; } else next[slot] = null; return next; }); setPickFor(null); };
@@ -448,12 +452,12 @@ const MatchXI: React.FC<{ club: fp.Club; userId: string; fixture: fp.MatchFixtur
       <Tabs tab={tab} setTab={setTab} />
       {tab === 'mine' ? (
         <>
-          <Pitch fname="4-3-3" picks={picks} onSlot={setPickFor} hideCoach onShare={() => shareLineup(lineupText(club.name, '4-3-3', picks, 'Matchday XI'))} />
+          <Pitch fname="4-3-3" picks={picks} onSlot={setPickFor} hideCoach injuredKeys={injuredKeys} onShare={() => shareLineup(lineupText(club.name, '4-3-3', picks, 'Matchday XI'))} />
           <SaveLine state={saveState} filled={filled} done="✓ Your matchday XI is saved — see The Pulse" />
         </>
       ) : <PulseView agg={agg} fname="4-3-3" clubName={club.name} label="Fans' Matchday XI" hideCoach />}
       {pickFor !== null && (
-        <LegendPicker title={`Pick a ${BUCKET_LABEL[formation[pickFor]]}`} bucket={formation[pickFor]} legends={pool.filter(l => l.position === formation[pickFor])} usedKeys={usedKeys} currentKey={picks[pickFor]?.player_key} onClose={() => setPickFor(null)} onPick={l => assign(pickFor, l)} onClear={() => assign(pickFor, null)} />
+        <LegendPicker title={`Pick a ${BUCKET_LABEL[formation[pickFor]]}`} bucket={formation[pickFor]} legends={pool.filter(l => l.position === formation[pickFor])} usedKeys={usedKeys} currentKey={picks[pickFor]?.player_key} injuredKeys={injuredKeys} onClose={() => setPickFor(null)} onPick={l => assign(pickFor, l)} onClear={() => assign(pickFor, null)} />
       )}
     </div>
   );
@@ -478,7 +482,7 @@ const SaveLine: React.FC<{ state: 'idle' | 'saving' | 'saved'; filled: number; d
 );
 
 // ── Legend picker (searchable static) ───────────────────────────────────────
-const LegendPicker: React.FC<{ bucket: fp.Bucket; legends: fp.Legend[]; usedKeys: Set<string>; currentKey?: string; title?: string; onClose: () => void; onPick: (l: fp.Legend) => void; onClear: () => void }> = ({ bucket, legends, usedKeys, currentKey, title, onClose, onPick, onClear }) => {
+const LegendPicker: React.FC<{ bucket: fp.Bucket; legends: fp.Legend[]; usedKeys: Set<string>; currentKey?: string; title?: string; injuredKeys?: Set<string>; onClose: () => void; onPick: (l: fp.Legend) => void; onClear: () => void }> = ({ bucket, legends, usedKeys, currentKey, title, injuredKeys, onClose, onPick, onClear }) => {
   const [q, setQ] = useState('');
   const list = useMemo(() => { const f = norm(q.trim()); return f ? legends.filter(l => norm(l.name).includes(f)) : legends; }, [q, legends]);
   return (
@@ -487,7 +491,7 @@ const LegendPicker: React.FC<{ bucket: fp.Bucket; legends: fp.Legend[]; usedKeys
       <div className="overflow-y-auto space-y-1 flex-1 min-h-0">
         {currentKey && <button onClick={onClear} className="w-full text-left text-sm text-hot-red py-2">Clear this spot</button>}
         {list.length === 0 && <p className="text-center text-sm text-text-disabled py-6">No player</p>}
-        {list.slice(0, 80).map(l => <Row key={l.id} name={l.name} photo={l.photo_url} bucket={bucket} current={l.player_key === currentKey} used={usedKeys.has(l.player_key) && l.player_key !== currentKey} onClick={() => onPick(l)} />)}
+        {list.slice(0, 80).map(l => <Row key={l.id} name={l.name} photo={l.photo_url} bucket={bucket} current={l.player_key === currentKey} used={usedKeys.has(l.player_key) && l.player_key !== currentKey} injured={injuredKeys?.has(l.player_key)} onClick={() => onPick(l)} />)}
         {list.length > 80 && <p className="text-center text-[11px] text-text-disabled py-2">+{list.length - 80} more — refine your search</p>}
       </div>
     </Sheet>
@@ -533,10 +537,10 @@ const SearchBox: React.FC<{ q: string; setQ: (s: string) => void; placeholder: s
   <div className="relative mb-2"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-disabled" />
     <input value={q} onChange={e => setQ(e.target.value)} placeholder={placeholder} className="w-full pl-9 pr-3 py-2 bg-navy-accent border border-white/10 rounded-lg text-sm text-text-primary focus:outline-none focus:border-electric-blue" /></div>
 );
-const Row: React.FC<{ name: string; photo?: string | null; bucket: fp.Bucket; sub?: string; current: boolean; used: boolean; onClick: () => void }> = ({ name, photo, bucket, sub, current, used, onClick }) => (
+const Row: React.FC<{ name: string; photo?: string | null; bucket: fp.Bucket; sub?: string; current: boolean; used: boolean; injured?: boolean; onClick: () => void }> = ({ name, photo, bucket, sub, current, used, injured, onClick }) => (
   <button disabled={used} onClick={onClick} className={`w-full flex items-center gap-3 p-2 rounded-lg ${current ? 'bg-electric-blue/15' : 'hover:bg-white/5'} ${used ? 'opacity-40' : ''}`}>
     {photo ? <img src={photo} className="w-9 h-9 rounded-full object-cover" alt="" /> : <div className={`w-9 h-9 rounded-full bg-gradient-to-b ${POS_GRAD[bucket]} flex items-center justify-center text-white font-bold text-xs`}>{initials(name)}</div>}
-    <div className="flex-1 text-left min-w-0"><div className="text-text-primary text-sm font-medium truncate">{name}</div>{sub && <div className="text-[10px] text-warm-yellow truncate">{sub}</div>}</div>
+    <div className="flex-1 text-left min-w-0"><div className="text-text-primary text-sm font-medium truncate flex items-center gap-1.5"><span className="truncate">{name}</span>{injured && <span className="text-hot-red font-extrabold shrink-0" title="Injured">✕</span>}</div>{sub && <div className="text-[10px] text-warm-yellow truncate">{sub}</div>}</div>
     {current ? <Check size={16} className="text-electric-blue" /> : used ? <span className="text-[10px] text-text-disabled">in XI</span> : null}
   </button>
 );

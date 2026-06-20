@@ -114,7 +114,7 @@ export async function getSellAggregate(scopeRef: string): Promise<{ participants
   return (data as any) ?? { participants: 0, players: [] };
 }
 
-export interface SquadPlayer { id: string; name: string; photo: string | null; position: Bucket; club: string | null; }
+export interface SquadPlayer { id: string; name: string; photo: string | null; position: Bucket; club: string | null; injured?: boolean; }
 export interface SellItem { player_key: string; name: string; photo: string | null; }
 const FB_POS: Record<Bucket, string> = { GK: 'Goalkeeper', DEF: 'Defender', MID: 'Midfielder', FWD: 'Attacker' };
 const toBucket = (p: string): Bucket => p === 'Goalkeeper' ? 'GK' : p === 'Defender' ? 'DEF' : p === 'Attacker' ? 'FWD' : 'MID';
@@ -131,9 +131,9 @@ export async function searchPlayers(query: string, bucket?: Bucket): Promise<Squ
 /** The club's current squad (used to deduce "buys" and to power the sell list). */
 export async function getCurrentSquad(teamId: string): Promise<SquadPlayer[]> {
   const { data } = await supabase.from('fb_player_team_association')
-    .select('fb_players(id, name, photo, photo_url, position)').eq('team_id', teamId).limit(80);
+    .select('fb_players(id, name, photo, photo_url, position, injured)').eq('team_id', teamId).limit(80);
   return (data ?? []).map((r: any) => r.fb_players).filter(Boolean).map((p: any) => ({
-    id: p.id, name: p.name, photo: p.photo || p.photo_url || null, position: toBucket(p.position), club: null,
+    id: p.id, name: p.name, photo: p.photo || p.photo_url || null, position: toBucket(p.position), club: null, injured: !!p.injured,
   }));
 }
 
