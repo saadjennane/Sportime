@@ -100,7 +100,24 @@ const PitchMarkings: React.FC = () => (
   </svg>
 );
 
-const PitchField: React.FC<{ children: React.ReactNode; onShare?: () => void; tall?: boolean; topRight?: React.ReactNode }> = ({ children, onShare, tall, topRight }) => (
+// Coach badge shown top-left of the pitch — selectable on My XI, read-only (with %)
+// on The Pulse.
+const CoachChip: React.FC<{ coach?: { name: string; photo: string | null } | null; onTap?: () => void; badge?: string }> = ({ coach, onTap, badge }) => {
+  const [err, setErr] = useState(false);
+  return (
+    <button onClick={onTap} disabled={!onTap} className="flex flex-col items-center gap-0.5 pointer-events-auto active:scale-95">
+      <div className={`w-11 h-11 rounded-full overflow-hidden flex items-center justify-center bg-deep-navy/70 border-2 ${coach ? 'border-warm-yellow/70' : 'border-dashed border-warm-yellow/50'}`}>
+        {coach?.photo && !err ? <img src={coach.photo} alt="" onError={() => setErr(true)} className="w-full h-full object-cover" />
+          : coach ? <span className="text-warm-yellow font-bold text-sm">{initials(coach.name)}</span>
+          : <span className="text-warm-yellow/70 text-lg font-bold">+</span>}
+      </div>
+      <span className="px-1.5 py-[2px] rounded-md bg-deep-navy/85 border border-warm-yellow/30 text-[9px] font-bold tracking-wide text-warm-yellow/90 max-w-[60px] truncate">{coach ? surname(coach.name) : 'COACH'}</span>
+      {badge && <span className="px-1.5 py-[2px] rounded-md bg-warm-yellow/20 border border-warm-yellow/40 text-[9px] font-extrabold text-warm-yellow leading-none">{badge}</span>}
+    </button>
+  );
+};
+
+const PitchField: React.FC<{ children: React.ReactNode; onShare?: () => void; tall?: boolean; topRight?: React.ReactNode; coach?: { name: string; photo: string | null } | null; onCoach?: () => void; coachBadge?: string }> = ({ children, onShare, tall, topRight, coach, onCoach, coachBadge }) => (
   <div className="relative rounded-2xl overflow-hidden border border-neon-cyan/20 bg-[#0c1828]">
     {/* field layer — stripes + markings + watermark tilted together for a subtle,
         coherent perspective (the goal recedes); tokens stay upright above it */}
@@ -115,10 +132,7 @@ const PitchField: React.FC<{ children: React.ReactNode; onShare?: () => void; ta
     </div>
     {/* top bar: coach (left) · info + share (right) */}
     <div className="absolute top-2 inset-x-2 z-10 flex items-start justify-between pointer-events-none">
-      <div className="flex flex-col items-center gap-0.5 pointer-events-auto">
-        <div className="w-11 h-11 rounded-full border-2 border-dashed border-warm-yellow/50 bg-deep-navy/70 flex items-center justify-center text-warm-yellow/70 text-lg font-bold">+</div>
-        <span className="px-1.5 py-[2px] rounded-md bg-deep-navy/85 border border-warm-yellow/30 text-[9px] font-bold tracking-wide text-warm-yellow/90">COACH</span>
-      </div>
+      <CoachChip coach={coach} onTap={onCoach} badge={coachBadge} />
       <div className="flex items-center gap-2 pointer-events-auto">
         {topRight}
         {onShare && (
@@ -140,11 +154,11 @@ const rowDepth = (ri: number, total: number): React.CSSProperties => {
   return { paddingInline: `${(1 - t) * 15}%`, transform: `scale(${0.86 + 0.14 * t})` };
 };
 
-const Pitch: React.FC<{ fname: string; picks: (fp.PulsePick | null)[]; onSlot?: (i: number) => void; isBuy?: (key: string) => boolean; onShare?: () => void }> = ({ fname, picks, onSlot, isBuy, onShare }) => {
+const Pitch: React.FC<{ fname: string; picks: (fp.PulsePick | null)[]; onSlot?: (i: number) => void; isBuy?: (key: string) => boolean; onShare?: () => void; coach?: fp.CoachPick | null; onCoach?: () => void }> = ({ fname, picks, onSlot, isBuy, onShare, coach, onCoach }) => {
   const formation = FORMATIONS[fname] ?? FORMATIONS['4-3-3'];
   const rows = renderRows(fname);
   return (
-    <PitchField onShare={onShare}>
+    <PitchField onShare={onShare} coach={coach} onCoach={onCoach}>
       {rows.map((row, ri) => (
         <div key={ri} className="flex justify-around items-center px-1" style={rowDepth(ri, rows.length)}>
           {row.slots.map(i => { const p = picks[i]; return <Token key={i} name={p?.name} photo={p?.photo} bucket={formation[i]} empty={!p} onTap={onSlot ? () => onSlot(i) : undefined} buy={p && isBuy ? isBuy(p.player_key) : false} />; })}
@@ -166,7 +180,9 @@ const ConsensusXI: React.FC<{ agg: fp.Aggregate; fname: string; squadIds?: Set<s
   (Object.keys(leftover) as fp.Bucket[]).forEach(b => leftover[b].sort((a, c) => c.pct - a.pct));
   const rows = renderRows(fname);
   return (
-    <PitchField tall onShare={onShare} topRight={topRight}>
+    <PitchField tall onShare={onShare} topRight={topRight}
+      coach={agg.coach ? { name: agg.coach.name, photo: agg.coach.photo } : null}
+      coachBadge={agg.coach ? `${agg.coach.pct}%` : undefined}>
       {rows.map((row, ri) => (
         <div key={ri} className="flex justify-around items-center px-1" style={rowDepth(ri, rows.length)}>
           {row.slots.map(i => { const p = bySlot.get(i) ?? leftover[formation[i]].shift(); return <Token key={i} name={p?.name} photo={p?.photo} bucket={formation[i]} empty={!p} badge={p ? `${p.pct}%` : undefined} buy={p && squadIds ? !squadIds.has(p.player_key) : false} />; })}
@@ -192,28 +208,29 @@ const PulseView: React.FC<{ agg: fp.Aggregate; fname: string; clubName: string; 
 const usePulseEntry = (userId: string | null, scope: 'legends' | 'dream', teamId: string, defaultFormation: string) => {
   const [formation, setFormation] = useState(defaultFormation);
   const [picks, setPicks] = useState<(fp.PulsePick | null)[]>(Array(11).fill(null));
+  const [coach, setCoach] = useState<fp.CoachPick | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const first = useRef(true);
   useEffect(() => {
     if (!userId) return;
-    fp.getMyEntry(userId, scope, teamId).then(({ formation: f, picks: mine }) => {
+    fp.getMyEntry(userId, scope, teamId).then(({ formation: f, picks: mine, coach: c }) => {
       const fr = FORMATIONS[f] ? f : defaultFormation;
       setFormation(fr);
       const arr: (fp.PulsePick | null)[] = Array(11).fill(null);
       for (const pk of mine) if (pk.slot >= 0 && pk.slot < 11) arr[pk.slot] = pk;
-      setPicks(arr); first.current = true; setSaveState(mine.length ? 'saved' : 'idle');
+      setPicks(arr); setCoach(c); first.current = true; setSaveState(mine.length ? 'saved' : 'idle');
     });
   }, [userId, teamId]);
   useEffect(() => {
     if (!userId || first.current) { first.current = false; return; }
     setSaveState('saving');
     const t = setTimeout(async () => {
-      const { error } = await fp.saveEntry(userId, scope, teamId, formation, picks.filter(Boolean) as fp.PulsePick[]);
+      const { error } = await fp.saveEntry(userId, scope, teamId, formation, picks.filter(Boolean) as fp.PulsePick[], undefined, coach);
       setSaveState(error ? 'idle' : 'saved');
     }, 700);
     return () => clearTimeout(t);
-  }, [picks, formation]);
-  return { formation, setFormation, picks, setPicks, saveState };
+  }, [picks, formation, coach]);
+  return { formation, setFormation, picks, setPicks, coach, setCoach, saveState };
 };
 
 // ── Legends builder ─────────────────────────────────────────────────────────
@@ -221,12 +238,14 @@ const LegendsBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, use
   const [legends, setLegends] = useState<fp.Legend[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'mine' | 'pulse'>('mine');
-  const [agg, setAgg] = useState<fp.Aggregate>({ participants: 0, players: [], slots: [] });
+  const [agg, setAgg] = useState<fp.Aggregate>({ participants: 0, players: [], slots: [], coach: null });
   const [pickFor, setPickFor] = useState<number | null>(null);
-  const { picks, setPicks, saveState } = usePulseEntry(userId, 'legends', club.id, '4-3-3');
+  const { picks, setPicks, coach, setCoach, saveState } = usePulseEntry(userId, 'legends', club.id, '4-3-3');
+  const [coaches, setCoaches] = useState<fp.Coach[]>([]);
+  const [coachPick, setCoachPick] = useState(false);
   const formation = FORMATIONS['4-3-3'];
 
-  useEffect(() => { fp.getLegends(club.id).then(l => { setLegends(l); setLoading(false); }); }, [club.id]);
+  useEffect(() => { fp.getLegends(club.id).then(l => { setLegends(l); setLoading(false); }); fp.getCoaches(club.id).then(setCoaches); }, [club.id]);
   useEffect(() => { if (tab === 'pulse') fp.getAggregate('legends', club.id).then(setAgg); }, [tab, club.id]);
   const usedKeys = useMemo(() => new Set(picks.filter(Boolean).map(p => (p as fp.PulsePick).player_key)), [picks]);
 
@@ -242,10 +261,11 @@ const LegendsBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, use
       <Tabs tab={tab} setTab={setTab} />
       {tab === 'mine' ? (
         <>
-          <Pitch fname="4-3-3" picks={picks} onSlot={setPickFor} onShare={() => shareLineup(lineupText(club.name, '4-3-3', picks, 'All-time Legends XI'))} />
+          <Pitch fname="4-3-3" picks={picks} onSlot={setPickFor} coach={coach} onCoach={() => setCoachPick(true)} onShare={() => shareLineup(lineupText(club.name, '4-3-3', picks, 'All-time Legends XI'))} />
           <SaveLine state={saveState} filled={filled} done="✓ Your all-time XI is saved — see The Pulse" />
         </>
       ) : <PulseView agg={agg} fname="4-3-3" clubName={club.name} label="Fans' Legends XI" />}
+      {coachPick && <CoachPicker coaches={coaches} currentKey={coach?.coach_key} onClose={() => setCoachPick(false)} onPick={c => { setCoach({ coach_key: c.coach_key, name: c.name, photo: c.photo }); setCoachPick(false); }} onClear={() => { setCoach(null); setCoachPick(false); }} />}
       {pickFor !== null && (
         <LegendPicker bucket={formation[pickFor]} legends={formation[pickFor] === 'GK' ? legends.filter(l => l.position === 'GK') : legends.filter(l => l.position !== 'GK')} usedKeys={usedKeys} currentKey={picks[pickFor]?.player_key} onClose={() => setPickFor(null)} onPick={l => assign(pickFor, l)} onClear={() => assign(pickFor, null)} />
       )}
@@ -257,13 +277,16 @@ const LegendsBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, use
 const DreamBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, userId }) => {
   const [squad, setSquad] = useState<fp.SquadPlayer[]>([]);
   const [tab, setTab] = useState<'mine' | 'pulse'>('mine');
-  const [agg, setAgg] = useState<fp.Aggregate>({ participants: 0, players: [], slots: [] });
-  const [sellAgg, setSellAgg] = useState<fp.Aggregate>({ participants: 0, players: [], slots: [] });
+  const [agg, setAgg] = useState<fp.Aggregate>({ participants: 0, players: [], slots: [], coach: null });
+  const [sellAgg, setSellAgg] = useState<fp.Aggregate>({ participants: 0, players: [], slots: [], coach: null });
   const [pickFor, setPickFor] = useState<number | 'bench' | null>(null);
   const [fname, setFname] = useState('4-3-3');
   const [starters, setStarters] = useState<(fp.PulsePick | null)[]>(Array(11).fill(null));
   const [bench, setBench] = useState<fp.PulsePick[]>([]);
   const [sell, setSell] = useState<fp.SellItem[]>([]);
+  const [coach, setCoach] = useState<fp.CoachPick | null>(null);
+  const [coaches, setCoaches] = useState<fp.Coach[]>([]);
+  const [coachPick, setCoachPick] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const first = useRef(true);
   const formation = FORMATIONS[fname] ?? FORMATIONS['4-3-3'];
@@ -272,11 +295,12 @@ const DreamBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, userI
 
   useEffect(() => {
     fp.getCurrentSquad(club.id).then(setSquad);
-    fp.getMyEntry(userId, 'dream', club.id).then(({ formation: f, picks, sell: sl }) => {
+    fp.getCoaches(club.id).then(setCoaches);
+    fp.getMyEntry(userId, 'dream', club.id).then(({ formation: f, picks, sell: sl, coach: c }) => {
       setFname(FORMATIONS[f] ? f : '4-3-3');
       const st: (fp.PulsePick | null)[] = Array(11).fill(null); const bn: fp.PulsePick[] = [];
       for (const p of picks) { if (p.is_starter && p.slot >= 0 && p.slot < 11) st[p.slot] = p; else bn.push(p); }
-      setStarters(st); setBench(bn); setSell(sl); first.current = true; setSaveState(picks.length ? 'saved' : 'idle');
+      setStarters(st); setBench(bn); setSell(sl); setCoach(c); first.current = true; setSaveState(picks.length ? 'saved' : 'idle');
     });
   }, [club.id, userId]);
 
@@ -288,11 +312,11 @@ const DreamBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, userI
         ...(starters.filter(Boolean) as fp.PulsePick[]).map(p => ({ ...p, is_starter: true })),
         ...bench.map((p, i) => ({ ...p, is_starter: false, slot: 11 + i })),
       ];
-      const { error } = await fp.saveEntry(userId, 'dream', club.id, fname, picks, sell);
+      const { error } = await fp.saveEntry(userId, 'dream', club.id, fname, picks, sell, coach);
       setSaveState(error ? 'idle' : 'saved');
     }, 700);
     return () => clearTimeout(t);
-  }, [starters, bench, sell, fname]);
+  }, [starters, bench, sell, fname, coach]);
 
   useEffect(() => { if (tab === 'pulse') { fp.getAggregate('dream', club.id).then(setAgg); fp.getSellAggregate(club.id).then(setSellAgg); } }, [tab, club.id]);
 
@@ -326,7 +350,7 @@ const DreamBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, userI
           <div className="flex gap-1.5 overflow-x-auto pb-1">
             {Object.keys(FORMATIONS).map(f => <button key={f} onClick={() => changeFormation(f)} className={`px-3 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap ${fname === f ? 'bg-electric-blue text-white' : 'bg-navy-accent text-text-secondary'}`}>{f}</button>)}
           </div>
-          <Pitch fname={fname} picks={starters} onSlot={i => setPickFor(i)} isBuy={k => !squadIds.has(k)} onShare={() => shareLineup(lineupText(club.name, fname, starters, 'Dream XI · next season'))} />
+          <Pitch fname={fname} picks={starters} onSlot={i => setPickFor(i)} isBuy={k => !squadIds.has(k)} coach={coach} onCoach={() => setCoachPick(true)} onShare={() => shareLineup(lineupText(club.name, fname, starters, 'Dream XI · next season'))} />
 
           <div>
             <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Bench · {bench.length}/14</p>
@@ -383,6 +407,7 @@ const DreamBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, userI
       {pickFor !== null && (
         <SquadPicker bucket={typeof pickFor === 'number' ? formation[pickFor] : undefined} defaults={typeof pickFor === 'number' ? squad.filter(s => s.position === formation[pickFor]) : squad} clubName={club.name} usedKeys={usedKeys} currentKey={typeof pickFor === 'number' ? starters[pickFor]?.player_key : undefined} onClose={() => setPickFor(null)} onPick={place} onClear={() => { if (typeof pickFor === 'number') { const slot = pickFor; setStarters(prev => { const n = [...prev]; n[slot] = null; return n; }); } setPickFor(null); }} />
       )}
+      {coachPick && <CoachPicker coaches={coaches} currentKey={coach?.coach_key} onClose={() => setCoachPick(false)} onPick={c => { setCoach({ coach_key: c.coach_key, name: c.name, photo: c.photo }); setCoachPick(false); }} onClear={() => { setCoach(null); setCoachPick(false); }} />}
     </div>
   );
 };
@@ -403,12 +428,15 @@ const MatchBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, userI
 
 const MatchXI: React.FC<{ club: fp.Club; userId: string; fixture: fp.MatchFixture; squad: fp.SquadPlayer[] }> = ({ club, userId, fixture, squad }) => {
   const [tab, setTab] = useState<'mine' | 'pulse'>('mine');
-  const [agg, setAgg] = useState<fp.Aggregate>({ participants: 0, players: [], slots: [] });
+  const [agg, setAgg] = useState<fp.Aggregate>({ participants: 0, players: [], slots: [], coach: null });
   const [pickFor, setPickFor] = useState<number | null>(null);
-  const { picks, setPicks, saveState } = usePulseEntry(userId, 'match', fixture.id, '4-3-3');
+  const { picks, setPicks, coach, setCoach, saveState } = usePulseEntry(userId, 'match', fixture.id, '4-3-3');
+  const [coaches, setCoaches] = useState<fp.Coach[]>([]);
+  const [coachPick, setCoachPick] = useState(false);
   const formation = FORMATIONS['4-3-3'];
   const pool = useMemo<fp.Legend[]>(() => squad.map(s => ({ id: s.id, player_key: s.id, name: s.name, position: s.position, photo_url: s.photo })), [squad]);
   useEffect(() => { if (tab === 'pulse') fp.getAggregate('match', fixture.id).then(setAgg); }, [tab, fixture.id]);
+  useEffect(() => { fp.getCoaches(club.id).then(setCoaches); }, [club.id]);
   const usedKeys = useMemo(() => new Set(picks.filter(Boolean).map(p => (p as fp.PulsePick).player_key)), [picks]);
   const assign = (slot: number, l: fp.Legend | null) => { setPicks(prev => { const next = [...prev]; if (l) { for (let i = 0; i < next.length; i++) if (next[i]?.player_key === l.player_key) next[i] = null; next[slot] = { player_key: l.player_key, name: l.name, photo: l.photo_url, position: formation[slot], is_starter: true, slot }; } else next[slot] = null; return next; }); setPickFor(null); };
   const filled = picks.filter(Boolean).length;
@@ -423,10 +451,11 @@ const MatchXI: React.FC<{ club: fp.Club; userId: string; fixture: fp.MatchFixtur
       <Tabs tab={tab} setTab={setTab} />
       {tab === 'mine' ? (
         <>
-          <Pitch fname="4-3-3" picks={picks} onSlot={setPickFor} onShare={() => shareLineup(lineupText(club.name, '4-3-3', picks, 'Matchday XI'))} />
+          <Pitch fname="4-3-3" picks={picks} onSlot={setPickFor} coach={coach} onCoach={() => setCoachPick(true)} onShare={() => shareLineup(lineupText(club.name, '4-3-3', picks, 'Matchday XI'))} />
           <SaveLine state={saveState} filled={filled} done="✓ Your matchday XI is saved — see The Pulse" />
         </>
       ) : <PulseView agg={agg} fname="4-3-3" clubName={club.name} label="Fans' Matchday XI" />}
+      {coachPick && <CoachPicker coaches={coaches} currentKey={coach?.coach_key} onClose={() => setCoachPick(false)} onPick={c => { setCoach({ coach_key: c.coach_key, name: c.name, photo: c.photo }); setCoachPick(false); }} onClear={() => { setCoach(null); setCoachPick(false); }} />}
       {pickFor !== null && (
         <LegendPicker title={`Pick a ${BUCKET_LABEL[formation[pickFor]]}`} bucket={formation[pickFor]} legends={pool.filter(l => l.position === formation[pickFor])} usedKeys={usedKeys} currentKey={picks[pickFor]?.player_key} onClose={() => setPickFor(null)} onPick={l => assign(pickFor, l)} onClear={() => assign(pickFor, null)} />
       )}
@@ -512,6 +541,26 @@ const Row: React.FC<{ name: string; photo?: string | null; bucket: fp.Bucket; su
     {current ? <Check size={16} className="text-electric-blue" /> : used ? <span className="text-[10px] text-text-disabled">in XI</span> : null}
   </button>
 );
+
+const CoachPicker: React.FC<{ coaches: fp.Coach[]; currentKey?: string; onClose: () => void; onPick: (c: fp.Coach) => void; onClear: () => void }> = ({ coaches, currentKey, onClose, onPick, onClear }) => {
+  const [q, setQ] = useState('');
+  const list = q.trim() ? coaches.filter(c => norm(c.name).includes(norm(q.trim()))) : coaches;
+  return (
+    <Sheet title="Pick a coach" onClose={onClose}>
+      <SearchBox q={q} setQ={setQ} placeholder="Search a coach…" />
+      <div className="overflow-y-auto space-y-1">
+        {currentKey && <button onClick={onClear} className="w-full text-left text-xs font-semibold text-hot-red px-2 py-1.5">✕ Clear coach</button>}
+        {list.map(c => (
+          <button key={c.coach_key} onClick={() => onPick(c)} className={`w-full flex items-center gap-3 p-2 rounded-lg ${currentKey === c.coach_key ? 'bg-electric-blue/15' : 'hover:bg-white/5'}`}>
+            {c.photo ? <img src={c.photo} className="w-9 h-9 rounded-full object-cover" alt="" /> : <div className="w-9 h-9 rounded-full bg-warm-yellow/30 flex items-center justify-center text-white font-bold text-xs">{initials(c.name)}</div>}
+            <div className="flex-1 text-left min-w-0"><div className="text-text-primary text-sm font-medium truncate">{c.name}</div><div className="text-[10px] text-warm-yellow">{c.matches} matches managed</div></div>
+            {currentKey === c.coach_key && <Check size={16} className="text-electric-blue" />}
+          </button>
+        ))}
+      </div>
+    </Sheet>
+  );
+};
 
 // ── Page shell ──────────────────────────────────────────────────────────────
 export const FanPulsePage: React.FC<{ profile: Profile | null }> = ({ profile }) => {

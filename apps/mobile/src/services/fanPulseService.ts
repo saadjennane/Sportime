@@ -9,7 +9,8 @@ export interface Legend { id: string; player_key: string; name: string; position
 export interface PulsePick { player_key: string; name: string; photo: string | null; position: Bucket; is_starter: boolean; slot: number; }
 export interface AggPlayer { player_key: string; name: string; photo: string | null; position: Bucket; count: number; pct: number; }
 export interface AggSlot extends AggPlayer { slot: number; }
-export interface Aggregate { participants: number; players: AggPlayer[]; slots: AggSlot[]; }
+export interface AggCoach { coach_key: string; name: string; photo: string | null; count: number; pct: number; }
+export interface Aggregate { participants: number; players: AggPlayer[]; slots: AggSlot[]; coach: AggCoach | null; }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const toClub = (t: any): Club => ({ id: t.id, name: t.name, logo: t.logo || t.logo_url || null });
@@ -71,15 +72,26 @@ export async function getLegends(teamId: string): Promise<Legend[]> {
   return legends;
 }
 
-export async function getMyEntry(userId: string, scopeType: string, scopeRef: string): Promise<{ formation: string; picks: PulsePick[]; sell: SellItem[] }> {
-  const { data } = await supabase.from('fan_pulse_entries').select('formation, picks, sell_list')
-    .eq('user_id', userId).eq('scope_type', scopeType).eq('scope_ref', scopeRef).maybeSingle();
-  return { formation: (data as any)?.formation ?? '4-3-3', picks: ((data as any)?.picks ?? []) as PulsePick[], sell: ((data as any)?.sell_list ?? []) as SellItem[] };
+export interface Coach { coach_key: string; name: string; photo: string | null; matches: number; }
+export interface CoachPick { coach_key: string; name: string; photo: string | null; }
+
+/** Club coaches, ranked by matches managed (desc). */
+export async function getCoaches(teamId: string): Promise<Coach[]> {
+  const { data } = await supabase.from('fan_pulse_coaches').select('coach_key, name, photo_url, matches')
+    .eq('team_id', teamId).order('matches', { ascending: false });
+  return (data ?? []).map((c: any) => ({ coach_key: c.coach_key, name: c.name, photo: c.photo_url, matches: c.matches ?? 0 }));
 }
 
-export async function saveEntry(userId: string, scopeType: string, scopeRef: string, formation: string, picks: PulsePick[], sellList?: SellItem[]) {
+export async function getMyEntry(userId: string, scopeType: string, scopeRef: string): Promise<{ formation: string; picks: PulsePick[]; sell: SellItem[]; coach: CoachPick | null }> {
+  const { data } = await supabase.from('fan_pulse_entries').select('formation, picks, sell_list, coach')
+    .eq('user_id', userId).eq('scope_type', scopeType).eq('scope_ref', scopeRef).maybeSingle();
+  return { formation: (data as any)?.formation ?? '4-3-3', picks: ((data as any)?.picks ?? []) as PulsePick[], sell: ((data as any)?.sell_list ?? []) as SellItem[], coach: ((data as any)?.coach ?? null) as CoachPick | null };
+}
+
+export async function saveEntry(userId: string, scopeType: string, scopeRef: string, formation: string, picks: PulsePick[], sellList?: SellItem[], coach?: CoachPick | null) {
   const row: any = { user_id: userId, scope_type: scopeType, scope_ref: scopeRef, formation, picks, updated_at: new Date().toISOString() };
   if (sellList !== undefined) row.sell_list = sellList;
+  if (coach !== undefined) row.coach = coach;
   return supabase.from('fan_pulse_entries').upsert(row, { onConflict: 'user_id,scope_type,scope_ref' });
 }
 
@@ -131,5 +143,5 @@ export async function getCurrentSquad(teamId: string): Promise<SquadPlayer[]> {
 
 export async function getAggregate(scopeType: string, scopeRef: string): Promise<Aggregate> {
   const { data } = await supabase.rpc('fan_pulse_aggregate', { p_scope_type: scopeType, p_scope_ref: scopeRef });
-  return { participants: 0, players: [], slots: [], ...((data as any) ?? {}) };
+  return { participants: 0, players: [], slots: [], coach: null, ...((data as any) ?? {}) };
 }
