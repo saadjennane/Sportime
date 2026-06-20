@@ -97,8 +97,8 @@ const PitchField: React.FC<{ children: React.ReactNode; onShare?: () => void }> 
   <div className="relative rounded-2xl overflow-hidden border border-neon-cyan/20 bg-[#0c1828]">
     {/* field layer — stripes + markings + watermark tilted together for a subtle,
         coherent perspective (the goal recedes); tokens stay upright above it */}
-    <div className="absolute inset-0" style={{ perspective: '1100px' }}>
-      <div className="absolute -inset-x-5 -top-3 bottom-0" style={{ transformOrigin: 'center 90%', transform: 'rotateX(13deg)' }}>
+    <div className="absolute inset-0" style={{ perspective: '680px' }}>
+      <div className="absolute -inset-x-10 -top-12 bottom-0" style={{ transformOrigin: 'center bottom', transform: 'rotateX(24deg)' }}>
         <div className="absolute inset-0" style={{ background: 'repeating-linear-gradient(180deg,#13243a 0 12.5%,#0f1d30 12.5% 25%)' }} />
         <PitchMarkings />
         <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(120% 60% at 50% 0%, rgba(34,211,238,0.08), transparent 55%)' }} />
@@ -116,12 +116,20 @@ const PitchField: React.FC<{ children: React.ReactNode; onShare?: () => void }> 
   </div>
 );
 
+// Match the tilted field: top (far) rows sit narrower and a touch smaller so the
+// upright tokens read as receding into the distance.
+const rowDepth = (ri: number, total: number): React.CSSProperties => {
+  const t = total <= 1 ? 1 : ri / (total - 1); // 0 = far/top, 1 = near/bottom
+  return { paddingInline: `${(1 - t) * 15}%`, transform: `scale(${0.86 + 0.14 * t})` };
+};
+
 const Pitch: React.FC<{ fname: string; picks: (fp.PulsePick | null)[]; onSlot?: (i: number) => void; isBuy?: (key: string) => boolean; onShare?: () => void }> = ({ fname, picks, onSlot, isBuy, onShare }) => {
   const formation = FORMATIONS[fname] ?? FORMATIONS['4-3-3'];
+  const rows = renderRows(fname);
   return (
     <PitchField onShare={onShare}>
-      {renderRows(fname).map((row, ri) => (
-        <div key={ri} className="flex justify-around items-center px-1">
+      {rows.map((row, ri) => (
+        <div key={ri} className="flex justify-around items-center px-1" style={rowDepth(ri, rows.length)}>
           {row.slots.map(i => { const p = picks[i]; return <Token key={i} name={p?.name} photo={p?.photo} bucket={formation[i]} empty={!p} onTap={onSlot ? () => onSlot(i) : undefined} buy={p && isBuy ? isBuy(p.player_key) : false} />; })}
         </div>
       ))}
@@ -139,10 +147,11 @@ const ConsensusXI: React.FC<{ agg: fp.Aggregate; fname: string; squadIds?: Set<s
   const leftover: Record<fp.Bucket, fp.AggPlayer[]> = { GK: [], DEF: [], MID: [], FWD: [] };
   agg.players.filter(p => !placed.has(p.player_key)).forEach(p => leftover[p.position]?.push(p));
   (Object.keys(leftover) as fp.Bucket[]).forEach(b => leftover[b].sort((a, c) => c.pct - a.pct));
+  const rows = renderRows(fname);
   return (
     <PitchField>
-      {renderRows(fname).map((row, ri) => (
-        <div key={ri} className="flex justify-around items-center px-1">
+      {rows.map((row, ri) => (
+        <div key={ri} className="flex justify-around items-center px-1" style={rowDepth(ri, rows.length)}>
           {row.slots.map(i => { const p = bySlot.get(i) ?? leftover[formation[i]].shift(); return <Token key={i} name={p?.name} photo={p?.photo} bucket={formation[i]} empty={!p} badge={p ? `${p.pct}%` : undefined} buy={p && squadIds ? !squadIds.has(p.player_key) : false} />; })}
         </div>
       ))}
@@ -251,7 +260,7 @@ const LegendsBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, use
           <Pitch fname="4-3-3" picks={picks} onSlot={setPickFor} onShare={() => shareLineup(lineupText(club.name, '4-3-3', picks, 'All-time Legends XI'))} />
           <SaveLine state={saveState} filled={filled} done="✓ Your all-time XI is saved — see The Pulse" />
         </>
-      ) : <PulseView agg={agg} fname={fname} />}
+      ) : <PulseView agg={agg} fname="4-3-3" />}
       {pickFor !== null && (
         <LegendPicker bucket={formation[pickFor]} legends={formation[pickFor] === 'GK' ? legends.filter(l => l.position === 'GK') : legends.filter(l => l.position !== 'GK')} usedKeys={usedKeys} currentKey={picks[pickFor]?.player_key} onClose={() => setPickFor(null)} onPick={l => assign(pickFor, l)} onClear={() => assign(pickFor, null)} />
       )}
@@ -432,7 +441,7 @@ const MatchXI: React.FC<{ club: fp.Club; userId: string; fixture: fp.MatchFixtur
           <Pitch fname="4-3-3" picks={picks} onSlot={setPickFor} onShare={() => shareLineup(lineupText(club.name, '4-3-3', picks, 'Matchday XI'))} />
           <SaveLine state={saveState} filled={filled} done="✓ Your matchday XI is saved — see The Pulse" />
         </>
-      ) : <PulseView agg={agg} fname={fname} />}
+      ) : <PulseView agg={agg} fname="4-3-3" />}
       {pickFor !== null && (
         <LegendPicker title={`Pick a ${BUCKET_LABEL[formation[pickFor]]}`} bucket={formation[pickFor]} legends={pool.filter(l => l.position === formation[pickFor])} usedKeys={usedKeys} currentKey={picks[pickFor]?.player_key} onClose={() => setPickFor(null)} onPick={l => assign(pickFor, l)} onClear={() => assign(pickFor, null)} />
       )}
