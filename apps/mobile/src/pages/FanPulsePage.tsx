@@ -36,47 +36,56 @@ const renderRows = (fname: string): FRow[] => [...(BUILT[fname] ?? BUILT['4-3-3'
 const Token: React.FC<{ name?: string; photo?: string | null; bucket: fp.Bucket; empty?: boolean; onTap?: () => void; buy?: boolean; badge?: string }> = ({ name, photo, bucket, empty, onTap, buy, badge }) => {
   const [err, setErr] = useState(false);
   return (
-    <button onClick={onTap} className="flex flex-col items-center gap-0.5 w-[60px]">
+    <button onClick={onTap} className="flex flex-col items-center gap-1 w-[66px]">
       <div className="relative w-12 h-12">
         {empty ? (
-          <div className="w-12 h-12 rounded-full border-2 border-dashed border-white/40 bg-deep-navy/60 flex items-center justify-center text-white/50 text-xl font-bold">+</div>
+          <div className="w-12 h-12 rounded-full border-2 border-dashed border-neon-cyan/40 bg-deep-navy/50 flex items-center justify-center text-neon-cyan/60 text-xl font-bold">+</div>
         ) : photo && !err ? (
-          <img src={photo} alt="" onError={() => setErr(true)} className="w-12 h-12 rounded-full object-cover border-2 border-white/50 shadow" />
+          <img src={photo} alt="" onError={() => setErr(true)} className="w-12 h-12 rounded-full object-cover border-2 border-white/60 shadow-lg" />
         ) : (
-          <div className={`w-12 h-12 rounded-full bg-gradient-to-b ${POS_GRAD[bucket]} border-2 border-white/50 shadow flex items-center justify-center text-white font-bold text-sm`}>{initials(name || '')}</div>
+          <div className={`w-12 h-12 rounded-full bg-gradient-to-b ${POS_GRAD[bucket]} border-2 border-white/60 shadow-lg flex items-center justify-center text-white font-bold text-sm`}>{initials(name || '')}</div>
         )}
         {buy && <span className="absolute -top-1 -right-1 bg-warm-yellow text-deep-navy text-[8px] font-extrabold rounded-full w-4 h-4 flex items-center justify-center">€</span>}
       </div>
-      <span className={`text-[10px] font-semibold text-center leading-tight truncate max-w-[60px] ${empty ? 'text-white/50' : 'text-white'}`}>{empty ? bucket : surname(name || '')}</span>
-      {badge && <span className="text-[10px] font-extrabold text-electric-blue leading-none">{badge}</span>}
+      {/* name pill */}
+      <span className={`px-1.5 py-[3px] rounded-md text-[10px] font-bold text-center leading-none truncate max-w-[66px] border ${empty ? 'bg-deep-navy/40 border-white/10 text-white/45' : 'bg-deep-navy/90 border-neon-cyan/35 text-white shadow'}`}>{empty ? bucket : surname(name || '')}</span>
+      {badge && <span className="px-1.5 py-[2px] rounded-md bg-electric-blue/20 border border-electric-blue/40 text-[9px] font-extrabold text-electric-blue leading-none">{badge}</span>}
     </button>
   );
 };
 
-// Shared pitch chrome — a Sportime-branded field tilted into perspective (the grass
-// recedes toward the goal) while the player tokens stay upright and readable.
+// Shared pitch chrome — a clean "lineup builder" field: dark charcoal stripes with
+// crisp Sportime-cyan markings (center circle, halfway line, boxes + D-arcs).
+const PitchMarkings: React.FC = () => (
+  <svg className="absolute inset-0 w-full h-full text-neon-cyan/30" viewBox="0 0 100 150" preserveAspectRatio="none"
+    fill="none" stroke="currentColor" strokeWidth="0.5" style={{ vectorEffect: 'non-scaling-stroke' } as any}>
+    <rect x="1" y="1" width="98" height="148" rx="2" />
+    {/* halfway line + centre circle/spot */}
+    <line x1="1" y1="75" x2="99" y2="75" />
+    <circle cx="50" cy="75" r="13" />
+    <circle cx="50" cy="75" r="0.8" fill="currentColor" stroke="none" />
+    {/* top goal: penalty box, six-yard box, penalty arc */}
+    <path d="M26 1 V25 H74 V1" />
+    <path d="M39 1 V9 H61 V1" />
+    <path d="M40 25 A 12 12 0 0 0 60 25" />
+    <circle cx="50" cy="17" r="0.8" fill="currentColor" stroke="none" />
+    {/* bottom goal (mirrored) */}
+    <path d="M26 149 V125 H74 V149" />
+    <path d="M39 149 V141 H61 V149" />
+    <path d="M40 125 A 12 12 0 0 1 60 125" />
+    <circle cx="50" cy="133" r="0.8" fill="currentColor" stroke="none" />
+  </svg>
+);
+
 const PitchField: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="relative rounded-2xl p-3 border border-neon-cyan/25 overflow-hidden bg-gradient-to-b from-navy-accent to-deep-navy">
-    {/* angled grass + markings (kept behind the tokens) */}
-    <div className="absolute inset-0 overflow-hidden" style={{ perspective: '820px' }}>
-      <div
-        className="absolute -inset-x-10 -top-2 bottom-0"
-        style={{
-          transformOrigin: 'center bottom',
-          transform: 'rotateX(32deg)',
-          background: 'repeating-linear-gradient(0deg, rgba(13,148,116,0.28) 0 40px, rgba(8,47,73,0.30) 40px 80px)',
-        }}
-      >
-        <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 w-32 h-32 rounded-full border border-neon-cyan/25" />
-        <div className="absolute left-0 right-0 top-1/2 border-t border-neon-cyan/15" />
-        <div className="absolute left-1/2 -translate-x-1/2 top-0 w-44 h-16 border-x border-b border-neon-cyan/20 rounded-b-2xl" />
-        <div className="absolute left-1/2 -translate-x-1/2 bottom-0 w-52 h-16 border-x border-t border-neon-cyan/20 rounded-t-2xl" />
-      </div>
-    </div>
-    {/* brand glow from the far goal */}
-    <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(130% 75% at 50% -5%, rgba(34,211,238,0.12), transparent 55%)' }} />
+  <div className="relative rounded-2xl overflow-hidden border border-neon-cyan/20 bg-[#0c1828]">
+    {/* charcoal mowing stripes */}
+    <div className="absolute inset-0" style={{ background: 'repeating-linear-gradient(180deg,#13243a 0 calc(12.5% - 0px),#0f1d30 12.5% 25%)' }} />
+    {/* subtle top glow + crisp line markings */}
+    <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(120% 60% at 50% 0%, rgba(34,211,238,0.08), transparent 55%)' }} />
+    <PitchMarkings />
     {/* upright tokens */}
-    <div className="relative flex flex-col gap-6 py-7">{children}</div>
+    <div className="relative flex flex-col gap-7 py-8 px-2">{children}</div>
   </div>
 );
 
