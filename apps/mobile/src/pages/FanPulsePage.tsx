@@ -152,7 +152,7 @@ const LegendsBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, use
         </>
       ) : <PulseView agg={agg} />}
       {pickFor !== null && (
-        <LegendPicker bucket={formation[pickFor]} legends={legends.filter(l => l.position === formation[pickFor])} usedKeys={usedKeys} currentKey={picks[pickFor]?.player_key} onClose={() => setPickFor(null)} onPick={l => assign(pickFor, l)} onClear={() => assign(pickFor, null)} />
+        <LegendPicker bucket={formation[pickFor]} legends={formation[pickFor] === 'GK' ? legends.filter(l => l.position === 'GK') : legends.filter(l => l.position !== 'GK')} usedKeys={usedKeys} currentKey={picks[pickFor]?.player_key} onClose={() => setPickFor(null)} onPick={l => assign(pickFor, l)} onClear={() => assign(pickFor, null)} />
       )}
     </div>
   );
@@ -230,7 +230,7 @@ const LegendPicker: React.FC<{ bucket: fp.Bucket; legends: fp.Legend[]; usedKeys
   const [q, setQ] = useState('');
   const list = useMemo(() => { const f = q.trim().toLowerCase(); return f ? legends.filter(l => l.name.toLowerCase().includes(f)) : legends; }, [q, legends]);
   return (
-    <Sheet title={`Pick a ${BUCKET_LABEL[bucket]}`} onClose={onClose}>
+    <Sheet title={bucket === 'GK' ? 'Pick a Goalkeeper' : 'Pick an outfield legend'} onClose={onClose}>
       <SearchBox q={q} setQ={setQ} placeholder={`Search ${legends.length} legends…`} />
       <div className="overflow-y-auto space-y-1 flex-1">
         {currentKey && <button onClick={onClear} className="w-full text-left text-sm text-hot-red py-2">Clear this spot</button>}
