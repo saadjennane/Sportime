@@ -10,7 +10,7 @@ as $$
   select p.id, p.name, p.photo, p.photo_url, p.position,
     (select t.name from public.fb_player_team_association a join public.fb_teams t on t.id = a.team_id where a.player_id = p.id limit 1)
   from public.fb_players p
-  where public.unaccent(lower(p.name)) like '%' || public.unaccent(lower(p_q)) || '%'
+  where public.unaccent(lower(p.name || ' ' || coalesce(p.first_name, '') || ' ' || coalesce(p.last_name, ''))) like '%' || public.unaccent(lower(p_q)) || '%'
     and (p_pos is null or p.position = p_pos)
   order by p.name
   limit 40;
