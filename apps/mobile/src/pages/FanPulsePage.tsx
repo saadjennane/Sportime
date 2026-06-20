@@ -431,7 +431,7 @@ const DreamBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, userI
       )}
 
       {pickFor !== null && (
-        <SquadPicker bucket={typeof pickFor === 'number' ? formation[pickFor] : undefined} defaults={typeof pickFor === 'number' ? squad.filter(s => s.position === formation[pickFor]) : squad} clubName={club.name} usedKeys={usedKeys} currentKey={typeof pickFor === 'number' ? starters[pickFor]?.player_key : undefined} onClose={() => setPickFor(null)} onPick={place} onClear={() => { if (typeof pickFor === 'number') { const slot = pickFor; setStarters(prev => { const n = [...prev]; n[slot] = null; return n; }); } setPickFor(null); }} />
+        <SquadPicker bucket={typeof pickFor === 'number' && formation[pickFor] === 'GK' ? 'GK' : undefined} defaults={typeof pickFor === 'number' ? (formation[pickFor] === 'GK' ? squad.filter(s => s.position === 'GK') : squad.filter(s => s.position !== 'GK')) : squad} clubName={club.name} usedKeys={usedKeys} currentKey={typeof pickFor === 'number' ? starters[pickFor]?.player_key : undefined} onClose={() => setPickFor(null)} onPick={place} onClear={() => { if (typeof pickFor === 'number') { const slot = pickFor; setStarters(prev => { const n = [...prev]; n[slot] = null; return n; }); } setPickFor(null); }} />
       )}
       {coachPick && <CoachPicker coaches={coaches} currentKey={coach?.coach_key} onClose={() => setCoachPick(false)} onPick={c => { setCoach({ coach_key: c.coach_key, name: c.name, photo: c.photo }); setCoachPick(false); }} onClear={() => { setCoach(null); setCoachPick(false); }} />}
     </div>
@@ -480,7 +480,7 @@ const MatchXI: React.FC<{ club: fp.Club; userId: string; fixture: fp.MatchFixtur
         </>
       ) : <PulseView agg={agg} fname="4-3-3" clubName={club.name} label="Fans' Matchday XI" hideCoach />}
       {pickFor !== null && (
-        <LegendPicker title={`Pick a ${BUCKET_LABEL[formation[pickFor]]}`} bucket={formation[pickFor]} legends={pool.filter(l => l.position === formation[pickFor])} usedKeys={usedKeys} currentKey={picks[pickFor]?.player_key} injuredKeys={injuredKeys} onClose={() => setPickFor(null)} onPick={l => assign(pickFor, l)} onClear={() => assign(pickFor, null)} />
+        <LegendPicker title={`Pick a ${BUCKET_LABEL[formation[pickFor]]}`} bucket={formation[pickFor]} legends={formation[pickFor] === 'GK' ? pool.filter(l => l.position === 'GK') : pool.filter(l => l.position !== 'GK')} usedKeys={usedKeys} currentKey={picks[pickFor]?.player_key} injuredKeys={injuredKeys} onClose={() => setPickFor(null)} onPick={l => assign(pickFor, l)} onClear={() => assign(pickFor, null)} />
       )}
     </div>
   );
