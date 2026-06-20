@@ -12,18 +12,26 @@ export interface AggPlayer { player_key: string; name: string; photo: string | n
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const toClub = (t: any): Club => ({ id: t.id, name: t.name, logo: t.logo || t.logo_url || null });
 
-/** Resolve profiles.favorite_club (stores a team id, or legacy name) to a club. */
+// In-memory caches so re-opening Fan Pulse (or a builder) within a session is
+// instant instead of re-spinning. Cleared on club change.
+const clubCache = new Map<string, Club | null>();
+const legendsCache = new Map<string, Legend[]>();
+
+/** Resolve users.favorite_club (stores a team id, or a legacy name like 'team-2') to a club. */
 export async function getFavoriteClub(userId: string): Promise<Club | null> {
-  const { data: prof } = await supabase.from('profiles').select('favorite_club').eq('id', userId).maybeSingle();
+  if (clubCache.has(userId)) return clubCache.get(userId)!;
+  const { data: prof } = await supabase.from('users').select('favorite_club').eq('id', userId).maybeSingle();
   const fav = (prof as any)?.favorite_club;
-  if (!fav) return null;
-  const q = supabase.from('fb_teams').select('id, name, logo_url, logo');
-  const { data } = await (UUID.test(fav) ? q.eq('id', fav) : q.eq('name', fav)).limit(1).maybeSingle();
-  return data ? toClub(data) : null;
+  if (!fav || !UUID.test(fav)) { clubCache.set(userId, null); return null; } // legacy values ('team-2') → pick again
+  const { data } = await supabase.from('fb_teams').select('id, name, logo_url, logo').eq('id', fav).limit(1).maybeSingle();
+  const club = data ? toClub(data) : null;
+  if (club) clubCache.set(userId, club); // don't cache a transient miss as the answer
+  return club;
 }
 
 export async function setFavoriteClub(userId: string, teamId: string) {
-  return supabase.from('profiles').update({ favorite_club: teamId }).eq('id', userId);
+  clubCache.delete(userId);
+  return supabase.from('users').update({ favorite_club: teamId }).eq('id', userId);
 }
 
 export async function searchClubs(query: string): Promise<Club[]> {
@@ -33,9 +41,13 @@ export async function searchClubs(query: string): Promise<Club[]> {
 }
 
 export async function getLegends(teamId: string): Promise<Legend[]> {
+  const cached = legendsCache.get(teamId);
+  if (cached) return cached;
   const { data } = await supabase.from('fan_pulse_legends').select('id, player_key, name, position, photo_url')
     .eq('team_id', teamId).order('sort_order');
-  return (data ?? []) as Legend[];
+  const legends = (data ?? []) as Legend[];
+  if (legends.length) legendsCache.set(teamId, legends);
+  return legends;
 }
 
 export async function getMyEntry(userId: string, scopeType: string, scopeRef: string): Promise<{ formation: string; picks: PulsePick[]; sell: SellItem[] }> {
