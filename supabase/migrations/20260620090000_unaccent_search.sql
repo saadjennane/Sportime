@@ -12,7 +12,11 @@ as $$
   from public.fb_players p
   where public.unaccent(lower(p.name || ' ' || coalesce(p.first_name, '') || ' ' || coalesce(p.last_name, ''))) like '%' || public.unaccent(lower(p_q)) || '%'
     and (p_pos is null or p.position = p_pos)
-  order by p.name
+  order by
+    (public.unaccent(lower(p.name)) like public.unaccent(lower(p_q)) || '%') desc,        -- name starts with query
+    (public.unaccent(lower(p.name)) like '%' || public.unaccent(lower(p_q)) || '%') desc, -- query in the display name
+    length(p.name),
+    p.name
   limit 40;
 $$;
 grant execute on function public.fb_search_players(text, text) to anon, authenticated;
