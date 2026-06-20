@@ -117,7 +117,7 @@ const CoachChip: React.FC<{ coach?: { name: string; photo: string | null } | nul
   );
 };
 
-const PitchField: React.FC<{ children: React.ReactNode; onShare?: () => void; tall?: boolean; topRight?: React.ReactNode; coach?: { name: string; photo: string | null } | null; onCoach?: () => void; coachBadge?: string }> = ({ children, onShare, tall, topRight, coach, onCoach, coachBadge }) => (
+const PitchField: React.FC<{ children: React.ReactNode; onShare?: () => void; tall?: boolean; topRight?: React.ReactNode; coach?: { name: string; photo: string | null } | null; onCoach?: () => void; coachBadge?: string; hideCoach?: boolean }> = ({ children, onShare, tall, topRight, coach, onCoach, coachBadge, hideCoach }) => (
   <div className="relative rounded-2xl overflow-hidden border border-neon-cyan/20 bg-[#0c1828]">
     {/* field layer — stripes + markings + watermark tilted together for a subtle,
         coherent perspective (the goal recedes); tokens stay upright above it */}
@@ -132,7 +132,7 @@ const PitchField: React.FC<{ children: React.ReactNode; onShare?: () => void; ta
     </div>
     {/* top bar: coach (left) · info + share (right) */}
     <div className="absolute top-2 inset-x-2 z-10 flex items-start justify-between pointer-events-none">
-      <CoachChip coach={coach} onTap={onCoach} badge={coachBadge} />
+      {hideCoach ? <div /> : <CoachChip coach={coach} onTap={onCoach} badge={coachBadge} />}
       <div className="flex items-center gap-2 pointer-events-auto">
         {topRight}
         {onShare && (
@@ -154,11 +154,11 @@ const rowDepth = (ri: number, total: number): React.CSSProperties => {
   return { paddingInline: `${(1 - t) * 15}%`, transform: `scale(${0.86 + 0.14 * t})` };
 };
 
-const Pitch: React.FC<{ fname: string; picks: (fp.PulsePick | null)[]; onSlot?: (i: number) => void; isBuy?: (key: string) => boolean; onShare?: () => void; coach?: fp.CoachPick | null; onCoach?: () => void }> = ({ fname, picks, onSlot, isBuy, onShare, coach, onCoach }) => {
+const Pitch: React.FC<{ fname: string; picks: (fp.PulsePick | null)[]; onSlot?: (i: number) => void; isBuy?: (key: string) => boolean; onShare?: () => void; coach?: fp.CoachPick | null; onCoach?: () => void; hideCoach?: boolean }> = ({ fname, picks, onSlot, isBuy, onShare, coach, onCoach, hideCoach }) => {
   const formation = FORMATIONS[fname] ?? FORMATIONS['4-3-3'];
   const rows = renderRows(fname);
   return (
-    <PitchField onShare={onShare} coach={coach} onCoach={onCoach}>
+    <PitchField onShare={onShare} coach={coach} onCoach={onCoach} hideCoach={hideCoach}>
       {rows.map((row, ri) => (
         <div key={ri} className="flex justify-around items-center px-1" style={rowDepth(ri, rows.length)}>
           {row.slots.map(i => { const p = picks[i]; return <Token key={i} name={p?.name} photo={p?.photo} bucket={formation[i]} empty={!p} onTap={onSlot ? () => onSlot(i) : undefined} buy={p && isBuy ? isBuy(p.player_key) : false} />; })}
@@ -171,7 +171,7 @@ const Pitch: React.FC<{ fname: string; picks: (fp.PulsePick | null)[]; onSlot?: 
 // ── Consensus XI on a pitch — the fan-favourite player per *slot*, so the layout
 // stays coherent with how fans picked (and mirrors a single voter exactly). Falls
 // back to filling each row by pick % when a slot has no data (legacy entries).
-const ConsensusXI: React.FC<{ agg: fp.Aggregate; fname: string; squadIds?: Set<string>; onShare?: () => void; topRight?: React.ReactNode }> = ({ agg, fname, squadIds, onShare, topRight }) => {
+const ConsensusXI: React.FC<{ agg: fp.Aggregate; fname: string; squadIds?: Set<string>; onShare?: () => void; topRight?: React.ReactNode; hideCoach?: boolean }> = ({ agg, fname, squadIds, onShare, topRight, hideCoach }) => {
   const formation = FORMATIONS[fname] ?? FORMATIONS['4-3-3'];
   const bySlot = new Map<number, fp.AggSlot>(agg.slots.map(s => [s.slot, s]));
   const placed = new Set(agg.slots.map(s => s.player_key));
@@ -180,7 +180,7 @@ const ConsensusXI: React.FC<{ agg: fp.Aggregate; fname: string; squadIds?: Set<s
   (Object.keys(leftover) as fp.Bucket[]).forEach(b => leftover[b].sort((a, c) => c.pct - a.pct));
   const rows = renderRows(fname);
   return (
-    <PitchField tall onShare={onShare} topRight={topRight}
+    <PitchField tall onShare={onShare} topRight={topRight} hideCoach={hideCoach}
       coach={agg.coach ? { name: agg.coach.name, photo: agg.coach.photo } : null}
       coachBadge={agg.coach ? `${agg.coach.pct}%` : undefined}>
       {rows.map((row, ri) => (
@@ -193,12 +193,12 @@ const ConsensusXI: React.FC<{ agg: fp.Aggregate; fname: string; squadIds?: Set<s
 };
 
 // ── Aggregated pulse ────────────────────────────────────────────────────────
-const PulseView: React.FC<{ agg: fp.Aggregate; fname: string; clubName: string; label: string; squadIds?: Set<string> }> = ({ agg, fname, clubName, label, squadIds }) => {
+const PulseView: React.FC<{ agg: fp.Aggregate; fname: string; clubName: string; label: string; squadIds?: Set<string>; hideCoach?: boolean }> = ({ agg, fname, clubName, label, squadIds, hideCoach }) => {
   if (agg.participants === 0) return <div className="card-base p-8 text-center"><div className="text-4xl mb-2">📊</div><p className="text-text-secondary">No fan has voted yet. Be the first — build your XI!</p></div>;
   const voted = <span className="px-2 py-1 rounded-full bg-deep-navy/85 border border-white/10 text-[11px] text-text-secondary"><b className="text-text-primary">{agg.participants}</b> voted</span>;
   return (
     <div className="space-y-3">
-      <ConsensusXI agg={agg} fname={fname} squadIds={squadIds} topRight={voted} onShare={() => shareLineup(consensusText(clubName, fname, agg, label))} />
+      <ConsensusXI agg={agg} fname={fname} squadIds={squadIds} topRight={voted} hideCoach={hideCoach} onShare={() => shareLineup(consensusText(clubName, fname, agg, label))} />
       <p className="text-center text-[11px] text-text-disabled font-semibold">⚡ The fans' consensus XI — % who picked each player{squadIds ? ' · €  = not in the current squad' : ''}</p>
     </div>
   );
@@ -430,13 +430,10 @@ const MatchXI: React.FC<{ club: fp.Club; userId: string; fixture: fp.MatchFixtur
   const [tab, setTab] = useState<'mine' | 'pulse'>('mine');
   const [agg, setAgg] = useState<fp.Aggregate>({ participants: 0, players: [], slots: [], coach: null });
   const [pickFor, setPickFor] = useState<number | null>(null);
-  const { picks, setPicks, coach, setCoach, saveState } = usePulseEntry(userId, 'match', fixture.id, '4-3-3');
-  const [coaches, setCoaches] = useState<fp.Coach[]>([]);
-  const [coachPick, setCoachPick] = useState(false);
+  const { picks, setPicks, saveState } = usePulseEntry(userId, 'match', fixture.id, '4-3-3');
   const formation = FORMATIONS['4-3-3'];
   const pool = useMemo<fp.Legend[]>(() => squad.map(s => ({ id: s.id, player_key: s.id, name: s.name, position: s.position, photo_url: s.photo })), [squad]);
   useEffect(() => { if (tab === 'pulse') fp.getAggregate('match', fixture.id).then(setAgg); }, [tab, fixture.id]);
-  useEffect(() => { fp.getCoaches(club.id).then(setCoaches); }, [club.id]);
   const usedKeys = useMemo(() => new Set(picks.filter(Boolean).map(p => (p as fp.PulsePick).player_key)), [picks]);
   const assign = (slot: number, l: fp.Legend | null) => { setPicks(prev => { const next = [...prev]; if (l) { for (let i = 0; i < next.length; i++) if (next[i]?.player_key === l.player_key) next[i] = null; next[slot] = { player_key: l.player_key, name: l.name, photo: l.photo_url, position: formation[slot], is_starter: true, slot }; } else next[slot] = null; return next; }); setPickFor(null); };
   const filled = picks.filter(Boolean).length;
@@ -451,11 +448,10 @@ const MatchXI: React.FC<{ club: fp.Club; userId: string; fixture: fp.MatchFixtur
       <Tabs tab={tab} setTab={setTab} />
       {tab === 'mine' ? (
         <>
-          <Pitch fname="4-3-3" picks={picks} onSlot={setPickFor} coach={coach} onCoach={() => setCoachPick(true)} onShare={() => shareLineup(lineupText(club.name, '4-3-3', picks, 'Matchday XI'))} />
+          <Pitch fname="4-3-3" picks={picks} onSlot={setPickFor} hideCoach onShare={() => shareLineup(lineupText(club.name, '4-3-3', picks, 'Matchday XI'))} />
           <SaveLine state={saveState} filled={filled} done="✓ Your matchday XI is saved — see The Pulse" />
         </>
-      ) : <PulseView agg={agg} fname="4-3-3" clubName={club.name} label="Fans' Matchday XI" />}
-      {coachPick && <CoachPicker coaches={coaches} currentKey={coach?.coach_key} onClose={() => setCoachPick(false)} onPick={c => { setCoach({ coach_key: c.coach_key, name: c.name, photo: c.photo }); setCoachPick(false); }} onClear={() => { setCoach(null); setCoachPick(false); }} />}
+      ) : <PulseView agg={agg} fname="4-3-3" clubName={club.name} label="Fans' Matchday XI" hideCoach />}
       {pickFor !== null && (
         <LegendPicker title={`Pick a ${BUCKET_LABEL[formation[pickFor]]}`} bucket={formation[pickFor]} legends={pool.filter(l => l.position === formation[pickFor])} usedKeys={usedKeys} currentKey={picks[pickFor]?.player_key} onClose={() => setPickFor(null)} onPick={l => assign(pickFor, l)} onClear={() => assign(pickFor, null)} />
       )}
