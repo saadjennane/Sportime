@@ -50,6 +50,20 @@ export async function saveEntry(userId: string, scopeType: string, scopeRef: str
   return supabase.from('fan_pulse_entries').upsert(row, { onConflict: 'user_id,scope_type,scope_ref' });
 }
 
+export interface MatchFixture { id: string; date: string; opponent: string; opponentLogo: string | null; home: boolean; }
+/** The club's NEXT fixture, or null if none scheduled yet (off-season). */
+export async function getMatchFixture(teamId: string): Promise<MatchFixture | null> {
+  const { data } = await supabase.from('fb_fixtures')
+    .select('id, date, status, home_team_id, away_team_id')
+    .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+    .gt('date', new Date().toISOString()).order('date', { ascending: true }).limit(1).maybeSingle();
+  if (!data) return null;
+  const home = (data as any).home_team_id === teamId;
+  const oppId = home ? (data as any).away_team_id : (data as any).home_team_id;
+  const { data: opp } = await supabase.from('fb_teams').select('name, logo, logo_url').eq('id', oppId).maybeSingle();
+  return { id: (data as any).id, date: (data as any).date, opponent: (opp as any)?.name ?? 'TBD', opponentLogo: (opp as any)?.logo || (opp as any)?.logo_url || null, home };
+}
+
 export async function getSellAggregate(scopeRef: string): Promise<{ participants: number; players: AggPlayer[] }> {
   const { data } = await supabase.rpc('fan_pulse_sell_aggregate', { p_scope_ref: scopeRef });
   return (data as any) ?? { participants: 0, players: [] };

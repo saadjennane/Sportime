@@ -312,6 +312,53 @@ const DreamBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, userI
   );
 };
 
+// ── Upcoming match builder (squad-only XI for the next fixture) ─────────────
+const MatchBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, userId }) => {
+  const [fixture, setFixture] = useState<fp.MatchFixture | null | undefined>(undefined);
+  const [squad, setSquad] = useState<fp.SquadPlayer[]>([]);
+  useEffect(() => { fp.getMatchFixture(club.id).then(setFixture); fp.getCurrentSquad(club.id).then(setSquad); }, [club.id]);
+  if (fixture === undefined) return <div className="flex justify-center py-16"><Loader2 className="animate-spin text-electric-blue" size={28} /></div>;
+  if (!fixture) return (
+    <div className="card-base p-8 text-center"><div className="text-5xl mb-3">📅</div>
+      <p className="text-text-secondary font-medium">No match scheduled yet</p>
+      <p className="text-sm text-text-disabled mt-1">The matchday XI pulse opens as soon as the new season's fixtures are out.</p></div>
+  );
+  return <MatchXI club={club} userId={userId} fixture={fixture} squad={squad} />;
+};
+
+const MatchXI: React.FC<{ club: fp.Club; userId: string; fixture: fp.MatchFixture; squad: fp.SquadPlayer[] }> = ({ club, userId, fixture, squad }) => {
+  const [tab, setTab] = useState<'mine' | 'pulse'>('mine');
+  const [agg, setAgg] = useState<{ participants: number; players: fp.AggPlayer[] }>({ participants: 0, players: [] });
+  const [pickFor, setPickFor] = useState<number | null>(null);
+  const { picks, setPicks, saveState } = usePulseEntry(userId, 'match', fixture.id, '4-3-3');
+  const formation = FORMATIONS['4-3-3'];
+  const pool = useMemo<fp.Legend[]>(() => squad.map(s => ({ id: s.id, player_key: s.id, name: s.name, position: s.position, photo_url: s.photo })), [squad]);
+  useEffect(() => { if (tab === 'pulse') fp.getAggregate('match', fixture.id).then(setAgg); }, [tab, fixture.id]);
+  const usedKeys = useMemo(() => new Set(picks.filter(Boolean).map(p => (p as fp.PulsePick).player_key)), [picks]);
+  const assign = (slot: number, l: fp.Legend | null) => { setPicks(prev => { const next = [...prev]; if (l) { for (let i = 0; i < next.length; i++) if (next[i]?.player_key === l.player_key) next[i] = null; next[slot] = { player_key: l.player_key, name: l.name, photo: l.photo_url, position: formation[slot], is_starter: true, slot }; } else next[slot] = null; return next; }); setPickFor(null); };
+  const filled = picks.filter(Boolean).length;
+  return (
+    <div className="space-y-3">
+      <div className="bg-navy-accent rounded-xl p-3 text-center text-sm">
+        <span className="font-bold text-text-primary">{fixture.home ? club.name : fixture.opponent}</span>
+        <span className="text-text-disabled mx-2">vs</span>
+        <span className="font-bold text-text-primary">{fixture.home ? fixture.opponent : club.name}</span>
+        <p className="text-[11px] text-text-secondary mt-1">{new Date(fixture.date).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+      </div>
+      <Tabs tab={tab} setTab={setTab} />
+      {tab === 'mine' ? (
+        <>
+          <Pitch formation={formation} picks={picks} onSlot={setPickFor} />
+          <SaveLine state={saveState} filled={filled} done="✓ Your matchday XI is saved — see The Pulse" />
+        </>
+      ) : <PulseView agg={agg} />}
+      {pickFor !== null && (
+        <LegendPicker title={`Pick a ${BUCKET_LABEL[formation[pickFor]]}`} bucket={formation[pickFor]} legends={pool.filter(l => l.position === formation[pickFor])} usedKeys={usedKeys} currentKey={picks[pickFor]?.player_key} onClose={() => setPickFor(null)} onPick={l => assign(pickFor, l)} onClear={() => assign(pickFor, null)} />
+      )}
+    </div>
+  );
+};
+
 // ── Small shared bits ───────────────────────────────────────────────────────
 const Tabs: React.FC<{ tab: 'mine' | 'pulse'; setTab: (t: 'mine' | 'pulse') => void }> = ({ tab, setTab }) => (
   <div className="flex bg-navy-accent rounded-xl p-1">
@@ -331,11 +378,11 @@ const SaveLine: React.FC<{ state: 'idle' | 'saving' | 'saved'; filled: number; d
 );
 
 // ── Legend picker (searchable static) ───────────────────────────────────────
-const LegendPicker: React.FC<{ bucket: fp.Bucket; legends: fp.Legend[]; usedKeys: Set<string>; currentKey?: string; onClose: () => void; onPick: (l: fp.Legend) => void; onClear: () => void }> = ({ bucket, legends, usedKeys, currentKey, onClose, onPick, onClear }) => {
+const LegendPicker: React.FC<{ bucket: fp.Bucket; legends: fp.Legend[]; usedKeys: Set<string>; currentKey?: string; title?: string; onClose: () => void; onPick: (l: fp.Legend) => void; onClear: () => void }> = ({ bucket, legends, usedKeys, currentKey, title, onClose, onPick, onClear }) => {
   const [q, setQ] = useState('');
   const list = useMemo(() => { const f = norm(q.trim()); return f ? legends.filter(l => norm(l.name).includes(f)) : legends; }, [q, legends]);
   return (
-    <Sheet title={bucket === 'GK' ? 'Pick a Goalkeeper' : 'Pick an outfield legend'} onClose={onClose}>
+    <Sheet title={title ?? (bucket === 'GK' ? 'Pick a Goalkeeper' : 'Pick an outfield legend')} onClose={onClose}>
       <SearchBox q={q} setQ={setQ} placeholder={`Search ${legends.length} legends…`} />
       <div className="overflow-y-auto space-y-1 flex-1 min-h-0">
         {currentKey && <button onClick={onClear} className="w-full text-left text-sm text-hot-red py-2">Clear this spot</button>}
@@ -396,7 +443,7 @@ export const FanPulsePage: React.FC<{ profile: Profile | null }> = ({ profile })
   const userId = profile?.id ?? null;
   const [club, setClub] = useState<fp.Club | null>(null);
   const [loading, setLoading] = useState(true);
-  const [mode, setMode] = useState<'home' | 'legends' | 'dream'>('home');
+  const [mode, setMode] = useState<'home' | 'legends' | 'dream' | 'match'>('home');
 
   useEffect(() => { if (!userId) { setLoading(false); return; } fp.getFavoriteClub(userId).then(c => { setClub(c); setLoading(false); }); }, [userId]);
 
@@ -408,7 +455,7 @@ export const FanPulsePage: React.FC<{ profile: Profile | null }> = ({ profile })
       <div className="flex items-center gap-3">
         {mode !== 'home' && <button onClick={() => setMode('home')} className="text-text-secondary"><ArrowLeft size={20} /></button>}
         {club.logo ? <img src={club.logo} className="w-9 h-9 object-contain" alt="" /> : <div className="w-9 h-9 rounded-full bg-electric-blue/20 flex items-center justify-center text-electric-blue font-bold text-sm">{initials(club.name)}</div>}
-        <div className="flex-1 min-w-0"><h1 className="text-lg font-bold text-text-primary truncate">{club.name}</h1><p className="text-[11px] text-text-secondary">{mode === 'home' ? 'Fan Pulse' : mode === 'legends' ? 'All-time Legends XI' : 'Dream XI · next season'}</p></div>
+        <div className="flex-1 min-w-0"><h1 className="text-lg font-bold text-text-primary truncate">{club.name}</h1><p className="text-[11px] text-text-secondary">{mode === 'home' ? 'Fan Pulse' : mode === 'legends' ? 'All-time Legends XI' : mode === 'dream' ? 'Dream XI · next season' : 'Upcoming match XI'}</p></div>
         {mode === 'home' && <button onClick={() => setClub(null)} className="text-xs text-text-disabled underline">change</button>}
       </div>
 
@@ -416,8 +463,9 @@ export const FanPulsePage: React.FC<{ profile: Profile | null }> = ({ profile })
         <div className="space-y-3">
           <HomeCard icon={<Crown className="text-warm-yellow" />} title="Legends XI" desc="Build the club's all-time 4-3-3 — and see the fans' consensus." onClick={() => setMode('legends')} />
           <HomeCard icon={<Sparkles className="text-electric-blue" />} title="Dream XI · next season" desc="The team you want to see — pick anyone, sign new players, vote the pulse." onClick={() => setMode('dream')} />
+          <HomeCard icon={<span className="text-xl">📅</span>} title="Upcoming match XI" desc="The XI you want for the next game — and the fans' consensus." onClick={() => setMode('match')} />
         </div>
-      ) : mode === 'legends' && userId ? <LegendsBuilder club={club} userId={userId} /> : userId ? <DreamBuilder club={club} userId={userId} /> : null}
+      ) : !userId ? null : mode === 'legends' ? <LegendsBuilder club={club} userId={userId} /> : mode === 'dream' ? <DreamBuilder club={club} userId={userId} /> : mode === 'match' ? <MatchBuilder club={club} userId={userId} /> : null}
     </div>
   );
 };
