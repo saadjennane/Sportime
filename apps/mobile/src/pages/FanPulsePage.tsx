@@ -444,11 +444,31 @@ export const FanPulsePage: React.FC<{ profile: Profile | null }> = ({ profile })
   const [club, setClub] = useState<fp.Club | null>(null);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<'home' | 'legends' | 'dream' | 'match'>('home');
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   useEffect(() => { if (!userId) { setLoading(false); return; } fp.getFavoriteClub(userId).then(c => { setClub(c); setLoading(false); }); }, [userId]);
 
+  const picker = pickerOpen && (
+    <ClubPicker
+      onClose={() => setPickerOpen(false)}
+      onPick={async c => { if (userId) { await fp.setFavoriteClub(userId, c.id); } setClub(c); setMode('home'); setPickerOpen(false); }}
+    />
+  );
+
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-electric-blue" size={32} /></div>;
-  if (!club) return <ClubPicker onPick={async c => { if (userId) { await fp.setFavoriteClub(userId, c.id); setClub(c); } }} />;
+
+  // No club yet → show the "Select your favorite club" block at the top; picking
+  // is done in a modal, then we land on the home screen below.
+  if (!club) return (
+    <div className="space-y-4 pb-4">
+      <button onClick={() => setPickerOpen(true)} className="w-full text-left bg-navy-accent rounded-2xl p-4 flex items-center gap-4 border border-electric-blue/30 hover:bg-white/5">
+        <div className="w-11 h-11 rounded-xl bg-deep-navy flex items-center justify-center text-2xl">❤️</div>
+        <div className="flex-1 min-w-0"><h3 className="font-bold text-text-primary">Select your favorite club</h3><p className="text-xs text-text-secondary">Build legend & dream XIs and see the fans' pulse.</p></div>
+        <span className="text-xs text-electric-blue font-semibold shrink-0">Choose</span>
+      </button>
+      {picker}
+    </div>
+  );
 
   return (
     <div className="space-y-4 pb-4">
@@ -456,7 +476,7 @@ export const FanPulsePage: React.FC<{ profile: Profile | null }> = ({ profile })
         {mode !== 'home' && <button onClick={() => setMode('home')} className="text-text-secondary"><ArrowLeft size={20} /></button>}
         {club.logo ? <img src={club.logo} className="w-9 h-9 object-contain" alt="" /> : <div className="w-9 h-9 rounded-full bg-electric-blue/20 flex items-center justify-center text-electric-blue font-bold text-sm">{initials(club.name)}</div>}
         <div className="flex-1 min-w-0"><h1 className="text-lg font-bold text-text-primary truncate">{club.name}</h1><p className="text-[11px] text-text-secondary">{mode === 'home' ? 'Fan Pulse' : mode === 'legends' ? 'All-time Legends XI' : mode === 'dream' ? 'Dream XI · next season' : 'Upcoming match XI'}</p></div>
-        {mode === 'home' && <button onClick={() => setClub(null)} className="text-xs text-text-disabled underline">change</button>}
+        {mode === 'home' && <button onClick={() => setPickerOpen(true)} className="text-xs text-text-disabled underline">change</button>}
       </div>
 
       {mode === 'home' ? (
@@ -466,6 +486,8 @@ export const FanPulsePage: React.FC<{ profile: Profile | null }> = ({ profile })
           <HomeCard icon={<span className="text-xl">📅</span>} title="Upcoming match XI" desc="The XI you want for the next game — and the fans' consensus." onClick={() => setMode('match')} />
         </div>
       ) : !userId ? null : mode === 'legends' ? <LegendsBuilder club={club} userId={userId} /> : mode === 'dream' ? <DreamBuilder club={club} userId={userId} /> : mode === 'match' ? <MatchBuilder club={club} userId={userId} /> : null}
+
+      {picker}
     </div>
   );
 };
@@ -477,20 +499,26 @@ const HomeCard: React.FC<{ icon: React.ReactNode; title: string; desc: string; o
   </button>
 );
 
-const ClubPicker: React.FC<{ onPick: (c: fp.Club) => void }> = ({ onPick }) => {
+const ClubPicker: React.FC<{ onPick: (c: fp.Club) => void; onClose: () => void }> = ({ onPick, onClose }) => {
   const [q, setQ] = useState(''); const [results, setResults] = useState<fp.Club[]>([]); const [busy, setBusy] = useState(false);
   useEffect(() => { if (q.trim().length < 2) { setResults([]); return; } setBusy(true); const t = setTimeout(async () => { setResults(await fp.searchClubs(q.trim())); setBusy(false); }, 300); return () => clearTimeout(t); }, [q]);
   return (
-    <div className="space-y-4 py-6">
-      <div className="text-center"><div className="text-5xl mb-2">❤️</div><h1 className="text-2xl font-bold text-text-primary">Pick your club</h1><p className="text-text-secondary text-sm mt-1">Your team for Fan Pulse — build legend & dream XIs.</p></div>
-      <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-disabled" />
-        <input value={q} onChange={e => setQ(e.target.value)} autoFocus placeholder="Search a club… (e.g. Barcelona)" className="w-full pl-10 pr-4 py-3 bg-navy-accent border border-white/10 rounded-xl text-text-primary focus:outline-none focus:border-electric-blue" /></div>
-      {busy && <div className="flex justify-center py-4"><Loader2 className="animate-spin text-electric-blue" size={22} /></div>}
-      <div className="space-y-1.5">{results.map(c => (
-        <button key={c.id} onClick={() => onPick(c)} className="w-full flex items-center gap-3 p-3 bg-navy-accent rounded-xl hover:bg-white/5">
-          {c.logo ? <img src={c.logo} className="w-8 h-8 object-contain" alt="" /> : <div className="w-8 h-8 rounded-full bg-electric-blue/20 flex items-center justify-center text-electric-blue text-xs font-bold">{initials(c.name)}</div>}
-          <span className="text-text-primary font-medium">{c.name}</span>
-        </button>))}</div>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+      <div className="relative w-full max-w-md bg-deep-navy border border-white/10 rounded-t-3xl sm:rounded-3xl p-5 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-bold text-text-primary">Pick your club</h2>
+          <button onClick={onClose} className="text-text-secondary p-1"><X size={20} /></button>
+        </div>
+        <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-disabled" />
+          <input value={q} onChange={e => setQ(e.target.value)} autoFocus placeholder="Search a club… (e.g. Barcelona)" className="w-full pl-10 pr-4 py-3 bg-navy-accent border border-white/10 rounded-xl text-text-primary focus:outline-none focus:border-electric-blue" /></div>
+        {busy && <div className="flex justify-center py-4"><Loader2 className="animate-spin text-electric-blue" size={22} /></div>}
+        <div className="space-y-1.5 mt-3 overflow-y-auto">{results.map(c => (
+          <button key={c.id} onClick={() => onPick(c)} className="w-full flex items-center gap-3 p-3 bg-navy-accent rounded-xl hover:bg-white/5">
+            {c.logo ? <img src={c.logo} className="w-8 h-8 object-contain" alt="" /> : <div className="w-8 h-8 rounded-full bg-electric-blue/20 flex items-center justify-center text-electric-blue text-xs font-bold">{initials(c.name)}</div>}
+            <span className="text-text-primary font-medium">{c.name}</span>
+          </button>))}</div>
+      </div>
     </div>
   );
 };
