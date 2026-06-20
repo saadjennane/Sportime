@@ -222,7 +222,7 @@ const PicksSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; allTe
       )}
 
       {picking && (
-        <PickerModal title="Choose a team" items={allTeams.map(t => ({ id: t.id, label: t.name, team: t }))}
+        <PickerModal title="Choose a team" items={[...allTeams].sort((a, b) => a.name.localeCompare(b.name)).map(t => ({ id: t.id, label: t.name, team: t }))}
           onClose={() => setPicking(null)} onSelect={(id) => { picking === 'champion' ? setChampion(id) : setFinalist(id); setPicking(null); }} />
       )}
       {pickScorer && (
