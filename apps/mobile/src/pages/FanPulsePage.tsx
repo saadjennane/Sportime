@@ -112,8 +112,8 @@ export const FanPulsePage: React.FC<{ profile: Profile | null }> = ({ profile })
       const next = [...prev];
       if (legend) {
         // remove this legend from any other slot, then place it
-        for (let i = 0; i < next.length; i++) if (next[i]?.player_key === legend.id) next[i] = null;
-        next[slot] = { player_key: legend.id, name: legend.name, photo: legend.photo_url, position: BUCKETS[slot], is_starter: true, slot };
+        for (let i = 0; i < next.length; i++) if (next[i]?.player_key === legend.player_key) next[i] = null;
+        next[slot] = { player_key: legend.player_key, name: legend.name, photo: legend.photo_url, position: BUCKETS[slot], is_starter: true, slot };
       } else next[slot] = null;
       return next;
     });
@@ -177,29 +177,40 @@ export const FanPulsePage: React.FC<{ profile: Profile | null }> = ({ profile })
   );
 };
 
-// ── Legend picker bottom sheet ──────────────────────────────────────────────
-const LegendPicker: React.FC<{ bucket: fp.Bucket; legends: fp.Legend[]; usedKeys: Set<string>; currentKey?: string; onClose: () => void; onPick: (l: fp.Legend) => void; onClear: () => void }> = ({ bucket, legends, usedKeys, currentKey, onClose, onPick, onClear }) => (
-  <div className="fixed inset-0 z-[80] flex items-end bg-black/60" onClick={onClose}>
-    <div className="w-full max-w-md mx-auto bg-deep-navy rounded-t-2xl max-h-[75vh] overflow-y-auto p-4 space-y-2" onClick={e => e.stopPropagation()}>
-      <div className="flex items-center justify-between sticky -top-4 bg-deep-navy py-1">
-        <h3 className="font-bold text-text-primary">Pick a {BUCKET_LABEL[bucket]}</h3>
-        <button onClick={onClose}><X size={22} className="text-text-secondary" /></button>
+// ── Legend picker bottom sheet (searchable, notability-sorted) ──────────────
+const LegendPicker: React.FC<{ bucket: fp.Bucket; legends: fp.Legend[]; usedKeys: Set<string>; currentKey?: string; onClose: () => void; onPick: (l: fp.Legend) => void; onClear: () => void }> = ({ bucket, legends, usedKeys, currentKey, onClose, onPick, onClear }) => {
+  const [q, setQ] = useState('');
+  const list = useMemo(() => { const f = q.trim().toLowerCase(); return f ? legends.filter(l => l.name.toLowerCase().includes(f)) : legends; }, [q, legends]);
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end bg-black/60" onClick={onClose}>
+      <div className="w-full max-w-md mx-auto bg-deep-navy rounded-t-2xl max-h-[80vh] flex flex-col p-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="font-bold text-text-primary">Pick a {BUCKET_LABEL[bucket]}</h3>
+          <button onClick={onClose}><X size={22} className="text-text-secondary" /></button>
+        </div>
+        <div className="relative mb-2">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-disabled" />
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder={`Search ${legends.length} legends…`} className="w-full pl-9 pr-3 py-2 bg-navy-accent border border-white/10 rounded-lg text-sm text-text-primary focus:outline-none focus:border-electric-blue" />
+        </div>
+        <div className="overflow-y-auto space-y-1 flex-1">
+          {currentKey && <button onClick={onClear} className="w-full text-left text-sm text-hot-red py-2">Clear this spot</button>}
+          {list.slice(0, 80).map(l => {
+            const used = usedKeys.has(l.player_key) && l.player_key !== currentKey;
+            return (
+              <button key={l.id} disabled={used} onClick={() => onPick(l)} className={`w-full flex items-center gap-3 p-2 rounded-lg ${l.player_key === currentKey ? 'bg-electric-blue/15' : 'hover:bg-white/5'} ${used ? 'opacity-40' : ''}`}>
+                {l.photo_url ? <img src={l.photo_url} className="w-9 h-9 rounded-full object-cover" alt="" />
+                  : <div className={`w-9 h-9 rounded-full bg-gradient-to-b ${POS_GRAD[bucket]} flex items-center justify-center text-white font-bold text-xs`}>{initials(l.name)}</div>}
+                <span className="flex-1 text-left text-text-primary text-sm font-medium">{l.name}</span>
+                {l.player_key === currentKey ? <Check size={16} className="text-electric-blue" /> : used ? <span className="text-[10px] text-text-disabled">in XI</span> : null}
+              </button>
+            );
+          })}
+          {list.length > 80 && <p className="text-center text-[11px] text-text-disabled py-2">+{list.length - 80} more — refine your search</p>}
+        </div>
       </div>
-      {currentKey && <button onClick={onClear} className="w-full text-left text-sm text-hot-red py-2 border-b border-white/5">Clear this spot</button>}
-      {legends.map(l => {
-        const used = usedKeys.has(l.id) && l.id !== currentKey;
-        return (
-          <button key={l.id} disabled={used} onClick={() => onPick(l)} className={`w-full flex items-center gap-3 p-2 rounded-lg ${l.id === currentKey ? 'bg-electric-blue/15' : 'hover:bg-white/5'} ${used ? 'opacity-40' : ''}`}>
-            {l.photo_url ? <img src={l.photo_url} className="w-9 h-9 rounded-full object-cover" alt="" />
-              : <div className={`w-9 h-9 rounded-full bg-gradient-to-b ${POS_GRAD[bucket]} flex items-center justify-center text-white font-bold text-xs`}>{initials(l.name)}</div>}
-            <span className="flex-1 text-left text-text-primary text-sm font-medium">{l.name}</span>
-            {l.id === currentKey ? <Check size={16} className="text-electric-blue" /> : used ? <span className="text-[10px] text-text-disabled">in XI</span> : null}
-          </button>
-        );
-      })}
     </div>
-  </div>
-);
+  );
+};
 
 // ── The Pulse: % of fans per player, grouped by position ────────────────────
 const PulseView: React.FC<{ agg: { participants: number; players: fp.AggPlayer[] } }> = ({ agg }) => {

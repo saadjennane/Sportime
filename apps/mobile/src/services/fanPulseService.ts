@@ -5,7 +5,7 @@ import { supabase } from './supabase';
 
 export interface Club { id: string; name: string; logo: string | null; }
 export type Bucket = 'GK' | 'DEF' | 'MID' | 'FWD';
-export interface Legend { id: string; name: string; position: Bucket; photo_url: string | null; }
+export interface Legend { id: string; player_key: string; name: string; position: Bucket; photo_url: string | null; }
 export interface PulsePick { player_key: string; name: string; photo: string | null; position: Bucket; is_starter: boolean; slot: number; }
 export interface AggPlayer { player_key: string; name: string; photo: string | null; position: Bucket; count: number; pct: number; }
 
@@ -33,7 +33,7 @@ export async function searchClubs(query: string): Promise<Club[]> {
 }
 
 export async function getLegends(teamId: string): Promise<Legend[]> {
-  const { data } = await supabase.from('fan_pulse_legends').select('id, name, position, photo_url')
+  const { data } = await supabase.from('fan_pulse_legends').select('id, player_key, name, position, photo_url')
     .eq('team_id', teamId).order('sort_order');
   return (data ?? []) as Legend[];
 }
