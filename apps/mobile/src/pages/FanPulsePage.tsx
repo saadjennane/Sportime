@@ -7,6 +7,8 @@ const POS_GRAD: Record<fp.Bucket, string> = { GK: 'from-amber-400 to-amber-600',
 const BUCKET_LABEL: Record<fp.Bucket, string> = { GK: 'Goalkeeper', DEF: 'Defender', MID: 'Midfielder', FWD: 'Forward' };
 const surname = (n: string) => (n || '').trim().split(' ').slice(-1)[0] || '';
 const initials = (n: string) => (n || '').trim().split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+// Accent-insensitive: "sua" should match "Suárez".
+const norm = (s: string) => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 // Formations (slot buckets). Slot order is arbitrary; rows are derived for rendering.
 const FORMATIONS: Record<string, fp.Bucket[]> = {
@@ -228,7 +230,7 @@ const SaveLine: React.FC<{ state: 'idle' | 'saving' | 'saved'; filled: number; d
 // ── Legend picker (searchable static) ───────────────────────────────────────
 const LegendPicker: React.FC<{ bucket: fp.Bucket; legends: fp.Legend[]; usedKeys: Set<string>; currentKey?: string; onClose: () => void; onPick: (l: fp.Legend) => void; onClear: () => void }> = ({ bucket, legends, usedKeys, currentKey, onClose, onPick, onClear }) => {
   const [q, setQ] = useState('');
-  const list = useMemo(() => { const f = q.trim().toLowerCase(); return f ? legends.filter(l => l.name.toLowerCase().includes(f)) : legends; }, [q, legends]);
+  const list = useMemo(() => { const f = norm(q.trim()); return f ? legends.filter(l => norm(l.name).includes(f)) : legends; }, [q, legends]);
   return (
     <Sheet title={bucket === 'GK' ? 'Pick a Goalkeeper' : 'Pick an outfield legend'} onClose={onClose}>
       <SearchBox q={q} setQ={setQ} placeholder={`Search ${legends.length} legends…`} />
