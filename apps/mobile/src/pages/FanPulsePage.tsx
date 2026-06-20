@@ -21,7 +21,7 @@ const rowsOf = (formation: fp.Bucket[]) =>
   (['FWD', 'MID', 'DEF', 'GK'] as fp.Bucket[]).map(b => ({ bucket: b, slots: formation.map((x, i) => x === b ? i : -1).filter(i => i >= 0) })).filter(r => r.slots.length);
 
 // ── Player token ────────────────────────────────────────────────────────────
-const Token: React.FC<{ name?: string; photo?: string | null; bucket: fp.Bucket; empty?: boolean; onTap?: () => void; buy?: boolean }> = ({ name, photo, bucket, empty, onTap, buy }) => {
+const Token: React.FC<{ name?: string; photo?: string | null; bucket: fp.Bucket; empty?: boolean; onTap?: () => void; buy?: boolean; badge?: string }> = ({ name, photo, bucket, empty, onTap, buy, badge }) => {
   const [err, setErr] = useState(false);
   return (
     <button onClick={onTap} className="flex flex-col items-center gap-0.5 w-[60px]">
@@ -36,6 +36,7 @@ const Token: React.FC<{ name?: string; photo?: string | null; bucket: fp.Bucket;
         {buy && <span className="absolute -top-1 -right-1 bg-warm-yellow text-deep-navy text-[8px] font-extrabold rounded-full w-4 h-4 flex items-center justify-center">€</span>}
       </div>
       <span className={`text-[10px] font-semibold text-center leading-tight truncate max-w-[60px] ${empty ? 'text-white/50' : 'text-white'}`}>{empty ? bucket : surname(name || '')}</span>
+      {badge && <span className="text-[10px] font-extrabold text-electric-blue leading-none">{badge}</span>}
     </button>
   );
 };
@@ -54,6 +55,27 @@ const Pitch: React.FC<{ formation: fp.Bucket[]; picks: (fp.PulsePick | null)[]; 
   </div>
 );
 
+// ── Consensus XI on a pitch (top player per slot, with %) ───────────────────
+const ConsensusXI: React.FC<{ agg: { participants: number; players: fp.AggPlayer[] }; squadIds?: Set<string> }> = ({ agg, squadIds }) => {
+  const counts: Record<fp.Bucket, number> = { GK: 1, DEF: 4, MID: 3, FWD: 3 };
+  const byB: Record<fp.Bucket, fp.AggPlayer[]> = { GK: [], DEF: [], MID: [], FWD: [] };
+  agg.players.forEach(p => byB[p.position]?.push(p));
+  (Object.keys(byB) as fp.Bucket[]).forEach(b => byB[b].sort((a, c) => c.pct - a.pct));
+  return (
+    <div className="rounded-2xl p-3 bg-gradient-to-b from-emerald-800/40 to-emerald-950/40 border border-emerald-500/20">
+      <div className="rounded-xl" style={{ background: 'repeating-linear-gradient(180deg,#0c4a3e22 0 28px,#0c4a3e11 28px 56px)' }}>
+        <div className="flex flex-col gap-3 py-4">
+          {(['FWD', 'MID', 'DEF', 'GK'] as fp.Bucket[]).map(b => (
+            <div key={b} className="flex justify-around items-center px-1">
+              {Array.from({ length: counts[b] }).map((_, i) => { const p = byB[b][i]; return <Token key={i} name={p?.name} photo={p?.photo} bucket={b} empty={!p} badge={p ? `${p.pct}%` : undefined} buy={p && squadIds ? !squadIds.has(p.player_key) : false} />; })}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── Aggregated pulse ────────────────────────────────────────────────────────
 const PulseView: React.FC<{ agg: { participants: number; players: fp.AggPlayer[] }; squadIds?: Set<string> }> = ({ agg, squadIds }) => {
   const order: fp.Bucket[] = ['GK', 'DEF', 'MID', 'FWD'];
@@ -62,6 +84,9 @@ const PulseView: React.FC<{ agg: { participants: number; players: fp.AggPlayer[]
   return (
     <div className="space-y-4">
       <p className="text-center text-sm text-text-secondary"><b className="text-text-primary">{agg.participants}</b> fan{agg.participants > 1 ? 's' : ''} voted</p>
+      <ConsensusXI agg={agg} squadIds={squadIds} />
+      <p className="text-center text-[11px] text-text-disabled font-semibold">⚡ The fans' consensus XI — % who picked each player</p>
+      <p className="text-xs font-bold text-text-secondary uppercase tracking-wider pt-1">Full ranking</p>
       {order.map(b => {
         const list = agg.players.filter(p => p.position === b).sort((a, c) => c.pct - a.pct);
         if (!list.length) return null;
@@ -234,7 +259,7 @@ const LegendPicker: React.FC<{ bucket: fp.Bucket; legends: fp.Legend[]; usedKeys
   return (
     <Sheet title={bucket === 'GK' ? 'Pick a Goalkeeper' : 'Pick an outfield legend'} onClose={onClose}>
       <SearchBox q={q} setQ={setQ} placeholder={`Search ${legends.length} legends…`} />
-      <div className="overflow-y-auto space-y-1 flex-1">
+      <div className="overflow-y-auto space-y-1 flex-1 min-h-0">
         {currentKey && <button onClick={onClear} className="w-full text-left text-sm text-hot-red py-2">Clear this spot</button>}
         {list.slice(0, 80).map(l => <Row key={l.id} name={l.name} photo={l.photo_url} bucket={bucket} current={l.player_key === currentKey} used={usedKeys.has(l.player_key) && l.player_key !== currentKey} onClick={() => onPick(l)} />)}
         {list.length > 80 && <p className="text-center text-[11px] text-text-disabled py-2">+{list.length - 80} more — refine your search</p>}
@@ -259,7 +284,7 @@ const SquadPicker: React.FC<{ bucket: fp.Bucket; defaults: fp.SquadPlayer[]; clu
     <Sheet title={`Pick a ${BUCKET_LABEL[bucket]}`} onClose={onClose}>
       <SearchBox q={q} setQ={setQ} placeholder={`${clubName} squad · or search any player to buy…`} />
       {busy && <div className="flex justify-center py-2"><Loader2 className="animate-spin text-electric-blue" size={18} /></div>}
-      <div className="overflow-y-auto space-y-1 flex-1">
+      <div className="overflow-y-auto space-y-1 flex-1 min-h-0">
         {currentKey && <button onClick={onClear} className="w-full text-left text-sm text-hot-red py-2">Clear this spot</button>}
         {q.trim().length < 2 && <p className="text-[11px] text-text-disabled px-1">Current squad — or type a name to sign anyone</p>}
         {list.slice(0, 60).map(p => <Row key={p.id} name={p.name} photo={p.photo} bucket={bucket} sub={p.club && p.club !== clubName ? `€ ${p.club}` : undefined} current={p.id === currentKey} used={usedKeys.has(p.id) && p.id !== currentKey} onClick={() => onPick(p)} />)}
