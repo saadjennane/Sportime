@@ -503,9 +503,9 @@ const ClubPicker: React.FC<{ onPick: (c: fp.Club) => void; onClose: () => void }
   const [q, setQ] = useState(''); const [results, setResults] = useState<fp.Club[]>([]); const [busy, setBusy] = useState(false);
   useEffect(() => { if (q.trim().length < 2) { setResults([]); return; } setBusy(true); const t = setTimeout(async () => { setResults(await fp.searchClubs(q.trim())); setBusy(false); }, 300); return () => clearTimeout(t); }, [q]);
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center px-3 pt-[max(1rem,env(safe-area-inset-top))]" onClick={onClose}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-      <div className="relative w-full max-w-md bg-deep-navy border border-white/10 rounded-t-3xl sm:rounded-3xl p-5 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="relative w-full max-w-md bg-deep-navy border border-white/10 rounded-3xl p-5 max-h-[60vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-bold text-text-primary">Pick your club</h2>
           <button onClick={onClose} className="text-text-secondary p-1"><X size={20} /></button>
