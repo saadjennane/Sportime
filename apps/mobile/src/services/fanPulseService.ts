@@ -38,8 +38,8 @@ export async function setFavoriteClub(userId: string, teamId: string) {
 }
 
 export async function searchClubs(query: string): Promise<Club[]> {
-  const { data } = await supabase.from('fb_teams').select('id, name, logo_url, logo')
-    .ilike('name', `%${query}%`).order('name').limit(25);
+  // Accent-insensitive RPC (so "munchen" matches "München", "atletico" → "Atlético").
+  const { data } = await supabase.rpc('fb_search_clubs', { p_q: query });
   return (data ?? []).map(toClub);
 }
 
@@ -119,16 +119,12 @@ export interface SellItem { player_key: string; name: string; photo: string | nu
 const FB_POS: Record<Bucket, string> = { GK: 'Goalkeeper', DEF: 'Defender', MID: 'Midfielder', FWD: 'Attacker' };
 const toBucket = (p: string): Bucket => p === 'Goalkeeper' ? 'GK' : p === 'Defender' ? 'DEF' : p === 'Attacker' ? 'FWD' : 'MID';
 
-/** Search any player (transfer targets) by name; optional position bucket filter (omit for bench). */
+/** Search any player (transfer targets) by name; optional position bucket filter (omit for bench).
+ *  Uses an accent-insensitive RPC so "alva"/"julian" match "Álvarez"/"Julián". */
 export async function searchPlayers(query: string, bucket?: Bucket): Promise<SquadPlayer[]> {
-  let q = supabase.from('fb_players')
-    .select('id, name, photo, photo_url, position, fb_player_team_association(fb_teams(name))')
-    .ilike('name', `%${query}%`).limit(40);
-  if (bucket) q = q.eq('position', FB_POS[bucket]);
-  const { data } = await q;
+  const { data } = await supabase.rpc('fb_search_players', { p_q: query, p_pos: bucket ? FB_POS[bucket] : null });
   return (data ?? []).map((p: any) => ({
-    id: p.id, name: p.name, photo: p.photo || p.photo_url || null, position: toBucket(p.position),
-    club: p.fb_player_team_association?.[0]?.fb_teams?.name ?? null,
+    id: p.id, name: p.name, photo: p.photo || p.photo_url || null, position: toBucket(p.position), club: p.club ?? null,
   }));
 }
 
