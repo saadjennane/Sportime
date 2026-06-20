@@ -10,15 +10,27 @@ const initials = (n: string) => (n || '').trim().split(' ').filter(Boolean).slic
 // Accent-insensitive: "sua" should match "Suárez".
 const norm = (s: string) => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-// Formations (slot buckets). Slot order is arbitrary; rows are derived for rendering.
-const FORMATIONS: Record<string, fp.Bucket[]> = {
-  '4-3-3': ['GK', 'DEF', 'DEF', 'DEF', 'DEF', 'MID', 'MID', 'MID', 'FWD', 'FWD', 'FWD'],
-  '4-4-2': ['GK', 'DEF', 'DEF', 'DEF', 'DEF', 'MID', 'MID', 'MID', 'MID', 'FWD', 'FWD'],
-  '3-5-2': ['GK', 'DEF', 'DEF', 'DEF', 'MID', 'MID', 'MID', 'MID', 'MID', 'FWD', 'FWD'],
-  '4-2-3-1': ['GK', 'DEF', 'DEF', 'DEF', 'DEF', 'MID', 'MID', 'MID', 'MID', 'MID', 'FWD'],
+// Formations as ordered rows (bottom GK → top attack). Keeps slot→bucket stable
+// while letting each shape render with its real rows — e.g. 4-2-3-1 = 4 DEF / 2 DM /
+// 3 AM / 1 FWD instead of collapsing every midfielder into a single line.
+type FRow = { bucket: fp.Bucket; slots: number[] };
+const FORMATION_DEF: Record<string, { bucket: fp.Bucket; n: number }[]> = {
+  '4-3-3':   [{ bucket: 'GK', n: 1 }, { bucket: 'DEF', n: 4 }, { bucket: 'MID', n: 3 }, { bucket: 'FWD', n: 3 }],
+  '4-4-2':   [{ bucket: 'GK', n: 1 }, { bucket: 'DEF', n: 4 }, { bucket: 'MID', n: 4 }, { bucket: 'FWD', n: 2 }],
+  '3-5-2':   [{ bucket: 'GK', n: 1 }, { bucket: 'DEF', n: 3 }, { bucket: 'MID', n: 5 }, { bucket: 'FWD', n: 2 }],
+  '4-2-3-1': [{ bucket: 'GK', n: 1 }, { bucket: 'DEF', n: 4 }, { bucket: 'MID', n: 2 }, { bucket: 'MID', n: 3 }, { bucket: 'FWD', n: 1 }],
 };
-const rowsOf = (formation: fp.Bucket[]) =>
-  (['FWD', 'MID', 'DEF', 'GK'] as fp.Bucket[]).map(b => ({ bucket: b, slots: formation.map((x, i) => x === b ? i : -1).filter(i => i >= 0) })).filter(r => r.slots.length);
+const buildFormation = (def: { bucket: fp.Bucket; n: number }[]) => {
+  const flat: fp.Bucket[] = []; const rows: FRow[] = []; let slot = 0;
+  for (const r of def) { const slots: number[] = []; for (let k = 0; k < r.n; k++) { flat.push(r.bucket); slots.push(slot++); } rows.push({ bucket: r.bucket, slots }); }
+  return { flat, rows };
+};
+const BUILT: Record<string, { flat: fp.Bucket[]; rows: FRow[] }> =
+  Object.fromEntries(Object.entries(FORMATION_DEF).map(([k, v]) => [k, buildFormation(v)]));
+const FORMATIONS: Record<string, fp.Bucket[]> =
+  Object.fromEntries(Object.entries(BUILT).map(([k, v]) => [k, v.flat]));
+// Rows for rendering, top (attack) → bottom (GK).
+const renderRows = (fname: string): FRow[] => [...(BUILT[fname] ?? BUILT['4-3-3']).rows].reverse();
 
 // ── Player token ────────────────────────────────────────────────────────────
 const Token: React.FC<{ name?: string; photo?: string | null; bucket: fp.Bucket; empty?: boolean; onTap?: () => void; buy?: boolean; badge?: string }> = ({ name, photo, bucket, empty, onTap, buy, badge }) => {
@@ -41,53 +53,60 @@ const Token: React.FC<{ name?: string; photo?: string | null; bucket: fp.Bucket;
   );
 };
 
-const Pitch: React.FC<{ formation: fp.Bucket[]; picks: (fp.PulsePick | null)[]; onSlot?: (i: number) => void; isBuy?: (key: string) => boolean }> = ({ formation, picks, onSlot, isBuy }) => (
+// Shared pitch chrome — a taller field that shows the formation's real rows.
+const PitchField: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="rounded-2xl p-3 bg-gradient-to-b from-emerald-800/40 to-emerald-950/40 border border-emerald-500/20">
-    <div className="rounded-xl" style={{ background: 'repeating-linear-gradient(180deg,#0c4a3e22 0 28px,#0c4a3e11 28px 56px)' }}>
-      <div className="flex flex-col gap-3 py-4">
-        {rowsOf(formation).map(row => (
-          <div key={row.bucket} className="flex justify-around items-center px-1">
-            {row.slots.map(i => { const p = picks[i]; return <Token key={i} name={p?.name} photo={p?.photo} bucket={formation[i]} empty={!p} onTap={onSlot ? () => onSlot(i) : undefined} buy={p && isBuy ? isBuy(p.player_key) : false} />; })}
-          </div>
-        ))}
-      </div>
+    <div className="rounded-xl relative overflow-hidden" style={{ background: 'repeating-linear-gradient(180deg,#0c4a3e26 0 38px,#0c4a3e12 38px 76px)' }}>
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full border border-white/10" />
+      <div className="absolute inset-x-6 top-0 h-10 border-x border-b border-white/10 rounded-b-lg" />
+      <div className="relative flex flex-col gap-6 py-7">{children}</div>
     </div>
   </div>
 );
 
+const Pitch: React.FC<{ fname: string; picks: (fp.PulsePick | null)[]; onSlot?: (i: number) => void; isBuy?: (key: string) => boolean }> = ({ fname, picks, onSlot, isBuy }) => {
+  const formation = FORMATIONS[fname] ?? FORMATIONS['4-3-3'];
+  return (
+    <PitchField>
+      {renderRows(fname).map((row, ri) => (
+        <div key={ri} className="flex justify-around items-center px-1">
+          {row.slots.map(i => { const p = picks[i]; return <Token key={i} name={p?.name} photo={p?.photo} bucket={formation[i]} empty={!p} onTap={onSlot ? () => onSlot(i) : undefined} buy={p && isBuy ? isBuy(p.player_key) : false} />; })}
+        </div>
+      ))}
+    </PitchField>
+  );
+};
+
 // ── Consensus XI on a pitch — the fan-favourite player per *slot*, so the layout
 // stays coherent with how fans picked (and mirrors a single voter exactly). Falls
 // back to filling each row by pick % when a slot has no data (legacy entries).
-const ConsensusXI: React.FC<{ agg: fp.Aggregate; formation: fp.Bucket[]; squadIds?: Set<string> }> = ({ agg, formation, squadIds }) => {
+const ConsensusXI: React.FC<{ agg: fp.Aggregate; fname: string; squadIds?: Set<string> }> = ({ agg, fname, squadIds }) => {
+  const formation = FORMATIONS[fname] ?? FORMATIONS['4-3-3'];
   const bySlot = new Map<number, fp.AggSlot>(agg.slots.map(s => [s.slot, s]));
   const placed = new Set(agg.slots.map(s => s.player_key));
   const leftover: Record<fp.Bucket, fp.AggPlayer[]> = { GK: [], DEF: [], MID: [], FWD: [] };
   agg.players.filter(p => !placed.has(p.player_key)).forEach(p => leftover[p.position]?.push(p));
   (Object.keys(leftover) as fp.Bucket[]).forEach(b => leftover[b].sort((a, c) => c.pct - a.pct));
   return (
-    <div className="rounded-2xl p-3 bg-gradient-to-b from-emerald-800/40 to-emerald-950/40 border border-emerald-500/20">
-      <div className="rounded-xl" style={{ background: 'repeating-linear-gradient(180deg,#0c4a3e22 0 28px,#0c4a3e11 28px 56px)' }}>
-        <div className="flex flex-col gap-3 py-4">
-          {rowsOf(formation).map(row => (
-            <div key={row.bucket} className="flex justify-around items-center px-1">
-              {row.slots.map(i => { const p = bySlot.get(i) ?? leftover[formation[i]].shift(); return <Token key={i} name={p?.name} photo={p?.photo} bucket={formation[i]} empty={!p} badge={p ? `${p.pct}%` : undefined} buy={p && squadIds ? !squadIds.has(p.player_key) : false} />; })}
-            </div>
-          ))}
+    <PitchField>
+      {renderRows(fname).map((row, ri) => (
+        <div key={ri} className="flex justify-around items-center px-1">
+          {row.slots.map(i => { const p = bySlot.get(i) ?? leftover[formation[i]].shift(); return <Token key={i} name={p?.name} photo={p?.photo} bucket={formation[i]} empty={!p} badge={p ? `${p.pct}%` : undefined} buy={p && squadIds ? !squadIds.has(p.player_key) : false} />; })}
         </div>
-      </div>
-    </div>
+      ))}
+    </PitchField>
   );
 };
 
 // ── Aggregated pulse ────────────────────────────────────────────────────────
-const PulseView: React.FC<{ agg: fp.Aggregate; formation: fp.Bucket[]; squadIds?: Set<string> }> = ({ agg, formation, squadIds }) => {
+const PulseView: React.FC<{ agg: fp.Aggregate; fname: string; squadIds?: Set<string> }> = ({ agg, fname, squadIds }) => {
   const order: fp.Bucket[] = ['GK', 'DEF', 'MID', 'FWD'];
   const topN: Record<fp.Bucket, number> = { GK: 1, DEF: 4, MID: 3, FWD: 3 };
   if (agg.participants === 0) return <div className="card-base p-8 text-center"><div className="text-4xl mb-2">📊</div><p className="text-text-secondary">No fan has voted yet. Be the first — build your XI!</p></div>;
   return (
     <div className="space-y-4">
       <p className="text-center text-sm text-text-secondary"><b className="text-text-primary">{agg.participants}</b> fan{agg.participants > 1 ? 's' : ''} voted</p>
-      <ConsensusXI agg={agg} formation={formation} squadIds={squadIds} />
+      <ConsensusXI agg={agg} fname={fname} squadIds={squadIds} />
       <p className="text-center text-[11px] text-text-disabled font-semibold">⚡ The fans' consensus XI — % who picked each player</p>
       <p className="text-xs font-bold text-text-secondary uppercase tracking-wider pt-1">Full ranking</p>
       {order.map(b => {
@@ -177,10 +196,10 @@ const LegendsBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, use
       <Tabs tab={tab} setTab={setTab} />
       {tab === 'mine' ? (
         <>
-          <Pitch formation={formation} picks={picks} onSlot={setPickFor} />
+          <Pitch fname="4-3-3" picks={picks} onSlot={setPickFor} />
           <SaveLine state={saveState} filled={filled} done="✓ Your all-time XI is saved — see The Pulse" />
         </>
-      ) : <PulseView agg={agg} formation={formation} />}
+      ) : <PulseView agg={agg} fname={fname} />}
       {pickFor !== null && (
         <LegendPicker bucket={formation[pickFor]} legends={formation[pickFor] === 'GK' ? legends.filter(l => l.position === 'GK') : legends.filter(l => l.position !== 'GK')} usedKeys={usedKeys} currentKey={picks[pickFor]?.player_key} onClose={() => setPickFor(null)} onPick={l => assign(pickFor, l)} onClear={() => assign(pickFor, null)} />
       )}
@@ -261,7 +280,7 @@ const DreamBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, userI
           <div className="flex gap-1.5 overflow-x-auto pb-1">
             {Object.keys(FORMATIONS).map(f => <button key={f} onClick={() => changeFormation(f)} className={`px-3 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap ${fname === f ? 'bg-electric-blue text-white' : 'bg-navy-accent text-text-secondary'}`}>{f}</button>)}
           </div>
-          <Pitch formation={formation} picks={starters} onSlot={i => setPickFor(i)} isBuy={k => !squadIds.has(k)} />
+          <Pitch fname={fname} picks={starters} onSlot={i => setPickFor(i)} isBuy={k => !squadIds.has(k)} />
 
           <div>
             <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Bench · {bench.length}/14</p>
@@ -272,16 +291,23 @@ const DreamBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, userI
                   <span className="absolute -top-0.5 right-1 bg-hot-red text-white rounded-full w-4 h-4 text-[9px] flex items-center justify-center font-bold">×</span>
                 </button>
               ))}
-              {bench.length < 14 && <button onClick={() => setPickFor('bench')}><Token bucket="MID" empty /></button>}
+              {bench.length < 14 && (
+                <button onClick={() => setPickFor('bench')} className="flex flex-col items-center gap-0.5 w-[60px]">
+                  <div className="w-12 h-12 rounded-full border-2 border-dashed border-white/40 bg-deep-navy/60 flex items-center justify-center text-white/50 text-xl font-bold">+</div>
+                  <span className="text-[10px] font-semibold text-white/50">Add</span>
+                </button>
+              )}
             </div>
           </div>
 
           <div>
             <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Players to sell <span className="text-text-disabled normal-case lowercase">· tap to flag</span></p>
-            <div className="flex flex-wrap gap-1.5">
-              {squad.length === 0 ? <span className="text-xs text-text-disabled">Current squad not seeded for this club.</span>
-                : squad.map(s => <button key={s.id} onClick={() => toggleSell(s)} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border ${sellIds.has(s.id) ? 'border-hot-red bg-hot-red/15 text-hot-red line-through' : 'border-white/10 text-text-secondary'}`}>{surname(s.name)}</button>)}
-            </div>
+            {squad.length === 0 ? <span className="text-xs text-text-disabled">Current squad not seeded for this club.</span>
+              : (
+                <div className="grid grid-cols-2 gap-1.5">
+                  {squad.map(s => <button key={s.id} onClick={() => toggleSell(s)} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border text-left truncate ${sellIds.has(s.id) ? 'border-hot-red bg-hot-red/15 text-hot-red line-through' : 'border-white/10 text-text-secondary'}`}>{s.name}</button>)}
+                </div>
+              )}
           </div>
 
           <p className="text-center text-[11px] text-warm-yellow h-4">{buys > 0 ? `€ ${buys} signing${buys > 1 ? 's' : ''} from outside` : ''}</p>
@@ -289,7 +315,7 @@ const DreamBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, userI
         </>
       ) : (
         <div className="space-y-4">
-          <PulseView agg={agg} formation={formation} squadIds={squadIds} />
+          <PulseView agg={agg} fname={fname} squadIds={squadIds} />
           {sellAgg.players.length > 0 && (
             <div>
               <p className="text-xs font-bold text-hot-red uppercase tracking-wider mb-1.5">Fans want to sell</p>
@@ -351,10 +377,10 @@ const MatchXI: React.FC<{ club: fp.Club; userId: string; fixture: fp.MatchFixtur
       <Tabs tab={tab} setTab={setTab} />
       {tab === 'mine' ? (
         <>
-          <Pitch formation={formation} picks={picks} onSlot={setPickFor} />
+          <Pitch fname="4-3-3" picks={picks} onSlot={setPickFor} />
           <SaveLine state={saveState} filled={filled} done="✓ Your matchday XI is saved — see The Pulse" />
         </>
-      ) : <PulseView agg={agg} formation={formation} />}
+      ) : <PulseView agg={agg} fname={fname} />}
       {pickFor !== null && (
         <LegendPicker title={`Pick a ${BUCKET_LABEL[formation[pickFor]]}`} bucket={formation[pickFor]} legends={pool.filter(l => l.position === formation[pickFor])} usedKeys={usedKeys} currentKey={picks[pickFor]?.player_key} onClose={() => setPickFor(null)} onPick={l => assign(pickFor, l)} onClear={() => assign(pickFor, null)} />
       )}
