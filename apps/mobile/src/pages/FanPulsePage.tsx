@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Search, X, Check, Star, BarChart3, Users as UsersIcon, ArrowLeft, ShoppingCart, Crown, Sparkles } from 'lucide-react';
+import { Loader2, Search, X, Check, Star, BarChart3, Users as UsersIcon, ArrowLeft, ShoppingCart, Crown, Sparkles, Share2 } from 'lucide-react';
 import { Profile } from '../types';
 import * as fp from '../services/fanPulseService';
 
@@ -31,6 +31,22 @@ const FORMATIONS: Record<string, fp.Bucket[]> =
   Object.fromEntries(Object.entries(BUILT).map(([k, v]) => [k, v.flat]));
 // Rows for rendering, top (attack) → bottom (GK).
 const renderRows = (fname: string): FRow[] => [...(BUILT[fname] ?? BUILT['4-3-3']).rows].reverse();
+
+// Format the XI as shareable text, e.g. "GK: Valdés / DEF: Abidal, Piqué, …".
+const lineupText = (clubName: string, fname: string, picks: (fp.PulsePick | null)[], label: string): string => {
+  const formation = FORMATIONS[fname] ?? FORMATIONS['4-3-3'];
+  const lines = (['GK', 'DEF', 'MID', 'FWD'] as fp.Bucket[]).map(b => {
+    const ns = formation.map((bk, i) => bk === b ? picks[i] : null).filter(Boolean).map(p => surname((p as fp.PulsePick).name));
+    return ns.length ? `${b}: ${ns.join(', ')}` : null;
+  }).filter(Boolean);
+  return `${clubName} — ${label} (${fname})\n${lines.join('\n')}\n\nBuilt on Sportime · Fan Pulse`;
+};
+
+// Native share sheet (iOS WKWebView supports the Web Share API); clipboard fallback.
+const shareLineup = async (text: string) => {
+  try { if ((navigator as any).share) { await (navigator as any).share({ title: 'My Fan Pulse XI', text }); return; } } catch { return; /* user cancelled */ }
+  try { await navigator.clipboard.writeText(text); } catch { /* noop */ }
+};
 
 // ── Player token ────────────────────────────────────────────────────────────
 const Token: React.FC<{ name?: string; photo?: string | null; bucket: fp.Bucket; empty?: boolean; onTap?: () => void; buy?: boolean; badge?: string }> = ({ name, photo, bucket, empty, onTap, buy, badge }) => {
@@ -77,22 +93,33 @@ const PitchMarkings: React.FC = () => (
   </svg>
 );
 
-const PitchField: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+const PitchField: React.FC<{ children: React.ReactNode; onShare?: () => void }> = ({ children, onShare }) => (
   <div className="relative rounded-2xl overflow-hidden border border-neon-cyan/20 bg-[#0c1828]">
-    {/* charcoal mowing stripes */}
-    <div className="absolute inset-0" style={{ background: 'repeating-linear-gradient(180deg,#13243a 0 calc(12.5% - 0px),#0f1d30 12.5% 25%)' }} />
-    {/* subtle top glow + crisp line markings */}
-    <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(120% 60% at 50% 0%, rgba(34,211,238,0.08), transparent 55%)' }} />
-    <PitchMarkings />
+    {/* field layer — stripes + markings + watermark tilted together for a subtle,
+        coherent perspective (the goal recedes); tokens stay upright above it */}
+    <div className="absolute inset-0" style={{ perspective: '1100px' }}>
+      <div className="absolute -inset-x-5 -top-3 bottom-0" style={{ transformOrigin: 'center 90%', transform: 'rotateX(13deg)' }}>
+        <div className="absolute inset-0" style={{ background: 'repeating-linear-gradient(180deg,#13243a 0 12.5%,#0f1d30 12.5% 25%)' }} />
+        <PitchMarkings />
+        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(120% 60% at 50% 0%, rgba(34,211,238,0.08), transparent 55%)' }} />
+        <span className="absolute left-1 top-1/2 -translate-y-1/2 text-white/[0.05] font-extrabold tracking-[0.25em] text-base select-none pointer-events-none" style={{ writingMode: 'vertical-rl' }}>SPORTIME</span>
+        <span className="absolute right-1 top-1/2 text-white/[0.05] font-extrabold tracking-[0.25em] text-base select-none pointer-events-none" style={{ writingMode: 'vertical-rl', transform: 'translateY(-50%) rotate(180deg)' }}>SPORTIME</span>
+      </div>
+    </div>
+    {onShare && (
+      <button onClick={onShare} aria-label="Share XI" className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-deep-navy/85 border border-neon-cyan/30 flex items-center justify-center text-neon-cyan active:scale-95">
+        <Share2 size={15} />
+      </button>
+    )}
     {/* upright tokens */}
     <div className="relative flex flex-col gap-7 py-8 px-2">{children}</div>
   </div>
 );
 
-const Pitch: React.FC<{ fname: string; picks: (fp.PulsePick | null)[]; onSlot?: (i: number) => void; isBuy?: (key: string) => boolean }> = ({ fname, picks, onSlot, isBuy }) => {
+const Pitch: React.FC<{ fname: string; picks: (fp.PulsePick | null)[]; onSlot?: (i: number) => void; isBuy?: (key: string) => boolean; onShare?: () => void }> = ({ fname, picks, onSlot, isBuy, onShare }) => {
   const formation = FORMATIONS[fname] ?? FORMATIONS['4-3-3'];
   return (
-    <PitchField>
+    <PitchField onShare={onShare}>
       {renderRows(fname).map((row, ri) => (
         <div key={ri} className="flex justify-around items-center px-1">
           {row.slots.map(i => { const p = picks[i]; return <Token key={i} name={p?.name} photo={p?.photo} bucket={formation[i]} empty={!p} onTap={onSlot ? () => onSlot(i) : undefined} buy={p && isBuy ? isBuy(p.player_key) : false} />; })}
@@ -221,7 +248,7 @@ const LegendsBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, use
       <Tabs tab={tab} setTab={setTab} />
       {tab === 'mine' ? (
         <>
-          <Pitch fname="4-3-3" picks={picks} onSlot={setPickFor} />
+          <Pitch fname="4-3-3" picks={picks} onSlot={setPickFor} onShare={() => shareLineup(lineupText(club.name, '4-3-3', picks, 'All-time Legends XI'))} />
           <SaveLine state={saveState} filled={filled} done="✓ Your all-time XI is saved — see The Pulse" />
         </>
       ) : <PulseView agg={agg} fname={fname} />}
@@ -305,7 +332,7 @@ const DreamBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, userI
           <div className="flex gap-1.5 overflow-x-auto pb-1">
             {Object.keys(FORMATIONS).map(f => <button key={f} onClick={() => changeFormation(f)} className={`px-3 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap ${fname === f ? 'bg-electric-blue text-white' : 'bg-navy-accent text-text-secondary'}`}>{f}</button>)}
           </div>
-          <Pitch fname={fname} picks={starters} onSlot={i => setPickFor(i)} isBuy={k => !squadIds.has(k)} />
+          <Pitch fname={fname} picks={starters} onSlot={i => setPickFor(i)} isBuy={k => !squadIds.has(k)} onShare={() => shareLineup(lineupText(club.name, fname, starters, 'Dream XI · next season'))} />
 
           <div>
             <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Bench · {bench.length}/14</p>
@@ -402,7 +429,7 @@ const MatchXI: React.FC<{ club: fp.Club; userId: string; fixture: fp.MatchFixtur
       <Tabs tab={tab} setTab={setTab} />
       {tab === 'mine' ? (
         <>
-          <Pitch fname="4-3-3" picks={picks} onSlot={setPickFor} />
+          <Pitch fname="4-3-3" picks={picks} onSlot={setPickFor} onShare={() => shareLineup(lineupText(club.name, '4-3-3', picks, 'Matchday XI'))} />
           <SaveLine state={saveState} filled={filled} done="✓ Your matchday XI is saved — see The Pulse" />
         </>
       ) : <PulseView agg={agg} fname={fname} />}
