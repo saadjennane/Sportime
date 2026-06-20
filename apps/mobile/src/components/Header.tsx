@@ -1,5 +1,5 @@
 import React from 'react';
-import { Coins, LogIn, Ticket, Bell, Plus, Star } from 'lucide-react';
+import { Coins, LogIn, Ticket, Bell, Plus, Star, Disc3 } from 'lucide-react';
 import { Profile } from '../types';
 import { DisplayName } from './shared/DisplayName';
 
@@ -14,9 +14,11 @@ interface HeaderProps {
   onViewNotifications: () => void;
   onGoToShop: () => void;
   onOpenPremiumModal: () => void;
+  freeSpinReady?: boolean;
+  onOpenSpin?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ profile, coinBalance, ticketCount, notificationCount, onViewProfile, onSignIn, onViewTickets, onViewNotifications, onGoToShop, onOpenPremiumModal }) => {
+export const Header: React.FC<HeaderProps> = ({ profile, coinBalance, ticketCount, notificationCount, onViewProfile, onSignIn, onViewTickets, onViewNotifications, onGoToShop, onOpenPremiumModal, freeSpinReady, onOpenSpin }) => {
   const isGuest = !profile || profile.is_guest;
 
   return (
@@ -66,8 +68,20 @@ export const Header: React.FC<HeaderProps> = ({ profile, coinBalance, ticketCoun
               <span className="font-bold text-text-primary text-sm">{ticketCount}</span>
             </button>
             
+            {/* Daily spin */}
+            {onOpenSpin && (
+              <button
+                onClick={onOpenSpin}
+                className="relative w-10 h-10 bg-navy-accent/70 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm border border-neon-cyan/20"
+                aria-label="Daily spin" title={freeSpinReady ? 'Free spin ready!' : 'Spin wheel'}
+              >
+                <Disc3 className={`w-5 h-5 ${freeSpinReady ? 'text-warm-yellow' : 'text-text-secondary'}`} />
+                {freeSpinReady && <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-lime-glow rounded-full border-2 border-deep-navy animate-pulse" />}
+              </button>
+            )}
+
             {/* Notifications */}
-            <button 
+            <button
               onClick={onViewNotifications}
               className="relative w-10 h-10 bg-navy-accent/70 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm border border-neon-cyan/20"
             >

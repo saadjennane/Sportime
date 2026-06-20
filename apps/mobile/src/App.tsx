@@ -339,6 +339,8 @@ function App() {
   );
 
   const { initializeUserSpinState } = useSpinStore();
+  const headerSpinState = useSpinStore(state => profile ? state.userSpinStates[profile.id] : null);
+  const freeSpinReady = !!profile && !isGuest && (!headerSpinState?.lastFreeSpinAt || Date.now() - new Date(headerSpinState.lastFreeSpinAt).getTime() >= 24 * 3600 * 1000);
 
   const [levelsConfig, setLevelsConfig] = useState<LevelConfig[]>([]);
   const [badges, setBadges] = useState<Badge[]>([]);
@@ -1746,6 +1748,8 @@ function App() {
           onViewNotifications={() => setIsNotificationCenterOpen(true)}
           onGoToShop={() => setIsCoinShopModalOpen(true)}
           onOpenPremiumModal={() => setIsPremiumModalOpen(true)}
+          freeSpinReady={freeSpinReady}
+          onOpenSpin={() => handleOpenSpinWheel('free')}
         />
       </div>
 
