@@ -62,6 +62,13 @@ export async function getSuggestedClubs(): Promise<Club[]> {
   return out;
 }
 
+/** Seed a club's all-time legends on demand (Wikidata). Returns how many were added. */
+export async function seedLegends(teamId: string, teamName: string): Promise<number> {
+  legendsCache.delete(teamId);
+  const { data } = await supabase.functions.invoke('seed-legends', { body: { team_id: teamId, team_name: teamName } });
+  return (data as any)?.count ?? 0;
+}
+
 export async function getLegends(teamId: string): Promise<Legend[]> {
   const cached = legendsCache.get(teamId);
   if (cached) return cached;

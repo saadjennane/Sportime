@@ -240,6 +240,7 @@ const usePulseEntry = (userId: string | null, scope: 'legends' | 'dream', teamId
 const LegendsBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, userId }) => {
   const [legends, setLegends] = useState<fp.Legend[]>([]);
   const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
   const [tab, setTab] = useState<'mine' | 'pulse'>('mine');
   const [agg, setAgg] = useState<fp.Aggregate>({ participants: 0, players: [], slots: [], coach: null });
   const [pickFor, setPickFor] = useState<number | null>(null);
@@ -248,7 +249,21 @@ const LegendsBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, use
   const [coachPick, setCoachPick] = useState(false);
   const formation = FORMATIONS['4-3-3'];
 
-  useEffect(() => { fp.getLegends(club.id).then(l => { setLegends(l); setLoading(false); }); fp.getCoaches(club.id).then(setCoaches); }, [club.id]);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true); setSeeding(false);
+    fp.getLegends(club.id).then(async l => {
+      if (l.length) { if (!cancelled) { setLegends(l); setLoading(false); } return; }
+      // No legends yet for this club → seed them on the fly.
+      if (cancelled) return;
+      setSeeding(true);
+      await fp.seedLegends(club.id, club.name);
+      const fresh = await fp.getLegends(club.id);
+      if (!cancelled) { setLegends(fresh); setSeeding(false); setLoading(false); }
+    });
+    fp.getCoaches(club.id).then(setCoaches);
+    return () => { cancelled = true; };
+  }, [club.id]);
   useEffect(() => { if (tab === 'pulse') fp.getAggregate('legends', club.id).then(setAgg); }, [tab, club.id]);
   const usedKeys = useMemo(() => new Set(picks.filter(Boolean).map(p => (p as fp.PulsePick).player_key)), [picks]);
 
@@ -256,8 +271,16 @@ const LegendsBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, use
     setPicks(prev => { const next = [...prev]; if (l) { for (let i = 0; i < next.length; i++) if (next[i]?.player_key === l.player_key) next[i] = null; next[slot] = { player_key: l.player_key, name: l.name, photo: l.photo_url, position: formation[slot], is_starter: true, slot }; } else next[slot] = null; return next; });
     setPickFor(null);
   };
+  if (seeding) return (
+    <div className="card-base p-8 text-center">
+      {club.logo ? <img src={club.logo} className="w-12 h-12 object-contain mx-auto mb-3" alt="" /> : <div className="text-5xl mb-3">🏟️</div>}
+      <Loader2 className="animate-spin text-electric-blue mx-auto mb-3" size={26} />
+      <p className="text-text-primary font-bold">Setting up your team…</p>
+      <p className="text-text-secondary text-sm mt-1">Gathering {club.name}'s all-time legends.</p>
+    </div>
+  );
   if (loading) return <div className="flex justify-center py-16"><Loader2 className="animate-spin text-electric-blue" size={28} /></div>;
-  if (!legends.length) return <div className="card-base p-8 text-center"><div className="text-5xl mb-3">🏟️</div><p className="text-text-secondary font-medium">Legends coming soon for {club.name}</p></div>;
+  if (!legends.length) return <div className="card-base p-8 text-center"><div className="text-5xl mb-3">🏟️</div><p className="text-text-secondary font-medium">No all-time legends found for {club.name} yet.</p></div>;
   const filled = picks.filter(Boolean).length;
   return (
     <div className="space-y-3">
