@@ -61,7 +61,6 @@ export const TournamentQuestPage: React.FC<Props> = ({ competitionId, userId, on
       if (!lt?.champion_team_id) p.picks++;
       if (!lt?.finalist_team_id) p.picks++;
       if (!lt?.top_scorer_player_id) p.picks++;
-      if (lt?.total_goals_prediction == null) p.picks++;
     }
     if (isPhaseOpen(comp, 'group')) {
       for (const g of comp.groups) {
@@ -179,7 +178,6 @@ const PicksSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; allTe
   const [champion, setChampion] = useState<string | null>(entry?.longTerm?.champion_team_id ?? null);
   const [finalist, setFinalist] = useState<string | null>(entry?.longTerm?.finalist_team_id ?? null);
   const [scorer, setScorer] = useState<string | null>(entry?.longTerm?.top_scorer_player_id ?? null);
-  const [goals, setGoals] = useState<string>(entry?.longTerm?.total_goals_prediction?.toString() ?? '');
   const [picking, setPicking] = useState<null | 'champion' | 'finalist'>(null);
   const [pickScorer, setPickScorer] = useState(false);
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -193,12 +191,12 @@ const PicksSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; allTe
     if (!open) return;
     setStatus('saving');
     const t = setTimeout(async () => {
-      const { error } = await saveLongTerm(comp.id, champion, finalist, goals ? parseInt(goals) : null, scorer);
+      const { error } = await saveLongTerm(comp.id, champion, finalist, null, scorer);
       if (error) { setStatus('idle'); flash(error.message); }
-      else { setStatus('saved'); onPredicted({ champion_team_id: champion, finalist_team_id: finalist, top_scorer_player_id: scorer, total_goals_prediction: goals ? parseInt(goals) : null }); }
+      else { setStatus('saved'); onPredicted({ champion_team_id: champion, finalist_team_id: finalist, top_scorer_player_id: scorer }); }
     }, 600);
     return () => clearTimeout(t);
-  }, [champion, finalist, scorer, goals]);
+  }, [champion, finalist, scorer]);
 
   return (
     <div className="space-y-3">
@@ -215,12 +213,6 @@ const PicksSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; allTe
         value={scorerById(scorer) && <span className="text-text-primary text-sm">{scorerById(scorer)!.name}</span>}
         points={`Exact ${s.top_scorer_exact ?? 100} · Top 3 ${s.top_scorer_top3 ?? 40} · Top 10 ${s.top_scorer_top10 ?? 15}`}
         disabled={!open || comp.players.length === 0} onClick={() => setPickScorer(true)} />
-      <div className="bg-navy-accent rounded-xl p-4">
-        <label className="text-sm text-text-secondary">Total goals in the tournament <span className="text-text-disabled">(tie-break)</span></label>
-        <input type="number" inputMode="numeric" value={goals} disabled={!open} onChange={e => setGoals(e.target.value)}
-          placeholder="e.g. 140" className="w-full mt-2 bg-deep-navy border border-white/10 rounded-lg px-3 py-2 text-text-primary disabled:opacity-50" />
-        <p className="text-[11px] text-text-disabled mt-1.5">Closest guess wins ties between equal scores.</p>
-      </div>
       {open && (
         <p className="text-center text-xs h-4">
           {status === 'saving' ? <span className="text-text-disabled">Saving…</span>
@@ -326,7 +318,8 @@ const DailySection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onPre
   };
   // Daily = only TODAY's matches to predict; results below stay visible.
   const upcoming = comp.officialMatches.filter(m => isPredictable(m) && isToday(m));
-  const past = comp.officialMatches.filter(m => !isPredictable(m));
+  const past = comp.officialMatches.filter(m => !isPredictable(m))
+    .sort((a, b) => new Date(b.start_time ?? 0).getTime() - new Date(a.start_time ?? 0).getTime()); // most recent first
   const pickOf = (id: string) => entry?.dailyPicks.find(p => p.match_id === id) ?? null;
 
   if (comp.officialMatches.length === 0) return (
