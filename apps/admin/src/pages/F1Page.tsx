@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Flag } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { F1OddsAdmin } from '../components/F1OddsAdmin';
 
 interface F1Market {
   key: string;
@@ -18,7 +19,7 @@ const TYPE_LABEL: Record<string, string> = {
   yesno_single: 'Yes/No',
 };
 
-export function F1Page() {
+function MarketsTab() {
   const [markets, setMarkets] = useState<F1Market[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -47,16 +48,11 @@ export function F1Page() {
   const visibleCount = markets.filter((m) => m.is_visible).length;
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
-          <Flag className="w-7 h-7 text-electric-blue" /> F1 Markets
-        </h1>
-        <p className="text-text-secondary">
-          Toggle which betting markets appear in the mobile app for Grands Prix.{' '}
-          {!loading && <span className="font-semibold">{visibleCount}/{markets.length} visible.</span>}
-        </p>
-      </div>
+    <div>
+      <p className="text-text-secondary mb-5">
+        Toggle which betting markets appear in the mobile app for Grands Prix.{' '}
+        {!loading && <span className="font-semibold">{visibleCount}/{markets.length} visible.</span>}
+      </p>
 
       {error && <div className="mb-4 p-3 rounded-lg bg-hot-red/10 text-hot-red text-sm">{error}</div>}
 
@@ -94,6 +90,32 @@ export function F1Page() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+export function F1Page() {
+  const [tab, setTab] = useState<'markets' | 'odds'>('markets');
+  const TabBtn = ({ id, label }: { id: 'markets' | 'odds'; label: string }) => (
+    <button
+      onClick={() => setTab(id)}
+      className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+        tab === id ? 'bg-electric-blue text-white' : 'bg-surface border border-border-subtle text-text-secondary'
+      }`}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div className="p-6 max-w-3xl mx-auto">
+      <h1 className="text-3xl font-bold mb-5 flex items-center gap-2">
+        <Flag className="w-7 h-7 text-electric-blue" /> Formula 1
+      </h1>
+      <div className="flex gap-2 mb-6">
+        <TabBtn id="markets" label="Markets" />
+        <TabBtn id="odds" label="Odds" />
+      </div>
+      {tab === 'markets' ? <MarketsTab /> : <F1OddsAdmin />}
     </div>
   );
 }
