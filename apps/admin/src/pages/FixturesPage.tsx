@@ -34,6 +34,8 @@ export function FixturesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [leagueFilter, setLeagueFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState(() => { const d = new Date(); d.setDate(d.getDate() - 14); return d.toISOString().slice(0, 10); });
+  const [dateTo, setDateTo] = useState('');
   const [leagues, setLeagues] = useState<LeagueWithTeamCount[]>([]);
   const [syncStatus, setSyncStatus] = useState({
     total_fixtures: 0,
@@ -48,14 +50,19 @@ export function FixturesPage() {
   const [isImportSectionCollapsed, setIsImportSectionCollapsed] = useState(false);
 
   useEffect(() => {
-    loadFixtures();
     loadSyncStatus();
     loadLeagues();
   }, []);
 
+  // Date range + league are filtered server-side (re-query); search + status are client-side.
+  useEffect(() => {
+    loadFixtures();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateFrom, dateTo, leagueFilter]);
+
   useEffect(() => {
     filterFixtures();
-  }, [searchQuery, statusFilter, leagueFilter, fixtures]);
+  }, [searchQuery, statusFilter, fixtures]);
 
   const loadFixtures = async () => {
     if (!supabase) {
@@ -66,8 +73,8 @@ export function FixturesPage() {
 
     setLoading(true);
 
-    // Load fixtures with team and league names
-    const { data, error } = await supabase
+    // Load fixtures with team and league names, bounded by the date range + league.
+    let query = supabase
       .from('fb_fixtures')
       .select(`
         *,
@@ -75,8 +82,11 @@ export function FixturesPage() {
         home_team:fb_teams!home_team_id(name),
         away_team:fb_teams!away_team_id(name)
       `)
-      .order('date', { ascending: true })
-      .limit(1000);
+      .order('date', { ascending: true });
+    if (dateFrom) query = query.gte('date', dateFrom);
+    if (dateTo) query = query.lte('date', `${dateTo}T23:59:59.999`);
+    if (leagueFilter !== 'all') query = query.eq('league_id', leagueFilter);
+    const { data, error } = await query.limit(1000);
 
     if (error) {
       mockAddToast('Failed to load fixtures', 'error');
@@ -146,11 +156,6 @@ export function FixturesPage() {
     // Status filter
     if (statusFilter !== 'all') {
       filtered = filtered.filter((fixture) => fixture.status === statusFilter);
-    }
-
-    // League filter
-    if (leagueFilter !== 'all') {
-      filtered = filtered.filter((fixture) => fixture.league_id === leagueFilter);
     }
 
     setFilteredFixtures(filtered);
@@ -441,6 +446,18 @@ export function FixturesPage() {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-surface border border-border-subtle rounded-lg focus:outline-none focus:border-electric-blue"
           />
+        </div>
+
+        {/* Date range (server-side) */}
+        <div className="flex items-center gap-2">
+          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="From date"
+            className="px-3 py-2 bg-surface border border-border-subtle rounded-lg focus:outline-none focus:border-electric-blue" />
+          <span className="text-text-disabled">→</span>
+          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="To date"
+            className="px-3 py-2 bg-surface border border-border-subtle rounded-lg focus:outline-none focus:border-electric-blue" />
+          {(dateTo || dateFrom) && (
+            <button onClick={() => { setDateFrom(''); setDateTo(''); }} title="Clear dates" className="text-text-disabled hover:text-text-primary px-1">×</button>
+          )}
         </div>
 
         {/* League Filter */}
