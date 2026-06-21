@@ -3,10 +3,12 @@ import FantasyGameAdmin from '../components/FantasyGameAdmin';
 import FantasyGameWeekAdmin from '../components/FantasyGameWeekAdmin';
 import FantasyPlayerAdmin from '../components/FantasyPlayerAdmin';
 import FantasyManualSync from '../components/FantasyManualSync';
+import { FantasyLeagues } from '../components/FantasyLeagues';
 import { PageHeader } from '../components/ui/PageHeader';
 
-type Tab = 'games' | 'gameweeks' | 'players' | 'sync';
+type Tab = 'leagues' | 'games' | 'gameweeks' | 'players' | 'sync';
 const TABS: { key: Tab; label: string }[] = [
+  { key: 'leagues', label: 'Leagues' },
   { key: 'games', label: 'Games' },
   { key: 'gameweeks', label: 'Game Weeks' },
   { key: 'players', label: 'Player Pool' },
@@ -14,7 +16,7 @@ const TABS: { key: Tab; label: string }[] = [
 ];
 
 export function FantasyPage() {
-  const [tab, setTab] = useState<Tab>('games');
+  const [tab, setTab] = useState<Tab>('leagues');
   return (
     <div className="space-y-5">
       <PageHeader title="Fantasy" subtitle="Fantasy games, game weeks, the player pool and data sync." />
@@ -28,6 +30,7 @@ export function FantasyPage() {
         ))}
       </div>
 
+      {tab === 'leagues' && <FantasyLeagues />}
       {tab === 'games' && <FantasyGameAdmin />}
       {tab === 'gameweeks' && <FantasyGameWeekAdmin />}
       {tab === 'players' && <FantasyPlayerAdmin />}
