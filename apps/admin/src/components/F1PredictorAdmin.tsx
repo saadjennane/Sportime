@@ -13,7 +13,7 @@ interface PredGame {
 }
 const SCORE_FIELDS: [string, string][] = [
   ['pole', 'Pole'], ['winner', 'Winner'], ['top5_exact', 'Top5 exact'],
-  ['top5_partial', 'Top5 partial'], ['fastest_lap', 'Fastest lap'], ['first_dnf', 'First DNF'],
+  ['top5_partial', 'Top5 partial'], ['fastest_lap', 'Fastest lap'], ['first_dnf', 'First DNF'], ['sprint', 'Sprint'],
 ];
 
 type Draft = { scoring: Record<string, string>; rewards: { upto: string; coins: string }[]; entry: string; active: boolean };

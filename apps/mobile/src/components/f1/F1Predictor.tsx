@@ -10,7 +10,7 @@ const surname = (d?: PredDriver | null) => {
   return parts[parts.length - 1] || d.last_name || '?';
 };
 
-type Field = 'pole' | 'winner' | 'fastest_lap' | 'first_dnf' | `top5:${number}`;
+type Field = 'pole' | 'winner' | 'fastest_lap' | 'first_dnf' | 'sprint' | `top5:${number}`;
 
 const Avatar: React.FC<{ d?: PredDriver | null; size?: number }> = ({ d, size = 36 }) => (
   d?.image
@@ -22,7 +22,7 @@ const Avatar: React.FC<{ d?: PredDriver | null; size?: number }> = ({ d, size = 
 export const F1Predictor: React.FC<{ gameId: string; userId?: string }> = ({ gameId, userId }) => {
   const { game, races, drivers, cards, board, loading, savePicks } = usePredGame(gameId, userId);
   const [activeRid, setActiveRid] = useState<number | null>(null);
-  const [draft, setDraft] = useState<{ pole?: number | null; winner?: number | null; top5: number[]; fastest_lap?: number | null; first_dnf?: number | null }>({ top5: [] });
+  const [draft, setDraft] = useState<{ pole?: number | null; winner?: number | null; top5: number[]; fastest_lap?: number | null; first_dnf?: number | null; sprint?: number | null }>({ top5: [] });
   const [picker, setPicker] = useState<Field | null>(null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -40,7 +40,7 @@ export const F1Predictor: React.FC<{ gameId: string; userId?: string }> = ({ gam
   useEffect(() => {
     if (activeRid == null) return;
     const c = cards[activeRid];
-    setDraft(c ? { pole: c.pole, winner: c.winner, top5: c.top5 ?? [], fastest_lap: c.fastest_lap, first_dnf: c.first_dnf } : { top5: [] });
+    setDraft(c ? { pole: c.pole, winner: c.winner, top5: c.top5 ?? [], fastest_lap: c.fastest_lap, first_dnf: c.first_dnf, sprint: c.sprint } : { top5: [] });
     setMsg(null);
   }, [activeRid, cards]);
 
@@ -97,7 +97,7 @@ export const F1Predictor: React.FC<{ gameId: string; userId?: string }> = ({ gam
       {/* Intro */}
       <div className="card-base p-4">
         <div className="flex items-center gap-2 text-neon-cyan font-bold"><Crosshair size={18} /> {game.name}</div>
-        <p className="text-xs text-text-secondary mt-1">Predict each GP before qualifying. Pole <b className="text-text-primary">+{game.scoring.pole}</b> · Winner <b className="text-text-primary">+{game.scoring.winner}</b> · Top 5 <b className="text-text-primary">+{game.scoring.top5_exact}</b>/slot (<b>+{game.scoring.top5_partial}</b> wrong place) · Fastest lap <b className="text-text-primary">+{game.scoring.fastest_lap}</b> · First DNF <b className="text-text-primary">+{game.scoring.first_dnf}</b>.</p>
+        <p className="text-xs text-text-secondary mt-1">Predict each GP before qualifying. Pole <b className="text-text-primary">+{game.scoring.pole}</b> · Winner <b className="text-text-primary">+{game.scoring.winner}</b> · Top 5 <b className="text-text-primary">+{game.scoring.top5_exact}</b>/slot (<b>+{game.scoring.top5_partial}</b> wrong place) · Fastest lap <b className="text-text-primary">+{game.scoring.fastest_lap}</b> · First DNF <b className="text-text-primary">+{game.scoring.first_dnf}</b>{game.scoring.sprint ? <> · Sprint win <b className="text-text-primary">+{game.scoring.sprint}</b> (sprint weekends)</> : null}.</p>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {game.rewards.map((t, i) => (
             <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-navy-accent text-text-secondary">≤ rank {t.upto} → <span className="text-warm-yellow font-bold">{t.coins}</span></span>
@@ -153,6 +153,7 @@ export const F1Predictor: React.FC<{ gameId: string; userId?: string }> = ({ gam
           </div>
           <FieldRow field="fastest_lap" label="Fastest lap" value={draft.fastest_lap} pts={ptsFor('fastest_lap')} />
           <FieldRow field="first_dnf" label="First DNF" value={draft.first_dnf} pts={ptsFor('first_dnf')} />
+          {activeRace.sprint_session_id != null && <FieldRow field="sprint" label="Sprint win" value={draft.sprint} pts={ptsFor('sprint')} />}
 
           {!locked && (
             <button onClick={save} disabled={saving}

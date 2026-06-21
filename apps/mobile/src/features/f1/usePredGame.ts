@@ -2,15 +2,15 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../services/supabase';
 
 export interface PredDriver { id: number; name: string; last_name: string | null; image: string | null; number: number | null; team_logo: string | null }
-export interface PredRace { id: number; name: string; round: number | null; race_at: string | null; quali_start_at: string | null; status: string | null }
-export interface PredScoring { pole: number; winner: number; top5_exact: number; top5_partial: number; fastest_lap: number; first_dnf: number }
+export interface PredRace { id: number; name: string; round: number | null; race_at: string | null; quali_start_at: string | null; status: string | null; sprint_session_id: number | null }
+export interface PredScoring { pole: number; winner: number; top5_exact: number; top5_partial: number; fastest_lap: number; first_dnf: number; sprint?: number }
 export interface PredGame {
   id: string; name: string; status: 'open' | 'settled'; entryCost: number;
   scoring: PredScoring; rewards: { upto: number; coins: number }[]; raceIds: number[];
 }
 export interface PredCard {
   race_id: number; pole: number | null; winner: number | null; top5: number[];
-  fastest_lap: number | null; first_dnf: number | null; score: number | null; breakdown: any; status: string;
+  fastest_lap: number | null; first_dnf: number | null; sprint: number | null; score: number | null; breakdown: any; status: string;
 }
 export interface PredLeaderRow { user_id: string; username: string | null; avatar: string | null; score: number; gps_played: number; rank: number; reward: number }
 
@@ -34,7 +34,7 @@ export function usePredGame(gameId: string | null, userId?: string) {
     });
 
     const [{ data: rc }, { data: dr }, { data: co }] = await Promise.all([
-      supabase.from('f1_races').select('id,name,round,race_at,quali_start_at,status').in('id', g.race_ids ?? []),
+      supabase.from('f1_races').select('id,name,round,race_at,quali_start_at,status,sprint_session_id').in('id', g.race_ids ?? []),
       supabase.from('f1_drivers').select('id,name,last_name,image,number,constructor_id,position').order('position', { nullsFirst: false }),
       supabase.from('f1_constructors').select('id,logo'),
     ]);
@@ -44,7 +44,7 @@ export function usePredGame(gameId: string | null, userId?: string) {
 
     if (userId) {
       const { data: p } = await supabase
-        .from('f1_pred_picks').select('race_id,pole,winner,top5,fastest_lap,first_dnf,score,breakdown,status')
+        .from('f1_pred_picks').select('race_id,pole,winner,top5,fastest_lap,first_dnf,sprint,score,breakdown,status')
         .eq('game_id', gameId).eq('user_id', userId);
       const m: Record<number, PredCard> = {};
       (p ?? []).forEach((row: any) => { m[row.race_id] = { ...row, top5: Array.isArray(row.top5) ? row.top5 : [] }; });
@@ -57,7 +57,7 @@ export function usePredGame(gameId: string | null, userId?: string) {
 
   useEffect(() => { load(); }, [load]);
 
-  const savePicks = useCallback(async (raceId: number, picks: { pole?: number | null; winner?: number | null; top5?: number[]; fastest_lap?: number | null; first_dnf?: number | null }) => {
+  const savePicks = useCallback(async (raceId: number, picks: { pole?: number | null; winner?: number | null; top5?: number[]; fastest_lap?: number | null; first_dnf?: number | null; sprint?: number | null }) => {
     if (!gameId) return { ok: false as const, error: 'No game' };
     const { error } = await supabase.rpc('f1_pred_save_picks', { p_game_id: gameId, p_race_id: raceId, p_picks: picks });
     if (error) return { ok: false as const, error: error.message };

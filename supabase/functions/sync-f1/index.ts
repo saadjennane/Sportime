@@ -130,6 +130,12 @@ Deno.serve(async (req) => {
         }
       }).filter((x: any) => x.driver_id)
       if (rows.length) { await sb.from('f1_results').upsert(rows); resCount += rows.length }
+      // Sprint winner (sprint weekends) — used by the GP Predictor's sprint pick.
+      if (r.sprint_session_id) {
+        const sr = await f1('/rankings/races', { race: r.sprint_session_id })
+        const sw = sr.find((x: any) => Number(x.position) === 1)?.driver?.id ?? null
+        if (sw) await sb.from('f1_races').update({ sprint_winner_id: sw }).eq('id', r.id)
+      }
       // Settle any pending bets now that this GP's results are in (safety-car bets
       // wait for the manual result; everything else settles from f1_results).
       await sb.rpc('f1_settle_race', { p_race_id: r.id })
