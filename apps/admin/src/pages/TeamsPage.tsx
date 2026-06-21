@@ -264,25 +264,15 @@ export function TeamsPage() {
       {/* Sync Status */}
       <div className="mb-6 p-4 bg-surface border border-border-subtle rounded-lg">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-8">
             <div>
-              <p className="text-sm text-text-secondary">Production</p>
-              <p className="text-2xl font-bold text-electric-blue">
-                {syncStatus.production_count}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-text-secondary">Staging (fb_teams)</p>
-              <p className="text-2xl font-bold text-lime-glow">
-                {syncStatus.staging_count}
-              </p>
+              <p className="text-sm text-text-secondary">Total teams</p>
+              <p className="text-2xl font-bold text-electric-blue">{syncStatus.production_count}</p>
             </div>
             {syncStatus.last_synced && (
               <div>
-                <p className="text-sm text-text-secondary">Last Synced</p>
-                <p className="text-sm text-text-primary">
-                  {new Date(syncStatus.last_synced).toLocaleString()}
-                </p>
+                <p className="text-sm text-text-secondary">Last synced</p>
+                <p className="text-sm text-text-primary">{new Date(syncStatus.last_synced).toLocaleString()}</p>
               </div>
             )}
           </div>
