@@ -39,9 +39,19 @@ const dayLabel = (key: string) => {
 export const BetHistoryPage: React.FC<BetHistoryPageProps> = ({ bets, onClose, onViewStats, onViewResults }) => {
   const { picks, isLoading } = useUserPicks(bets);
 
+  // History = picks from BEFORE today. Today's finished matches live in the Finished
+  // tab, so we exclude them here to keep a clean Finished(today) / History(earlier) split.
+  const pastPicks = useMemo(
+    () => picks.filter((p) => {
+      const d = new Date(p.match.kickoffTime);
+      return Number.isFinite(d.getTime()) && !isToday(d);
+    }),
+    [picks],
+  );
+
   const days: DayGroup[] = useMemo(() => {
     const map = new Map<string, { match: Match; bet: Bet }[]>();
-    for (const p of picks) {
+    for (const p of pastPicks) {
       const d = new Date(p.match.kickoffTime);
       const key = Number.isFinite(d.getTime()) ? d.toDateString() : 'unknown';
       if (!map.has(key)) map.set(key, []);
@@ -59,19 +69,19 @@ export const BetHistoryPage: React.FC<BetHistoryPageProps> = ({ bets, onClose, o
     }
     groups.sort((a, b) => b.time - a.time);
     return groups;
-  }, [picks]);
+  }, [pastPicks]);
 
-  // Overall summary across every pick, plus the date of the earliest one ("since …").
+  // Overall summary across every past pick, plus the date of the earliest one ("since …").
   const overall = useMemo(() => {
     let won = 0, settled = 0, net = 0, since = Infinity;
-    for (const { match, bet } of picks) {
+    for (const { match, bet } of pastPicks) {
       if (bet.status === 'won') { won++; settled++; net += (bet.winAmount ?? 0) - bet.amount; }
       else if (bet.status === 'lost') { settled++; net -= bet.amount; }
       const t = new Date(match.kickoffTime).getTime();
       if (Number.isFinite(t)) since = Math.min(since, t);
     }
-    return { won, total: picks.length, settled, net, since: Number.isFinite(since) ? since : null };
-  }, [picks]);
+    return { won, total: pastPicks.length, settled, net, since: Number.isFinite(since) ? since : null };
+  }, [pastPicks]);
 
   return (
     <div className="fixed inset-0 z-[60] bg-deep-navy flex flex-col">

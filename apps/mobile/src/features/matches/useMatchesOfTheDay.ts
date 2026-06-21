@@ -63,8 +63,10 @@ function normalizeStatus(raw?: string): 'upcoming' | 'played' {
   const live = ['1H', 'HT', '2H', 'ET', 'P', 'BT', 'SUSP', 'INT', 'LIVE'] // still "upcoming" in sense of not finished
   if (running.includes(s) || live.includes(s)) return 'upcoming'
 
-  // Default: if unknown status, check if it looks like a finished status
-  return 'played'
+  // Default: an UNKNOWN status must NOT be treated as finished — that would fabricate
+  // a "result" (often 0-0) and surface a non-played match in the Finished tab. Safer
+  // to keep it as upcoming until a known final status arrives.
+  return 'upcoming'
 }
 
 function leagueLogoFallback(apiLeagueId?: number | null) {
@@ -80,6 +82,9 @@ type HookState = {
   isLoading: boolean
   error: string | null
   refresh: () => Promise<void>
+  day: 'today' | 'tomorrow'
+  setDay: (d: 'today' | 'tomorrow') => void
+  dayCounts: { today: number; tomorrow: number }
 }
 
 type MatchOverride = Partial<
@@ -93,23 +98,49 @@ const LIVE_STATUSES = ['1H', 'HT', '2H', 'ET', 'P', 'BT', 'SUSP', 'INT', 'LIVE']
 const POLL_INTERVAL_MS = 30_000
 const LINEUP_REFRESH_INTERVAL_MS = 120_000
 
-export function useMatchesOfTheDay(): HookState {
+export function useMatchesOfTheDay(pickedIds: string[] = []): HookState {
   // Get user's timezone (auto-detected or from profile)
   const userTimezone = useUserTimezone()
 
-  // Calculate day bounds using UTC to match API-Football data storage
-  // Only show TODAY's matches in the Today tab
-  const [{ startISO, endISO }] = useState(() => {
-    const now = new Date()
-    const startUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0))
-    // End of today only (not tomorrow)
-    const endUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999))
+  // Stable key so the count effect only re-runs when the set of picked ids changes.
+  const pickedKey = pickedIds.join(',')
 
-    return {
-      startISO: startUTC.toISOString(),
-      endISO: endUTC.toISOString()
-    }
-  })
+  // Day selector: Today (J) or Tomorrow (J+1). Bounds computed in the USER'S timezone
+  // (not UTC) so "today" matches the local date shown in the header — otherwise a
+  // late-evening user in a UTC+ zone sees the wrong day's matches.
+  const [day, setDay] = useState<'today' | 'tomorrow'>('today')
+  const { startISO, endISO } = useMemo(() => {
+    const ref = new Date()
+    if (day === 'tomorrow') ref.setDate(ref.getDate() + 1)
+    return getLocalDayBoundsUtil(userTimezone, ref)
+  }, [day, userTimezone])
+
+  // Match counts for both days (for the Today/Tomorrow badges).
+  const [dayCounts, setDayCounts] = useState<{ today: number; tomorrow: number }>({ today: 0, tomorrow: 0 })
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const { data: leagues } = await supabase.from('fb_leagues').select('id').eq('is_visible', true)
+      const ids = (leagues ?? []).map((l) => l.id)
+      if (!ids.length) return
+      const countDay = async (offset: number) => {
+        const ref = new Date(); ref.setDate(ref.getDate() + offset)
+        const { startISO: s, endISO: e } = getLocalDayBoundsUtil(userTimezone, ref) // user-local day bounds
+        // Count only what the Today/Tomorrow list actually shows: not finished (those
+        // move to Finished) and not already picked (those move to Picks).
+        let q = supabase.from('fb_fixtures').select('id', { count: 'exact', head: true })
+          .gte('date', s).lte('date', e).in('league_id', ids)
+          .not('status', 'in', '(FT,AET,PEN,AWD,WO,ABD,CANC)')
+        if (pickedIds.length) q = q.not('id', 'in', `(${pickedIds.join(',')})`)
+        const { count } = await q
+        return count ?? 0
+      }
+      const [today, tomorrow] = await Promise.all([countDay(0), countDay(1)])
+      if (!cancelled) setDayCounts({ today, tomorrow })
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userTimezone, pickedKey])
   const [baseGroups, setBaseGroups] = useState<UiLeagueGroup[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -419,6 +450,9 @@ export function useMatchesOfTheDay(): HookState {
       isLoading,
       error,
       refresh,
+      day,
+      setDay,
+      dayCounts,
     }
 }
 

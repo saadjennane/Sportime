@@ -3,6 +3,8 @@ import { Flag } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { Spinner } from '../components/ui/States';
 import { F1OddsAdmin } from '../components/F1OddsAdmin';
+import { F1DuelsAdmin } from '../components/F1DuelsAdmin';
+import { F1PredictorAdmin } from '../components/F1PredictorAdmin';
 
 interface F1Market {
   key: string;
@@ -96,8 +98,8 @@ function MarketsTab() {
 }
 
 export function F1Page() {
-  const [tab, setTab] = useState<'markets' | 'odds'>('markets');
-  const TabBtn = ({ id, label }: { id: 'markets' | 'odds'; label: string }) => (
+  const [tab, setTab] = useState<'markets' | 'odds' | 'duels' | 'predictor'>('markets');
+  const TabBtn = ({ id, label }: { id: 'markets' | 'odds' | 'duels' | 'predictor'; label: string }) => (
     <button
       onClick={() => setTab(id)}
       className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
@@ -115,8 +117,10 @@ export function F1Page() {
       <div className="flex gap-2 mb-6">
         <TabBtn id="markets" label="Markets" />
         <TabBtn id="odds" label="Odds" />
+        <TabBtn id="duels" label="Teammates Duels" />
+        <TabBtn id="predictor" label="GP Predictor" />
       </div>
-      {tab === 'markets' ? <MarketsTab /> : <F1OddsAdmin />}
+      {tab === 'markets' ? <MarketsTab /> : tab === 'odds' ? <F1OddsAdmin /> : tab === 'duels' ? <F1DuelsAdmin /> : <F1PredictorAdmin />}
     </div>
   );
 }

@@ -52,9 +52,6 @@ export const GameWeekConditions: React.FC<GameWeekConditionsProps> = ({ gameWeek
     const hasNoStar = team.every(p => p.status !== 'Star');
     if (hasNoStar) return 'no_star';
 
-    const isCrazy = team.every(p => p.status === 'Wild');
-    if (isCrazy) return 'crazy';
-
     const avgAge = team.reduce((sum, p) => sum + differenceInYears(new Date(), parseISO(p.birthdate)), 0) / team.length;
     if (avgAge >= 30) return 'vintage';
     
@@ -104,9 +101,6 @@ export const GameWeekConditions: React.FC<GameWeekConditionsProps> = ({ gameWeek
                  <h4 className="font-semibold text-sm text-text-secondary">Optional Team Bonuses</h4>
                  <p className={`flex items-center gap-2 text-sm ${activeBonus === 'no_star' ? 'font-bold text-neon-cyan' : 'text-text-secondary'}`}>
                     💪 No Star Bonus — +25% if no Star Players
-                 </p>
-                 <p className={`flex items-center gap-2 text-sm ${activeBonus === 'crazy' ? 'font-bold text-neon-cyan' : 'text-text-secondary'}`}>
-                    🎢 Crazy Boost — +40% if 100% Wild Cards
                  </p>
                  <p className={`flex items-center gap-2 text-sm ${activeBonus === 'vintage' ? 'font-bold text-neon-cyan' : 'text-text-secondary'}`}>
                     🧓 Vintage Boost — +20% if average age ≥ 30

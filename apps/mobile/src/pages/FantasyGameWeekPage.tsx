@@ -115,6 +115,35 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
     };
   }, [userTeam, allPlayers]);
 
+  // Live team bonus while building (shown as a prominent badge).
+  const liveBonus = useMemo<{ label: string; pct: number } | null>(() => {
+    if (starters.length < expectedStarters) return null;
+    if (starters.every(p => p.status !== 'Star')) return { label: 'No Star', pct: 25 };
+    const ages = starters.map(p => { const d = new Date(p.birthdate); return isNaN(d.getTime()) ? 0 : (Date.now() - d.getTime()) / 31557600000; });
+    if (ages.reduce((a, b) => a + b, 0) / ages.length >= 30) return { label: 'Vintage', pct: 20 };
+    return null;
+  }, [starters, expectedStarters]);
+
+  // Projected score (pre-game): Σ xP × energy × captain, then × team bonus.
+  const projectedScore = useMemo<number | null>(() => {
+    if (starters.length < expectedStarters || starters.some(p => p.xp == null)) return null;
+    let sum = 0;
+    for (const p of starters) {
+      const energy = (p.fatigue ?? 100) / 100;
+      const capMult = p.id === captainId ? 1.1 : 1;
+      sum += (p.xp ?? 0) * energy * capMult;
+    }
+    if (liveBonus) sum *= 1 + liveBonus.pct / 100;
+    return Math.round(sum);
+  }, [starters, captainId, liveBonus, expectedStarters]);
+
+  // Bench projection (secondary) — what the substitutes would bring if they came on.
+  const benchProjected = useMemo<number | null>(() => {
+    const subs = substitutes.filter(p => p.xp != null);
+    if (subs.length === 0) return null;
+    return Math.round(subs.reduce((s, p) => s + (p.xp ?? 0) * ((p.fatigue ?? 100) / 100), 0));
+  }, [substitutes]);
+
   const liveStarters = useMemo(() => {
     if (!simulationResult) return starters;
     return starters.map(p => {
@@ -362,6 +391,16 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
         </div>
       )}
       
+      {!isLiveOrFinished && projectedScore != null && (
+        <div className="flex items-center justify-center gap-2 p-2.5 rounded-lg bg-electric-blue/15 text-electric-blue font-bold text-sm">
+          📈 Projected score · ~{projectedScore} pts
+          {benchProjected != null && <span className="text-text-secondary font-semibold">· bench ~{benchProjected}</span>}
+        </div>
+      )}
+      {liveBonus && !isLiveOrFinished && (
+        <div className="text-center text-sm font-bold p-2 rounded-lg bg-neon-cyan/15 text-neon-cyan flex items-center justify-center gap-2">⚡ {liveBonus.label} Bonus active · +{liveBonus.pct}%</div>
+      )}
+
       <GameWeekConditions gameWeek={selectedGameWeek} team={starters} />
       
       {isLiveOrFinished && simulationResult && (

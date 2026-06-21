@@ -3,12 +3,15 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { AuthProvider } from './contexts/AuthContext';
+import { SportProvider } from './contexts/SportContext';
 import { initNative } from './native/initNative';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthProvider>
-      <App />
+      <SportProvider>
+        <App />
+      </SportProvider>
     </AuthProvider>
   </StrictMode>,
 );

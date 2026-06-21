@@ -24,8 +24,19 @@ function statusLabel(raw?: string): string {
 
 export const FinishedCard: React.FC<FinishedCardProps> = ({ match, bet, onViewStats, onViewResults }) => {
   const result = match.result;
+  // result is undefined only for void/technical matches (CANC/ABD/WO/AWD). AET/PEN
+  // DO have a 1X2 result — a Draw, since the match was level at 90' (the odds settle
+  // on regular time). Render the odds neutrally only when there's truly no result.
+  const hasResult = result != null;
   const won = bet?.status === 'won';
   const lost = bet?.status === 'lost';
+  const rawUpper = (match.rawStatus || 'FT').toUpperCase();
+  const isVoid = ['CANC', 'ABD', 'WO', 'W.O', 'AWD', 'AWARDED'].includes(rawUpper);
+  // Explain why an AET/PEN match settles as a Draw, or why a void match has no result.
+  const note =
+    rawUpper === 'AET' ? "After extra time · 1X2 settled at 90'" :
+    rawUpper === 'PEN' ? "Penalty shootout · 1X2 settled at 90'" :
+    isVoid ? 'Match void — bet refunded' : null;
 
   const center = `${match.score?.teamA ?? 0} - ${match.score?.teamB ?? 0}`;
 
@@ -42,20 +53,24 @@ export const FinishedCard: React.FC<FinishedCardProps> = ({ match, bet, onViewSt
       {/* Three odds — actual result in green, lost pick in red */}
       <div className="flex gap-2">
         {outcomes.map((o) => {
-          const isResult = result === o.key;
+          const isResult = hasResult && result === o.key;
           const isPick = bet?.prediction === o.key;
+          // Only paint the pick red when there's a real result it lost against.
+          const pickLost = isPick && hasResult && !isResult;
           const cls = isResult
             ? 'border-lime-glow bg-lime-glow/10'
-            : isPick
+            : pickLost
               ? 'border-hot-red bg-hot-red/10'
-              : 'border-disabled bg-deep-navy opacity-50';
-          const oddsCls = isResult ? 'text-lime-glow' : isPick ? 'text-hot-red' : 'text-text-primary';
+              : isPick && !hasResult
+                ? 'border-electric-blue/40 bg-deep-navy'
+                : 'border-disabled bg-deep-navy opacity-50';
+          const oddsCls = isResult ? 'text-lime-glow' : pickLost ? 'text-hot-red' : 'text-text-primary';
           const hasOdds = typeof o.odds === 'number' && o.odds > 0;
           return (
             <div key={o.key} className={`flex-1 p-2 rounded-lg border text-center ${cls}`}>
               <div className="text-[11px] text-text-secondary font-medium truncate">
                 {o.label}
-                {isPick && <span className="ml-0.5">{isResult ? '✓' : '✗'}</span>}
+                {isPick && hasResult && <span className="ml-0.5">{isResult ? '✓' : '✗'}</span>}
               </div>
               <div className={`text-base font-bold ${oddsCls}`}>
                 {hasOdds ? `${(o.odds as number).toFixed(2)}x` : '--'}
@@ -64,6 +79,9 @@ export const FinishedCard: React.FC<FinishedCardProps> = ({ match, bet, onViewSt
           );
         })}
       </div>
+
+      {/* Why no winner is highlighted (penalty shootout / void match). */}
+      {note && <div className="text-[11px] text-text-secondary text-center -mt-1">{note}</div>}
 
       {/* Actions: WON/LOST · Play · Stats */}
       <div className="flex gap-2">

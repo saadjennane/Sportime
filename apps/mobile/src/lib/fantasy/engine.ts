@@ -84,8 +84,8 @@ export function calculateFatigue(
     fatigueReduction = FANTASY_CONFIG.fatigue.key;
   }
 
-  // No lower clamp as per v1.4 requirements
-  return currentFatigue - fatigueReduction;
+  // Floor energy at 0 (matches the server) — a fully-spent player scores 0, never negative.
+  return Math.max(0, currentFatigue - fatigueReduction);
 }
 
 /**
@@ -187,11 +187,8 @@ export function computeTeamTotal(
     bonusName = `No Star Bonus (+${(FANTASY_CONFIG.bonuses.no_star - 1) * 100}%)`;
   }
 
-  const isCrazy = teamPlayers.every(p => p.status === 'Wild');
-  if (isCrazy && FANTASY_CONFIG.bonuses.crazy > bestBonusMultiplier) {
-    bestBonusMultiplier = FANTASY_CONFIG.bonuses.crazy;
-    bonusName = `Crazy Boost (+${(FANTASY_CONFIG.bonuses.crazy - 1) * 100}%)`;
-  }
+  // (Crazy / all-Wild +40% removed — it never beat the talent gap; an all-Wild team
+  //  is also a No-Star team and still gets the +25% No Star bonus.)
 
   const avgAge = teamPlayers.reduce((sum, p) => sum + differenceInYears(new Date(), parseISO(p.birthdate)), 0) / teamPlayers.length;
   if (avgAge >= 30 && FANTASY_CONFIG.bonuses.vintage > bestBonusMultiplier) {

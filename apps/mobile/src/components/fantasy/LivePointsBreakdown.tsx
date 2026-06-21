@@ -70,7 +70,7 @@ export const LivePointsBreakdown: React.FC<LivePointsBreakdownProps> = ({ player
                         <div className="text-xs text-gray-500 flex items-center justify-end gap-1">
                           <span>{result.basePoints.toFixed(1)}</span>
                           <span className="text-gray-400">×</span>
-                          <span title={`Fatigue: ${Math.round(fatigueMultiplier * 100)}%`}>{fatigueMultiplier.toFixed(2)}</span>
+                          <span title={`Energy: ${Math.round(fatigueMultiplier * 100)}%`}>{fatigueMultiplier.toFixed(2)}</span>
                           {result.breakdown['Captain Bonus'] && <span className="text-blue-500 font-bold" title="Captain Bonus">×C</span>}
                           {result.breakdown['Double Impact'] && <span className="text-red-500 font-bold" title="Double Impact">×DI</span>}
                         </div>

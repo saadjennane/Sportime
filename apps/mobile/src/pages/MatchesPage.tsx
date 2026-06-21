@@ -33,7 +33,11 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [selectedMatchForStats, setSelectedMatchForStats] = useState<Match | null>(null);
 
-  const { data: groups, isLoading: loading, error, refresh } = useMatchesOfTheDay();
+  // Fixture ids the user has already picked — passed to the hook so the day-count
+  // badges exclude them (picked matches leave Today/Tomorrow for the Picks tab).
+  const pickedIdList = useMemo(() => Array.from(new Set(bets.map(b => b.matchId))), [bets]);
+
+  const { data: groups, isLoading: loading, error, refresh, day, setDay, dayCounts } = useMatchesOfTheDay(pickedIdList);
   const { leagues: importedLeagues, isLoading: leaguesLoading, error: leaguesError } = useImportedLeagues();
 
   // Picks tab badge = active (unsettled) picks only — settled ones live in Finished.
@@ -45,17 +49,32 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
     if (activeTab === 'finished') markAllSeen();
   }, [activeTab, markAllSeen]);
 
+  // The Today/Tomorrow switcher only belongs to the Matches tab. Reset to Today when
+  // leaving it so Finished (and its header stats) always reflect *today*, never the
+  // day left selected on Tomorrow — otherwise Finished would render empty/garbage.
+  useEffect(() => {
+    if (activeTab !== 'today') setDay('today');
+  }, [activeTab, setDay]);
+
 
   const toLegacyMatch = useCallback((m: UiMatch): Match => {
     const fallbackEmoji = (name: string) => (name ? name.charAt(0).toUpperCase() : '⚽');
     const leagueLogo = m.league.logo ?? (m.league.apiId ? `https://media.api-sports.io/football/leagues/${m.league.apiId}.png` : null);
     const goalsHome = m.home.goals ?? null;
     const goalsAway = m.away.goals ?? null;
+    // The 1X2 odds settle on the REGULAR-TIME (90') result. A match that went to extra
+    // time or penalties (AET/PEN) was level at 90' by definition, so it settles as a
+    // Draw — NOT by the extra-time goals (which would wrongly show a winner). Void /
+    // technical statuses (CANC/ABD/WO/AWD) leave result undefined (bet refunded).
     let result: 'teamA' | 'draw' | 'teamB' | undefined;
-    if (m.status === 'played' && goalsHome !== null && goalsAway !== null) {
-      if (goalsHome > goalsAway) result = 'teamA';
-      else if (goalsHome < goalsAway) result = 'teamB';
-      else result = 'draw';
+    if (m.status === 'played') {
+      if (m.rawStatus === 'AET' || m.rawStatus === 'PEN') {
+        result = 'draw';
+      } else if (m.rawStatus === 'FT' && goalsHome !== null && goalsAway !== null) {
+        if (goalsHome > goalsAway) result = 'teamA';
+        else if (goalsHome < goalsAway) result = 'teamB';
+        else result = 'draw';
+      }
     }
 
     const odds = {
@@ -232,6 +251,13 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
     return { won, totalPicks: todayBets.length, net };
   }, [upcomingMatches, bets]);
 
+  // Day badges must match the LIST (which drops picked → Picks and finished → Finished).
+  // For the day currently loaded we use the exact visible count (updates instantly on a
+  // pick); the other day uses the server count, which the hook also filters the same way.
+  const visibleDayCount = useMemo(() => Object.values(groupedToday).flat().length, [groupedToday]);
+  const badgeToday = day === 'today' ? visibleDayCount : dayCounts.today;
+  const badgeTomorrow = day === 'tomorrow' ? visibleDayCount : dayCounts.tomorrow;
+
   return (
     <PullToRefresh onRefresh={refresh}>
     <div className="space-y-4">
@@ -252,7 +278,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
             onClick={() => setActiveTab('today')}
             className={`flex-1 p-2 rounded-lg font-semibold transition-all text-sm ${activeTab === 'today' ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'}`}
           >
-            Today
+            Matches
           </button>
           <button
             onClick={() => setActiveTab('picks')}
@@ -286,7 +312,17 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
 
       {/* 4. Liste des matchs */}
       {activeTab === 'today' ? (
-        loading ? (
+        <>
+        {/* Day switcher: Today (J) / Tomorrow (J+1) */}
+        <div className="flex bg-navy-accent rounded-xl p-1 mb-3">
+          <button onClick={() => setDay('today')} className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1.5 ${day === 'today' ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'}`}>
+            Today{badgeToday > 0 && <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${day === 'today' ? 'bg-white/20' : 'bg-electric-blue/20 text-electric-blue'}`}>{badgeToday}</span>}
+          </button>
+          <button onClick={() => setDay('tomorrow')} className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1.5 ${day === 'tomorrow' ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'}`}>
+            Tomorrow{badgeTomorrow > 0 && <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${day === 'tomorrow' ? 'bg-white/20' : 'bg-electric-blue/20 text-electric-blue'}`}>{badgeTomorrow}</span>}
+          </button>
+        </div>
+        {loading ? (
           <div className="card-base p-6 text-center text-text-secondary text-sm">Loading today's matches…</div>
         ) : error ? (
           <div className="card-base p-6 text-center text-hot-red text-sm">Failed to load matches: {error}</div>
@@ -294,8 +330,8 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
           Object.keys(groupedUpcoming).length === 0 ? (
             <EmptyState
               glyph="⚽"
-              title="No kickoff today"
-              subtitle="Nothing on the pitch right now. Browse challenges or come back tomorrow."
+              title={day === 'tomorrow' ? 'No matches tomorrow' : 'No kickoff today'}
+              subtitle={day === 'tomorrow' ? 'Nothing scheduled for tomorrow yet — check back later.' : 'Nothing on the pitch right now. Switch to Tomorrow or browse challenges.'}
               cta={onBrowseGames ? { label: '🎮 Browse Games', onClick: onBrowseGames } : undefined}
             />
           ) : (
@@ -315,7 +351,8 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
             onViewStats={setSelectedMatchForStats}
             onPlayGame={onPlayGame}
           />
-        )
+        )}
+        </>
       ) : activeTab === 'picks' ? (
         <PicksPage
           bets={bets}
@@ -325,6 +362,10 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
           onPlayGame={onPlayGame}
           orderedLeagues={effectiveOrderedLeagues}
         />
+      ) : loading ? (
+        <div className="card-base p-6 text-center text-text-secondary text-sm">Loading results…</div>
+      ) : error ? (
+        <div className="card-base p-6 text-center text-hot-red text-sm">Failed to load results: {error}</div>
       ) : (
         <FinishedMatchesPage
           groupedMatches={groupedFinished}

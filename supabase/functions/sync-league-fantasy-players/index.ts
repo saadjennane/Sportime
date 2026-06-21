@@ -112,6 +112,10 @@ serve(async (req) => {
       throw upsertError
     }
 
+    // Populate expected fantasy points (xP) for the projected-score model.
+    const { error: xpError } = await supabaseClient.rpc('fantasy_recompute_xp', { p_league_id: league_id })
+    if (xpError) console.error('[sync-league-fantasy-players] xP recompute failed:', xpError)
+
     console.log(`[sync-league-fantasy-players] Successfully synced ${uniquePlayers.length} players`)
 
     return new Response(

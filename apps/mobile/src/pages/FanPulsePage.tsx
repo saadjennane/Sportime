@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Search, X, Check, Star, BarChart3, Users as UsersIcon, ArrowLeft, ShoppingCart, Crown, Sparkles, Share2 } from 'lucide-react';
+import { Loader2, Search, X, Check, Star, BarChart3, Users as UsersIcon, ArrowLeft, ShoppingCart, Crown, Sparkles, Share2, Info, ChevronDown } from 'lucide-react';
 import { Profile } from '../types';
 import * as fp from '../services/fanPulseService';
 
@@ -56,7 +56,7 @@ const shareLineup = async (text: string) => {
 };
 
 // ── Player token ────────────────────────────────────────────────────────────
-const Token: React.FC<{ name?: string; photo?: string | null; bucket: fp.Bucket; empty?: boolean; onTap?: () => void; buy?: boolean; badge?: string; injured?: boolean }> = ({ name, photo, bucket, empty, onTap, buy, badge, injured }) => {
+const Token: React.FC<{ name?: string; photo?: string | null; bucket: fp.Bucket; empty?: boolean; onTap?: () => void; buy?: boolean; badge?: string; injured?: boolean; signed?: boolean }> = ({ name, photo, bucket, empty, onTap, buy, badge, injured, signed }) => {
   const [err, setErr] = useState(false);
   return (
     <button onClick={onTap} className="flex flex-col items-center gap-1 w-[72px]">
@@ -68,7 +68,9 @@ const Token: React.FC<{ name?: string; photo?: string | null; bucket: fp.Bucket;
         ) : (
           <div className={`w-14 h-14 rounded-full bg-gradient-to-b ${POS_GRAD[bucket]} border-2 border-white/60 shadow-lg flex items-center justify-center text-white font-bold text-base`}>{initials(name || '')}</div>
         )}
-        {buy && <span className="absolute -top-1 -right-1 bg-warm-yellow text-deep-navy text-[8px] font-extrabold rounded-full w-4 h-4 flex items-center justify-center">€</span>}
+        {signed
+          ? <span className="absolute -top-1 -right-1 bg-lime-glow text-deep-navy rounded-full w-4 h-4 flex items-center justify-center" title="Transfer completed"><Check size={11} strokeWidth={3} /></span>
+          : buy && <span className="absolute -top-1 -right-1 bg-warm-yellow text-deep-navy text-[8px] font-extrabold rounded-full w-4 h-4 flex items-center justify-center">€</span>}
       </div>
       {/* name pill (with an injury cross beside it when injured) */}
       <span className={`px-1.5 py-[3px] rounded-md text-[10px] font-bold text-center leading-none truncate max-w-[72px] border inline-flex items-center gap-1 ${empty ? 'bg-deep-navy/40 border-white/10 text-white/45' : 'bg-deep-navy/90 border-neon-cyan/35 text-white shadow'}`}>
@@ -157,14 +159,14 @@ const rowDepth = (ri: number, total: number): React.CSSProperties => {
   return { paddingInline: `${(1 - t) * 15}%`, transform: `scale(${0.86 + 0.14 * t})` };
 };
 
-const Pitch: React.FC<{ fname: string; picks: (fp.PulsePick | null)[]; onSlot?: (i: number) => void; isBuy?: (key: string) => boolean; onShare?: () => void; coach?: fp.CoachPick | null; onCoach?: () => void; hideCoach?: boolean; injuredKeys?: Set<string> }> = ({ fname, picks, onSlot, isBuy, onShare, coach, onCoach, hideCoach, injuredKeys }) => {
+const Pitch: React.FC<{ fname: string; picks: (fp.PulsePick | null)[]; onSlot?: (i: number) => void; isBuy?: (key: string) => boolean; onShare?: () => void; coach?: fp.CoachPick | null; onCoach?: () => void; hideCoach?: boolean; injuredKeys?: Set<string>; signedKeys?: Set<string> }> = ({ fname, picks, onSlot, isBuy, onShare, coach, onCoach, hideCoach, injuredKeys, signedKeys }) => {
   const formation = FORMATIONS[fname] ?? FORMATIONS['4-3-3'];
   const rows = renderRows(fname);
   return (
     <PitchField onShare={onShare} coach={coach} onCoach={onCoach} hideCoach={hideCoach}>
       {rows.map((row, ri) => (
         <div key={ri} className="flex justify-around items-center px-1" style={rowDepth(ri, rows.length)}>
-          {row.slots.map(i => { const p = picks[i]; return <Token key={i} name={p?.name} photo={p?.photo} bucket={formation[i]} empty={!p} onTap={onSlot ? () => onSlot(i) : undefined} buy={p && isBuy ? isBuy(p.player_key) : false} injured={!!(p && injuredKeys?.has(p.player_key))} />; })}
+          {row.slots.map(i => { const p = picks[i]; return <Token key={i} name={p?.name} photo={p?.photo} bucket={formation[i]} empty={!p} onTap={onSlot ? () => onSlot(i) : undefined} buy={p && isBuy ? isBuy(p.player_key) : false} signed={!!(p && signedKeys?.has(p.player_key))} injured={!!(p && injuredKeys?.has(p.player_key))} />; })}
         </div>
       ))}
     </PitchField>
@@ -188,7 +190,7 @@ const ConsensusXI: React.FC<{ agg: fp.Aggregate; fname: string; squadIds?: Set<s
       coachBadge={agg.coach ? `${agg.coach.pct}%` : undefined}>
       {rows.map((row, ri) => (
         <div key={ri} className="flex justify-around items-center px-1" style={rowDepth(ri, rows.length)}>
-          {row.slots.map(i => { const p = bySlot.get(i) ?? leftover[formation[i]].shift(); return <Token key={i} name={p?.name} photo={p?.photo} bucket={formation[i]} empty={!p} badge={p ? `${p.pct}%` : undefined} buy={p && squadIds ? !squadIds.has(p.player_key) : false} />; })}
+          {row.slots.map(i => { const p = bySlot.get(i) ?? leftover[formation[i]].shift(); const inSquad = p && squadIds ? squadIds.has(p.player_key) : false; const wasBuy = !!(p && (p as fp.AggSlot).buy); return <Token key={i} name={p?.name} photo={p?.photo} bucket={formation[i]} empty={!p} badge={p ? `${p.pct}%` : undefined} buy={!!squadIds && !!p && !inSquad} signed={wasBuy && inSquad} />; })}
         </div>
       ))}
     </PitchField>
@@ -197,12 +199,47 @@ const ConsensusXI: React.FC<{ agg: fp.Aggregate; fname: string; squadIds?: Set<s
 
 // ── Aggregated pulse ────────────────────────────────────────────────────────
 const PulseView: React.FC<{ agg: fp.Aggregate; fname: string; clubName: string; label: string; squadIds?: Set<string>; hideCoach?: boolean }> = ({ agg, fname, clubName, label, squadIds, hideCoach }) => {
+  const [rankOpen, setRankOpen] = useState(false);
   if (agg.participants === 0) return <div className="card-base p-8 text-center"><div className="text-4xl mb-2">📊</div><p className="text-text-secondary">No fan has voted yet. Be the first — build your XI!</p></div>;
-  const voted = <span className="px-2 py-1 rounded-full bg-deep-navy/85 border border-white/10 text-[11px] text-text-secondary"><b className="text-text-primary">{agg.participants}</b> voted</span>;
+  const voted = <span className="px-2 py-1 rounded-full bg-deep-navy/85 border border-white/10 text-xs text-text-secondary"><b className="text-text-primary">{agg.participants}</b> voted</span>;
+  const order: fp.Bucket[] = ['GK', 'DEF', 'MID', 'FWD'];
   return (
     <div className="space-y-3">
       <ConsensusXI agg={agg} fname={fname} squadIds={squadIds} topRight={voted} hideCoach={hideCoach} onShare={() => shareLineup(consensusText(clubName, fname, agg, label))} />
-      <p className="text-center text-[11px] text-text-disabled font-semibold">⚡ The fans' consensus XI — % who picked each player{squadIds ? ' · €  = not in the current squad' : ''}</p>
+      <p className="text-center text-[11px] text-text-disabled font-semibold">⚡ Fans' consensus XI · % who picked each player{squadIds ? ' · € wanted signing · ✓ transfer done' : ''}</p>
+
+      {/* Full ranking — collapsible (every player, ranked by % within each position) */}
+      <button onClick={() => setRankOpen(o => !o)} className="w-full flex items-center justify-between bg-navy-accent rounded-xl px-3 py-2.5">
+        <span className="text-sm font-bold text-text-primary">Full ranking</span>
+        <ChevronDown size={18} className={`text-text-secondary transition-transform ${rankOpen ? 'rotate-180' : ''}`} />
+      </button>
+      {rankOpen && (
+        <div className="space-y-3">
+          {order.map(b => {
+            const list = agg.players.filter(p => p.position === b).sort((a, c) => c.pct - a.pct);
+            if (!list.length) return null;
+            return (
+              <div key={b}>
+                <p className="text-[11px] font-bold text-text-secondary uppercase tracking-wider mb-1.5">{BUCKET_LABEL[b]}s</p>
+                <div className="space-y-1.5">
+                  {list.map(p => {
+                    const wanted = squadIds ? !squadIds.has(p.player_key) : false;
+                    return (
+                      <div key={p.player_key} className="bg-navy-accent rounded-lg p-2 flex items-center gap-2">
+                        {p.photo ? <img src={p.photo} className="w-8 h-8 rounded-full object-cover" alt="" /> : <div className={`w-8 h-8 rounded-full bg-gradient-to-b ${POS_GRAD[b]} flex items-center justify-center text-white font-bold text-[10px]`}>{initials(p.name)}</div>}
+                        <span className="flex-1 text-[13px] text-text-primary truncate">{p.name}</span>
+                        {wanted && <span className="text-[9px] font-extrabold text-warm-yellow bg-warm-yellow/15 px-1 rounded shrink-0">€</span>}
+                        <div className="h-1.5 w-16 rounded-full bg-deep-navy overflow-hidden shrink-0"><div className="h-full bg-electric-blue rounded-full" style={{ width: `${p.pct}%` }} /></div>
+                        <span className="text-[13px] font-bold text-electric-blue tabular-nums w-9 text-right shrink-0">{p.pct}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
@@ -344,7 +381,17 @@ const DreamBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, userI
     return () => clearTimeout(t);
   }, [starters, bench, sell, fname, coach]);
 
-  useEffect(() => { if (tab === 'pulse') { fp.getAggregate('dream', club.id).then(setAgg); fp.getSellAggregate(club.id).then(setSellAgg); } }, [tab, club.id]);
+  // Dream aggregate is loaded always (the "Players to buy" % is shown in the builder too).
+  useEffect(() => { fp.getAggregate('dream', club.id).then(setAgg); }, [club.id]);
+  useEffect(() => { if (tab === 'pulse') fp.getSellAggregate(club.id).then(setSellAgg); }, [tab, club.id]);
+
+  // Your wanted signings (buys) + the fans' buy % + a ✓ once the move concretizes.
+  const buyPct = useMemo(() => { const m = new Map<string, number>(); agg.players.forEach(p => m.set(p.player_key, p.pct)); return m; }, [agg]);
+  const myBuys = useMemo(() => [...(starters.filter(Boolean) as fp.PulsePick[]), ...bench]
+    .filter(p => p.buy ?? !squadIds.has(p.player_key)), [starters, bench, squadIds]);
+  const soldOut = useMemo(() => sell.filter(s => !squadIds.has(s.player_key)), [sell, squadIds]); // flagged players who actually left
+  const signedKeys = useMemo(() => new Set([...(starters.filter(Boolean) as fp.PulsePick[]), ...bench]
+    .filter(p => p.buy && squadIds.has(p.player_key)).map(p => p.player_key)), [starters, bench, squadIds]); // wanted signings that joined
 
   const usedKeys = useMemo(() => new Set([...(starters.filter(Boolean) as fp.PulsePick[]), ...bench].map(p => p.player_key)), [starters, bench]);
   const changeFormation = (f: string) => {
@@ -355,12 +402,13 @@ const DreamBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, userI
     setFname(f); setStarters(next);
   };
   const place = (pl: fp.SquadPlayer) => {
+    const buy = !squadIds.has(pl.id); // a signing if not in the current squad at pick time
     if (typeof pickFor === 'number') {
       const slot = pickFor;
-      setStarters(prev => { const next = [...prev]; for (let i = 0; i < next.length; i++) if (next[i]?.player_key === pl.id) next[i] = null; next[slot] = { player_key: pl.id, name: pl.name, photo: pl.photo, position: formation[slot], is_starter: true, slot }; return next; });
+      setStarters(prev => { const next = [...prev]; for (let i = 0; i < next.length; i++) if (next[i]?.player_key === pl.id) next[i] = null; next[slot] = { player_key: pl.id, name: pl.name, photo: pl.photo, position: formation[slot], is_starter: true, slot, buy }; return next; });
       setBench(prev => prev.filter(b => b.player_key !== pl.id));
     } else {
-      setBench(prev => (prev.some(b => b.player_key === pl.id) || prev.length >= 14) ? prev : [...prev, { player_key: pl.id, name: pl.name, photo: pl.photo, position: pl.position, is_starter: false, slot: 11 + prev.length }]);
+      setBench(prev => (prev.some(b => b.player_key === pl.id) || prev.length >= 14) ? prev : [...prev, { player_key: pl.id, name: pl.name, photo: pl.photo, position: pl.position, is_starter: false, slot: 11 + prev.length, buy }]);
     }
     // Organic cleanup: a player you keep in your XI/bench can't be on the sell list.
     setSell(prev => prev.filter(s => s.player_key !== pl.id));
@@ -378,7 +426,7 @@ const DreamBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, userI
           <div className="flex gap-1.5 overflow-x-auto pb-1">
             {Object.keys(FORMATIONS).map(f => <button key={f} onClick={() => changeFormation(f)} className={`px-3 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap ${fname === f ? 'bg-electric-blue text-white' : 'bg-navy-accent text-text-secondary'}`}>{f}</button>)}
           </div>
-          <Pitch fname={fname} picks={starters} onSlot={i => setPickFor(i)} isBuy={k => !squadIds.has(k)} coach={coach} onCoach={() => setCoachPick(true)} onShare={() => shareLineup(lineupText(club.name, fname, starters, 'Dream XI · next season'))} />
+          <Pitch fname={fname} picks={starters} onSlot={i => setPickFor(i)} isBuy={k => !squadIds.has(k)} signedKeys={signedKeys} coach={coach} onCoach={() => setCoachPick(true)} onShare={() => shareLineup(lineupText(club.name, fname, starters, 'Dream XI · next season'))} />
 
           <div>
             <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Bench · {bench.length}/14</p>
@@ -398,8 +446,31 @@ const DreamBuilder: React.FC<{ club: fp.Club; userId: string }> = ({ club, userI
             </div>
           </div>
 
+          {/* Players to buy — your wanted signings + the fans' % + ✓ when it concretizes */}
+          <div>
+            <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Players to buy <span className="text-text-disabled normal-case lowercase">· % of fans who want them</span></p>
+            {myBuys.length === 0 ? <span className="text-xs text-text-disabled">Add a player from outside the squad to your XI to plan a signing.</span>
+              : (
+                <div className="grid grid-cols-2 gap-1.5">
+                  {myBuys.map(p => { const realized = squadIds.has(p.player_key); const pct = buyPct.get(p.player_key);
+                    return (
+                      <div key={p.player_key} title={realized ? 'Transfer completed' : undefined} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border flex items-center gap-1 ${realized ? 'border-lime-glow bg-lime-glow/15 text-lime-glow' : 'border-electric-blue/30 text-text-secondary'}`}>
+                        {realized && <Check size={12} className="shrink-0" />}
+                        <span className="truncate flex-1">{surname(p.name)}</span>
+                        {pct != null && <span className="text-electric-blue tabular-nums shrink-0">{pct}%</span>}
+                      </div>
+                    ); })}
+                </div>
+              )}
+          </div>
+
           <div>
             <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Players to sell <span className="text-text-disabled normal-case lowercase">· tap to flag</span></p>
+            {soldOut.length > 0 && (
+              <div className="space-y-1 mb-1.5">
+                {soldOut.map(s => <div key={s.player_key} className="flex items-center gap-1.5 text-xs font-semibold text-lime-glow"><Check size={12} className="shrink-0" /> {s.name} — transferred out</div>)}
+              </div>
+            )}
             {squad.length === 0 ? <span className="text-xs text-text-disabled">Current squad not seeded for this club.</span>
               : (
                 <div className="grid grid-cols-2 gap-1.5">
@@ -590,6 +661,35 @@ const CoachPicker: React.FC<{ coaches: fp.Coach[]; currentKey?: string; onClose:
   );
 };
 
+// ── Onboarding ──────────────────────────────────────────────────────────────
+const FanPulseOnboarding: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const steps = [
+    { emoji: '❤️', grad: 'from-hot-red/30 to-hot-red/5', title: 'Pick your club', body: 'Choose the team you live for. Everything in Fan Pulse revolves around them — and your pick is saved.' },
+    { emoji: '👕', grad: 'from-warm-yellow/30 to-warm-yellow/5', title: 'Build your XIs', body: 'Three boards: the all-time Legends XI, your Dream XI for next season (sign & sell), and the XI you want for the upcoming match. Tap any slot to choose.' },
+    { emoji: '📊', grad: 'from-electric-blue/30 to-electric-blue/5', title: 'The Pulse', body: "Switch to The Pulse to see the fans' consensus XI — the % who picked each player. The more fans vote, the truer the pulse." },
+    { emoji: '🔁', grad: 'from-lime-glow/30 to-lime-glow/5', title: 'Live transfers', body: 'In Dream XI, a wanted signing shows €. When the move actually happens, it turns into a green ✓. Injured players are flagged with ✕.' },
+  ];
+  const [step, setStep] = useState(0);
+  const p = steps[step];
+  const last = step === steps.length - 1;
+  return (
+    <div className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-sm flex items-end" onClick={onClose}>
+      <div className="bg-navy-accent w-full rounded-t-3xl p-5" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-1"><h2 className="font-bold text-lg text-text-primary">Welcome to Fan Pulse</h2><button onClick={onClose}><X size={22} className="text-text-secondary" /></button></div>
+        <p className="text-[11px] text-text-disabled mb-4">Step {step + 1} of {steps.length}</p>
+        <div className={`h-36 rounded-2xl bg-gradient-to-br ${p.grad} flex items-center justify-center mb-4`}><span className="text-6xl">{p.emoji}</span></div>
+        <h3 className="font-bold text-text-primary text-lg">{p.title}</h3>
+        <p className="text-[13px] text-text-secondary mt-1 min-h-[72px]">{p.body}</p>
+        <div className="flex justify-center gap-1.5 my-4">{steps.map((_, i) => <span key={i} className={`h-1.5 rounded-full transition-all ${i === step ? 'w-5 bg-electric-blue' : 'w-1.5 bg-white/20'}`} />)}</div>
+        <div className="flex gap-2">
+          {step > 0 && <button onClick={() => setStep(step - 1)} className="px-4 py-3 rounded-xl bg-deep-navy text-text-secondary font-bold">Back</button>}
+          <button onClick={() => last ? onClose() : setStep(step + 1)} className="flex-1 bg-electric-blue text-deep-navy font-bold rounded-xl py-3">{last ? "Let's go" : 'Next'}</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── Page shell ──────────────────────────────────────────────────────────────
 export const FanPulsePage: React.FC<{ profile: Profile | null }> = ({ profile }) => {
   const userId = profile?.id ?? null;
@@ -597,8 +697,11 @@ export const FanPulsePage: React.FC<{ profile: Profile | null }> = ({ profile })
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<'home' | 'legends' | 'dream' | 'match'>('home');
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [howOpen, setHowOpen] = useState(false);
 
   useEffect(() => { if (!userId) { setLoading(false); return; } fp.getFavoriteClub(userId).then(c => { setClub(c); setLoading(false); }); }, [userId]);
+  // Show the explainer once, automatically, on the first visit.
+  useEffect(() => { if (!localStorage.getItem('fanpulse_how_seen')) { setHowOpen(true); localStorage.setItem('fanpulse_how_seen', '1'); } }, []);
 
   const picker = pickerOpen && (
     <ClubPicker
@@ -619,6 +722,7 @@ export const FanPulsePage: React.FC<{ profile: Profile | null }> = ({ profile })
         <span className="text-xs text-electric-blue font-semibold shrink-0">Choose</span>
       </button>
       {picker}
+      {howOpen && <FanPulseOnboarding onClose={() => setHowOpen(false)} />}
     </div>
   );
 
@@ -629,6 +733,7 @@ export const FanPulsePage: React.FC<{ profile: Profile | null }> = ({ profile })
         {club.logo ? <img src={club.logo} className="w-9 h-9 object-contain" alt="" /> : <div className="w-9 h-9 rounded-full bg-electric-blue/20 flex items-center justify-center text-electric-blue font-bold text-sm">{initials(club.name)}</div>}
         <div className="flex-1 min-w-0"><h1 className="text-lg font-bold text-text-primary truncate">{club.name}</h1><p className="text-[11px] text-text-secondary">{mode === 'home' ? 'Fan Pulse' : mode === 'legends' ? 'All-time Legends XI' : mode === 'dream' ? 'Dream XI · next season' : 'Upcoming match XI'}</p></div>
         {mode === 'home' && <button onClick={() => setPickerOpen(true)} className="text-xs text-text-disabled underline">change</button>}
+        <button onClick={() => setHowOpen(true)} aria-label="How it works" className="text-text-secondary p-1"><Info size={18} /></button>
       </div>
 
       {mode === 'home' ? (
@@ -640,6 +745,7 @@ export const FanPulsePage: React.FC<{ profile: Profile | null }> = ({ profile })
       ) : !userId ? null : mode === 'legends' ? <LegendsBuilder club={club} userId={userId} /> : mode === 'dream' ? <DreamBuilder club={club} userId={userId} /> : mode === 'match' ? <MatchBuilder club={club} userId={userId} /> : null}
 
       {picker}
+      {howOpen && <FanPulseOnboarding onClose={() => setHowOpen(false)} />}
     </div>
   );
 };

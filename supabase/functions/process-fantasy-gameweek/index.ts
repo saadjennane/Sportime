@@ -413,10 +413,7 @@ serve(async (req) => {
         teamTotalPoints *= FANTASY_CONFIG.bonuses.no_star
       }
 
-      const isCrazy = starterPlayers.every(p => playerStatusMap.get(p.id) === 'Wild')
-      if (isCrazy) {
-        teamTotalPoints *= FANTASY_CONFIG.bonuses.crazy
-      }
+      // Crazy / all-Wild +40% removed — all-Wild already counts as No-Star (+25%).
 
       const avgAge = starterPlayers.reduce((sum, p) => sum + calculateAge(p.birthdate), 0) / starterPlayers.length
       if (avgAge >= 30) {

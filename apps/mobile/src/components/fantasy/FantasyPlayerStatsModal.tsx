@@ -67,10 +67,10 @@ export const FantasyPlayerStatsModal: React.FC<Props> = ({ isOpen, onClose, play
               <div className="flex items-center justify-center gap-1"><CategoryIcon category={player.status} size={16} /><span className="text-lg font-bold text-text-primary">{player.pgs.toFixed(1)}</span></div>
               <p className="text-[10px] text-text-disabled">PGS · {player.status}</p>
             </div>
-            <Stat label="Fatigue" value={`${player.fatigue}%`} />
+            <Stat label="Energy" value={`${player.fatigue}%`} />
             <Stat label="Avg rating" value={t?.avg_rating ?? '—'} />
           </div>
-          <p className="text-[10px] text-text-disabled text-center -mt-3">PGS calculé sur les 10 derniers matchs</p>
+          <p className="text-[10px] text-text-disabled text-center -mt-3">PGS over the last 10 games · <b className="text-warm-yellow">Star ≥7.5</b> · <b className="text-electric-blue">Key ≥6.0</b> · <b className="text-text-secondary">Wild &lt;6.0</b></p>
 
           {/* Recent form */}
           <div>

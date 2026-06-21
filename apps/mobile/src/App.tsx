@@ -4,6 +4,9 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { Header } from './components/Header';
 import { BetModal } from './components/BetModal';
 import { FooterNav } from './components/FooterNav';
+import { SportSwitcher } from './components/SportSwitcher';
+import { useSport } from './contexts/SportContext';
+import RacesPage from './pages/RacesPage';
 import { mockMatches } from './data/mockMatches';
 import { mockChallengeMatches } from './data/mockChallenges';
 import { mockFantasyPlayers } from './data/mockFantasy.tsx';
@@ -85,6 +88,11 @@ import { ContextualPremiumPrompt } from './components/premium/ContextualPremiumP
 import { useActivityTracker } from './hooks/useActivityTracker';
 import { useAuth } from './contexts/AuthContext';
 import { useChallengesCatalog } from './features/challenges/useChallengesCatalog';
+import { useDuelCatalog, duelRaceId } from './features/f1/useDuelCatalog';
+import { usePredCatalog, predGameId, seasonGameId } from './features/f1/usePredCatalog';
+import { F1Duels } from './components/f1/F1Duels';
+import { F1Predictor } from './components/f1/F1Predictor';
+import { F1SeasonForecast } from './components/f1/F1SeasonForecast';
 import { useSquads } from './hooks/useSquads';
 import * as squadService from './services/squadService';
 import { useMatchBets } from './features/matches/useMatchBets';
@@ -120,6 +128,17 @@ function createEmptyChallengeEntry(challengeId: string, userId: string, matches:
 
 export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'squads' | 'funzone';
 type AuthFlowState = 'guest' | 'authenticated' | 'signing_up' | 'onboarding';
+
+// Placeholder for F1-specific tabs not built yet (Games / Fan Pulse).
+function F1ComingSoon({ title }: { title: string }) {
+  return (
+    <div className="card-base p-8 text-center space-y-2">
+      <div className="text-4xl">🏎️</div>
+      <div className="text-text-primary font-bold text-lg">{title}</div>
+      <div className="text-text-secondary text-sm">Coming soon for Formula 1.</div>
+    </div>
+  );
+}
 
 // Fallback shown while a lazy-loaded page chunk is being fetched.
 function PageLoader() {
@@ -158,6 +177,7 @@ function App() {
   const [contextualPrompt, setContextualPrompt] = useState<{ type: ContextualPromptType; isOpen: boolean } | null>(null);
 
   const [page, setPage] = useState<Page>('matches');
+  const { sport } = useSport();
   const [matches, setMatches] = useState<Match[]>(mockMatches);
   // `bets` now comes from useMatchBets (persisted); see below.
   const [modalState, setModalState] = useState<{ isOpen: boolean; match: Match | null; prediction: 'teamA' | 'draw' | 'teamB' | null; odds: number; }>({ isOpen: false, match: null, prediction: null, odds: 0 });
@@ -242,7 +262,31 @@ function App() {
 
   const shouldUseSupabaseChallenges = USE_SUPABASE && !challengesError;
 
+  const { duelGames, duelJoinedIds, refreshDuels } = useDuelCatalog(profile?.id ?? null);
+  const { predGames, predJoinedIds, refreshPred } = usePredCatalog(profile?.id ?? null);
   const games = shouldUseSupabaseChallenges ? supabaseGames : mockGames;
+  // F1 "Games" universe — same Browse/My Games UI as football, fed with the F1 games (duels + predictor).
+  const f1Games = useMemo(() => [...duelGames, ...predGames], [duelGames, predGames]);
+  const f1JoinedIds = useMemo(() => new Set<string>([...duelJoinedIds, ...predJoinedIds]), [duelJoinedIds, predJoinedIds]);
+  const f1MyGamesCount = useMemo(
+    () => f1Games.filter((g) => f1JoinedIds.has(g.id) && (g.status === 'Upcoming' || g.status === 'Ongoing')).length,
+    [f1Games, f1JoinedIds],
+  );
+  const [duelRace, setDuelRace] = useState<{ id: number; raceAt: string | null; name: string } | null>(null);
+  const [predOpen, setPredOpen] = useState<{ id: string; name: string } | null>(null);
+  const [seasonOpen, setSeasonOpen] = useState<{ id: string; name: string } | null>(null);
+  const handlePlayDuel = useCallback((game: any) => {
+    const rid = duelRaceId(game.id);
+    if (rid == null) return;
+    setDuelRace({ id: rid, raceAt: game.end_date ?? null, name: game.name });
+  }, []);
+  const handlePlayPredictor = useCallback((game: any) => {
+    const seasonId = seasonGameId(game.id);
+    if (seasonId != null) { setSeasonOpen({ id: seasonId, name: game.name }); return; }
+    const gid = predGameId(game.id);
+    if (gid == null) return;
+    setPredOpen({ id: gid, name: game.name });
+  }, []);
   const userChallengeEntries = shouldUseSupabaseChallenges ? supabaseChallengeEntries : mockUserChallengeEntries;
   const userSwipeEntries = shouldUseSupabaseChallenges ? supabaseSwipeEntries : mockUserSwipeEntries;
   const userFantasyTeams = shouldUseSupabaseChallenges ? supabaseFantasyTeams : mockUserFantasyTeams;
@@ -1659,12 +1703,16 @@ function App() {
 
     switch (page) {
       case 'matches':
+        // F1 universe → Races; football → the existing Matches page.
         return (
           <ErrorBoundary>
-            <MatchesPage matches={matches} bets={bets} onBet={handleBetClick} onPlayGame={handlePlayGameClick} onViewResults={(fixtureId, matchName) => setResultsModal({ isOpen: true, fixtureId, matchName })} onBrowseGames={() => handlePageChange('challenges')} />
+            {sport === 'f1'
+              ? <RacesPage />
+              : <MatchesPage matches={matches} bets={bets} onBet={handleBetClick} onPlayGame={handlePlayGameClick} onViewResults={(fixtureId, matchName) => setResultsModal({ isOpen: true, fixtureId, matchName })} onBrowseGames={() => handlePageChange('challenges')} />}
           </ErrorBoundary>
         );
       case 'challenges':
+        if (sport === 'f1') return <GamesListPage games={f1Games} userChallengeEntries={[]} userSwipeEntries={[]} userFantasyTeams={[]} onJoinChallenge={() => {}} onViewChallenge={() => {}} onJoinSwipeGame={() => {}} onPlaySwipeGame={() => {}} onViewFantasyGame={() => {}} onViewTournament={() => {}} onPlayDuel={handlePlayDuel} onPlayPredictor={handlePlayPredictor} joinedGameIds={f1JoinedIds} myGamesCount={f1MyGamesCount} profile={profile} userTickets={userTickets} isLoading={false} onRefresh={() => { refreshDuels(); refreshPred(); }} />;
         return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} onViewTournament={handleViewTournament} joinedGameIds={joinedChallengeSet} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} isLoading={challengesLoading} onRefresh={refreshChallenges} onShowLiveGames={() => setShowLiveGames(true)} pendingInviteGameIds={new Set(Object.keys(pendingInvites))} onReopenInvite={reopenInvite} />;
       case 'squads':
           return <LeaguesListPage
@@ -1676,6 +1724,7 @@ function App() {
               onRefresh={refetchSquads}
           />;
       case 'funzone':
+        if (sport === 'f1') return <F1ComingSoon title="F1 Fan Pulse" />;
         return <FanPulsePage profile={profile} />;
       case 'admin':
         return <AdminPage profile={profile} addToast={addToast} />;
@@ -1731,6 +1780,48 @@ function App() {
     );
   }
 
+  if (duelRace && profile) {
+    return (
+      <div className="main-background fixed inset-0 flex flex-col overflow-hidden">
+        <div className="flex-shrink-0 w-full max-w-md mx-auto px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 flex items-center gap-2">
+          <button onClick={() => { setDuelRace(null); refreshDuels(); }} className="px-2 py-1 text-sm font-semibold text-text-secondary">← Back</button>
+          <div className="font-bold text-text-primary truncate">{duelRace.name}</div>
+        </div>
+        <div className="flex-1 overflow-y-auto w-full max-w-md mx-auto px-4 pb-24">
+          <F1Duels gp={{ id: duelRace.id, raceAt: duelRace.raceAt } as any} userId={profile.id} />
+        </div>
+      </div>
+    );
+  }
+
+  if (predOpen && profile) {
+    return (
+      <div className="main-background fixed inset-0 flex flex-col overflow-hidden">
+        <div className="flex-shrink-0 w-full max-w-md mx-auto px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 flex items-center gap-2">
+          <button onClick={() => { setPredOpen(null); refreshPred(); }} className="px-2 py-1 text-sm font-semibold text-text-secondary">← Back</button>
+          <div className="font-bold text-text-primary truncate">{predOpen.name}</div>
+        </div>
+        <div className="flex-1 overflow-y-auto w-full max-w-md mx-auto px-4 pb-24">
+          <F1Predictor gameId={predOpen.id} userId={profile.id} />
+        </div>
+      </div>
+    );
+  }
+
+  if (seasonOpen && profile) {
+    return (
+      <div className="main-background fixed inset-0 flex flex-col overflow-hidden">
+        <div className="flex-shrink-0 w-full max-w-md mx-auto px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 flex items-center gap-2">
+          <button onClick={() => { setSeasonOpen(null); refreshPred(); }} className="px-2 py-1 text-sm font-semibold text-text-secondary">← Back</button>
+          <div className="font-bold text-text-primary truncate">{seasonOpen.name}</div>
+        </div>
+        <div className="flex-1 overflow-y-auto w-full max-w-md mx-auto px-4 pb-24">
+          <F1SeasonForecast gameId={seasonOpen.id} userId={profile.id} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="main-background fixed inset-0 flex flex-col overflow-hidden">
       <ToastContainer toasts={toasts} removeToast={removeToast} />
@@ -1751,6 +1842,11 @@ function App() {
           freeSpinReady={freeSpinReady}
           onOpenSpin={() => handleOpenSpinWheel('free')}
         />
+      </div>
+
+      {/* Sport universe selector (Football / F1) — fixed under the header */}
+      <div className="flex-shrink-0 w-full max-w-md mx-auto px-4 pb-2">
+        <SportSwitcher />
       </div>
 
       {/* Single scroll region for page content */}

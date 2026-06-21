@@ -33,6 +33,7 @@ interface FantasyPlayerRow {
   team_logo: string | null;
   birthdate: string | null;
   pgs: number;
+  xp: number | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -296,6 +297,7 @@ function mapPlayerRowToPlayer(row: FantasyPlayerRow): FantasyPlayer {
     teamLogo: row.team_logo || '',
     birthdate: row.birthdate || '',
     pgs: row.pgs,
+    xp: row.xp ?? null,
   };
 }
 

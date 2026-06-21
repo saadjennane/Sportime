@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { SportimeGame, TournamentType, Profile, UserTicket, GameType, UserChallengeEntry, UserSwipeEntry } from '../types';
 import { format, parseISO, isBefore } from 'date-fns';
-import { Calendar, Coins, Gift, ArrowRight, Clock, Users, Ticket, Star, Trophy, Award, Info, Flame, Lock, CheckCircle2, CircleDot, Target, Layers, Shirt, Zap, Repeat, CalendarDays } from 'lucide-react';
+import { Calendar, Coins, Gift, ArrowRight, Clock, Users, Ticket, Star, Trophy, Award, Info, Flame, Lock, CheckCircle2, CircleDot, Target, Layers, Shirt, Zap, Repeat, CalendarDays, Swords, Crosshair } from 'lucide-react';
 import { CtaState, calculateEntryDeadline } from '../pages/GamesListPage';
 import { normalizeTournamentTier } from '../config/constants';
 import { getGameDeadline } from '../services/gameStateService';
@@ -131,6 +131,8 @@ const gameTypeDetails: Record<GameType, { tag: string; color: string }> = {
   prediction: { tag: 'Prediction', color: 'bg-neon-cyan/20 text-neon-cyan' },
   fantasy: { tag: 'Fantasy', color: 'bg-lime-glow/20 text-lime-glow' },
   'fantasy-live': { tag: 'Fantasy Live', color: 'bg-purple-600/20 text-purple-400' },
+  duel: { tag: 'Duels', color: 'bg-hot-red/20 text-hot-red' },
+  predictor: { tag: 'Predictor', color: 'bg-neon-cyan/20 text-neon-cyan' },
 };
 
 const periodTypeDetails: Record<'matchdays' | 'calendar', { tag: string; color: string }> = {
@@ -150,6 +152,8 @@ const gameTypeVisual: Record<string, { name: string; Icon: any; chip: string; ra
   prediction:     { name: 'Prediction', Icon: Layers, chip: 'bg-neon-cyan/20 text-neon-cyan',         rail: 'bg-neon-cyan',     dot: 'bg-neon-cyan' },
   fantasy:        { name: 'Fantasy',    Icon: Shirt,  chip: 'bg-lime-glow/20 text-lime-glow',         rail: 'bg-lime-glow',     dot: 'bg-lime-glow' },
   'fantasy-live': { name: 'Fantasy Live', Icon: Shirt, chip: 'bg-purple-600/20 text-purple-400',      rail: 'bg-purple-500',    dot: 'bg-purple-400' },
+  duel:           { name: 'Duels',      Icon: Swords, chip: 'bg-hot-red/20 text-hot-red',             rail: 'bg-hot-red',       dot: 'bg-hot-red' },
+  predictor:      { name: 'Predictor',  Icon: Crosshair, chip: 'bg-neon-cyan/20 text-neon-cyan',      rail: 'bg-neon-cyan',     dot: 'bg-neon-cyan' },
   tournament:     { name: 'Tournament', Icon: Trophy, chip: 'bg-warm-yellow/20 text-warm-yellow',     rail: 'bg-warm-yellow',   dot: 'bg-warm-yellow' },
 };
 const durationVisual: Record<string, { Icon: any; label: string }> = {

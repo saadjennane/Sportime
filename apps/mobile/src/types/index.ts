@@ -192,6 +192,7 @@ export interface FantasyPlayer {
   teamLogo: string;
   birthdate: string;
   pgs: number;
+  xp?: number | null; // expected fantasy points per game (projection input)
   playtime_ratio?: number;
   liveStatus?: PlayerLiveStatus;
   livePoints?: number;
@@ -546,7 +547,7 @@ export interface UserStreak {
   total_cycles_completed: number;
 }
 
-export type GameType = 'betting' | 'prediction' | 'fantasy' | 'fantasy-live';
+export type GameType = 'betting' | 'prediction' | 'fantasy' | 'fantasy-live' | 'duel' | 'predictor';
 export type GameFormat = 'leaderboard' | 'championship' | 'knockout' | 'battle-royale';
 export type RewardTier = 'tier1' | 'tier2' | 'tier3';
 export type ConditionsLogic = 'and' | 'or';

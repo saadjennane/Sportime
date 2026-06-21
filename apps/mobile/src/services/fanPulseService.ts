@@ -6,9 +6,9 @@ import { supabase } from './supabase';
 export interface Club { id: string; name: string; logo: string | null; }
 export type Bucket = 'GK' | 'DEF' | 'MID' | 'FWD';
 export interface Legend { id: string; player_key: string; name: string; position: Bucket; photo_url: string | null; }
-export interface PulsePick { player_key: string; name: string; photo: string | null; position: Bucket; is_starter: boolean; slot: number; }
+export interface PulsePick { player_key: string; name: string; photo: string | null; position: Bucket; is_starter: boolean; slot: number; buy?: boolean; }
 export interface AggPlayer { player_key: string; name: string; photo: string | null; position: Bucket; count: number; pct: number; }
-export interface AggSlot extends AggPlayer { slot: number; }
+export interface AggSlot extends AggPlayer { slot: number; buy?: boolean; }
 export interface AggCoach { coach_key: string; name: string; photo: string | null; count: number; pct: number; }
 export interface Aggregate { participants: number; players: AggPlayer[]; slots: AggSlot[]; coach: AggCoach | null; }
 

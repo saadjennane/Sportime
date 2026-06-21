@@ -13,7 +13,7 @@ export const FatigueBar: React.FC<FatigueBarProps> = ({ fatigue }) => {
   };
 
   return (
-    <div className="w-full bg-disabled rounded-full h-3.5 relative overflow-hidden" title={`Fatigue: ${fatigue}%`}>
+    <div className="w-full bg-disabled rounded-full h-3.5 relative overflow-hidden" title={`Energy: ${fatigue}%`}>
       <div
         className={`h-full rounded-full transition-all duration-300 bg-gradient-to-r ${getGradient()}`}
         style={{ width: `${fatigue}%` }}

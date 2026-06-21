@@ -1,6 +1,7 @@
 import React from 'react';
-import { Calendar, Gamepad2, Users, Activity } from 'lucide-react';
+import { Calendar, Gamepad2, Users, Activity, Flag } from 'lucide-react';
 import { Page } from '../App';
+import { useSport } from '../contexts/SportContext';
 
 interface FooterNavProps {
   activePage: Page;
@@ -34,18 +35,21 @@ const NavItem: React.FC<{
 };
 
 export const FooterNav: React.FC<FooterNavProps> = ({ activePage, onPageChange }) => {
+  const { sport } = useSport();
+  const isF1 = sport === 'f1';
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 bg-deep-navy/95 backdrop-blur-md border-t border-white/10 pb-[env(safe-area-inset-bottom)]">
       <nav className="w-full max-w-md mx-auto h-[58px] flex justify-around items-center">
+        {/* Slot swaps Matches⇄Races by sport; Squads stays shared. */}
         <NavItem
-          icon={<Calendar />}
-          label="Matches"
+          icon={isF1 ? <Flag /> : <Calendar />}
+          label={isF1 ? 'Races' : 'Matches'}
           isActive={activePage === 'matches'}
           onClick={() => onPageChange('matches')}
         />
         <NavItem
           icon={<Gamepad2 />}
-          label="Games"
+          label={isF1 ? 'F1 Games' : 'Games'}
           isActive={activePage === 'challenges'}
           onClick={() => onPageChange('challenges')}
         />
