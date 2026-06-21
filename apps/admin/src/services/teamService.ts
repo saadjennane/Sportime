@@ -64,14 +64,17 @@ export const teamService = {
    * Server-side paginated + searchable list. Counts are computed only for the
    * current page (50 head queries) instead of ~2× per team across all 1000+ teams.
    */
-  async getPaged({ q = '', country = '', page = 0, pageSize = 50 }: { q?: string; country?: string; page?: number; pageSize?: number }):
+  async getPaged({ q = '', country = '', leagueId = '', page = 0, pageSize = 50 }: { q?: string; country?: string; leagueId?: string; page?: number; pageSize?: number }):
     Promise<{ data: TeamWithCounts[]; count: number; error: any }> {
     if (!supabase) return { data: [], count: 0, error: new Error('Supabase not initialized') };
     const from = page * pageSize;
     const to = from + pageSize - 1;
-    let query = supabase.from('fb_teams').select('*', { count: 'exact' });
+    // League filter goes through participation (fb_teams.league_id is unused/empty).
+    const sel = leagueId ? '*, fb_team_league_participation!inner(league_id)' : '*';
+    let query = supabase.from('fb_teams').select(sel, { count: 'exact' });
     if (q.trim()) query = query.ilike('name', `%${q.trim()}%`);
     if (country.trim()) query = query.eq('country', country.trim());
+    if (leagueId) query = query.eq('fb_team_league_participation.league_id', leagueId);
     const { data: teams, error, count } = await query.order('name').range(from, to);
     if (error) return { data: [], count: 0, error };
     const withCounts = await Promise.all((teams ?? []).map(async (team: any) => {

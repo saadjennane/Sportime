@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Search, Plus, Edit2, Trash2, Download, Eye, EyeOff, Database, Loader2 } from 'lucide-react';
 import { Spinner, EmptyState } from '../components/ui/States';
 import { PageHeader } from '../components/ui/PageHeader';
@@ -118,7 +119,10 @@ export function LeaguesPage() {
                   ? <img src={league.logo || (league as any).logo_url} alt="" className="w-8 h-8 object-contain shrink-0" />
                   : <div className="w-8 h-8 bg-background-dark rounded flex items-center justify-center text-text-disabled text-[10px] shrink-0">N/A</div>}
                 <div className="min-w-0 flex-1">
-                  <div className="font-medium truncate">{league.name}</div>
+                  <Link to={`/teams?leagueId=${league.id}&leagueName=${encodeURIComponent(league.name)}`}
+                    className="font-medium truncate block hover:text-electric-blue hover:underline" title="View teams in this league">
+                    {league.name}
+                  </Link>
                   <div className="text-xs text-text-secondary truncate">
                     {(league.country_id || '—')} · {league.type || 'League'} · API {league.api_league_id || league.api_id || '—'}
                   </div>

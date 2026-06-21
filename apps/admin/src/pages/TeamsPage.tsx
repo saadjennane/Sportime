@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, Edit2, Trash2, RefreshCw, Download, Users, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useSearchParams, Link } from 'react-router-dom';
+import { Search, Plus, Edit2, Trash2, RefreshCw, Download, Users, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { Spinner, EmptyState } from '../components/ui/States';
 import { teamService } from '../services/teamService';
 import type { TeamWithCounts } from '../types/football';
@@ -12,6 +13,9 @@ import { toast as mockAddToast } from '../components/ui/Toast';
 const PAGE_SIZE = 50;
 
 export function TeamsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const leagueId = searchParams.get('leagueId') || '';
+  const leagueName = searchParams.get('leagueName') || '';
   const [filteredTeams, setFilteredTeams] = useState<TeamWithCounts[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -47,12 +51,13 @@ export function TeamsPage() {
     return () => clearTimeout(t);
   }, [searchQuery, countryFilter]);
 
-  useEffect(() => { loadTeams(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [debounced, page]);
+  useEffect(() => { setPage(0); }, [leagueId]);
+  useEffect(() => { loadTeams(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [debounced, page, leagueId]);
 
   const loadTeams = async () => {
     setLoading(true);
     const { data, count, error } = await teamService.getPaged({
-      q: debounced.q, country: debounced.country === 'all' ? '' : debounced.country, page, pageSize: PAGE_SIZE,
+      q: debounced.q, country: debounced.country === 'all' ? '' : debounced.country, leagueId, page, pageSize: PAGE_SIZE,
     });
     if (error) { mockAddToast('Failed to load teams', 'error'); console.error(error); }
     else { setFilteredTeams(data); setTotal(count); }
@@ -384,6 +389,16 @@ export function TeamsPage() {
         </button>
       </div>
 
+      {/* League drill-down banner */}
+      {leagueId && (
+        <div className="mb-4 flex items-center justify-between gap-3 px-4 py-2.5 bg-electric-blue/10 border border-electric-blue/20 rounded-lg">
+          <span className="text-sm">Filtered to league <span className="font-semibold">{leagueName || 'selected league'}</span></span>
+          <button onClick={() => setSearchParams({})} className="flex items-center gap-1 text-sm text-electric-blue font-semibold hover:underline">
+            <X className="w-4 h-4" /> Clear
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
         {loading ? (
@@ -453,7 +468,11 @@ export function TeamsPage() {
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3 font-medium">{team.name}</td>
+                    <td className="px-4 py-3 font-medium">
+                      <Link to={`/players?teamId=${team.id}&teamName=${encodeURIComponent(team.name)}`} className="hover:text-electric-blue hover:underline">
+                        {team.name}
+                      </Link>
+                    </td>
                     <td className="px-4 py-3 text-text-secondary">
                       {team.country}
                     </td>

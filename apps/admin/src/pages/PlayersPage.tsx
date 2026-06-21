@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Search, Trash2, Edit2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Search, Trash2, Edit2, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { playerService } from '../services/playerService';
 import type { PlayerWithTeam } from '../types/football';
 import { ConfirmationModal } from '../components/admin/ConfirmationModal';
@@ -11,6 +12,9 @@ import { toast } from '../components/ui/Toast';
 const PAGE_SIZE = 50;
 
 export function PlayersPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const teamId = searchParams.get('teamId') || '';
+  const teamName = searchParams.get('teamName') || '';
   const [rows, setRows] = useState<PlayerWithTeam[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -29,11 +33,12 @@ export function PlayersPage() {
     return () => clearTimeout(t);
   }, [search, teamFilter]);
 
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [debounced, page]);
+  useEffect(() => { setPage(0); }, [teamId]);
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [debounced, page, teamId]);
 
   const load = async () => {
     setLoading(true);
-    const { data, count, error } = await playerService.getPaged({ q: debounced.q, team: debounced.team, page, pageSize: PAGE_SIZE });
+    const { data, count, error } = await playerService.getPaged({ q: debounced.q, team: debounced.team, teamId, page, pageSize: PAGE_SIZE });
     if (error) { toast('Failed to load players', 'error'); console.error(error); }
     else { setRows(data); setTotal(count); setSelected(new Set()); }
     setLoading(false);
@@ -77,6 +82,16 @@ export function PlayersPage() {
           </button>
         ) : undefined}
       />
+
+      {/* Team drill-down banner */}
+      {teamId && (
+        <div className="mb-4 flex items-center justify-between gap-3 px-4 py-2.5 bg-electric-blue/10 border border-electric-blue/20 rounded-lg">
+          <span className="text-sm">Filtered to team <span className="font-semibold">{teamName || 'selected team'}</span></span>
+          <button onClick={() => setSearchParams({})} className="flex items-center gap-1 text-sm text-electric-blue font-semibold hover:underline">
+            <X className="w-4 h-4" /> Clear
+          </button>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="mb-4 flex items-center gap-3 flex-wrap">

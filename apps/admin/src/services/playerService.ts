@@ -35,19 +35,23 @@ export const playerService = {
   /**
    * Server-side paginated + searchable list (avoids loading all ~22k players).
    */
-  async getPaged({ q = '', team = '', page = 0, pageSize = 50 }: { q?: string; team?: string; page?: number; pageSize?: number }):
+  async getPaged({ q = '', team = '', teamId = '', page = 0, pageSize = 50 }: { q?: string; team?: string; teamId?: string; page?: number; pageSize?: number }):
     Promise<{ data: PlayerWithTeam[]; count: number; error: any }> {
     if (!supabase) return { data: [], count: 0, error: new Error('Supabase not initialized') };
     const from = page * pageSize;
     const to = from + pageSize - 1;
     const t = team.trim();
+    // Team filter goes through the association table (fb_players.team_id is unused/empty).
     const rel = t
       ? 'fb_player_team_association!inner(team_id, fb_teams!inner(name, logo))'
-      : 'fb_player_team_association!left(fb_teams(name, logo))';
+      : teamId
+        ? 'fb_player_team_association!inner(team_id, fb_teams(name, logo))'
+        : 'fb_player_team_association!left(fb_teams(name, logo))';
     let query = supabase.from('fb_players').select(`*, ${rel}`, { count: 'exact' });
     const s = q.trim();
     if (s) query = query.or(`first_name.ilike.%${s}%,last_name.ilike.%${s}%,name.ilike.%${s}%`);
     if (t) query = query.ilike('fb_player_team_association.fb_teams.name', `%${t}%`);
+    if (teamId) query = query.eq('fb_player_team_association.team_id', teamId);
     const { data, error, count } = await query.order('last_name').range(from, to);
     const rows = (data ?? []).map((p: any) => ({
       ...p,
