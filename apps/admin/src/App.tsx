@@ -16,6 +16,7 @@ import { DataSyncPage } from './pages/DataSyncPage';
 import { CelebrationsPage } from './pages/CelebrationsPage';
 import { ConfigPage } from './pages/ConfigPage';
 import { BookmakerPage } from './pages/BookmakerPage';
+import { F1Page } from './pages/F1Page';
 import { LiveGameConfigPage } from './pages/LiveGameConfigPage';
 import { LiveGamesPage } from './pages/LiveGamesPage';
 import { PuzzlePage } from './pages/PuzzlePage';
@@ -38,6 +39,7 @@ function App() {
         <Route path="/match-royale" element={<MatchRoyalePage />} />
         <Route path="/data-sync" element={<DataSyncPage />} />
         <Route path="/bookmaker" element={<BookmakerPage />} />
+        <Route path="/f1" element={<F1Page />} />
         <Route path="/celebrations" element={<CelebrationsPage />} />
         <Route path="/config" element={<ConfigPage />} />
         <Route path="/live-game" element={<LiveGameConfigPage />} />

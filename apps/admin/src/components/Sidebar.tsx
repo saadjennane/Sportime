@@ -8,6 +8,7 @@ import {
   Shield,
   Users,
   Settings,
+  Flag,
   Menu,
   X,
   Calendar,
@@ -42,6 +43,7 @@ export function Sidebar({ className = '' }: SidebarProps) {
     { to: '/puzzles', icon: Puzzle, label: 'Daily Puzzles' },
     { to: '/data-sync', icon: DatabaseZap, label: 'Data Sync' },
     { to: '/bookmaker', icon: DollarSign, label: 'Bookmakers' },
+    { to: '/f1', icon: Flag, label: 'F1 Markets' },
     { to: '/config', icon: Settings, label: 'Game Config' },
     { to: '/celebrations', icon: Trophy, label: 'Celebrations' },
   ];
