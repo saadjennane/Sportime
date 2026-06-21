@@ -1,8 +1,8 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Star, DatabaseZap, Trophy, Globe, Shield, Users, Settings,
-  Flag, Gauge, ChevronDown, Menu, X, Calendar, DollarSign, Radio, Disc3, Puzzle,
-  Zap, Swords, SlidersHorizontal, Sparkles, Gift,
+  Flag, Gauge, ChevronDown, Menu, X, Calendar, DollarSign, Radio, Disc3,
+  Zap, Swords, SlidersHorizontal, Sparkles, Gift, PartyPopper, Gamepad2,
 } from 'lucide-react';
 import { useState } from 'react';
 import packageJson from '../../package.json';
@@ -20,6 +20,8 @@ const isSub = (e: Entry): e is Sub => 'group' in e;
 
 const DASHBOARD: Item = { to: '/', icon: LayoutDashboard, label: 'Dashboard' };
 
+const CELEBRATIONS: Item = { to: '/celebrations', icon: PartyPopper, label: 'Celebrations' };
+
 const SECTIONS: Section[] = [
   { label: 'Football', entries: [
     { group: 'Data', items: [
@@ -32,6 +34,12 @@ const SECTIONS: Section[] = [
     { group: 'Games', items: [
       { to: '/tournament', icon: Trophy, label: 'Games' },
       { to: '/live-games', icon: Radio, label: 'Live Games' },
+      { to: '/live-fantasy', icon: Sparkles, label: 'Live Fantasy' },
+      { to: '/match-royale', icon: Swords, label: 'Match Royale' },
+      { to: '/swipe', icon: Zap, label: 'Swipe' },
+      { to: '/fantasy', icon: Gamepad2, label: 'Fantasy' },
+      { to: '/live-game', icon: SlidersHorizontal, label: 'Live Game Config' },
+      CELEBRATIONS,
     ] },
     { group: 'Config', items: [
       { to: '/bookmaker', icon: DollarSign, label: 'Bookmakers' },
@@ -44,6 +52,7 @@ const SECTIONS: Section[] = [
     ] },
     { group: 'Games', items: [
       { to: '#', icon: Trophy, label: 'Coming soon', disabled: true },
+      CELEBRATIONS,
     ] },
   ] },
   { label: 'General config', entries: [
@@ -53,15 +62,6 @@ const SECTIONS: Section[] = [
       { to: '/config?tab=rewards', icon: Gift, label: 'Rewards' },
       { to: '/config', icon: Settings, label: 'Game config' },
     ] },
-  ] },
-  { label: 'Legacy / More', entries: [
-    { to: '/celebrations', icon: Trophy, label: 'Celebrations' },
-    { to: '/puzzles', icon: Puzzle, label: 'Daily Puzzles' },
-    { to: '/swipe', icon: Zap, label: 'Swipe' },
-    { to: '/fantasy', icon: Sparkles, label: 'Fantasy' },
-    { to: '/match-royale', icon: Swords, label: 'Match Royale' },
-    { to: '/live-fantasy', icon: Radio, label: 'Live Fantasy' },
-    { to: '/live-game', icon: SlidersHorizontal, label: 'Live Game Config' },
   ] },
 ];
 

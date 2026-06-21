@@ -21,7 +21,6 @@ import { F1DataPage } from './pages/F1DataPage';
 import { LiveGameConfigPage } from './pages/LiveGameConfigPage';
 import { LiveGamesPage } from './pages/LiveGamesPage';
 import { LiveFantasyPage } from './pages/LiveFantasyPage';
-import { PuzzlePage } from './pages/PuzzlePage';
 import { ToastHost } from './components/ui/Toast';
 import { ConfirmHost } from './components/ui/Confirm';
 
@@ -50,7 +49,6 @@ function App() {
         <Route path="/live-game" element={<LiveGameConfigPage />} />
         <Route path="/live-games" element={<LiveGamesPage />} />
         <Route path="/live-fantasy" element={<LiveFantasyPage />} />
-        <Route path="/puzzles" element={<PuzzlePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

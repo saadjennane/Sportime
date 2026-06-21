@@ -5,18 +5,15 @@ import {
   listAssignments, createAssignment, deleteAssignment,
   listActivations, setActivation, listLeaguesMR, listGamesMR,
 } from '../services/matchRoyaleAdminService';
+import { PageHeader } from '../components/ui/PageHeader';
+import { toast } from '../components/ui/Toast';
 
 export function MatchRoyalePage() {
   const [tab, setTab] = useState<'gameplay' | 'pots' | 'assign' | 'activation' | 'games'>('activation');
-  const [msg, setMsg] = useState('');
-  const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 4000); };
+  const flash = (m: string) => toast(m);
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-text-primary mb-1">Match Royale</h1>
-        <p className="text-text-secondary">Live battle‑royale on matches. Games auto‑create ~1h before kickoff for activated matches.</p>
-      </div>
-      {msg && <div className="bg-electric-blue/10 border border-electric-blue/30 text-electric-blue rounded-lg px-4 py-2 text-sm">{msg}</div>}
+      <PageHeader title="Match Royale" subtitle="Live battle-royale on matches. Games auto-create ~1h before kickoff for activated matches." />
       <div className="flex gap-2 border-b border-border-subtle overflow-x-auto">
         {(['activation', 'pots', 'assign', 'gameplay', 'games'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 text-sm font-semibold capitalize whitespace-nowrap ${tab === t ? 'text-electric-blue border-b-2 border-electric-blue' : 'text-text-secondary'}`}>

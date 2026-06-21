@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react';
 import { getLFConfig, updateLFConfig, listLFActivations, setLFActivation, deleteLFActivation, listLFAssignments, createLFAssignment, deleteLFAssignment } from '../services/liveFantasyAdminService';
 import { listPotProfiles, listLeaguesMR, listGamesMR } from '../services/matchRoyaleAdminService';
+import { PageHeader } from '../components/ui/PageHeader';
+import { toast } from '../components/ui/Toast';
 
 export function LiveFantasyPage() {
   const [tab, setTab] = useState<'gameplay' | 'scoring' | 'assign' | 'activation'>('gameplay');
-  const [msg, setMsg] = useState('');
-  const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 2500); };
+  const flash = (m: string) => toast(m);
   return (
     <div className="space-y-4">
-      <h1 className="text-3xl font-bold text-text-primary mb-1">Live Fantasy</h1>
-      {msg && <div className="bg-lime-glow/15 text-lime-glow text-sm px-3 py-2 rounded-lg">{msg}</div>}
+      <PageHeader title="Live Fantasy" subtitle="Live fantasy on matches — scoring, pots and activation." />
       <div className="flex gap-1 border-b border-white/10 overflow-x-auto">
         {(['gameplay', 'scoring', 'assign', 'activation'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 text-sm font-semibold capitalize whitespace-nowrap ${tab === t ? 'text-electric-blue border-b-2 border-electric-blue' : 'text-text-secondary'}`}>

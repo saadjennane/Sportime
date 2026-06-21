@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { confirmDialog } from '../components/ui/Confirm';
 import { Spinner } from '../components/ui/States';
+import { PageHeader } from '../components/ui/PageHeader';
 import {
   Save,
   RotateCcw,
@@ -247,16 +248,7 @@ export function LiveGameConfigPage() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-2">
-          <Gamepad2 className="w-8 h-8 text-electric-blue" />
-          <h1 className="text-3xl font-bold">Live Betting Game Config</h1>
-        </div>
-        <p className="text-text-secondary">
-          Configure level limits and free mode rewards for the Live Betting Game
-        </p>
-      </div>
+      <PageHeader title="Live Betting Game Config" subtitle="Configure level limits and free mode rewards for the Live Betting Game." />
 
       {/* Tabs */}
       <div className="flex gap-2 mb-6">

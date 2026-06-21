@@ -1,18 +1,13 @@
-import React from 'react';
 import FantasyGameAdmin from '../components/FantasyGameAdmin';
 import FantasyGameWeekAdmin from '../components/FantasyGameWeekAdmin';
 import FantasyPlayerAdmin from '../components/FantasyPlayerAdmin';
 import FantasyManualSync from '../components/FantasyManualSync';
+import { PageHeader } from '../components/ui/PageHeader';
 
 export function FantasyPage() {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Fantasy Game Management</h1>
-        <p className="text-gray-600">
-          Manage Fantasy games, game weeks, players, and data synchronization for La Liga and other leagues.
-        </p>
-      </div>
+      <PageHeader title="Fantasy Game Management" subtitle="Manage Fantasy games, game weeks, players, and data synchronization." />
 
       {/* Manual Sync & Processing */}
       <FantasyManualSync />
