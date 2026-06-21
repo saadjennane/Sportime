@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { confirmDialog } from '../components/ui/Confirm';
+import { Spinner } from '../components/ui/States';
 import {
-  RefreshCw,
   Save,
   RotateCcw,
   Plus,
@@ -232,9 +232,7 @@ export function LiveGameConfigPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <RefreshCw className="w-8 h-8 animate-spin text-electric-blue" />
-      </div>
+      <Spinner label="Loading configuration…" />
     );
   }
 

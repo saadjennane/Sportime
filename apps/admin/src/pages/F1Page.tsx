@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Flag } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { Spinner } from '../components/ui/States';
 import { F1OddsAdmin } from '../components/F1OddsAdmin';
 
 interface F1Market {
@@ -57,7 +58,7 @@ function MarketsTab() {
       {error && <div className="mb-4 p-3 rounded-lg bg-hot-red/10 text-hot-red text-sm">{error}</div>}
 
       {loading ? (
-        <div className="text-text-secondary">Loading markets…</div>
+        <Spinner label="Loading markets…" />
       ) : (
         <div className="space-y-2">
           {markets.map((m) => (

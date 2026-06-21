@@ -2,9 +2,7 @@ import { useState, useEffect } from 'react';
 import { Search, Plus, Edit2, Trash2, RefreshCw, Download, Users, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Spinner, EmptyState } from '../components/ui/States';
 import { teamService } from '../services/teamService';
-import { leagueService } from '../services/leagueService';
 import type { TeamWithCounts } from '../types/football';
-import type { LeagueWithTeamCount } from '../types/football';
 import { TeamFormModal } from '../components/admin/TeamFormModal';
 import { ConfirmationModal } from '../components/admin/ConfirmationModal';
 import { syncTeamPlayers, type SyncProgress } from '../services/footballSyncService';
@@ -22,6 +20,7 @@ export function TeamsPage() {
   const [countryFilter, setCountryFilter] = useState('all');
   const [debounced, setDebounced] = useState({ q: '', country: 'all' });
   const [countries, setCountries] = useState<string[]>([]);
+  // (league list state removed — it was loaded but never read)
   const [showModal, setShowModal] = useState(false);
   const [editingTeam, setEditingTeam] = useState<TeamWithCounts | null>(null);
   const [syncStatus, setSyncStatus] = useState({
@@ -29,7 +28,6 @@ export function TeamsPage() {
     production_count: 0,
     last_synced: null as string | null,
   });
-  const [leagues, setLeagues] = useState<LeagueWithTeamCount[]>([]);
   const [teamIds, setTeamIds] = useState<string>('');
   const [syncingPlayers, setSyncingPlayers] = useState<string | null>(null);
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
@@ -40,7 +38,6 @@ export function TeamsPage() {
 
   useEffect(() => {
     loadSyncStatus();
-    loadLeagues();
     teamService.getCountries().then(setCountries);
   }, []);
 
@@ -67,12 +64,6 @@ export function TeamsPage() {
     setSyncStatus(status);
   };
 
-  const loadLeagues = async () => {
-    const { data, error } = await leagueService.getAll();
-    if (!error && data) {
-      setLeagues(data);
-    }
-  };
 
   const handleCreate = () => {
     setEditingTeam(null);
