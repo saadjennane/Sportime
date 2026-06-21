@@ -19,6 +19,7 @@ export function F1OddsAdmin() {
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [scResult, setScResult] = useState<boolean | null>(null);
 
   // Initial load
   useEffect(() => {
@@ -107,6 +108,18 @@ export function F1OddsAdmin() {
     setInputs(next);
   };
 
+  // Safety Car race result (manual — API has no SC data; settles that market)
+  useEffect(() => {
+    if (!gpId) return;
+    supabase.from('f1_races').select('safety_car').eq('id', gpId).maybeSingle().then(({ data }) => setScResult((data as any)?.safety_car ?? null));
+  }, [gpId]);
+  const setSafetyCar = async (val: boolean | null) => {
+    if (!gpId) return;
+    const { error } = await supabase.rpc('f1_set_safety_car', { p_race_id: gpId, p_value: val });
+    setMsg(error ? `Error: ${error.message}` : val === null ? 'Safety Car result cleared' : `Result set: ${val ? 'Safety Car' : 'No SC'} ✓`);
+    if (!error) setScResult(val);
+  };
+
   const isDerived = market?.source === 'derived';
 
   return (
@@ -164,6 +177,19 @@ export function F1OddsAdmin() {
               />
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Safety Car: manual race result for settlement */}
+      {market?.type === 'yesno_single' && (
+        <div className="p-3 bg-surface border border-border-subtle rounded-lg">
+          <div className="text-sm font-semibold mb-2">Race result (settles this market)</div>
+          <div className="flex gap-2">
+            <button onClick={() => setSafetyCar(true)} className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${scResult === true ? 'bg-lime-glow text-deep-navy' : 'bg-deep-navy border border-border-subtle text-text-secondary'}`}>Safety Car</button>
+            <button onClick={() => setSafetyCar(false)} className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${scResult === false ? 'bg-lime-glow text-deep-navy' : 'bg-deep-navy border border-border-subtle text-text-secondary'}`}>No SC</button>
+            <button onClick={() => setSafetyCar(null)} className="px-3 py-1.5 rounded-lg text-sm text-text-secondary">Clear</button>
+          </div>
+          <div className="text-xs text-text-secondary mt-2">Set after the race — settlement runs on the next sync.</div>
         </div>
       )}
 
