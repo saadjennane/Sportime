@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Search, Calendar, RefreshCw, Download, Filter, ChevronDown, ChevronUp } from 'lucide-react';
+import { Spinner, EmptyState } from '../components/ui/States';
 import { supabase } from '../lib/supabaseClient';
 import { syncLeagueFixtures, syncLeagueTeams, type SyncProgress } from '../services/footballSyncService';
 import { leagueService } from '../services/leagueService';
@@ -474,11 +475,9 @@ export function FixturesPage() {
       {/* Table */}
       <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center text-text-secondary">Loading...</div>
+          <Spinner label="Loading fixtures…" />
         ) : filteredFixtures.length === 0 ? (
-          <div className="p-8 text-center text-text-secondary">
-            No fixtures found. Import some fixtures using the form above.
-          </div>
+          <EmptyState title="No fixtures found" subtitle="Import some fixtures using the form above." />
         ) : (
           <div className="overflow-x-auto max-w-full">
             <table className="w-full min-w-max">

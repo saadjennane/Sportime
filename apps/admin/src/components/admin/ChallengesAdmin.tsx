@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { confirmDialog } from '../ui/Confirm';
 import { SportimeGame, TournamentType, GameRewardTier } from '../../types';
 import { Play, Plus, Edit, Trophy, Send, Trash2, Calendar, Clock } from 'lucide-react';
 import { GameCreationForm } from './GameCreationForm';
@@ -80,7 +81,7 @@ export const ChallengesAdmin: React.FC<ChallengesAdminProps> = (props) => {
   };
 
   const handleDelete = async (gameId: string) => {
-    if (!confirm('Are you sure you want to delete this game?')) return;
+    if (!await confirmDialog('Are you sure you want to delete this game?')) return;
     try {
       await deleteChallenge(gameId);
       addToast('Game deleted successfully!', 'success');

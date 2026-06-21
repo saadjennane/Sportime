@@ -10,6 +10,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { confirmDialog } from '../ui/Confirm';
 import { supabase } from '../../services/supabase';
 import { Plus, Edit2, Power, PowerOff, Trash2, Award, Loader2 } from 'lucide-react';
 
@@ -162,7 +163,7 @@ export const BadgeManager: React.FC<{ addToast: (msg: string, type: 'success' | 
   };
 
   const handleDeleteBadge = async (badge: Badge) => {
-    if (!confirm(`Are you sure you want to delete badge "${badge.name}"?`)) return;
+    if (!await confirmDialog(`Are you sure you want to delete badge "${badge.name}"?`)) return;
 
     try {
       const { error } = await supabase.from('badges').delete().eq('id', badge.id);

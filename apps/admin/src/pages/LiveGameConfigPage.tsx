@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { confirmDialog } from '../components/ui/Confirm';
 import {
   RefreshCw,
   Save,
@@ -106,7 +107,7 @@ export function LiveGameConfigPage() {
   };
 
   const handleResetLevels = async () => {
-    if (!confirm('Reset all level configurations to defaults?')) return;
+    if (!await confirmDialog('Reset all level configurations to defaults?')) return;
     setIsSaving(true);
     try {
       const success = await liveGameConfigService.resetLevelConfigsToDefaults();
@@ -148,7 +149,7 @@ export function LiveGameConfigPage() {
   };
 
   const handleDeleteReward = async (id: string) => {
-    if (!confirm('Delete this reward configuration?')) return;
+    if (!await confirmDialog('Delete this reward configuration?')) return;
     setIsSaving(true);
     try {
       const success = await liveGameConfigService.deleteFreeRewardConfig(id);
@@ -208,7 +209,7 @@ export function LiveGameConfigPage() {
   };
 
   const handleDeleteTier = async (tierId: string, freeRewardId: string) => {
-    if (!confirm('Delete this reward tier?')) return;
+    if (!await confirmDialog('Delete this reward tier?')) return;
     setIsSaving(true);
     try {
       const success = await liveGameConfigService.deleteRewardTier(tierId);

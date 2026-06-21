@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { confirmDialog } from './ui/Confirm';
 import { supabase } from '../lib/supabaseClient';
 
 type TournamentType = 'amateur' | 'master' | 'apex';
@@ -266,7 +267,7 @@ export default function FantasyGameAdmin() {
   };
 
   const handleDeleteGame = async (gameId: string) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce jeu Fantasy? Cette action est irréversible.')) {
+    if (!await confirmDialog('Êtes-vous sûr de vouloir supprimer ce jeu Fantasy? Cette action est irréversible.')) {
       return;
     }
 

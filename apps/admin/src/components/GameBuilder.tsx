@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { confirmDialog } from './ui/Confirm';
 import {
   listCompetitions, getCompetitionDetail, createFromLeague, setStatus, updateCompetition,
   resolveCompetition, generateBracket, getLeaderboard, listSourceLeagues, listBadges,
@@ -82,7 +83,7 @@ export default function GameBuilder() {
   };
 
   const distribute = async (type: 'tq' | 'betting' | 'prediction' | 'fantasy', gameId: string, name: string) => {
-    if (!confirm(`Distribute rewards for "${name}"? This credits winners and cannot be undone.`)) return;
+    if (!await confirmDialog(`Distribute rewards for "${name}"? This credits winners and cannot be undone.`)) return;
     const { data, error } = await distributeRewards(type, gameId);
     const r = data as any;
     if (error) flash(`Failed: ${error.message}`);
@@ -92,7 +93,7 @@ export default function GameBuilder() {
   };
 
   const del = async (type: 'tq' | 'betting' | 'prediction' | 'fantasy', id: string, name: string) => {
-    if (!confirm(`Delete "${name || '(untitled)'}"? This permanently removes the game and ALL its entries, predictions and leaderboard. Cannot be undone.`)) return;
+    if (!await confirmDialog(`Delete "${name || '(untitled)'}"? This permanently removes the game and ALL its entries, predictions and leaderboard. Cannot be undone.`)) return;
     const fn = type === 'tq' ? deleteCompetition : type === 'fantasy' ? deleteFantasyGame : deleteChallenge;
     const { error } = await fn(id);
     if (error) flash(`Delete failed: ${error.message}`); else { flash(`Deleted "${name}"`); if (manageId === id) setManageId(null); reload(); }
@@ -390,7 +391,7 @@ function ManagePanel({ id, onChange, flash }: { id: string; onChange: () => void
           <div className="flex flex-wrap gap-2">
             <button onClick={() => act(() => generateBracket(id), 'Generate bracket')} className="bg-electric-blue/15 text-electric-blue px-3 py-2 rounded-lg text-sm font-semibold">Generate bracket</button>
             <button onClick={() => act(() => resolveCompetition(id), 'Resolve & recalc')} className="bg-lime-glow/15 text-lime-glow px-3 py-2 rounded-lg text-sm font-semibold">Resolve &amp; recalc scores</button>
-            <button onClick={() => { if (confirm('Distribute rewards to winners? This credits real value and cannot be undone.')) act(() => distributeRewards('tq', id), 'Distribute rewards'); }} className="bg-warm-yellow/15 text-warm-yellow px-3 py-2 rounded-lg text-sm font-semibold">💸 Distribute rewards</button>
+            <button onClick={async () => { if (await confirmDialog('Distribute rewards to winners? This credits real value and cannot be undone.')) act(() => distributeRewards('tq', id), 'Distribute rewards'); }} className="bg-warm-yellow/15 text-warm-yellow px-3 py-2 rounded-lg text-sm font-semibold">💸 Distribute rewards</button>
           </div>
           {(detail.format?.groups_count != null) && (
             <p className="text-xs text-text-disabled">Currently: {detail.groups?.length ?? 0} groups · {detail.groupTeams?.length ?? 0} teams · {detail.matches?.length ?? 0} matches in this game.</p>

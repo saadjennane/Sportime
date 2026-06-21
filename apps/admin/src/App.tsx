@@ -22,6 +22,7 @@ import { LiveGameConfigPage } from './pages/LiveGameConfigPage';
 import { LiveGamesPage } from './pages/LiveGamesPage';
 import { PuzzlePage } from './pages/PuzzlePage';
 import { ToastHost } from './components/ui/Toast';
+import { ConfirmHost } from './components/ui/Confirm';
 
 function App() {
   return (
@@ -52,6 +53,7 @@ function App() {
       </Routes>
     </Layout>
     <ToastHost />
+    <ConfirmHost />
     </AuthGate>
   );
 }

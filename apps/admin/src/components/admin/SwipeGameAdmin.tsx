@@ -9,6 +9,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react'
+import { confirmDialog } from '../ui/Confirm';
 import { Play, Square, RefreshCw, Calendar, Trophy, Coins, ChevronDown, Edit3, Trash2, Filter, SortAsc, SortDesc, Users, X, Archive, RotateCcw } from 'lucide-react'
 import { supabase } from '../../services/supabase'
 import * as swipeService from '../../services/swipeGameService'
@@ -567,7 +568,7 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
   };
 
   const handleDeleteChallenge = async (challengeId: string) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce jeu ? Cette action est irréversible.')) {
+    if (!await confirmDialog('Êtes-vous sûr de vouloir supprimer ce jeu ? Cette action est irréversible.')) {
       return;
     }
 
@@ -619,7 +620,7 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
   };
 
   const handleArchiveChallenge = async (challengeId: string) => {
-    if (!confirm('Archiver ce jeu ? Il ne sera plus visible pour les utilisateurs mais les données seront conservées.')) {
+    if (!await confirmDialog('Archiver ce jeu ? Il ne sera plus visible pour les utilisateurs mais les données seront conservées.')) {
       return;
     }
 
@@ -833,7 +834,7 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
 
-    const confirmed = window.confirm(`Are you sure you want to permanently delete ${selectedIds.size} game(s)? This action cannot be undone.`);
+    const confirmed = await confirmDialog(`Are you sure you want to permanently delete ${selectedIds.size} game(s)? This action cannot be undone.`);
     if (!confirmed) return;
 
     setIsLoading(true);
@@ -880,7 +881,7 @@ export const SwipeGameAdmin: React.FC<SwipeGameAdminProps> = ({ addToast }) => {
   const handleBulkArchive = async () => {
     if (selectedIds.size === 0) return;
 
-    const confirmed = window.confirm(`Archive ${selectedIds.size} game(s)? Archived games can be restored later.`);
+    const confirmed = await confirmDialog(`Archive ${selectedIds.size} game(s)? Archived games can be restored later.`);
     if (!confirmed) return;
 
     setIsLoading(true);

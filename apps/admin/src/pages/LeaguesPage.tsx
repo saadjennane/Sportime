@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Search, Plus, Edit2, Trash2, RefreshCw, Download, Users, Eye, EyeOff, Database } from 'lucide-react';
+import { Spinner, EmptyState } from '../components/ui/States';
 import { leagueService } from '../services/leagueService';
 import type { LeagueWithTeamCount } from '../types/football';
 import { LeagueFormModal } from '../components/admin/LeagueFormModal';
@@ -381,11 +382,9 @@ export function LeaguesPage() {
       {/* Table */}
       <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center text-text-secondary">Loading...</div>
+          <Spinner label="Loading leagues…" />
         ) : filteredLeagues.length === 0 ? (
-          <div className="p-8 text-center text-text-secondary">
-            No leagues found
-          </div>
+          <EmptyState title="No leagues found" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">

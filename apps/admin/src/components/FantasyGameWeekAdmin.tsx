@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { confirmDialog } from './ui/Confirm';
 import { supabase } from '../lib/supabaseClient';
 
 interface FantasyGame {
@@ -227,7 +228,7 @@ export default function FantasyGameWeekAdmin() {
   };
 
   const handleDeleteGameWeek = async (gameWeekId: string) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer cette Game Week? Cette action est irréversible.')) {
+    if (!await confirmDialog('Êtes-vous sûr de vouloir supprimer cette Game Week? Cette action est irréversible.')) {
       return;
     }
 

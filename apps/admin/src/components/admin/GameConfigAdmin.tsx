@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect } from 'react'
+import { confirmDialog } from '../ui/Confirm';
 import { toast } from '../ui/Toast'
 import { supabase } from '../../services/supabase'
 import { configService } from '../../services/configService'
@@ -83,7 +84,7 @@ export function GameConfigAdmin() {
   }
 
   async function handlePublish() {
-    if (!confirm('Publish all changes? This will invalidate frontend caches and apply configs immediately.')) {
+    if (!await confirmDialog('Publish all changes? This will invalidate frontend caches and apply configs immediately.')) {
       return
     }
 
