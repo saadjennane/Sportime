@@ -133,18 +133,28 @@ export function Sidebar({ className = '' }: SidebarProps) {
           {/* Navigation */}
           <nav className="flex-1 p-3 overflow-y-auto space-y-1">
             <Link item={DASHBOARD} />
-            {SECTIONS.map((section) => (
-              <div key={section.label} className="pt-3">
-                <div className="px-3 pb-1 text-xs font-bold uppercase tracking-wider text-text-secondary">{section.label}</div>
-                <div className="space-y-0.5">
-                  {section.entries.map((entry, i) =>
-                    isSub(entry)
-                      ? <Subgroup key={i} sectionLabel={section.label} sub={entry} />
-                      : <Link key={entry.to} item={entry} />
+            {SECTIONS.map((section) => {
+              const sKey = `section:${section.label}`;
+              const sC = collapsed.has(sKey);
+              return (
+                <div key={section.label} className="pt-3">
+                  <button onClick={() => toggle(sKey)}
+                    className="w-full flex items-center justify-between px-3 pb-1 text-xs font-bold uppercase tracking-wider text-text-secondary hover:text-text-primary">
+                    <span>{section.label}</span>
+                    <ChevronDown className={`w-4 h-4 transition-transform ${sC ? '-rotate-90' : ''}`} />
+                  </button>
+                  {!sC && (
+                    <div className="space-y-0.5">
+                      {section.entries.map((entry, i) =>
+                        isSub(entry)
+                          ? <Subgroup key={i} sectionLabel={section.label} sub={entry} />
+                          : <Link key={entry.to} item={entry} />
+                      )}
+                    </div>
                   )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </nav>
 
           {/* Footer */}
