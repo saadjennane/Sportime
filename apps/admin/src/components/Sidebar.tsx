@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Star, DatabaseZap, Trophy, Globe, Shield, Users, Settings,
   Flag, Gauge, ChevronDown, Menu, X, Calendar, DollarSign, Radio, Disc3,
-  Zap, Swords, SlidersHorizontal, Sparkles, Gift, PartyPopper, Gamepad2,
+  Zap, Gift, PartyPopper, Gamepad2,
 } from 'lucide-react';
 import { useState } from 'react';
 import packageJson from '../../package.json';
@@ -34,11 +34,8 @@ const SECTIONS: Section[] = [
     { group: 'Games', items: [
       { to: '/tournament', icon: Trophy, label: 'Games' },
       { to: '/live-games', icon: Radio, label: 'Live Games' },
-      { to: '/live-fantasy', icon: Sparkles, label: 'Live Fantasy' },
-      { to: '/match-royale', icon: Swords, label: 'Match Royale' },
       { to: '/swipe', icon: Zap, label: 'Swipe' },
       { to: '/fantasy', icon: Gamepad2, label: 'Fantasy' },
-      { to: '/live-game', icon: SlidersHorizontal, label: 'Live Game Config' },
       CELEBRATIONS,
     ] },
     { group: 'Config', items: [

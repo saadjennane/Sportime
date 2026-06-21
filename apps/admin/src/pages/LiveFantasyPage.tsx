@@ -4,12 +4,12 @@ import { listPotProfiles, listLeaguesMR, listGamesMR } from '../services/matchRo
 import { PageHeader } from '../components/ui/PageHeader';
 import { toast } from '../components/ui/Toast';
 
-export function LiveFantasyPage() {
+export function LiveFantasyPage({ embedded }: { embedded?: boolean } = {}) {
   const [tab, setTab] = useState<'gameplay' | 'scoring' | 'assign' | 'activation'>('gameplay');
   const flash = (m: string) => toast(m);
   return (
     <div className="space-y-4">
-      <PageHeader title="Live Fantasy" subtitle="Live fantasy on matches — scoring, pots and activation." />
+      {!embedded && <PageHeader title="Live Fantasy" subtitle="Live fantasy on matches — scoring, pots and activation." />}
       <div className="flex gap-1 border-b border-white/10 overflow-x-auto">
         {(['gameplay', 'scoring', 'assign', 'activation'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 text-sm font-semibold capitalize whitespace-nowrap ${tab === t ? 'text-electric-blue border-b-2 border-electric-blue' : 'text-text-secondary'}`}>

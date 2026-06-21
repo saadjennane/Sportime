@@ -8,12 +8,12 @@ import {
 import { PageHeader } from '../components/ui/PageHeader';
 import { toast } from '../components/ui/Toast';
 
-export function MatchRoyalePage() {
+export function MatchRoyalePage({ embedded }: { embedded?: boolean } = {}) {
   const [tab, setTab] = useState<'gameplay' | 'pots' | 'assign' | 'activation' | 'games'>('activation');
   const flash = (m: string) => toast(m);
   return (
     <div className="space-y-6">
-      <PageHeader title="Match Royale" subtitle="Live battle-royale on matches. Games auto-create ~1h before kickoff for activated matches." />
+      {!embedded && <PageHeader title="Match Royale" subtitle="Live battle-royale on matches. Games auto-create ~1h before kickoff for activated matches." />}
       <div className="flex gap-2 border-b border-border-subtle overflow-x-auto">
         {(['activation', 'pots', 'assign', 'gameplay', 'games'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 text-sm font-semibold capitalize whitespace-nowrap ${tab === t ? 'text-electric-blue border-b-2 border-electric-blue' : 'text-text-secondary'}`}>

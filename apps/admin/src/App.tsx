@@ -11,16 +11,13 @@ import { SwipePage } from './pages/SwipePage';
 import { FantasyPage } from './pages/FantasyPage';
 import { ProgressionPage } from './pages/ProgressionPage';
 import { SpinwheelPage } from './pages/SpinwheelPage';
-import { MatchRoyalePage } from './pages/MatchRoyalePage';
 import { DataSyncPage } from './pages/DataSyncPage';
 import { CelebrationsPage } from './pages/CelebrationsPage';
 import { ConfigPage } from './pages/ConfigPage';
 import { BookmakerPage } from './pages/BookmakerPage';
 import { F1Page } from './pages/F1Page';
 import { F1DataPage } from './pages/F1DataPage';
-import { LiveGameConfigPage } from './pages/LiveGameConfigPage';
 import { LiveGamesPage } from './pages/LiveGamesPage';
-import { LiveFantasyPage } from './pages/LiveFantasyPage';
 import { ToastHost } from './components/ui/Toast';
 import { ConfirmHost } from './components/ui/Confirm';
 
@@ -39,16 +36,13 @@ function App() {
         <Route path="/fantasy" element={<FantasyPage />} />
         <Route path="/progression" element={<ProgressionPage />} />
         <Route path="/spinwheel" element={<SpinwheelPage />} />
-        <Route path="/match-royale" element={<MatchRoyalePage />} />
         <Route path="/data-sync" element={<DataSyncPage />} />
         <Route path="/bookmaker" element={<BookmakerPage />} />
         <Route path="/f1" element={<F1Page />} />
         <Route path="/f1-data" element={<F1DataPage />} />
         <Route path="/celebrations" element={<CelebrationsPage />} />
         <Route path="/config" element={<ConfigPage />} />
-        <Route path="/live-game" element={<LiveGameConfigPage />} />
         <Route path="/live-games" element={<LiveGamesPage />} />
-        <Route path="/live-fantasy" element={<LiveFantasyPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

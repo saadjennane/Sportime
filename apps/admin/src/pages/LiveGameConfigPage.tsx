@@ -38,7 +38,7 @@ const REWARD_TYPE_LABELS: Record<string, string> = {
   spin: 'Spin',
 };
 
-export function LiveGameConfigPage() {
+export function LiveGameConfigPage({ embedded }: { embedded?: boolean } = {}) {
   // State
   const [levelConfigs, setLevelConfigs] = useState<LevelConfig[]>([]);
   const [rewardConfigs, setRewardConfigs] = useState<FreeRewardConfig[]>([]);
@@ -248,7 +248,7 @@ export function LiveGameConfigPage() {
         </div>
       )}
 
-      <PageHeader title="Live Betting Game Config" subtitle="Configure level limits and free mode rewards for the Live Betting Game." />
+      {!embedded && <PageHeader title="Live Betting Game Config" subtitle="Configure level limits and free mode rewards for the Live Betting Game." />}
 
       {/* Tabs */}
       <div className="flex gap-2 mb-6">
