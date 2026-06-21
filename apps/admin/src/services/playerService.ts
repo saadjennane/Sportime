@@ -150,6 +150,14 @@ export const playerService = {
     return { data, error };
   },
 
+  // Only real fb_players columns (mirrors the teams fix — avoids PGRST204 on save).
+  _clean(input: Partial<PlayerInput> & Record<string, any>): Record<string, any> {
+    const allowed = ['name', 'first_name', 'last_name', 'position', 'team_id', 'photo', 'photo_url', 'nationality', 'injured', 'api_id'];
+    const out: Record<string, any> = {};
+    for (const k of allowed) if ((input as any)[k] !== undefined) out[k] = (input as any)[k];
+    return out;
+  },
+
   /**
    * Update player
    */
@@ -160,7 +168,7 @@ export const playerService = {
 
     const { data, error } = await supabase
       .from('fb_players')
-      .update(input)
+      .update(this._clean(input))
       .eq('id', id)
       .select()
       .single();

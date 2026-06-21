@@ -84,6 +84,13 @@ export const teamService = {
     return { data: withCounts, count: count ?? 0, error: null };
   },
 
+  /** Lightweight name search for pickers (top 20). */
+  async search(q: string): Promise<{ id: string; name: string; logo: string | null }[]> {
+    if (!supabase || !q.trim()) return [];
+    const { data } = await supabase.from('fb_teams').select('id, name, logo, logo_url').ilike('name', `%${q.trim()}%`).order('name').limit(20);
+    return (data ?? []).map((t: any) => ({ id: t.id, name: t.name, logo: t.logo || t.logo_url || null }));
+  },
+
   /** Resolve a team by UUID or API id (used by the bulk player import). */
   async findByIdentifier(identifier: string): Promise<any | null> {
     if (!supabase) return null;

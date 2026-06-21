@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Search, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Trash2, Edit2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { playerService } from '../services/playerService';
 import type { PlayerWithTeam } from '../types/football';
 import { ConfirmationModal } from '../components/admin/ConfirmationModal';
+import { PlayerEditModal } from '../components/admin/PlayerEditModal';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Spinner, EmptyState } from '../components/ui/States';
 import { toast } from '../components/ui/Toast';
@@ -20,6 +21,7 @@ export function PlayersPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [editingPlayer, setEditingPlayer] = useState<PlayerWithTeam | null>(null);
 
   // Debounce search / team filter → reset to first page.
   useEffect(() => {
@@ -125,7 +127,11 @@ export function PlayersPage() {
                     <td className="px-4 py-3 text-text-secondary">{(player as any).api_player_id || (player as any).api_id || '-'}</td>
                     <td className="px-4 py-3 text-text-secondary">{player.team_name || '-'}</td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center justify-end">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => setEditingPlayer(player)}
+                          className="p-2 hover:bg-background-dark rounded-lg" title="Edit player">
+                          <Edit2 className="w-4 h-4 text-electric-blue" />
+                        </button>
                         <button onClick={() => setDeleteConfirm({ id: player.id, name: player.name || `${player.first_name} ${player.last_name}` })}
                           className="p-2 hover:bg-hot-red/10 rounded-lg group" title="Delete player">
                           <Trash2 className="w-4 h-4 text-text-secondary group-hover:text-hot-red" />
@@ -161,6 +167,9 @@ export function PlayersPage() {
       {bulkDeleteConfirm && (
         <ConfirmationModal title="Delete Multiple Players" message={`Delete ${selected.size} player(s)? This cannot be undone.`}
           confirmText="Delete All" cancelText="Cancel" isDangerous onConfirm={confirmBulkDelete} onCancel={() => setBulkDeleteConfirm(false)} />
+      )}
+      {editingPlayer && (
+        <PlayerEditModal player={editingPlayer} onClose={(saved) => { setEditingPlayer(null); if (saved) load(); }} />
       )}
     </div>
   );
