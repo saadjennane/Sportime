@@ -87,7 +87,27 @@ function Pots({ flash }: { flash: (m: string) => void }) {
             <L t="Type"><select value={edit.type} onChange={e => setEdit({ ...edit, type: e.target.value })} className="inp">{POT_TYPES.map(t => <option key={t}>{t}</option>)}</select></L>
             {edit.type === 'fixed' && <L t="Amount (coins)"><input type="number" value={edit.fixed_amount ?? 0} onChange={e => setEdit({ ...edit, fixed_amount: +e.target.value })} className="inp" /></L>}
             {edit.type === 'funded' && <div className="grid grid-cols-2 gap-3"><L t="Entry cost"><input type="number" value={edit.entry_cost ?? 0} onChange={e => setEdit({ ...edit, entry_cost: +e.target.value })} className="inp" /></L><L t="Redistribution %"><input type="number" value={edit.redistribution_pct ?? 100} onChange={e => setEdit({ ...edit, redistribution_pct: +e.target.value })} className="inp" /></L></div>}
-            {edit.type === 'progressive' && <L t="Tiers (JSON [{min,max,amount}])"><textarea value={JSON.stringify(edit.tiers ?? [])} onChange={e => { try { setEdit({ ...edit, tiers: JSON.parse(e.target.value) }); } catch { /* keep typing */ } }} className="inp" rows={3} /></L>}
+            {edit.type === 'progressive' && (
+              <L t="Tiers">
+                <div className="space-y-2">
+                  <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 text-[11px] text-text-secondary px-0.5">
+                    <span>Players min</span><span>Players max</span><span>Pot (coins)</span><span></span>
+                  </div>
+                  {(edit.tiers ?? []).map((tier: any, i: number) => {
+                    const set = (k: string, v: number) => { const t = [...(edit.tiers ?? [])]; t[i] = { ...t[i], [k]: v }; setEdit({ ...edit, tiers: t }); };
+                    return (
+                      <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-center">
+                        <input type="number" value={tier.min ?? 0} onChange={e => set('min', +e.target.value)} className="inp" />
+                        <input type="number" value={tier.max ?? 0} onChange={e => set('max', +e.target.value)} className="inp" />
+                        <input type="number" value={tier.amount ?? 0} onChange={e => set('amount', +e.target.value)} className="inp" />
+                        <button onClick={() => setEdit({ ...edit, tiers: (edit.tiers ?? []).filter((_: any, j: number) => j !== i) })} className="text-hot-red px-2 text-lg" title="Remove">×</button>
+                      </div>
+                    );
+                  })}
+                  <button onClick={() => setEdit({ ...edit, tiers: [...(edit.tiers ?? []), { min: 0, max: 0, amount: 0 }] })} className="text-electric-blue text-sm font-semibold">+ Add tier</button>
+                </div>
+              </L>
+            )}
             <div className="flex justify-end gap-2"><button onClick={() => setEdit(null)} className="text-text-secondary px-3 py-2 text-sm">Cancel</button><button onClick={save} className="bg-lime-glow text-deep-navy font-bold px-4 py-2 rounded-lg text-sm">Save</button></div>
           </div>
         </div>

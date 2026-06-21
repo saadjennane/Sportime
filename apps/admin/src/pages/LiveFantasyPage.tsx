@@ -24,48 +24,90 @@ export function LiveFantasyPage({ embedded }: { embedded?: boolean } = {}) {
   );
 }
 
+// Reusable row editor for arrays of {a,b} objects (e.g. tiers, splits).
+function RowEditor({ rows, cols, onChange, blank }: { rows: any[]; cols: { key: string; label: string; step?: string }[]; onChange: (rows: any[]) => void; blank: any }) {
+  return (
+    <div className="space-y-2">
+      <div className="grid gap-2 text-[11px] text-text-secondary px-0.5" style={{ gridTemplateColumns: `repeat(${cols.length}, 1fr) auto` }}>
+        {cols.map(c => <span key={c.key}>{c.label}</span>)}<span />
+      </div>
+      {rows.map((r, i) => (
+        <div key={i} className="grid gap-2 items-center" style={{ gridTemplateColumns: `repeat(${cols.length}, 1fr) auto` }}>
+          {cols.map(c => (
+            <input key={c.key} type="number" step={c.step} value={r[c.key] ?? 0}
+              onChange={e => { const next = [...rows]; next[i] = { ...next[i], [c.key]: +e.target.value }; onChange(next); }} className="inp" />
+          ))}
+          <button onClick={() => onChange(rows.filter((_, j) => j !== i))} className="text-hot-red px-2 text-lg" title="Remove">×</button>
+        </div>
+      ))}
+      <button onClick={() => onChange([...rows, { ...blank }])} className="text-electric-blue text-sm font-semibold">+ Add</button>
+    </div>
+  );
+}
+
 function Gameplay({ flash }: { flash: (m: string) => void }) {
   const [cfg, setCfg] = useState<any>(null);
   useEffect(() => { getLFConfig().then(setCfg); }, []);
   if (!cfg) return null;
+  const tiers = Array.isArray(cfg.gk_underdog_tiers) ? cfg.gk_underdog_tiers : [];
+  const split = Array.isArray(cfg.reward_split) ? cfg.reward_split : [];
   const save = async () => {
-    try {
-      const patch = {
-        captain_multiplier: +cfg.captain_multiplier, max_transfers: +cfg.max_transfers, outfield_per_team: +cfg.outfield_per_team,
-        gk_underdog_tiers: typeof cfg.gk_underdog_tiers === 'string' ? JSON.parse(cfg.gk_underdog_tiers) : cfg.gk_underdog_tiers,
-        reward_split: typeof cfg.reward_split === 'string' ? JSON.parse(cfg.reward_split) : cfg.reward_split,
-      };
-      const { error } = await updateLFConfig(patch); flash(error ? error.message : 'Saved ✓');
-    } catch (e) { flash('Invalid JSON: ' + String(e)); }
+    const { error } = await updateLFConfig({
+      captain_multiplier: +cfg.captain_multiplier, max_transfers: +cfg.max_transfers, outfield_per_team: +cfg.outfield_per_team,
+      gk_underdog_tiers: tiers, reward_split: split,
+    });
+    flash(error ? error.message : 'Saved ✓');
   };
-  const J = (v: any) => typeof v === 'string' ? v : JSON.stringify(v, null, 2);
   return (
-    <div className="card-base p-4 space-y-3 max-w-2xl">
+    <div className="card-base p-4 space-y-4 max-w-2xl">
       <div className="grid grid-cols-3 gap-3">
         <L label="Captain multiplier"><input type="number" step="0.1" value={cfg.captain_multiplier} onChange={e => setCfg({ ...cfg, captain_multiplier: e.target.value })} className="inp" /></L>
         <L label="Max transfers"><input type="number" value={cfg.max_transfers} onChange={e => setCfg({ ...cfg, max_transfers: e.target.value })} className="inp" /></L>
         <L label="Outfield per team"><input type="number" value={cfg.outfield_per_team} onChange={e => setCfg({ ...cfg, outfield_per_team: e.target.value })} className="inp" /></L>
       </div>
-      <L label="GK underdog tiers (JSON: [{max_pct, mult}])"><textarea rows={6} value={J(cfg.gk_underdog_tiers)} onChange={e => setCfg({ ...cfg, gk_underdog_tiers: e.target.value })} className="inp font-mono text-xs" /></L>
-      <L label="Reward split (JSON: [{rank, pct}])"><textarea rows={4} value={J(cfg.reward_split)} onChange={e => setCfg({ ...cfg, reward_split: e.target.value })} className="inp font-mono text-xs" /></L>
+      <div>
+        <div className="text-sm font-semibold">GK underdog bonus tiers</div>
+        <p className="text-xs text-text-secondary mb-2">Underdog goalkeeper: points ×multiplier when the team's win probability ≤ max %.</p>
+        <RowEditor rows={tiers} cols={[{ key: 'max_pct', label: 'Max win %' }, { key: 'mult', label: 'Multiplier', step: '0.05' }]} blank={{ max_pct: 0, mult: 1 }} onChange={r => setCfg({ ...cfg, gk_underdog_tiers: r })} />
+      </div>
+      <div>
+        <div className="text-sm font-semibold">Reward split</div>
+        <p className="text-xs text-text-secondary mb-2">Pot share by final rank.</p>
+        <RowEditor rows={split} cols={[{ key: 'rank', label: 'Rank' }, { key: 'pct', label: '% of pot' }]} blank={{ rank: split.length + 1, pct: 0 }} onChange={r => setCfg({ ...cfg, reward_split: r })} />
+      </div>
       <button onClick={save} className="btn-primary">Save</button>
     </div>
   );
 }
 
+const POS_LABEL: Record<string, string> = { GK: 'Goalkeeper', D: 'Defender', M: 'Midfielder', A: 'Attacker' };
+
 function Scoring({ flash }: { flash: (m: string) => void }) {
   const [cfg, setCfg] = useState<any>(null);
-  const [txt, setTxt] = useState('');
-  useEffect(() => { getLFConfig().then(c => { setCfg(c); setTxt(JSON.stringify(c.scoring, null, 2)); }); }, []);
+  useEffect(() => { getLFConfig().then(setCfg); }, []);
   if (!cfg) return null;
-  const save = async () => {
-    try { const scoring = JSON.parse(txt); const { error } = await updateLFConfig({ scoring }); flash(error ? error.message : 'Scoring saved ✓'); }
-    catch (e) { flash('Invalid JSON: ' + String(e)); }
-  };
+  const scoring = cfg.scoring || {};
+  const positions = ['GK', 'D', 'M', 'A'].filter(p => scoring[p]);
+  const setVal = (pos: string, stat: string, v: number) => setCfg({ ...cfg, scoring: { ...scoring, [pos]: { ...scoring[pos], [stat]: v } } });
+  const save = async () => { const { error } = await updateLFConfig({ scoring }); flash(error ? error.message : 'Scoring saved ✓'); };
   return (
-    <div className="card-base p-4 space-y-3 max-w-2xl">
-      <p className="text-xs text-text-secondary">Per-position scoring (GK / D / M / A). Every value is editable.</p>
-      <textarea rows={22} value={txt} onChange={e => setTxt(e.target.value)} className="inp font-mono text-xs w-full" />
+    <div className="space-y-4 max-w-3xl">
+      <p className="text-xs text-text-secondary">Per-position scoring — edit the points for each stat. No JSON.</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {positions.map(pos => (
+          <div key={pos} className="card-base p-4">
+            <div className="font-bold mb-2">{POS_LABEL[pos] ?? pos}</div>
+            <div className="space-y-1.5">
+              {Object.keys(scoring[pos]).map(stat => (
+                <div key={stat} className="flex items-center justify-between gap-2">
+                  <span className="text-sm text-text-secondary capitalize">{stat.replace(/_/g, ' ')}</span>
+                  <input type="number" value={scoring[pos][stat]} onChange={e => setVal(pos, stat, +e.target.value)} className="inp w-24 text-right" />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
       <button onClick={save} className="btn-primary">Save scoring</button>
     </div>
   );
