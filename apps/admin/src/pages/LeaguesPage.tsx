@@ -1,63 +1,41 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, Edit2, Trash2, RefreshCw, Download, Users, Eye, EyeOff, Database } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Download, Eye, EyeOff, Database, Loader2 } from 'lucide-react';
 import { Spinner, EmptyState } from '../components/ui/States';
+import { PageHeader } from '../components/ui/PageHeader';
 import { leagueService } from '../services/leagueService';
 import type { LeagueWithTeamCount } from '../types/football';
 import { LeagueFormModal } from '../components/admin/LeagueFormModal';
 import { ConfirmationModal } from '../components/admin/ConfirmationModal';
-import { syncLeagueTeams, syncLeagueFull, type SyncProgress } from '../services/footballSyncService';
+import { toast } from '../components/ui/Toast';
 
-import { toast as mockAddToast } from '../components/ui/Toast';
+type Seed = { teams: number; players: number; fixtures: number };
 
-/** One line of a league's warehouse seed status (green ✓ when present, red ✗ when empty). */
+/** One seeded entity count, green when present / red when empty. */
 function SeedBit({ label, n }: { label: string; n: number }) {
-  return <span className={n > 0 ? 'text-lime-glow' : 'text-hot-red'}>{label} {n} {n > 0 ? '✓' : '✗'}</span>;
+  return <span className={n > 0 ? 'text-lime-glow' : 'text-hot-red'}>{label} {n}</span>;
 }
 
 export function LeaguesPage() {
   const [leagues, setLeagues] = useState<LeagueWithTeamCount[]>([]);
-  const [filteredLeagues, setFilteredLeagues] = useState<LeagueWithTeamCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [countryFilter, setCountryFilter] = useState('all');
   const [showModal, setShowModal] = useState(false);
   const [editingLeague, setEditingLeague] = useState<LeagueWithTeamCount | null>(null);
-  const [syncStatus, setSyncStatus] = useState({
-    staging_count: 0,
-    production_count: 0,
-    last_synced: null as string | null,
-  });
-  const [syncingLeague, setSyncingLeague] = useState<number | null>(null);
-  const [syncingTeams, setSyncingTeams] = useState<string | null>(null);
-  const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
-  const [leagueIds, setLeagueIds] = useState<string>('');
-  const [season, setSeason] = useState<number | ''>('');
+  const [season, setSeason] = useState<number>(2026);
+  const [leagueIds, setLeagueIds] = useState('');
   const [isBulkImporting, setIsBulkImporting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
-  const [seedStatus, setSeedStatus] = useState<Record<string, { teams: number; players: number; fixtures: number }>>({});
+  const [seedStatus, setSeedStatus] = useState<Record<string, Seed>>({});
   const [seedingId, setSeedingId] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadLeagues();
-    loadSyncStatus();
-  }, []);
-
-  useEffect(() => {
-    filterLeagues();
-  }, [searchQuery, countryFilter, leagues]);
+  useEffect(() => { loadLeagues(); }, []);
 
   const loadLeagues = async () => {
     setLoading(true);
     const { data, error } = await leagueService.getAll();
-
-    if (error) {
-      mockAddToast('Failed to load leagues', 'error');
-      console.error(error);
-    } else {
-      setLeagues(data || []);
-      loadSeedStatus(data || []);
-    }
-
+    if (error) { toast('Failed to load leagues', 'error'); console.error(error); }
+    else { setLeagues(data || []); loadSeedStatus(data || []); }
     setLoading(false);
   };
 
@@ -66,474 +44,175 @@ export function LeaguesPage() {
     setSeedStatus(Object.fromEntries(entries));
   };
 
-  // Seed teams + players + fixtures for one league into the warehouse (import-league-full).
-  const handleSeedAll = async (league: LeagueWithTeamCount) => {
-    if (!league.api_id) { mockAddToast('League needs an API ID to seed', 'error'); return; }
-    const s = (season || 2026) as number;
+  // Seed teams + players + fixtures for one league (import-league-full) for the chosen season.
+  const handleSeed = async (league: LeagueWithTeamCount) => {
+    if (!league.api_id) { toast('League needs an API ID to seed', 'error'); return; }
     setSeedingId(league.id);
-    const { data, error } = await leagueService.importFull(league.api_id, s);
-    if (!error && data?.ok) mockAddToast(`${league.name} ${s}: ${data.teams} teams, ${data.players} players, ${data.fixtures} fixtures`, 'success');
-    else mockAddToast(`Seed failed: ${error?.message || data?.error || 'unknown'}`, 'error');
+    const { data, error } = await leagueService.importFull(league.api_id, season);
+    if (!error && data?.ok) toast(`${league.name} ${season}: ${data.teams} teams · ${data.players} players · ${data.fixtures} fixtures`, 'success');
+    else toast(`Seed failed: ${error?.message || data?.error || 'unknown'}`, 'error');
     setSeedingId(null);
     await loadLeagues();
   };
 
-  const loadSyncStatus = async () => {
-    const status = await leagueService.getSyncStatus();
-    setSyncStatus(status);
-  };
-
-  const filterLeagues = () => {
-    let filtered = leagues;
-
-    // Search filter
-    if (searchQuery) {
-      filtered = filtered.filter((league) =>
-        league.name.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-
-    // Country filter
-    if (countryFilter !== 'all') {
-      filtered = filtered.filter((league) => league.country_id === countryFilter);
-    }
-
-    setFilteredLeagues(filtered);
-  };
-
-  const handleCreate = () => {
-    setEditingLeague(null);
-    setShowModal(true);
-  };
-
-  const handleEdit = (league: LeagueWithTeamCount) => {
-    setEditingLeague(league);
-    setShowModal(true);
-  };
-
-  const handleDelete = (id: string, name: string) => {
-    setDeleteConfirm({ id, name });
+  const toggleVisibility = async (league: LeagueWithTeamCount) => {
+    const next = (league as any).is_visible === false; // currently hidden → show
+    setTogglingId(league.id);
+    const { error } = await leagueService.setVisibility(league.id, next);
+    if (error) toast('Failed to update visibility', 'error');
+    else { toast(next ? `${league.name} is now visible` : `${league.name} hidden`, 'success'); await loadLeagues(); }
+    setTogglingId(null);
   };
 
   const confirmDelete = async () => {
     if (!deleteConfirm) return;
-
     const { error } = await leagueService.delete(deleteConfirm.id);
-
-    if (error) {
-      mockAddToast('Failed to delete league', 'error');
-      console.error(error);
-    } else {
-      mockAddToast('League deleted successfully', 'success');
-      loadLeagues();
-    }
-
+    if (error) { toast('Failed to delete league', 'error'); console.error(error); }
+    else { toast('League deleted', 'success'); loadLeagues(); }
     setDeleteConfirm(null);
   };
 
   const handleModalClose = (success: boolean) => {
-    setShowModal(false);
-    setEditingLeague(null);
-    if (success) {
-      loadLeagues();
-      loadSyncStatus();
-    }
-  };
-
-  const handleSyncLeague = async (leagueApiId: number, leagueName: string) => {
-    setSyncingLeague(leagueApiId);
-    setSyncProgress(null);
-
-    const result = await syncLeagueFull(leagueApiId, (season || 2025) as number, (progress) => {
-      setSyncProgress(progress);
-    });
-
-    if (result.success) {
-      mockAddToast(`${leagueName}: ${result.teamsCount ?? 0} teams, ${result.playersCount ?? 0} players, ${result.fixturesCount ?? 0} fixtures imported`, 'success');
-      await loadLeagues();
-    } else {
-      mockAddToast(`Failed to import ${leagueName}: ${result.error}`, 'error');
-    }
-
-    setSyncingLeague(null);
-    setSyncProgress(null);
-  };
-
-  const handleSyncTeams = async (league: LeagueWithTeamCount) => {
-    if (!league.api_id) {
-      mockAddToast('League must have an API ID to sync teams', 'error');
-      return;
-    }
-
-    setSyncingTeams(league.id);
-    setSyncProgress(null);
-
-    const result = await syncLeagueTeams(league.id, league.api_id, (season || 2025) as number, (progress) => {
-      setSyncProgress(progress);
-    });
-
-    if (result.success) {
-      mockAddToast(`Imported ${result.teamsCount} teams for ${league.name}`, 'success');
-      await loadLeagues();
-    } else {
-      mockAddToast(`Failed to sync teams: ${result.error}`, 'error');
-    }
-
-    setSyncingTeams(null);
-    setSyncProgress(null);
+    setShowModal(false); setEditingLeague(null);
+    if (success) loadLeagues();
   };
 
   const handleBulkImport = async () => {
-    if (!leagueIds.trim()) {
-      mockAddToast('Please enter at least one league ID', 'error');
-      return;
-    }
-
-    const ids = leagueIds.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
-
-    if (ids.length === 0) {
-      mockAddToast('Please enter valid league IDs', 'error');
-      return;
-    }
-
+    const ids = leagueIds.split(',').map((id) => parseInt(id.trim())).filter((id) => !isNaN(id));
+    if (!ids.length) { toast('Enter valid league IDs', 'error'); return; }
     setIsBulkImporting(true);
-    setSyncProgress(null);
-
-    let successCount = 0;
-    let failCount = 0;
-
-    for (let i = 0; i < ids.length; i++) {
-      const leagueId = ids[i];
-
-      setSyncProgress({
-        step: 'leagues',
-        current: i + 1,
-        total: ids.length,
-        message: `[${i + 1}/${ids.length}] Importing league ${leagueId} (teams, players, fixtures)…`
-      });
-
-      // Server-side full import (league -> teams -> players -> fixtures).
-      const { data, error } = await leagueService.importFull(leagueId, season as number);
-      if (!error && data?.ok) {
-        successCount++;
-        mockAddToast(`${data.league}: ${data.teams ?? 0} teams, ${data.players ?? 0} players, ${data.fixtures ?? 0} fixtures`, 'success');
-      } else {
-        failCount++;
-        console.error(`Failed to import league ${leagueId}:`, error || data?.error);
-        mockAddToast(`League ${leagueId} failed: ${error?.message || data?.error || 'unknown'}`, 'error');
-      }
+    let ok = 0, fail = 0;
+    for (const id of ids) {
+      const { data, error } = await leagueService.importFull(id, season);
+      if (!error && data?.ok) { ok++; toast(`${data.league}: ${data.teams ?? 0} teams · ${data.players ?? 0} players · ${data.fixtures ?? 0} fixtures`, 'success'); }
+      else { fail++; toast(`League ${id} failed: ${error?.message || data?.error || 'unknown'}`, 'error'); }
     }
-
     await loadLeagues();
-    setIsBulkImporting(false);
-    setSyncProgress(null);
-    setLeagueIds('');
-
-    mockAddToast(
-      `Import complete: ${successCount} succeeded, ${failCount} failed`,
-      failCount > 0 ? 'error' : 'success'
-    );
+    setIsBulkImporting(false); setLeagueIds('');
+    toast(`Import complete: ${ok} ok${fail ? ` · ${fail} failed` : ''}`, fail ? 'error' : 'success');
   };
 
-  // Get unique countries for filter
-  const countries = Array.from(new Set(leagues.map((l) => l.country_id).filter(Boolean))).sort();
+  const q = searchQuery.trim().toLowerCase();
+  const matches = (l: LeagueWithTeamCount) => !q || l.name.toLowerCase().includes(q) || (l.country_id || '').toLowerCase().includes(q);
+  const visible = leagues.filter((l) => (l as any).is_visible !== false && matches(l));
+  const hidden = leagues.filter((l) => (l as any).is_visible === false && matches(l));
+
+  const Section = ({ title, list, tone }: { title: string; list: LeagueWithTeamCount[]; tone: 'on' | 'off' }) => (
+    <section>
+      <div className="flex items-center gap-2 mb-2">
+        {tone === 'on' ? <Eye className="w-4 h-4 text-lime-glow" /> : <EyeOff className="w-4 h-4 text-text-disabled" />}
+        <h2 className="text-lg font-bold">{title}</h2>
+        <span className="text-sm text-text-secondary">({list.length})</span>
+      </div>
+      {list.length === 0 ? (
+        <div className="bg-surface border border-border-subtle rounded-xl"><EmptyState title={tone === 'on' ? 'No visible leagues' : 'No hidden leagues'} /></div>
+      ) : (
+        <div className="bg-surface border border-border-subtle rounded-xl overflow-hidden divide-y divide-border-subtle">
+          {list.map((league) => {
+            const seed = seedStatus[league.id];
+            const seeded = (seed?.teams ?? 0) > 0;
+            const busy = seedingId === league.id;
+            return (
+              <div key={league.id} className="flex items-center gap-3 px-4 py-3 hover:bg-surface-hover">
+                {league.logo || (league as any).logo_url
+                  ? <img src={league.logo || (league as any).logo_url} alt="" className="w-8 h-8 object-contain shrink-0" />
+                  : <div className="w-8 h-8 bg-background-dark rounded flex items-center justify-center text-text-disabled text-[10px] shrink-0">N/A</div>}
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium truncate">{league.name}</div>
+                  <div className="text-xs text-text-secondary truncate">
+                    {(league.country_id || '—')} · {league.type || 'League'} · API {league.api_league_id || league.api_id || '—'}
+                  </div>
+                </div>
+                {/* Seed status */}
+                <div className="hidden sm:flex flex-col text-xs leading-tight text-right mr-1 w-28">
+                  {seed ? (
+                    <>
+                      <SeedBit label="Teams" n={seed.teams} />
+                      <span className="text-text-secondary">{seed.players} players · {seed.fixtures} fixtures</span>
+                    </>
+                  ) : <span className="text-text-disabled">loading…</span>}
+                </div>
+                {/* Seed / Update */}
+                <button
+                  onClick={() => handleSeed(league)}
+                  disabled={busy || !league.api_id}
+                  title={league.api_id ? `Seed/refresh teams + players + fixtures for season ${season}` : 'Needs an API ID'}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold disabled:opacity-50 ${seeded ? 'bg-surface-hover text-text-secondary border border-border-subtle' : 'bg-warm-yellow/15 text-warm-yellow'}`}
+                >
+                  {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
+                  {seeded ? 'Update' : 'Seed'}
+                </button>
+                {/* Visibility toggle */}
+                <button onClick={() => toggleVisibility(league)} disabled={togglingId === league.id}
+                  className="p-2 rounded-lg hover:bg-background-dark disabled:opacity-50"
+                  title={tone === 'on' ? 'Visible — click to hide' : 'Hidden — click to show'}>
+                  {tone === 'on' ? <Eye className="w-4 h-4 text-lime-glow" /> : <EyeOff className="w-4 h-4 text-text-disabled" />}
+                </button>
+                <button onClick={() => { setEditingLeague(league); setShowModal(true); }} className="p-2 rounded-lg hover:bg-background-dark" title="Edit"><Edit2 className="w-4 h-4 text-electric-blue" /></button>
+                <button onClick={() => setDeleteConfirm({ id: league.id, name: league.name })} className="p-2 rounded-lg hover:bg-background-dark" title="Delete"><Trash2 className="w-4 h-4 text-hot-red" /></button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
 
   return (
     <div>
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Leagues Management</h1>
-        <p className="text-text-secondary">
-          Manage football leagues and competitions
-        </p>
-      </div>
+      <PageHeader
+        title="Leagues"
+        subtitle={`${visible.length} visible · ${hidden.length} hidden`}
+        actions={
+          <>
+            <label className="flex items-center gap-1.5 text-sm text-text-secondary">
+              Season
+              <input type="number" value={season} onChange={(e) => setSeason(parseInt(e.target.value) || 2026)}
+                className="w-24 px-2 py-1.5 bg-surface border border-border-subtle rounded-lg text-text-primary" />
+            </label>
+            <button onClick={() => { setEditingLeague(null); setShowModal(true); }} className="flex items-center gap-2 px-4 py-2 bg-electric-blue hover:bg-electric-blue/80 text-white rounded-lg">
+              <Plus className="w-5 h-5" /> Create League
+            </button>
+          </>
+        }
+      />
 
-      {/* Sync Status */}
-      <div className="mb-6 p-4 bg-surface border border-border-subtle rounded-lg">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <div>
-              <p className="text-sm text-text-secondary">Production</p>
-              <p className="text-2xl font-bold text-electric-blue">
-                {syncStatus.production_count}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-text-secondary">Staging (fb_leagues)</p>
-              <p className="text-2xl font-bold text-lime-glow">
-                {syncStatus.staging_count}
-              </p>
-            </div>
-            {syncStatus.last_synced && (
-              <div>
-                <p className="text-sm text-text-secondary">Last Synced</p>
-                <p className="text-sm text-text-primary">
-                  {new Date(syncStatus.last_synced).toLocaleString()}
-                </p>
-              </div>
-            )}
+      {/* Import new leagues by API id (collapsible) */}
+      <details className="mb-5 bg-surface border border-border-subtle rounded-xl">
+        <summary className="cursor-pointer select-none px-4 py-3 font-semibold flex items-center gap-2"><Download className="w-4 h-4" /> Import leagues from API-Football</summary>
+        <div className="px-4 pb-4">
+          <p className="text-sm text-text-secondary mb-3">League ID(s), comma-separated — e.g. 39 (PL), 140 (La Liga), 78 (Bundesliga), 135 (Serie A), 1 (World Cup). Uses the Season above.</p>
+          <div className="flex gap-3">
+            <input type="text" value={leagueIds} onChange={(e) => setLeagueIds(e.target.value)} placeholder="39,140,78,135" disabled={isBulkImporting}
+              className="flex-1 px-4 py-2 bg-background-dark border border-border-subtle rounded-lg disabled:opacity-50" />
+            <button onClick={handleBulkImport} disabled={isBulkImporting || !leagueIds.trim()}
+              className="flex items-center gap-2 px-5 py-2 bg-electric-blue hover:bg-electric-blue/80 disabled:opacity-50 text-white rounded-lg">
+              {isBulkImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Import
+            </button>
           </div>
-          <button
-            onClick={() => loadSyncStatus()}
-            className="flex items-center gap-2 px-4 py-2 bg-surface-hover hover:bg-border-subtle rounded-lg transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" />
-            <span>Refresh</span>
-          </button>
         </div>
+      </details>
+
+      {/* Search */}
+      <div className="relative mb-5">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-disabled" />
+        <input type="text" placeholder="Search leagues…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full pl-10 pr-4 py-2 bg-surface border border-border-subtle rounded-lg focus:outline-none focus:border-electric-blue" />
       </div>
 
-      {/* Import Leagues by ID */}
-      <div className="mb-6 p-6 bg-surface border border-border-subtle rounded-lg">
-        <h2 className="text-xl font-bold mb-4">Import Leagues from API-Football</h2>
-        <p className="text-text-secondary mb-4">
-          Enter league ID(s) separated by commas. Example: 39,140,78,135
-        </p>
-        <p className="text-sm text-text-secondary mb-4">
-          Common IDs: Premier League (39), La Liga (140), Bundesliga (78), Serie A (135)
-        </p>
-
-        {syncProgress && (
-          <div className="mb-4 p-4 bg-background-dark rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium">{syncProgress.message}</span>
-              <span className="text-sm text-text-secondary">
-                {syncProgress.current}/{syncProgress.total}
-              </span>
-            </div>
-            <div className="w-full bg-surface-hover rounded-full h-2">
-              <div
-                className="bg-electric-blue h-2 rounded-full transition-all duration-300"
-                style={{
-                  width: `${(syncProgress.current / syncProgress.total) * 100}%`,
-                }}
-              />
-            </div>
-          </div>
-        )}
-
-        <div className="flex gap-4">
-          <input
-            type="text"
-            value={leagueIds}
-            onChange={(e) => setLeagueIds(e.target.value)}
-            placeholder="e.g., 39,140,78,135  ·  World Cup = 1"
-            disabled={isBulkImporting}
-            className="flex-1 px-4 py-2 bg-background-dark border border-border-subtle rounded-lg focus:outline-none focus:border-electric-blue disabled:opacity-50 text-text-primary placeholder:text-text-disabled"
-          />
-          <input
-            type="number"
-            value={season}
-            onChange={(e) => setSeason(e.target.value === '' ? '' : (parseInt(e.target.value) || ''))}
-            placeholder="Season"
-            title="Season (World Cup = 2026 or 2022)"
-            disabled={isBulkImporting}
-            className="w-28 px-3 py-2 bg-background-dark border border-border-subtle rounded-lg focus:outline-none focus:border-electric-blue disabled:opacity-50 text-text-primary placeholder:text-text-disabled"
-          />
-          <button
-            onClick={handleBulkImport}
-            disabled={isBulkImporting || !leagueIds.trim() || !season}
-            className="flex items-center gap-2 px-6 py-2 bg-electric-blue hover:bg-electric-blue/80 disabled:bg-surface-hover disabled:text-text-disabled text-white rounded-lg transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            <span>{isBulkImporting ? 'Importing...' : 'Import'}</span>
-          </button>
+      {loading ? (
+        <Spinner label="Loading leagues…" />
+      ) : (
+        <div className="space-y-8">
+          <Section title="Visible in app" list={visible} tone="on" />
+          <Section title="Hidden" list={hidden} tone="off" />
         </div>
-      </div>
-
-      {/* Filters and Actions */}
-      <div className="mb-6 flex flex-col md:flex-row gap-4">
-        {/* Search */}
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-disabled" />
-          <input
-            type="text"
-            placeholder="Search leagues..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-surface border border-border-subtle rounded-lg focus:outline-none focus:border-electric-blue"
-          />
-        </div>
-
-        {/* Country Filter */}
-        <select
-          value={countryFilter}
-          onChange={(e) => setCountryFilter(e.target.value)}
-          className="px-4 py-2 bg-surface border border-border-subtle rounded-lg focus:outline-none focus:border-electric-blue"
-        >
-          <option value="all">All Countries</option>
-          {countries.map((country) => (
-            <option key={country} value={country}>
-              {country}
-            </option>
-          ))}
-        </select>
-
-        {/* Create Button */}
-        <button
-          onClick={handleCreate}
-          className="flex items-center gap-2 px-4 py-2 bg-electric-blue hover:bg-electric-blue/80 text-white rounded-lg transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          <span>Create League</span>
-        </button>
-      </div>
-
-      {/* Table */}
-      <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
-        {loading ? (
-          <Spinner label="Loading leagues…" />
-        ) : filteredLeagues.length === 0 ? (
-          <EmptyState title="No leagues found" />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-background-dark border-b border-border-subtle">
-                <tr>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-text-secondary">
-                    Logo
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-text-secondary">
-                    Name
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-text-secondary">
-                    Country
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-text-secondary">
-                    Type
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-text-secondary">
-                    API ID
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-text-secondary">
-                    Teams
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-text-secondary">
-                    Seed status
-                  </th>
-                  <th className="px-4 py-3 text-right text-sm font-semibold text-text-secondary">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-subtle">
-                {filteredLeagues.map((league) => (
-                  <tr
-                    key={league.id}
-                    className="hover:bg-surface-hover transition-colors"
-                  >
-                    <td className="px-4 py-3">
-                      {league.logo || league.logo_url ? (
-                        <img
-                          src={league.logo || league.logo_url}
-                          alt={league.name}
-                          className="w-8 h-8 object-contain"
-                        />
-                      ) : (
-                        <div className="w-8 h-8 bg-background-dark rounded flex items-center justify-center text-text-disabled text-xs">
-                          N/A
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 font-medium">{league.name}</td>
-                    <td className="px-4 py-3 text-text-secondary">
-                      {league.country_id || '-'}
-                    </td>
-                    <td className="px-4 py-3 text-text-secondary">
-                      {league.type || '-'}
-                    </td>
-                    <td className="px-4 py-3 text-text-secondary">
-                      {league.api_league_id || league.api_id || '-'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="px-2 py-1 bg-electric-blue/10 text-electric-blue rounded text-sm">
-                        {league.team_count || 0}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs whitespace-nowrap">
-                      {seedStatus[league.id] ? (
-                        <div className="flex flex-col gap-0.5">
-                          <SeedBit label="Teams" n={seedStatus[league.id].teams} />
-                          <SeedBit label="Players" n={seedStatus[league.id].players} />
-                          <SeedBit label="Fixtures" n={seedStatus[league.id].fixtures} />
-                        </div>
-                      ) : <span className="text-text-disabled">…</span>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={async () => { await leagueService.setVisibility(league.id, (league as any).is_visible === false); loadLeagues(); }}
-                          className="p-2 hover:bg-background-dark rounded transition-colors"
-                          title={(league as any).is_visible === false ? 'Hidden in app — click to show' : 'Visible in app — click to hide'}
-                        >
-                          {(league as any).is_visible === false
-                            ? <EyeOff className="w-4 h-4 text-text-disabled" />
-                            : <Eye className="w-4 h-4 text-lime-glow" />}
-                        </button>
-                        {league.api_id && (
-                          <button
-                            onClick={() => handleSyncTeams(league)}
-                            disabled={syncingTeams === league.id}
-                            className="p-2 hover:bg-background-dark rounded transition-colors disabled:opacity-50"
-                            title="Sync Teams"
-                          >
-                            <Users className="w-4 h-4 text-lime-glow" />
-                          </button>
-                        )}
-                        {league.api_id && (
-                          <button
-                            onClick={() => handleSeedAll(league)}
-                            disabled={seedingId === league.id}
-                            className="p-2 hover:bg-background-dark rounded transition-colors disabled:opacity-50"
-                            title="Seed all (teams + players + fixtures) into the warehouse — uses the Season field above (defaults to 2026)"
-                          >
-                            <Database className={`w-4 h-4 text-warm-yellow ${seedingId === league.id ? 'animate-pulse' : ''}`} />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleEdit(league)}
-                          className="p-2 hover:bg-background-dark rounded transition-colors"
-                          title="Edit"
-                        >
-                          <Edit2 className="w-4 h-4 text-electric-blue" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(league.id, league.name)}
-                          className="p-2 hover:bg-background-dark rounded transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4 text-hot-red" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* League Form Modal */}
-      {showModal && (
-        <LeagueFormModal
-          league={editingLeague}
-          onClose={handleModalClose}
-          addToast={mockAddToast}
-        />
       )}
 
-      {/* Delete Confirmation Modal */}
+      {showModal && <LeagueFormModal league={editingLeague} onClose={handleModalClose} addToast={toast} />}
       {deleteConfirm && (
-        <ConfirmationModal
-          title="Delete League"
-          message={`Are you sure you want to delete "${deleteConfirm.name}"? This action cannot be undone and will remove all associated data.`}
-          confirmText="Delete"
-          cancelText="Cancel"
-          isDangerous={true}
-          onConfirm={confirmDelete}
-          onCancel={() => setDeleteConfirm(null)}
-        />
+        <ConfirmationModal title="Delete League" message={`Delete "${deleteConfirm.name}"? This cannot be undone and removes associated data.`}
+          confirmText="Delete" cancelText="Cancel" isDangerous onConfirm={confirmDelete} onCancel={() => setDeleteConfirm(null)} />
       )}
     </div>
   );
