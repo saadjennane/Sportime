@@ -17,9 +17,11 @@ import { CelebrationsPage } from './pages/CelebrationsPage';
 import { ConfigPage } from './pages/ConfigPage';
 import { BookmakerPage } from './pages/BookmakerPage';
 import { F1Page } from './pages/F1Page';
+import { F1DataPage } from './pages/F1DataPage';
 import { LiveGameConfigPage } from './pages/LiveGameConfigPage';
 import { LiveGamesPage } from './pages/LiveGamesPage';
 import { PuzzlePage } from './pages/PuzzlePage';
+import { ToastHost } from './components/ui/Toast';
 
 function App() {
   return (
@@ -40,6 +42,7 @@ function App() {
         <Route path="/data-sync" element={<DataSyncPage />} />
         <Route path="/bookmaker" element={<BookmakerPage />} />
         <Route path="/f1" element={<F1Page />} />
+        <Route path="/f1-data" element={<F1DataPage />} />
         <Route path="/celebrations" element={<CelebrationsPage />} />
         <Route path="/config" element={<ConfigPage />} />
         <Route path="/live-game" element={<LiveGameConfigPage />} />
@@ -48,6 +51,7 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
+    <ToastHost />
     </AuthGate>
   );
 }

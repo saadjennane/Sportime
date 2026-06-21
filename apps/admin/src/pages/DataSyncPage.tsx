@@ -1,8 +1,6 @@
 import { DataSyncAdmin } from '../components/DataSyncAdmin';
 
-const mockAddToast = (message: string, type: 'success' | 'error' | 'info') => {
-  console.log(`[${type.toUpperCase()}]`, message);
-};
+import { toast as mockAddToast } from '../components/ui/Toast';
 
 export function DataSyncPage() {
   return (

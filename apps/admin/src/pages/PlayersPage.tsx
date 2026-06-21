@@ -4,9 +4,7 @@ import { playerService } from '../services/playerService';
 import type { PlayerWithTeam } from '../types/football';
 import { ConfirmationModal } from '../components/admin/ConfirmationModal';
 
-const mockAddToast = (message: string, type: 'success' | 'error' | 'info') => {
-  console.log(`[${type.toUpperCase()}]`, message);
-};
+import { toast as mockAddToast } from '../components/ui/Toast';
 
 export function PlayersPage() {
   const [players, setPlayers] = useState<PlayerWithTeam[]>([]);

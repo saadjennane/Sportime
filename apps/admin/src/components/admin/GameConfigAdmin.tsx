@@ -1,4 +1,5 @@
 /**
+import { toast } from '../ui/Toast';
  * Game Configuration Admin Panel
  *
  * Allows super_admin to manage all game configurations
@@ -47,7 +48,7 @@ export function GameConfigAdmin() {
       }
     } catch (error) {
       console.error('[GameConfigAdmin] Failed to load configs:', error)
-      alert('Failed to load configurations. See console for details.')
+      toast('Failed to load configurations. See console for details.')
     } finally {
       setLoading(false)
     }
@@ -55,7 +56,7 @@ export function GameConfigAdmin() {
 
   async function handleSaveDraft() {
     if (editedConfigs.size === 0) {
-      alert('No changes to save')
+      toast('No changes to save')
       return
     }
 
@@ -71,11 +72,11 @@ export function GameConfigAdmin() {
 
       setHasUnpublishedChanges(true)
       setEditedConfigs(new Map())
-      alert(`Saved ${editedConfigs.size} config(s) as draft`)
+      toast(`Saved ${editedConfigs.size} config(s) as draft`)
       await loadConfigs()
     } catch (error) {
       console.error('[GameConfigAdmin] Failed to save draft:', error)
-      alert('Failed to save changes. See console for details.')
+      toast('Failed to save changes. See console for details.')
     } finally {
       setSaving(false)
     }
@@ -94,11 +95,11 @@ export function GameConfigAdmin() {
       await configService.publishConfigs(user.id)
 
       setHasUnpublishedChanges(false)
-      alert('Configurations published successfully!')
+      toast('Configurations published successfully!')
       await loadConfigs()
     } catch (error) {
       console.error('[GameConfigAdmin] Failed to publish:', error)
-      alert('Failed to publish changes. See console for details.')
+      toast('Failed to publish changes. See console for details.')
     } finally {
       setPublishing(false)
     }

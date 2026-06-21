@@ -6,9 +6,7 @@ import { LeagueFormModal } from '../components/admin/LeagueFormModal';
 import { ConfirmationModal } from '../components/admin/ConfirmationModal';
 import { syncLeagueTeams, syncLeagueFull, type SyncProgress } from '../services/footballSyncService';
 
-const mockAddToast = (message: string, type: 'success' | 'error' | 'info') => {
-  console.log(`[${type.toUpperCase()}]`, message);
-};
+import { toast as mockAddToast } from '../components/ui/Toast';
 
 /** One line of a league's warehouse seed status (green ✓ when present, red ✗ when empty). */
 function SeedBit({ label, n }: { label: string; n: number }) {

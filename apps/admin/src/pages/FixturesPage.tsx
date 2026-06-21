@@ -5,9 +5,7 @@ import { syncLeagueFixtures, syncLeagueTeams, type SyncProgress } from '../servi
 import { leagueService } from '../services/leagueService';
 import type { LeagueWithTeamCount } from '../types/football';
 
-const mockAddToast = (message: string, type: 'success' | 'error' | 'info') => {
-  console.log(`[${type.toUpperCase()}]`, message);
-};
+import { toast as mockAddToast } from '../components/ui/Toast';
 
 interface Fixture {
   id: string;

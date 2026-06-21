@@ -23,8 +23,13 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!session?.user) { setRole(undefined); return; }
     setRole(undefined);
-    supabase.from('users').select('is_admin, role').eq('id', session.user.id).single()
-      .then(({ data }) => setRole((data?.is_admin || data?.role === 'admin' || data?.role === 'super_admin') ? 'admin' : 'user'));
+    supabase.from('users').select('is_admin, is_super_admin, role, user_type').eq('id', session.user.id).single()
+      .then(({ data }) => {
+        const isAdmin = !!data?.is_admin || !!data?.is_super_admin
+          || data?.role === 'admin' || data?.role === 'super_admin'
+          || data?.user_type === 'admin' || data?.user_type === 'super_admin';
+        setRole(isAdmin ? 'admin' : 'user');
+      });
   }, [session]);
 
   const login = async (e: React.FormEvent) => {
@@ -63,7 +68,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   }
 
   // Logged in but not an admin
-  if (role !== 'admin' && role !== 'super_admin') {
+  if (role !== 'admin') {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#0a0a0a] text-center p-4">
         <ShieldAlert className="text-[#FF1744] mb-3" size={40} />
@@ -74,14 +79,6 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Authorized
-  return (
-    <>
-      {children}
-      <button onClick={logout} title="Sign out"
-        className="fixed bottom-4 right-4 z-50 flex items-center gap-2 bg-[#161616] border border-white/10 shadow-lg rounded-full px-4 py-2 text-sm font-semibold text-gray-200 hover:bg-white/5">
-        <LogOut size={16} /> Sign out
-      </button>
-    </>
-  );
+  // Authorized — sign out now lives in the Layout top bar.
+  return <>{children}</>;
 }

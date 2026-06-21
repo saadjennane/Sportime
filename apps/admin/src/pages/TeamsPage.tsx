@@ -8,9 +8,7 @@ import { TeamFormModal } from '../components/admin/TeamFormModal';
 import { ConfirmationModal } from '../components/admin/ConfirmationModal';
 import { syncTeamPlayers, type SyncProgress } from '../services/footballSyncService';
 
-const mockAddToast = (message: string, type: 'success' | 'error' | 'info') => {
-  console.log(`[${type.toUpperCase()}]`, message);
-};
+import { toast as mockAddToast } from '../components/ui/Toast';
 
 export function TeamsPage() {
   const [teams, setTeams] = useState<TeamWithCounts[]>([]);

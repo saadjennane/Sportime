@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { toast } from '../ui/Toast';
 import { supabase } from '../../services/supabase'
 import { addMatchesToChallenge } from '../../services/challengeService'
 
@@ -100,7 +101,7 @@ export function ChallengeMatchSelector({ challengeId, totalDays, onMatchesAdded 
 
   async function handleSave() {
     if (selectedMatches.length === 0) {
-      alert('Please select at least one match')
+      toast('Please select at least one match')
       return
     }
 
@@ -112,12 +113,12 @@ export function ChallengeMatchSelector({ challengeId, totalDays, onMatchesAdded 
       }))
 
       await addMatchesToChallenge(challengeId, matches)
-      alert(`Successfully added ${matches.length} matches to challenge`)
+      toast(`Successfully added ${matches.length} matches to challenge`)
       setSelectedMatches([])
       onMatchesAdded?.()
     } catch (error) {
       console.error('[ChallengeMatchSelector] Failed to save matches', error)
-      alert('Failed to add matches. See console for details.')
+      toast('Failed to add matches. See console for details.')
     } finally {
       setSaving(false)
     }
