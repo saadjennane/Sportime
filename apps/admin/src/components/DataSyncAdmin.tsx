@@ -9,7 +9,7 @@ import {
   ApiOddsInfo,
   ApiSyncConfig,
 } from '../types'
-import { DatabaseZap, DownloadCloud, Play, RefreshCw, Server, Settings, Sparkles } from 'lucide-react'
+import { DatabaseZap, Play, RefreshCw, Server, Settings, Sparkles } from 'lucide-react'
 import { PRIORITY_LEAGUES, ALL_AVAILABLE_LEAGUES } from '../data/priorityLeagues'
 
 interface DataSyncAdminProps {
@@ -23,7 +23,6 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
   const toast = addToast ?? ((msg: string) => console.log('[toast]', msg))
   const [loading, setLoading] = useState<string | null>(null)
   const [progress, setProgress] = useState<string[]>([])
-  const [leagueIds, setLeagueIds] = useState('') // Empty by default
   const [season, setSeason] = useState('2025')
   const [syncConfigs, setSyncConfigs] = useState<ApiSyncConfig[]>([])
 
@@ -190,34 +189,6 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
   }
 
   // FULL IMPORT — leagues → teams → players
-  const handleFullImport = async () => {
-    setLoading('import')
-    setProgress([])
-
-    const ids = leagueIds
-      .split(',')
-      .map((id) => id.trim())
-      .filter(Boolean)
-
-    if (ids.length === 0) {
-      toast('Please enter at least one league ID.', 'error')
-      setLoading(null)
-      return
-    }
-
-    await syncLeagues(ids)
-
-    for (const leagueApiId of ids) {
-      const teamIds = await syncTeamsByLeague(leagueApiId, season)
-      for (const teamId of teamIds) {
-        await syncPlayersByTeam(teamId, season)
-      }
-    }
-
-    addProgress('Full import process completed!')
-    setLoading(null)
-  }
-
   type LeagueRecord = {
     id: string
     name?: string | null
@@ -621,44 +592,8 @@ export const DataSyncAdmin: React.FC<DataSyncAdminProps> = ({ addToast }) => {
   return (
     <div className="space-y-6">
       {/* Initial Import Section */}
-      <div className="bg-navy-accent rounded-2xl shadow-lg p-5 space-y-4 border border-electric-blue/20">
-        <div className="flex items-center gap-3">
-          <div className="bg-electric-blue/20 p-2 rounded-full">
-            <DownloadCloud className="w-6 h-6 text-electric-blue" />
-          </div>
-          <h3 className="font-bold text-lg text-text-primary">Initial Data Import</h3>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-text-secondary mb-1">
-            League IDs (comma-separated)
-          </label>
-          <input
-            type="text"
-            value={leagueIds}
-            onChange={(e) => setLeagueIds(e.target.value)}
-            className="w-full p-2 bg-deep-navy border-2 border-electric-blue/30 rounded-xl text-text-primary placeholder:text-text-disabled focus:border-electric-blue focus:outline-none"
-            placeholder="e.g., 2, 39, 140, 135"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-text-secondary mb-1">Season (Year)</label>
-          <input
-            type="text"
-            value={season}
-            onChange={(e) => setSeason(e.target.value)}
-            className="w-full p-2 bg-deep-navy border-2 border-electric-blue/30 rounded-xl text-text-primary placeholder:text-text-disabled focus:border-electric-blue focus:outline-none"
-            placeholder="e.g., 2025"
-          />
-        </div>
-        <button
-          onClick={handleFullImport}
-          disabled={!!loading}
-          className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-electric-blue to-neon-cyan text-white rounded-xl font-semibold shadow-lg hover:shadow-electric-blue/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-        >
-          {loading === 'import' ? <RefreshCw className="animate-spin" /> : <Play />}
-          Sync Leagues, Teams & Players
-        </button>
-      </div>
+      {/* Note: full league import (teams + players + fixtures) now lives on the
+          Leagues page (Seed / Update per league + bulk import). */}
 
       {/* Ongoing Sync Section */}
       <div className="bg-navy-accent rounded-2xl shadow-lg p-5 space-y-4 border border-electric-blue/20">

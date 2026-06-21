@@ -1,18 +1,15 @@
 import { DataSyncAdmin } from '../components/DataSyncAdmin';
-
-import { toast as mockAddToast } from '../components/ui/Toast';
+import { PageHeader } from '../components/ui/PageHeader';
+import { toast } from '../components/ui/Toast';
 
 export function DataSyncPage() {
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Data Sync</h1>
-        <p className="text-text-secondary">
-          Synchronize leagues, teams, and matches from API-Football
-        </p>
-      </div>
-
-      <DataSyncAdmin addToast={mockAddToast} />
+      <PageHeader
+        title="Data Sync"
+        subtitle="Manual re-syncs, fixture-schedule refresh and fantasy seeding. Full league imports live on the Leagues page."
+      />
+      <DataSyncAdmin addToast={toast} />
     </div>
   );
 }

@@ -10,6 +10,7 @@ import {
   Settings,
   Flag,
   Gauge,
+  ChevronDown,
   Menu,
   X,
   Calendar,
@@ -30,6 +31,17 @@ interface SidebarProps {
 
 export function Sidebar({ className = '' }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(true);
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('admin.sidebar.collapsed') || '[]')); } catch { return new Set(); }
+  });
+  const toggleSection = (label: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      next.has(label) ? next.delete(label) : next.add(label);
+      try { localStorage.setItem('admin.sidebar.collapsed', JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  };
 
   const navSections: { label: string | null; items: { to: string; icon: any; label: string }[] }[] = [
     { label: null, items: [
@@ -93,30 +105,39 @@ export function Sidebar({ className = '' }: SidebarProps) {
 
           {/* Navigation */}
           <nav className="flex-1 p-4 space-y-4 overflow-y-auto">
-            {navSections.map((section, si) => (
-              <div key={si} className="space-y-1">
-                {section.label && (
-                  <div className="px-4 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-text-disabled">{section.label}</div>
-                )}
-                {section.items.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    onClick={() => setIsOpen(false)}
-                    className={({ isActive }) =>
-                      `flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${
-                        isActive
-                          ? 'bg-electric-blue/10 text-electric-blue border border-electric-blue/20'
-                          : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'
-                      }`
-                    }
-                  >
-                    <item.icon className="w-5 h-5" />
-                    <span className="font-medium">{item.label}</span>
-                  </NavLink>
-                ))}
-              </div>
-            ))}
+            {navSections.map((section, si) => {
+              const isCollapsed = !!section.label && collapsed.has(section.label);
+              return (
+                <div key={si} className="space-y-1">
+                  {section.label && (
+                    <button
+                      onClick={() => toggleSection(section.label!)}
+                      className="w-full flex items-center justify-between px-4 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-text-disabled hover:text-text-secondary"
+                    >
+                      <span>{section.label}</span>
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+                    </button>
+                  )}
+                  {!isCollapsed && section.items.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      onClick={() => setIsOpen(false)}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${
+                          isActive
+                            ? 'bg-electric-blue/10 text-electric-blue border border-electric-blue/20'
+                            : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'
+                        }`
+                      }
+                    >
+                      <item.icon className="w-5 h-5" />
+                      <span className="font-medium">{item.label}</span>
+                    </NavLink>
+                  ))}
+                </div>
+              );
+            })}
           </nav>
 
           {/* Footer */}
