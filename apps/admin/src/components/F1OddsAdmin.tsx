@@ -9,6 +9,17 @@ interface Constructor { id: number; name: string; logo: string | null; }
 
 type Row = { entityId: number | null; selection: string | null; label: string; sublabel?: string };
 
+// Accept fractional odds ("1/5", "2/9", optionally prefixed "=") → decimal (a/b + 1).
+function normalizeOdds(raw: string): string {
+  const v = raw.trim().replace(/^=/, '');
+  const m = v.match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
+  if (m) {
+    const d = parseFloat(m[1]) / parseFloat(m[2]);
+    if (isFinite(d) && d > 0) return (d + 1).toFixed(2);
+  }
+  return raw.trim();
+}
+
 export function F1OddsAdmin() {
   const [gps, setGps] = useState<Gp[]>([]);
   const [markets, setMarkets] = useState<Market[]>([]);
@@ -75,19 +86,19 @@ export function F1OddsAdmin() {
   // Overround = sum of implied probs (meaningful for mutually-exclusive markets)
   const overround = useMemo(() => {
     if (!market || market.type === 'yesno_entity') return null; // independent yes/no → no single overround
-    const vals = rows.map((r) => parseFloat(inputs[keyOf(r)])).filter((v) => v > 0);
+    const vals = rows.map((r) => parseFloat(normalizeOdds(inputs[keyOf(r)] ?? ''))).filter((v) => v > 0);
     if (!vals.length) return null;
     return vals.reduce((s, v) => s + 1 / v, 0) * 100;
   }, [market, rows, inputs]);
 
   const overroundColor = overround == null ? '' : overround < 100 ? 'text-hot-red' : overround > 140 ? 'text-warm-yellow' : 'text-lime-glow';
-  const enteredCount = rows.filter((r) => parseFloat(inputs[keyOf(r)]) > 0).length;
+  const enteredCount = rows.filter((r) => parseFloat(normalizeOdds(inputs[keyOf(r)] ?? '')) > 0).length;
 
   const save = async () => {
     if (!gpId) return;
     setSaving(true); setMsg(null);
     const payload = rows
-      .map((r) => ({ entity_id: r.entityId, selection: r.selection, odds: inputs[keyOf(r)] }))
+      .map((r) => ({ entity_id: r.entityId, selection: r.selection, odds: normalizeOdds(inputs[keyOf(r)] ?? '') }))
       .filter((r) => parseFloat(r.odds) > 0);
     const { data, error } = await supabase.rpc('f1_save_odds', { p_race_id: gpId, p_market_key: marketKey, p_rows: payload });
     setSaving(false);
@@ -162,22 +173,26 @@ export function F1OddsAdmin() {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {rows.map((r) => (
-            <div key={keyOf(r)} className="flex items-center gap-3 px-3 py-2 bg-surface border border-border-subtle rounded-lg">
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium truncate">{r.label}</div>
-                {r.sublabel && <div className="text-xs text-text-secondary truncate">{r.sublabel}</div>}
+        <>
+          <p className="text-xs text-text-secondary mb-1">Tip: type a fractional odd like <code className="text-text-primary">1/5</code> or <code className="text-text-primary">=2/9</code> — it converts to decimal on blur.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {rows.map((r) => (
+              <div key={keyOf(r)} className="flex items-center gap-3 px-3 py-2 bg-surface border border-border-subtle rounded-lg">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium truncate">{r.label}</div>
+                  {r.sublabel && <div className="text-xs text-text-secondary truncate">{r.sublabel}</div>}
+                </div>
+                <input
+                  type="text" inputMode="decimal" placeholder="—"
+                  value={inputs[keyOf(r)] ?? ''}
+                  onChange={(e) => setInputs((p) => ({ ...p, [keyOf(r)]: e.target.value }))}
+                  onBlur={(e) => { const v = normalizeOdds(e.target.value); setInputs((p) => ({ ...p, [keyOf(r)]: v })); }}
+                  className="w-20 bg-deep-navy border border-border-subtle rounded-lg px-2 py-1.5 text-sm text-right font-mono"
+                />
               </div>
-              <input
-                type="number" step="0.01" min="1" inputMode="decimal" placeholder="—"
-                value={inputs[keyOf(r)] ?? ''}
-                onChange={(e) => setInputs((p) => ({ ...p, [keyOf(r)]: e.target.value }))}
-                className="w-20 bg-deep-navy border border-border-subtle rounded-lg px-2 py-1.5 text-sm text-right font-mono"
-              />
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       )}
 
       {/* Safety Car: manual race result for settlement */}
