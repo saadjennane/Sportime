@@ -15,9 +15,6 @@ export function TeamFormModal({ team, onClose, addToast }: TeamFormModalProps) {
     logo_url: '',
     logo: '',
     country: '',
-    founded: undefined,
-    venue_name: '',
-    venue_capacity: undefined,
   });
   const [loading, setLoading] = useState(false);
 
@@ -28,9 +25,6 @@ export function TeamFormModal({ team, onClose, addToast }: TeamFormModalProps) {
         logo_url: team.logo_url || '',
         logo: team.logo || '',
         country: team.country,
-        founded: team.founded,
-        venue_name: team.venue_name || '',
-        venue_capacity: team.venue_capacity,
       });
     }
   }, [team]);
@@ -127,44 +121,6 @@ export function TeamFormModal({ team, onClose, addToast }: TeamFormModalProps) {
               onChange={(e) => setFormData({ ...formData, logo: e.target.value })}
               className="w-full px-4 py-2 bg-background-dark border border-border-subtle rounded-lg focus:outline-none focus:border-electric-blue"
               placeholder="https://..."
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Founded</label>
-              <input
-                type="number"
-                value={formData.founded || ''}
-                onChange={(e) => setFormData({ ...formData, founded: e.target.value ? parseInt(e.target.value) : undefined })}
-                className="w-full px-4 py-2 bg-background-dark border border-border-subtle rounded-lg focus:outline-none focus:border-electric-blue"
-                placeholder="1878"
-                min="1800"
-                max={new Date().getFullYear()}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Venue Capacity</label>
-              <input
-                type="number"
-                value={formData.venue_capacity || ''}
-                onChange={(e) => setFormData({ ...formData, venue_capacity: e.target.value ? parseInt(e.target.value) : undefined })}
-                className="w-full px-4 py-2 bg-background-dark border border-border-subtle rounded-lg focus:outline-none focus:border-electric-blue"
-                placeholder="75000"
-                min="0"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Venue Name</label>
-            <input
-              type="text"
-              value={formData.venue_name}
-              onChange={(e) => setFormData({ ...formData, venue_name: e.target.value })}
-              className="w-full px-4 py-2 bg-background-dark border border-border-subtle rounded-lg focus:outline-none focus:border-electric-blue"
-              placeholder="Old Trafford"
             />
           </div>
 

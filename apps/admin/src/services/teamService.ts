@@ -142,6 +142,15 @@ export const teamService = {
     return { data, error };
   },
 
+  // Only the columns that actually exist on fb_teams — the form historically also
+  // carried founded/venue_* which aren't real columns and made every save 400.
+  _clean(input: Partial<TeamInput>): Record<string, any> {
+    const allowed = ['name', 'logo_url', 'logo', 'country', 'code'] as const;
+    const out: Record<string, any> = {};
+    for (const k of allowed) if ((input as any)[k] !== undefined) out[k] = (input as any)[k];
+    return out;
+  },
+
   /**
    * Create new team
    */
@@ -152,7 +161,7 @@ export const teamService = {
 
     const { data, error } = await supabase
       .from('fb_teams')
-      .insert(input)
+      .insert(this._clean(input))
       .select()
       .single();
 
@@ -169,7 +178,7 @@ export const teamService = {
 
     const { data, error } = await supabase
       .from('fb_teams')
-      .update(input)
+      .update(this._clean(input))
       .eq('id', id)
       .select()
       .single();
