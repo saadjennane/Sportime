@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Star, DatabaseZap, Trophy, Globe, Shield, Users, Settings,
   Flag, Gauge, ChevronDown, Menu, X, Calendar, DollarSign, Radio, Disc3,
-  Zap, Gift, PartyPopper, Gamepad2,
+  Zap, Gift, PartyPopper, Gamepad2, List,
 } from 'lucide-react';
 import { useState } from 'react';
 import packageJson from '../../package.json';
@@ -12,7 +12,7 @@ const BUILD_DATE = __BUILD_DATE__;
 
 interface SidebarProps { className?: string; }
 
-type Item = { to: string; icon: any; label: string; disabled?: boolean };
+type Item = { to: string; icon: any; label: string; disabled?: boolean; end?: boolean };
 type Sub = { group: string; items: Item[] };
 type Entry = Item | Sub;
 type Section = { label: string; entries: Entry[] };
@@ -32,10 +32,12 @@ const SECTIONS: Section[] = [
       { to: '/data-sync', icon: DatabaseZap, label: 'Data Sync' },
     ] },
     { group: 'Games', items: [
-      { to: '/tournament', icon: Trophy, label: 'Games' },
-      { to: '/live-games', icon: Radio, label: 'Live Games' },
-      { to: '/swipe', icon: Zap, label: 'Swipe' },
+      { to: '/tournament', icon: List, label: 'Games', end: true },
+      { to: '/tournament/tq', icon: Trophy, label: 'Tournament Quest' },
+      { to: '/tournament/betting', icon: Calendar, label: 'Match Day' },
+      { to: '/swipe', icon: Zap, label: 'Swipe Prediction' },
       { to: '/fantasy', icon: Gamepad2, label: 'Fantasy' },
+      { to: '/live-games', icon: Radio, label: 'Live Games' },
       CELEBRATIONS,
     ] },
     { group: 'Config', items: [
@@ -86,7 +88,7 @@ export function Sidebar({ className = '' }: SidebarProps) {
       );
     }
     return (
-      <NavLink to={item.to} onClick={() => setIsOpen(false)}
+      <NavLink to={item.to} end={item.end} onClick={() => setIsOpen(false)}
         className={({ isActive }) => `flex items-center gap-3 ${pad} py-2 rounded-lg transition-colors ${
           isActive ? 'bg-electric-blue/10 text-electric-blue border border-electric-blue/20'
                    : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'}`}>

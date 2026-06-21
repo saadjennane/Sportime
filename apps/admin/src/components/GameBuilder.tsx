@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { confirmDialog } from './ui/Confirm';
+import { PageHeader } from './ui/PageHeader';
 import {
   listCompetitions, getCompetitionDetail, createFromLeague, setStatus, updateCompetition,
   resolveCompetition, generateBracket, getLeaderboard, listSourceLeagues, listBadges,
@@ -54,6 +56,8 @@ const statusColor = (s: string) =>
   : 'bg-warm-yellow/15 text-warm-yellow';
 
 export default function GameBuilder() {
+  const { type } = useParams();
+  const focus = (type === 'tq' || type === 'betting') ? type : null; // null = overview list · per-type hub otherwise
   const [comps, setComps] = useState<any[]>([]);
   const [challenges, setChallenges] = useState<any[]>([]);
   const [fantasyGames, setFantasyGames] = useState<any[]>([]);
@@ -74,6 +78,8 @@ export default function GameBuilder() {
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 5000); };
   const reload = async () => { setComps(await listCompetitions()); setChallenges(await listChallenges()); setFantasyGames(await listFantasyGames()); setRewardPacks(await listRewardPacks()); };
   useEffect(() => { reload(); listSourceLeagues().then(setLeagues); listBadges().then(setBadges); listLeaguesFull().then(ls => setLeaguesById(Object.fromEntries(ls.map((l: any) => [l.id, l.name])))); }, []);
+  // Per-type hub: lock the list to the focused type.
+  useEffect(() => { if (focus === 'tq' || focus === 'betting') setFilters(f => ({ ...f, type: focus })); }, [focus]);
 
   const assignPack = async (type: 'tq' | 'betting' | 'prediction' | 'fantasy', gameId: string, packId: string) => {
     const pack = rewardPacks.find(p => p.id === packId);
@@ -135,24 +141,29 @@ export default function GameBuilder() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-text-primary mb-1">Games</h1>
-          <p className="text-text-secondary">Create and run every game — Tournament Quest, Match Day, Swipe, Fantasy.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {([['tq', 'Tournament Quest', 'bg-electric-blue text-white'],
-             ['betting', 'Match Day', 'bg-warm-yellow text-deep-navy'],
-             ['prediction', 'Swipe', 'bg-neon-cyan text-deep-navy'],
-             ['fantasy', 'Fantasy', 'bg-[#D500F9] text-white']] as const).map(([t, label, cls]) => (
-            <button key={t} onClick={() => setCreating(creating === t ? null : t)}
-              className={`px-3 py-2 rounded-lg font-semibold text-sm ${creating === t ? 'bg-surface-hover text-text-secondary' : cls}`}>
-              {creating === t ? 'Cancel' : `+ ${label}`}
-            </button>
-          ))}
-          <button onClick={() => setShowPacks(v => !v)} className="px-3 py-2 rounded-lg font-semibold text-sm bg-surface-hover text-text-primary border border-border-subtle">🎁 Reward Packs</button>
-        </div>
-      </div>
+      <PageHeader
+        title={focus === 'tq' ? 'Tournament Quest' : focus === 'betting' ? 'Match Day' : 'Games'}
+        subtitle={focus === 'tq' ? 'Create and run Tournament Quest competitions.'
+          : focus === 'betting' ? 'Create and run Match Day challenges.'
+          : 'All games across every type. Create from a type hub (Tournament Quest, Match Day, Swipe Prediction, Fantasy).'}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            {focus === 'tq' && (
+              <button onClick={() => setCreating(creating === 'tq' ? null : 'tq')}
+                className={`px-3 py-2 rounded-lg font-semibold text-sm ${creating === 'tq' ? 'bg-surface-hover text-text-secondary' : 'bg-electric-blue text-white'}`}>
+                {creating === 'tq' ? 'Cancel' : '+ New Tournament Quest'}
+              </button>
+            )}
+            {focus === 'betting' && (
+              <button onClick={() => setCreating(creating === 'betting' ? null : 'betting')}
+                className={`px-3 py-2 rounded-lg font-semibold text-sm ${creating === 'betting' ? 'bg-surface-hover text-text-secondary' : 'bg-warm-yellow text-deep-navy'}`}>
+                {creating === 'betting' ? 'Cancel' : '+ New Match Day'}
+              </button>
+            )}
+            <button onClick={() => setShowPacks(v => !v)} className="px-3 py-2 rounded-lg font-semibold text-sm bg-surface-hover text-text-primary border border-border-subtle">🎁 Reward Packs</button>
+          </div>
+        }
+      />
       {msg && <div className="bg-electric-blue/10 border border-electric-blue/30 text-electric-blue rounded-lg px-4 py-2 text-sm">{msg}</div>}
 
       {showPacks && (
@@ -177,7 +188,7 @@ export default function GameBuilder() {
       )}
       {editingPack !== undefined && <RewardPackBuilder initialPack={editingPack} onSaved={() => { setEditingPack(undefined); reload(); }} onClose={() => setEditingPack(undefined)} />}
 
-      {(creating === 'betting' || creating === 'prediction' || creating === 'fantasy') &&
+      {creating === 'betting' &&
         <MatchGameCreate gameType={creating} badges={badges} onCreated={() => { setCreating(null); reload(); }} flash={flash} />}
 
       {creating === 'tq' && (
@@ -220,11 +231,13 @@ export default function GameBuilder() {
 
       {/* Filters + saved views */}
       <div className="bg-surface border border-border-subtle rounded-xl p-3 flex flex-wrap items-center gap-2">
-        <select value={filters.type} onChange={e => setFilters({ ...filters, type: e.target.value })} className="inp w-auto">
-          <option value="all">All types</option>
-          <option value="tq">Tournament Quest</option><option value="betting">Match Day</option>
-          <option value="prediction">Swipe</option><option value="fantasy">Fantasy</option>
-        </select>
+        {!focus && (
+          <select value={filters.type} onChange={e => setFilters({ ...filters, type: e.target.value })} className="inp w-auto">
+            <option value="all">All types</option>
+            <option value="tq">Tournament Quest</option><option value="betting">Match Day</option>
+            <option value="prediction">Swipe Prediction</option><option value="fantasy">Fantasy</option>
+          </select>
+        )}
         <select value={filters.league} onChange={e => setFilters({ ...filters, league: e.target.value })} className="inp w-auto">
           <option value="all">All leagues</option>
           {Object.entries(leaguesById).map(([id, n]) => <option key={id} value={id}>{n}</option>)}

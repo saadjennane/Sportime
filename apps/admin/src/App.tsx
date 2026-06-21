@@ -28,6 +28,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/tournament" element={<TournamentPage />} />
+        <Route path="/tournament/:type" element={<TournamentPage />} />
         <Route path="/leagues" element={<LeaguesPage />} />
         <Route path="/teams" element={<TeamsPage />} />
         <Route path="/players" element={<PlayersPage />} />

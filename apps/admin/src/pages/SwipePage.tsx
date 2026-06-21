@@ -5,7 +5,7 @@ import { toast } from '../components/ui/Toast';
 export function SwipePage() {
   return (
     <div>
-      <PageHeader title="Swipe Games" subtitle="Manage swipe prediction games and leaderboards." />
+      <PageHeader title="Swipe Prediction" subtitle="Manage swipe prediction games and leaderboards." />
       <SwipeGameAdmin addToast={toast} />
     </div>
   );
