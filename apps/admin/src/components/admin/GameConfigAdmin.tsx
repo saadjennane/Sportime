@@ -1,5 +1,4 @@
 /**
-import { toast } from '../ui/Toast';
  * Game Configuration Admin Panel
  *
  * Allows super_admin to manage all game configurations
@@ -7,6 +6,7 @@ import { toast } from '../ui/Toast';
  */
 
 import { useState, useEffect } from 'react'
+import { toast } from '../ui/Toast'
 import { supabase } from '../../services/supabase'
 import { configService } from '../../services/configService'
 import type { GameConfig } from '../../types/config'

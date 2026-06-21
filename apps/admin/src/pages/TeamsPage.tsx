@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, Edit2, Trash2, RefreshCw, Download, Users } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, RefreshCw, Download, Users, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Spinner, EmptyState } from '../components/ui/States';
 import { teamService } from '../services/teamService';
 import { leagueService } from '../services/leagueService';
 import type { TeamWithCounts } from '../types/football';
@@ -10,12 +11,17 @@ import { syncTeamPlayers, type SyncProgress } from '../services/footballSyncServ
 
 import { toast as mockAddToast } from '../components/ui/Toast';
 
+const PAGE_SIZE = 50;
+
 export function TeamsPage() {
-  const [teams, setTeams] = useState<TeamWithCounts[]>([]);
   const [filteredTeams, setFilteredTeams] = useState<TeamWithCounts[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [countryFilter, setCountryFilter] = useState('all');
+  const [debounced, setDebounced] = useState({ q: '', country: 'all' });
+  const [countries, setCountries] = useState<string[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editingTeam, setEditingTeam] = useState<TeamWithCounts | null>(null);
   const [syncStatus, setSyncStatus] = useState({
@@ -33,28 +39,26 @@ export function TeamsPage() {
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
 
   useEffect(() => {
-    loadTeams();
     loadSyncStatus();
     loadLeagues();
+    teamService.getCountries().then(setCountries);
   }, []);
 
+  // Debounce search / country → reset to first page.
   useEffect(() => {
-    filterTeams();
-  }, [searchQuery, countryFilter, teams]);
+    const t = setTimeout(() => { setDebounced({ q: searchQuery, country: countryFilter }); setPage(0); }, 300);
+    return () => clearTimeout(t);
+  }, [searchQuery, countryFilter]);
+
+  useEffect(() => { loadTeams(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [debounced, page]);
 
   const loadTeams = async () => {
     setLoading(true);
-    const { data, error } = await teamService.getAll();
-
-    if (error) {
-      mockAddToast('Failed to load teams', 'error');
-      console.error('[ERROR] Failed to load teams');
-      console.error(error);
-    } else {
-      console.log(`✅ Loaded ${data?.length || 0} teams`);
-      setTeams(data || []);
-    }
-
+    const { data, count, error } = await teamService.getPaged({
+      q: debounced.q, country: debounced.country === 'all' ? '' : debounced.country, page, pageSize: PAGE_SIZE,
+    });
+    if (error) { mockAddToast('Failed to load teams', 'error'); console.error(error); }
+    else { setFilteredTeams(data); setTotal(count); }
     setLoading(false);
   };
 
@@ -68,24 +72,6 @@ export function TeamsPage() {
     if (!error && data) {
       setLeagues(data);
     }
-  };
-
-  const filterTeams = () => {
-    let filtered = teams;
-
-    // Search filter
-    if (searchQuery) {
-      filtered = filtered.filter((team) =>
-        team.name.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-
-    // Country filter
-    if (countryFilter !== 'all') {
-      filtered = filtered.filter((team) => team.country === countryFilter);
-    }
-
-    setFilteredTeams(filtered);
   };
 
   const handleCreate = () => {
@@ -230,12 +216,8 @@ export function TeamsPage() {
     for (let i = 0; i < ids.length; i++) {
       const identifier = ids[i];
 
-      // Try to find team by UUID first, then by API ID
-      let team = teams.find(t => t.id === identifier);
-      if (!team) {
-        // Try to find by api_id (if user provided API ID instead of UUID)
-        team = teams.find(t => t.api_id?.toString() === identifier);
-      }
+      // Resolve identifier (UUID or API ID) to a team via the DB.
+      const team = await teamService.findByIdentifier(identifier);
 
       if (!team || !team.api_id) {
         failCount++;
@@ -276,8 +258,7 @@ export function TeamsPage() {
     );
   };
 
-  // Get unique countries for filter
-  const countries = Array.from(new Set(teams.map((t) => t.country))).sort();
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <div>
@@ -425,11 +406,9 @@ export function TeamsPage() {
       {/* Table */}
       <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center text-text-secondary">Loading...</div>
+          <Spinner label="Loading teams…" />
         ) : filteredTeams.length === 0 ? (
-          <div className="p-8 text-center text-text-secondary">
-            No teams found
-          </div>
+          <EmptyState title="No teams found" subtitle={debounced.q || debounced.country !== 'all' ? 'Try a different search.' : 'No teams in the database.'} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -545,6 +524,18 @@ export function TeamsPage() {
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {!loading && total > 0 && (
+        <div className="mt-4 flex items-center justify-between text-sm text-text-secondary">
+          <span>{(page * PAGE_SIZE + 1).toLocaleString()}–{Math.min(total, (page + 1) * PAGE_SIZE).toLocaleString()} of {total.toLocaleString()}</span>
+          <div className="flex items-center gap-2">
+            <button disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-surface border border-border-subtle disabled:opacity-40"><ChevronLeft size={15} /> Prev</button>
+            <span>Page {page + 1} / {totalPages}</span>
+            <button disabled={page + 1 >= totalPages} onClick={() => setPage((p) => p + 1)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-surface border border-border-subtle disabled:opacity-40">Next <ChevronRight size={15} /></button>
+          </div>
+        </div>
+      )}
 
       {/* Team Form Modal */}
       {showModal && (

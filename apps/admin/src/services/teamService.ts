@@ -61,6 +61,46 @@ export const teamService = {
   },
 
   /**
+   * Server-side paginated + searchable list. Counts are computed only for the
+   * current page (50 head queries) instead of ~2× per team across all 1000+ teams.
+   */
+  async getPaged({ q = '', country = '', page = 0, pageSize = 50 }: { q?: string; country?: string; page?: number; pageSize?: number }):
+    Promise<{ data: TeamWithCounts[]; count: number; error: any }> {
+    if (!supabase) return { data: [], count: 0, error: new Error('Supabase not initialized') };
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
+    let query = supabase.from('fb_teams').select('*', { count: 'exact' });
+    if (q.trim()) query = query.ilike('name', `%${q.trim()}%`);
+    if (country.trim()) query = query.eq('country', country.trim());
+    const { data: teams, error, count } = await query.order('name').range(from, to);
+    if (error) return { data: [], count: 0, error };
+    const withCounts = await Promise.all((teams ?? []).map(async (team: any) => {
+      const [{ count: lg }, { count: pl }] = await Promise.all([
+        supabase!.from('fb_team_league_participation').select('*', { count: 'exact', head: true }).eq('team_id', team.id),
+        supabase!.from('fb_player_team_association').select('*', { count: 'exact', head: true }).eq('team_id', team.id),
+      ]);
+      return { ...team, league_count: lg || 0, player_count: pl || 0 };
+    }));
+    return { data: withCounts, count: count ?? 0, error: null };
+  },
+
+  /** Resolve a team by UUID or API id (used by the bulk player import). */
+  async findByIdentifier(identifier: string): Promise<any | null> {
+    if (!supabase) return null;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+    const col = isUuid ? 'id' : 'api_id';
+    const { data } = await supabase.from('fb_teams').select('id, name, api_id').eq(col, identifier).maybeSingle();
+    return data;
+  },
+
+  /** Distinct country list for the filter dropdown (cheap, one column). */
+  async getCountries(): Promise<string[]> {
+    if (!supabase) return [];
+    const { data } = await supabase.from('fb_teams').select('country').order('country');
+    return Array.from(new Set((data ?? []).map((r: any) => r.country).filter(Boolean))) as string[];
+  },
+
+  /**
    * Get team by ID
    */
   async getById(id: string): Promise<{ data: Team | null; error: any }> {

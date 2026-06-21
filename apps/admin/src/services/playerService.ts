@@ -33,6 +33,31 @@ export const playerService = {
   },
 
   /**
+   * Server-side paginated + searchable list (avoids loading all ~22k players).
+   */
+  async getPaged({ q = '', team = '', page = 0, pageSize = 50 }: { q?: string; team?: string; page?: number; pageSize?: number }):
+    Promise<{ data: PlayerWithTeam[]; count: number; error: any }> {
+    if (!supabase) return { data: [], count: 0, error: new Error('Supabase not initialized') };
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
+    const t = team.trim();
+    const rel = t
+      ? 'fb_player_team_association!inner(team_id, fb_teams!inner(name, logo))'
+      : 'fb_player_team_association!left(fb_teams(name, logo))';
+    let query = supabase.from('fb_players').select(`*, ${rel}`, { count: 'exact' });
+    const s = q.trim();
+    if (s) query = query.or(`first_name.ilike.%${s}%,last_name.ilike.%${s}%,name.ilike.%${s}%`);
+    if (t) query = query.ilike('fb_player_team_association.fb_teams.name', `%${t}%`);
+    const { data, error, count } = await query.order('last_name').range(from, to);
+    const rows = (data ?? []).map((p: any) => ({
+      ...p,
+      team_name: p.fb_player_team_association?.[0]?.fb_teams?.name,
+      team_logo: p.fb_player_team_association?.[0]?.fb_teams?.logo,
+    }));
+    return { data: rows, count: count ?? 0, error };
+  },
+
+  /**
    * Get player by ID
    */
   async getById(id: string): Promise<{ data: Player | null; error: any }> {
