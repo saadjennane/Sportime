@@ -1,27 +1,19 @@
 /**
  * Game Configuration Page
- *
- * Admin page for managing all game configurations including:
- * - Rewards (daily streaks, starting coins, etc.)
- * - Progression (level thresholds, bet limits)
- * - Tournament (costs, multipliers, ticket rules)
- * - PGS Formula (XP calculation coefficients)
- * - Badges (default XP, condition types)
+ * Sections: Rewards, Progression, Tournament, PGS Formula, Badges.
+ * ?tab=<section> deep-links a section (used by the sidebar "Rewards" entry).
  */
-
+import { useSearchParams } from 'react-router-dom'
 import { GameConfigAdmin } from '../components/admin/GameConfigAdmin'
+import { PageHeader } from '../components/ui/PageHeader'
 
 export function ConfigPage() {
+  const [params] = useSearchParams()
+  const tab = params.get('tab') as any
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Game Configuration</h1>
-        <p className="text-text-secondary">
-          Manage all game settings, formulas, and rewards. Changes are saved as drafts and must be published to take effect.
-        </p>
-      </div>
-
-      <GameConfigAdmin />
+    <div className="max-w-7xl mx-auto">
+      <PageHeader title="Game Configuration" subtitle="Settings, formulas and rewards. Changes are saved as drafts and must be published to take effect." />
+      <GameConfigAdmin initialSection={tab || undefined} />
     </div>
   )
 }

@@ -15,13 +15,13 @@ import { useIsSuperAdmin } from '../../hooks/useUserRole'
 
 type ConfigSection = 'rewards' | 'progression' | 'tournament' | 'pgs_formula' | 'badges'
 
-export function GameConfigAdmin() {
+export function GameConfigAdmin({ initialSection }: { initialSection?: ConfigSection } = {}) {
   const [configs, setConfigs] = useState<GameConfig[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [hasUnpublishedChanges, setHasUnpublishedChanges] = useState(false)
-  const [activeSection, setActiveSection] = useState<ConfigSection>('rewards')
+  const [activeSection, setActiveSection] = useState<ConfigSection>(initialSection ?? 'rewards')
   const [editedConfigs, setEditedConfigs] = useState<Map<string, any>>(new Map())
   const [lastPublished, setLastPublished] = useState<{ by: string; at: string } | null>(null)
 
