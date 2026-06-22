@@ -53,11 +53,11 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({ options, val
 
   return (
     <div className="relative w-full" ref={wrapperRef}>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <label className="block text-sm font-medium text-text-secondary mb-1">{label}</label>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between p-3 bg-gray-100 border-2 border-gray-200 rounded-xl text-left"
+        className="w-full flex items-center justify-between p-3 bg-navy-accent border-2 border-disabled rounded-xl text-left"
       >
         {selectedOption ? (
           <div className="flex items-center gap-2">
@@ -65,7 +65,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({ options, val
             <span className="font-semibold">{selectedOption.label}</span>
           </div>
         ) : (
-          <span className="text-gray-500">{placeholder}</span>
+          <span className="text-text-secondary">{placeholder}</span>
         )}
         <ChevronDown className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
@@ -76,16 +76,16 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({ options, val
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="absolute top-full mt-2 w-full bg-white rounded-xl shadow-lg border z-10 p-2 max-h-60 overflow-y-auto"
+            className="absolute top-full mt-2 w-full bg-deep-navy rounded-xl shadow-lg border border-white/10 z-10 p-2 max-h-60 overflow-y-auto"
           >
             <div className="relative p-2">
-              <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-text-disabled" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 placeholder="Search..."
-                className="w-full pl-10 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg"
+                className="w-full pl-10 pr-3 py-2 bg-navy-accent border border-disabled rounded-lg"
               />
             </div>
             <div className="space-y-1 mt-1">
@@ -95,14 +95,14 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({ options, val
                     key={option.value}
                     type="button"
                     onClick={() => handleSelect(option.value)}
-                    className="w-full flex items-center gap-3 p-3 text-left hover:bg-purple-50 rounded-lg"
+                    className="w-full flex items-center gap-3 p-3 text-left hover:bg-white/5 rounded-lg"
                   >
                     {option.icon && renderIcon(option.icon)}
                     <span>{option.label}</span>
                   </button>
                 ))
               ) : (
-                <p className="text-center text-sm text-gray-500 p-4">No results found.</p>
+                <p className="text-center text-sm text-text-secondary p-4">No results found.</p>
               )}
             </div>
           </motion.div>

@@ -7,15 +7,15 @@ interface DisplayNamePreviewProps {
 
 export const DisplayNamePreview: React.FC<DisplayNamePreviewProps> = ({ displayName, username }) => {
   return (
-    <div className="bg-gray-100 p-4 rounded-xl text-center">
-      <p className="text-xs text-gray-500 mb-1">How your name will appear:</p>
+    <div className="bg-navy-accent p-4 rounded-xl text-center">
+      <p className="text-xs text-text-secondary mb-1">How your name will appear:</p>
       {displayName ? (
         <>
-          <p className="text-xl font-bold text-gray-900">{displayName}</p>
-          <p className="text-sm text-gray-500">@{username || 'username'}</p>
+          <p className="text-xl font-bold text-text-primary">{displayName}</p>
+          <p className="text-sm text-text-secondary">@{username || 'username'}</p>
         </>
       ) : (
-        <p className="text-xl font-bold text-gray-900">@{username || 'username'}</p>
+        <p className="text-xl font-bold text-text-primary">@{username || 'username'}</p>
       )}
     </div>
   );

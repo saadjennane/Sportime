@@ -26,7 +26,7 @@ export const SignUpPromptModal: React.FC<SignUpPromptModalProps> = ({ isOpen, on
           </div>
           <h2 className="text-2xl font-bold text-text-primary">Create Your Account</h2>
           <p className="text-text-secondary mt-2">
-            Want to save your progress, join challenges, and earn XP? Create a free Sportime account!
+            Save your progress, join challenges and earn XP. Create a free account — or sign in if you already have one.
           </p>
         </div>
 
@@ -38,8 +38,14 @@ export const SignUpPromptModal: React.FC<SignUpPromptModalProps> = ({ isOpen, on
             Create Account
           </button>
           <button
+            onClick={onConfirm}
+            className="w-full py-2.5 text-sm font-bold text-electric-blue hover:brightness-110 transition-colors"
+          >
+            Already have an account? Sign in
+          </button>
+          <button
             onClick={onCancel}
-            className="w-full py-3 text-sm font-semibold text-text-secondary hover:text-text-primary transition-colors"
+            className="w-full py-2 text-sm font-semibold text-text-secondary hover:text-text-primary transition-colors"
           >
             Maybe Later
           </button>

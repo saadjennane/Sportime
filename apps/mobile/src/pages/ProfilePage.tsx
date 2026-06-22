@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Profile, LevelConfig, Badge, UserBadge, UserStreak, SpinTier } from '../types';
-import { User, Shield, Settings, Edit, Globe, Award, Target, Gift, BarChart2, List, Ticket, Coins, ChevronRight, Plus } from 'lucide-react';
+import { User, Shield, Settings, Edit, Globe, Award, Target, Gift, BarChart2, List, Ticket, Coins, ChevronRight, Plus, LogOut } from 'lucide-react';
 import { ProfileSettingsModal } from '../components/profile/ProfileSettingsModal';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { getLevelBetLimit } from '../config/constants';
 import { useSpinStore } from '../store/useSpinStore';
 import { UserProfileStats } from '../components/profile/UserProfileStats';
@@ -258,7 +259,25 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
           <UserProfileStats userId={profile.id} />
         )}
 
-        <ProfileSettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} {...props} />
+        {/* Settings is isolated so a crash there can never blank the whole app,
+            and Sign Out stays reachable even if the form fails to render. */}
+        <ErrorBoundary
+          key={isSettingsOpen ? 'settings-open' : 'settings-closed'}
+          fallback={isSettingsOpen ? (
+            <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+              <div className="w-full max-w-sm bg-deep-navy rounded-2xl p-6 space-y-4 text-center border border-white/10">
+                <h2 className="text-lg font-bold text-text-primary">Settings unavailable</h2>
+                <p className="text-sm text-text-secondary">Something went wrong opening settings. You can still sign out.</p>
+                <button onClick={props.onSignOut} className="w-full py-3 rounded-xl font-bold bg-hot-red/15 text-hot-red flex items-center justify-center gap-2">
+                  <LogOut size={16} /> Sign Out
+                </button>
+                <button onClick={() => setIsSettingsOpen(false)} className="w-full py-2 text-sm font-semibold text-text-secondary">Close</button>
+              </div>
+            </div>
+          ) : <></>}
+        >
+          <ProfileSettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} {...props} />
+        </ErrorBoundary>
         {showPredStats && <PremiumStatsModal userId={profile.id} onClose={() => setShowPredStats(false)} />}
       </div>
     </>

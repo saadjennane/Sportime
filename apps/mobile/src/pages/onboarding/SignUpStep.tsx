@@ -63,35 +63,35 @@ export const SignUpStep: React.FC<SignUpStepProps> = ({ onMagicLinkSent, onBack 
   };
 
   return (
-    <div className="screen-safe w-full bg-gradient-to-br from-gray-900 via-gray-800 to-black flex items-center justify-center">
-        <div className="w-full max-w-md mx-auto p-8 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-3xl shadow-2xl border border-purple-500/20 space-y-6 animate-scale-in relative">
-            <button onClick={onBack} className="absolute top-4 left-4 p-2 text-gray-400 hover:bg-gray-700/50 rounded-full transition-colors">
+    <div className="screen-safe w-full bg-deep-navy flex items-center justify-center">
+        <div className="w-full max-w-md mx-auto p-8 bg-navy-accent rounded-2xl shadow-2xl border border-white/10 space-y-6 animate-scale-in relative">
+            <button onClick={onBack} className="absolute top-4 left-4 p-2 text-text-secondary hover:bg-white/10 rounded-full transition-colors">
                 <ArrowLeft size={24} />
             </button>
             <div className="text-center">
-                <div className="inline-block bg-gradient-to-br from-purple-600 to-blue-600 p-3 rounded-full mb-3">
-                    <Gamepad2 className="w-8 h-8 text-white" />
+                <div className="inline-block bg-electric-blue/15 p-3 rounded-full mb-3">
+                    <Gamepad2 className="w-8 h-8 text-electric-blue" />
                 </div>
-                <h2 className="text-2xl font-bold text-white">Create your Sportime account</h2>
-                <p className="text-sm text-gray-300 mt-1">
-                    {otpSent ? 'Enter the OTP code sent to your email' : 'Enter your email to get started'}
+                <h2 className="text-2xl font-bold text-text-primary">Sign in to Sportime</h2>
+                <p className="text-sm text-text-secondary mt-1">
+                    {otpSent ? 'Enter the code sent to your email' : 'Enter your email — we will send you a code'}
                 </p>
             </div>
 
             {!otpSent ? (
               <form onSubmit={handleSendOtp} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2" htmlFor="magic-email">
+                  <label className="block text-sm font-medium text-text-secondary mb-2" htmlFor="magic-email">
                     Email Address
                   </label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-disabled" />
                     <input
                       id="magic-email"
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full pl-10 pr-3 py-3 bg-gray-800/50 border border-gray-700 text-white rounded-lg shadow-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full pl-10 pr-3 py-3 bg-deep-navy border border-disabled text-text-primary rounded-lg placeholder-text-disabled focus:outline-none focus:border-electric-blue"
                       required
                       placeholder="you@example.com"
                       disabled={loading}
@@ -101,25 +101,25 @@ export const SignUpStep: React.FC<SignUpStepProps> = ({ onMagicLinkSent, onBack 
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm font-medium text-white bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-60 transition-all"
+                  className="w-full flex justify-center items-center py-3 px-4 rounded-xl font-bold text-white bg-electric-blue hover:brightness-110 focus:outline-none disabled:opacity-50 transition"
                 >
-                  {loading ? <Loader2 className="animate-spin" size={20} /> : 'Send OTP Code'}
+                  {loading ? <Loader2 className="animate-spin" size={20} /> : 'Send Code'}
                 </button>
               </form>
             ) : (
               <form onSubmit={handleVerifyOtp} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2" htmlFor="otp-code">
+                  <label className="block text-sm font-medium text-text-secondary mb-2" htmlFor="otp-code">
                     OTP Code
                   </label>
                   <div className="relative">
-                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-disabled" />
                     <input
                       id="otp-code"
                       type="text"
                       value={otp}
                       onChange={(e) => setOtp(e.target.value)}
-                      className="w-full pl-10 pr-3 py-3 bg-gray-800/50 border border-gray-700 text-white rounded-lg shadow-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent tracking-widest text-center text-lg font-mono"
+                      className="w-full pl-10 pr-3 py-3 bg-deep-navy border border-disabled text-text-primary rounded-lg placeholder-text-disabled focus:outline-none focus:border-electric-blue tracking-widest text-center text-lg font-mono"
                       required
                       placeholder="000000"
                       maxLength={6}
@@ -131,7 +131,7 @@ export const SignUpStep: React.FC<SignUpStepProps> = ({ onMagicLinkSent, onBack 
                 <button
                   type="submit"
                   disabled={loading || otp.length !== 6}
-                  className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm font-medium text-white bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-60 transition-all"
+                  className="w-full flex justify-center items-center py-3 px-4 rounded-xl font-bold text-white bg-electric-blue hover:brightness-110 focus:outline-none disabled:opacity-50 transition"
                 >
                   {loading ? <Loader2 className="animate-spin" size={20} /> : 'Verify & Continue'}
                 </button>
@@ -143,7 +143,7 @@ export const SignUpStep: React.FC<SignUpStepProps> = ({ onMagicLinkSent, onBack 
                     setError(null);
                     setSuccessMessage(null);
                   }}
-                  className="w-full py-2 text-sm font-medium text-gray-400 hover:text-white transition-colors"
+                  className="w-full py-2 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
                 >
                   Use a different email
                 </button>
@@ -151,13 +151,13 @@ export const SignUpStep: React.FC<SignUpStepProps> = ({ onMagicLinkSent, onBack 
             )}
 
             {successMessage && (
-              <div className="flex items-center gap-2 text-sm text-green-400 bg-green-500/10 border border-green-500/20 rounded-lg p-3">
+              <div className="flex items-center gap-2 text-sm text-lime-glow bg-lime-glow/10 border border-lime-glow/20 rounded-lg p-3">
                 <CheckCircle2 className="w-5 h-5" />
                 <span>{successMessage}</span>
               </div>
             )}
             {error && (
-              <div className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+              <div className="flex items-center gap-2 text-sm text-hot-red bg-hot-red/10 border border-hot-red/20 rounded-lg p-3">
                 <AlertCircle className="w-5 h-5" />
                 <span>{error}</span>
               </div>

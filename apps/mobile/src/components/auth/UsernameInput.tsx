@@ -63,10 +63,10 @@ export const UsernameInput: React.FC<UsernameInputProps> = ({ value, onChange, c
 
   const getStatusIcon = () => {
     switch (availability) {
-      case 'checking': return <Loader2 className="animate-spin text-gray-400" />;
-      case 'available': return <CheckCircle className="text-green-500" />;
+      case 'checking': return <Loader2 className="animate-spin text-text-disabled" />;
+      case 'available': return <CheckCircle className="text-lime-glow" />;
       case 'taken':
-      case 'invalid': return <XCircle className="text-red-500" />;
+      case 'invalid': return <XCircle className="text-hot-red" />;
       default: return null;
     }
   };
@@ -82,17 +82,17 @@ export const UsernameInput: React.FC<UsernameInputProps> = ({ value, onChange, c
 
   return (
     <div>
-      <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+      <label htmlFor="username" className="block text-sm font-medium text-text-secondary mb-1">Username</label>
       <div className="relative">
-        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-disabled" />
         <input
           id="username"
           type="text"
           value={value}
           onChange={e => onChange(e.target.value.toLowerCase().trim())}
           placeholder="Choose a unique username"
-          className={`w-full p-3 pl-10 pr-10 bg-gray-100 border-2 rounded-xl ${
-            availability === 'invalid' || availability === 'taken' ? 'border-red-400' : 'border-gray-200 focus:border-purple-500'
+          className={`w-full p-3 pl-10 pr-10 bg-navy-accent border-2 rounded-xl ${
+            availability === 'invalid' || availability === 'taken' ? 'border-hot-red' : 'border-disabled focus:border-electric-blue'
           }`}
           required
           maxLength={20}
@@ -100,7 +100,7 @@ export const UsernameInput: React.FC<UsernameInputProps> = ({ value, onChange, c
         <div className="absolute right-3 top-1/2 -translate-y-1/2">{getStatusIcon()}</div>
       </div>
       {getMessage() && (
-        <p className={`text-xs mt-1 ${availability === 'available' ? 'text-green-600' : 'text-red-500'}`}>
+        <p className={`text-xs mt-1 ${availability === 'available' ? 'text-lime-glow' : 'text-hot-red'}`}>
           {getMessage()}
         </p>
       )}

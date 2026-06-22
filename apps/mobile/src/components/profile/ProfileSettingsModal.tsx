@@ -108,23 +108,23 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({ isOp
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-scale-in">
-        <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full h-auto max-h-[90vh] flex flex-col">
-          <div className="flex justify-between items-center p-6 border-b">
-            <h2 className="text-xl font-bold">Profile Settings</h2>
-            <button onClick={onClose} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full">
-              <X size={24} />
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[70] animate-scale-in">
+        <div className="bg-deep-navy border border-white/10 rounded-2xl shadow-2xl max-w-sm w-full h-auto max-h-[90vh] flex flex-col">
+          <div className="flex justify-between items-center p-5 border-b border-white/10">
+            <h2 className="text-xl font-bold text-text-primary">Profile Settings</h2>
+            <button onClick={onClose} className="p-2 text-text-secondary hover:text-text-primary rounded-full">
+              <X size={22} />
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-6 space-y-8">
+          <div className="flex-1 overflow-y-auto p-5 space-y-7">
             <form onSubmit={handleProfileUpdate} className="space-y-4">
-              <h3 className="font-semibold text-gray-700">Edit Profile</h3>
-              
+              <h3 className="font-semibold text-text-secondary text-sm uppercase tracking-wide">Edit Profile</h3>
+
               <div className="flex flex-col items-center">
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/png, image/jpeg" />
                 <button type="button" onClick={handlePickPhoto} className="relative w-24 h-24 rounded-full group">
-                    <img src={previewUrl || `https://api.dicebear.com/8.x/bottts/svg?seed=${profile.id}`} alt="Profile Preview" className="w-full h-full rounded-full object-cover bg-gray-200" />
+                    <img src={previewUrl || `https://api.dicebear.com/8.x/bottts/svg?seed=${profile.id}`} alt="Profile Preview" className="w-full h-full rounded-full object-cover bg-navy-accent" />
                     <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <Camera className="text-white" size={32} />
                     </div>
@@ -134,44 +134,44 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({ isOp
               <UsernameInput value={username} onChange={setUsername} currentUserId={profile.id} setExternalError={setUsernameError} />
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Display Name</label>
-                <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)} className="w-full p-3 bg-gray-100 border-2 border-gray-200 rounded-xl" maxLength={30} />
+                <label className="block text-sm font-medium text-text-secondary mb-1">Display Name</label>
+                <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)} className="w-full p-3 bg-navy-accent border border-disabled rounded-xl text-text-primary focus:outline-none focus:border-electric-blue" maxLength={30} />
               </div>
-              
+
               <DisplayNamePreview displayName={displayName} username={username} />
 
               <SearchableSelect label="Favorite Club" options={clubOptions} value={favoriteClub} onChange={setFavoriteClub} placeholder="Choose a club" />
               <SearchableSelect label="Favorite National Team" options={countryOptions} value={favoriteNationalTeam} onChange={setFavoriteNationalTeam} placeholder="Choose a country" />
-              
-              <button type="submit" disabled={!!usernameError} className="w-full py-2.5 bg-purple-600 text-white font-semibold rounded-lg shadow-sm hover:bg-purple-700 disabled:bg-gray-300">
+
+              <button type="submit" disabled={!!usernameError} className="w-full py-3 bg-electric-blue text-white font-bold rounded-xl hover:brightness-110 disabled:opacity-50">
                 {loading === 'profile' ? <Loader2 className="animate-spin mx-auto" /> : 'Save Changes'}
               </button>
             </form>
 
-            <form onSubmit={handleEmailChange} className="space-y-4 border-t pt-6">
-              <h3 className="font-semibold text-gray-700">Change Email</h3>
+            <form onSubmit={handleEmailChange} className="space-y-4 border-t border-white/10 pt-6">
+              <h3 className="font-semibold text-text-secondary text-sm uppercase tracking-wide">Change Email</h3>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Current Email</label>
-                <p className="text-sm text-gray-500 p-2 bg-gray-100 rounded-lg">{profile.email}</p>
+                <label className="block text-sm font-medium text-text-secondary mb-1">Current Email</label>
+                <p className="text-sm text-text-secondary p-2.5 bg-navy-accent rounded-lg">{profile.email}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">New Email</label>
+                <label className="block text-sm font-medium text-text-secondary mb-1">New Email</label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} className="w-full pl-10 pr-3 py-2 bg-gray-100 border border-gray-200 rounded-lg" placeholder="Enter new email" />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-disabled" />
+                  <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} className="w-full pl-10 pr-3 py-3 bg-navy-accent border border-disabled rounded-lg text-text-primary focus:outline-none focus:border-electric-blue" placeholder="Enter new email" />
                 </div>
               </div>
-              <button type="submit" disabled={!newEmail || newEmail === profile.email} className="w-full py-2.5 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:bg-blue-700 disabled:bg-gray-300">
+              <button type="submit" disabled={!newEmail || newEmail === profile.email} className="w-full py-3 bg-electric-blue text-white font-bold rounded-xl hover:brightness-110 disabled:opacity-50">
                 {loading === 'email' ? <Loader2 className="animate-spin mx-auto" /> : 'Send Verification Email'}
               </button>
             </form>
 
-            <div className="space-y-4 border-t pt-6">
-              <h3 className="font-semibold text-gray-700">Account Actions</h3>
-              <button onClick={onSignOut} className="w-full flex items-center justify-center gap-2 py-2.5 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300">
+            <div className="space-y-3 border-t border-white/10 pt-6">
+              <h3 className="font-semibold text-text-secondary text-sm uppercase tracking-wide">Account Actions</h3>
+              <button onClick={onSignOut} className="w-full flex items-center justify-center gap-2 py-3 bg-navy-accent text-text-primary font-semibold rounded-xl hover:bg-white/10">
                 <LogOut size={16} /> Sign Out
               </button>
-              <button onClick={() => setIsDeleteModalOpen(true)} className="w-full flex items-center justify-center gap-2 py-2.5 bg-red-100 text-red-700 font-semibold rounded-lg hover:bg-red-200">
+              <button onClick={() => setIsDeleteModalOpen(true)} className="w-full flex items-center justify-center gap-2 py-3 bg-hot-red/15 text-hot-red font-semibold rounded-xl hover:bg-hot-red/25">
                 <Trash2 size={16} /> Delete Account
               </button>
             </div>
