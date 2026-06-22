@@ -141,8 +141,11 @@ Deno.serve(async (req) => {
       await sb.rpc('f1_settle_race', { p_race_id: r.id })
       await sb.rpc('f1_duel_settle', { p_race_id: r.id })
       await sb.rpc('f1_pred_settle_race', { p_race_id: r.id })
+      await sb.rpc('f1_fantasy_settle_race', { p_race_id: r.id })
     }
     out.result_rows = resCount
+    // Refresh dynamic Fantasy categories from the latest results.
+    if (completed.length) await sb.rpc('f1_fantasy_recalc_categories', {})
   }
 
   return new Response(JSON.stringify({ success: true, ...out }), { headers: { 'Content-Type': 'application/json' } })

@@ -698,8 +698,10 @@ export const FanPulsePage: React.FC<{ profile: Profile | null }> = ({ profile })
   const [mode, setMode] = useState<'home' | 'legends' | 'dream' | 'match'>('home');
   const [pickerOpen, setPickerOpen] = useState(false);
   const [howOpen, setHowOpen] = useState(false);
+  const [fanCount, setFanCount] = useState<number | null>(null);
 
   useEffect(() => { if (!userId) { setLoading(false); return; } fp.getFavoriteClub(userId).then(c => { setClub(c); setLoading(false); }); }, [userId]);
+  useEffect(() => { if (!club) { setFanCount(null); return; } fp.getFanCount(club.id).then(setFanCount); }, [club?.id]);
   // Show the explainer once, automatically, on the first visit.
   useEffect(() => { if (!localStorage.getItem('fanpulse_how_seen')) { setHowOpen(true); localStorage.setItem('fanpulse_how_seen', '1'); } }, []);
 
@@ -731,7 +733,15 @@ export const FanPulsePage: React.FC<{ profile: Profile | null }> = ({ profile })
       <div className="flex items-center gap-3">
         {mode !== 'home' && <button onClick={() => setMode('home')} className="text-text-secondary"><ArrowLeft size={20} /></button>}
         {club.logo ? <img src={club.logo} className="w-9 h-9 object-contain" alt="" /> : <div className="w-9 h-9 rounded-full bg-electric-blue/20 flex items-center justify-center text-electric-blue font-bold text-sm">{initials(club.name)}</div>}
-        <div className="flex-1 min-w-0"><h1 className="text-lg font-bold text-text-primary truncate">{club.name}</h1><p className="text-[11px] text-text-secondary">{mode === 'home' ? 'Fan Pulse' : mode === 'legends' ? 'All-time Legends XI' : mode === 'dream' ? 'Dream XI · next season' : 'Upcoming match XI'}</p></div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-bold text-text-primary truncate">{club.name}</h1>
+            {fanCount != null && fanCount > 0 && (
+              <span className="shrink-0 flex items-center gap-1 text-[11px] font-semibold text-text-secondary bg-navy-accent px-2 py-0.5 rounded-full"><UsersIcon size={11} className="text-electric-blue" /> {fanCount.toLocaleString()}</span>
+            )}
+          </div>
+          <p className="text-[11px] text-text-secondary">{mode === 'home' ? 'Fan Pulse' : mode === 'legends' ? 'All-time Legends XI' : mode === 'dream' ? 'Dream XI · next season' : 'Upcoming match XI'}</p>
+        </div>
         {mode === 'home' && <button onClick={() => setPickerOpen(true)} className="text-xs text-text-disabled underline">change</button>}
         <button onClick={() => setHowOpen(true)} aria-label="How it works" className="text-text-secondary p-1"><Info size={18} /></button>
       </div>

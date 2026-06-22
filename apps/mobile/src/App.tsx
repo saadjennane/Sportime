@@ -90,9 +90,12 @@ import { useAuth } from './contexts/AuthContext';
 import { useChallengesCatalog } from './features/challenges/useChallengesCatalog';
 import { useDuelCatalog, duelRaceId } from './features/f1/useDuelCatalog';
 import { usePredCatalog, predGameId, seasonGameId } from './features/f1/usePredCatalog';
+import { useFantasyCatalog, fantasyGameId } from './features/f1/useFantasyCatalog';
 import { F1Duels } from './components/f1/F1Duels';
 import { F1Predictor } from './components/f1/F1Predictor';
 import { F1SeasonForecast } from './components/f1/F1SeasonForecast';
+import { F1Fantasy } from './components/f1/F1Fantasy';
+import { F1FanPulsePage } from './pages/F1FanPulsePage';
 import { useSquads } from './hooks/useSquads';
 import * as squadService from './services/squadService';
 import { useMatchBets } from './features/matches/useMatchBets';
@@ -264,10 +267,11 @@ function App() {
 
   const { duelGames, duelJoinedIds, refreshDuels } = useDuelCatalog(profile?.id ?? null);
   const { predGames, predJoinedIds, refreshPred } = usePredCatalog(profile?.id ?? null);
+  const { fantasyGames, fantasyJoinedIds, refreshFantasy } = useFantasyCatalog(profile?.id ?? null);
   const games = shouldUseSupabaseChallenges ? supabaseGames : mockGames;
-  // F1 "Games" universe — same Browse/My Games UI as football, fed with the F1 games (duels + predictor).
-  const f1Games = useMemo(() => [...duelGames, ...predGames], [duelGames, predGames]);
-  const f1JoinedIds = useMemo(() => new Set<string>([...duelJoinedIds, ...predJoinedIds]), [duelJoinedIds, predJoinedIds]);
+  // F1 "Games" universe — same Browse/My Games UI as football, fed with the F1 games (duels + predictor + fantasy).
+  const f1Games = useMemo(() => [...duelGames, ...predGames, ...fantasyGames], [duelGames, predGames, fantasyGames]);
+  const f1JoinedIds = useMemo(() => new Set<string>([...duelJoinedIds, ...predJoinedIds, ...fantasyJoinedIds]), [duelJoinedIds, predJoinedIds, fantasyJoinedIds]);
   const f1MyGamesCount = useMemo(
     () => f1Games.filter((g) => f1JoinedIds.has(g.id) && (g.status === 'Upcoming' || g.status === 'Ongoing')).length,
     [f1Games, f1JoinedIds],
@@ -275,6 +279,11 @@ function App() {
   const [duelRace, setDuelRace] = useState<{ id: number; raceAt: string | null; name: string } | null>(null);
   const [predOpen, setPredOpen] = useState<{ id: string; name: string } | null>(null);
   const [seasonOpen, setSeasonOpen] = useState<{ id: string; name: string } | null>(null);
+  const [fantasyOpen, setFantasyOpen] = useState<{ id: string; name: string } | null>(null);
+  const handlePlayFantasyF1 = useCallback((game: any) => {
+    const gid = fantasyGameId(game.id);
+    if (gid != null) setFantasyOpen({ id: gid, name: game.name });
+  }, []);
   const handlePlayDuel = useCallback((game: any) => {
     const rid = duelRaceId(game.id);
     if (rid == null) return;
@@ -1712,7 +1721,7 @@ function App() {
           </ErrorBoundary>
         );
       case 'challenges':
-        if (sport === 'f1') return <GamesListPage games={f1Games} userChallengeEntries={[]} userSwipeEntries={[]} userFantasyTeams={[]} onJoinChallenge={() => {}} onViewChallenge={() => {}} onJoinSwipeGame={() => {}} onPlaySwipeGame={() => {}} onViewFantasyGame={() => {}} onViewTournament={() => {}} onPlayDuel={handlePlayDuel} onPlayPredictor={handlePlayPredictor} joinedGameIds={f1JoinedIds} myGamesCount={f1MyGamesCount} profile={profile} userTickets={userTickets} isLoading={false} onRefresh={() => { refreshDuels(); refreshPred(); }} />;
+        if (sport === 'f1') return <GamesListPage games={f1Games} userChallengeEntries={[]} userSwipeEntries={[]} userFantasyTeams={[]} onJoinChallenge={() => {}} onViewChallenge={() => {}} onJoinSwipeGame={() => {}} onPlaySwipeGame={() => {}} onViewFantasyGame={() => {}} onViewTournament={() => {}} onPlayDuel={handlePlayDuel} onPlayPredictor={handlePlayPredictor} onPlayFantasyF1={handlePlayFantasyF1} joinedGameIds={f1JoinedIds} myGamesCount={f1MyGamesCount} profile={profile} userTickets={userTickets} isLoading={false} onRefresh={() => { refreshDuels(); refreshPred(); refreshFantasy(); }} />;
         return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} onViewTournament={handleViewTournament} joinedGameIds={joinedChallengeSet} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} isLoading={challengesLoading} onRefresh={refreshChallenges} onShowLiveGames={() => setShowLiveGames(true)} pendingInviteGameIds={new Set(Object.keys(pendingInvites))} onReopenInvite={reopenInvite} />;
       case 'squads':
           return <LeaguesListPage
@@ -1724,7 +1733,7 @@ function App() {
               onRefresh={refetchSquads}
           />;
       case 'funzone':
-        if (sport === 'f1') return <F1ComingSoon title="F1 Fan Pulse" />;
+        if (sport === 'f1') return <F1FanPulsePage profile={profile} />;
         return <FanPulsePage profile={profile} />;
       case 'admin':
         return <AdminPage profile={profile} addToast={addToast} />;
@@ -1817,6 +1826,20 @@ function App() {
         </div>
         <div className="flex-1 overflow-y-auto w-full max-w-md mx-auto px-4 pb-24">
           <F1SeasonForecast gameId={seasonOpen.id} userId={profile.id} />
+        </div>
+      </div>
+    );
+  }
+
+  if (fantasyOpen && profile) {
+    return (
+      <div className="main-background fixed inset-0 flex flex-col overflow-hidden">
+        <div className="flex-shrink-0 w-full max-w-md mx-auto px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 flex items-center gap-2">
+          <button onClick={() => { setFantasyOpen(null); refreshFantasy(); }} className="px-2 py-1 text-sm font-semibold text-text-secondary">← Back</button>
+          <div className="font-bold text-text-primary truncate">{fantasyOpen.name}</div>
+        </div>
+        <div className="flex-1 overflow-y-auto w-full max-w-md mx-auto px-4 pb-24">
+          <F1Fantasy gameId={fantasyOpen.id} userId={profile.id} />
         </div>
       </div>
     );

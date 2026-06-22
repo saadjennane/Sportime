@@ -126,6 +126,7 @@ interface GamesListPageProps {
   onViewTournament: (gameId: string) => void;
   onPlayDuel?: (game: SportimeGame) => void;
   onPlayPredictor?: (game: SportimeGame) => void;
+  onPlayFantasyF1?: (game: SportimeGame) => void;
   myGamesCount: number;
   profile: Profile | null;
   userTickets: UserTicket[];
@@ -137,7 +138,7 @@ interface GamesListPageProps {
 }
 
 const GamesListPage: React.FC<GamesListPageProps> = (props) => {
-  const { games, userChallengeEntries, userSwipeEntries, userFantasyTeams, joinedGameIds, onJoinChallenge, onViewChallenge, onJoinSwipeGame, onPlaySwipeGame, onViewFantasyGame, onViewTournament, onPlayDuel, onPlayPredictor, profile, userTickets, isLoading, onRefresh, onShowLiveGames, pendingInviteGameIds, onReopenInvite } = props;
+  const { games, userChallengeEntries, userSwipeEntries, userFantasyTeams, joinedGameIds, onJoinChallenge, onViewChallenge, onJoinSwipeGame, onPlaySwipeGame, onViewFantasyGame, onViewTournament, onPlayDuel, onPlayPredictor, onPlayFantasyF1, profile, userTickets, isLoading, onRefresh, onShowLiveGames, pendingInviteGameIds, onReopenInvite } = props;
 
   const [activeTab, setActiveTab] = useState<GamesTab>('my-games');
   const tabTouched = React.useRef(false);
@@ -402,6 +403,7 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
     if (game.game_type === 'tournament') onPlayAction = wrapWithResultsViewed(() => onViewTournament(game.id));
     if (game.game_type === 'duel') onPlayAction = wrapWithResultsViewed(() => onPlayDuel?.(game));
     if (game.game_type === 'predictor') onPlayAction = wrapWithResultsViewed(() => onPlayPredictor?.(game));
+    if (game.game_type === 'f1fantasy') onPlayAction = wrapWithResultsViewed(() => onPlayFantasyF1?.(game));
 
     // For live games not joined, show leaderboard in read-only mode
     const handleViewLeaderboard = () => {
@@ -411,6 +413,7 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
       if (game.game_type === 'tournament') onViewTournament(game.id);
       if (game.game_type === 'duel') onPlayDuel?.(game);
       if (game.game_type === 'predictor') onPlayPredictor?.(game);
+      if (game.game_type === 'f1fantasy') onPlayFantasyF1?.(game);
     };
 
     // Find user's entry for this game (for progress indicator)
@@ -429,6 +432,8 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
             onPlayDuel?.(game);
           } else if (game.game_type === 'predictor') {
             onPlayPredictor?.(game);
+          } else if (game.game_type === 'f1fantasy') {
+            onPlayFantasyF1?.(game);
           } else if (game.game_type === 'prediction') {
             // Betting + fantasy use the entry-method modal (onJoinChallenge);
             // only prediction/swipe games use onJoinSwipeGame.

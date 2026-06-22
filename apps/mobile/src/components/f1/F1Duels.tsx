@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Swords, Check, X, Crown, Trophy } from 'lucide-react';
+import { Swords, Check, X, Crown, Trophy, Layers } from 'lucide-react';
 import { useDuelGame, type DuelLine, type DuelDriver } from '../../features/f1/useDuelGame';
+import { F1DuelSwipe } from './F1DuelSwipe';
 import type { GrandPrix } from '../../features/f1/useF1';
 
 const SUFFIX = new Set(['jr', 'jr.', 'sr', 'sr.', 'ii', 'iii', 'iv', 'v']);
@@ -43,6 +44,7 @@ export const F1Duels: React.FC<{ gp: GrandPrix; userId?: string }> = ({ gp, user
   const [picks, setPicks] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [swipe, setSwipe] = useState(false);
 
   useEffect(() => { setPicks(card?.picks ?? {}); }, [card]);
 
@@ -126,6 +128,14 @@ export const F1Duels: React.FC<{ gp: GrandPrix; userId?: string }> = ({ gp, user
         </div>
       )}
 
+      {/* Swipe mode entry */}
+      {!locked && pairs.length > 0 && (
+        <button onClick={() => setSwipe(true)}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-navy-accent text-electric-blue font-semibold text-sm">
+          <Layers size={16} /> Swipe mode
+        </button>
+      )}
+
       {/* The 11 duel lines */}
       <div className="space-y-2">
         {pairs.map((line) => {
@@ -168,6 +178,8 @@ export const F1Duels: React.FC<{ gp: GrandPrix; userId?: string }> = ({ gp, user
         </div>
       )}
       {locked && !settled && <div className="card-base p-3 text-center text-text-secondary text-sm">Picks are locked — the race has started. Results after the finish.</div>}
+
+      {swipe && <F1DuelSwipe lines={pairs} initialPicks={picks} onPick={(t, d) => pick(t, d)} onClose={() => setSwipe(false)} />}
     </div>
   );
 };

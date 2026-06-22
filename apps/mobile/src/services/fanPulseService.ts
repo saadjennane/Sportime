@@ -37,6 +37,12 @@ export async function setFavoriteClub(userId: string, teamId: string) {
   return supabase.from('users').update({ favorite_club: teamId }).eq('id', userId);
 }
 
+/** How many fans have this club as their favourite (the club's fan base on Sportime). */
+export async function getFanCount(teamId: string): Promise<number> {
+  const { count } = await supabase.from('users').select('id', { count: 'exact', head: true }).eq('favorite_club', teamId);
+  return count ?? 0;
+}
+
 export async function searchClubs(query: string): Promise<Club[]> {
   // Accent-insensitive RPC (so "munchen" matches "München", "atletico" → "Atlético").
   const { data } = await supabase.rpc('fb_search_clubs', { p_q: query });

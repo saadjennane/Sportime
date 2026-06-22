@@ -5,6 +5,7 @@ import { Spinner } from '../components/ui/States';
 import { F1OddsAdmin } from '../components/F1OddsAdmin';
 import { F1DuelsAdmin } from '../components/F1DuelsAdmin';
 import { F1PredictorAdmin } from '../components/F1PredictorAdmin';
+import { F1FantasyAdmin } from '../components/F1FantasyAdmin';
 
 interface F1Market {
   key: string;
@@ -98,8 +99,8 @@ function MarketsTab() {
 }
 
 export function F1Page() {
-  const [tab, setTab] = useState<'markets' | 'odds' | 'duels' | 'predictor'>('markets');
-  const TabBtn = ({ id, label }: { id: 'markets' | 'odds' | 'duels' | 'predictor'; label: string }) => (
+  const [tab, setTab] = useState<'markets' | 'odds' | 'duels' | 'predictor' | 'fantasy'>('markets');
+  const TabBtn = ({ id, label }: { id: 'markets' | 'odds' | 'duels' | 'predictor' | 'fantasy'; label: string }) => (
     <button
       onClick={() => setTab(id)}
       className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
@@ -119,8 +120,9 @@ export function F1Page() {
         <TabBtn id="odds" label="Odds" />
         <TabBtn id="duels" label="Teammates Duels" />
         <TabBtn id="predictor" label="GP Predictor" />
+        <TabBtn id="fantasy" label="Fantasy F1" />
       </div>
-      {tab === 'markets' ? <MarketsTab /> : tab === 'odds' ? <F1OddsAdmin /> : tab === 'duels' ? <F1DuelsAdmin /> : <F1PredictorAdmin />}
+      {tab === 'markets' ? <MarketsTab /> : tab === 'odds' ? <F1OddsAdmin /> : tab === 'duels' ? <F1DuelsAdmin /> : tab === 'predictor' ? <F1PredictorAdmin /> : <F1FantasyAdmin />}
     </div>
   );
 }

@@ -133,6 +133,7 @@ const gameTypeDetails: Record<GameType, { tag: string; color: string }> = {
   'fantasy-live': { tag: 'Fantasy Live', color: 'bg-purple-600/20 text-purple-400' },
   duel: { tag: 'Duels', color: 'bg-hot-red/20 text-hot-red' },
   predictor: { tag: 'Predictor', color: 'bg-neon-cyan/20 text-neon-cyan' },
+  f1fantasy: { tag: 'Fantasy F1', color: 'bg-warm-yellow/20 text-warm-yellow' },
 };
 
 const periodTypeDetails: Record<'matchdays' | 'calendar', { tag: string; color: string }> = {
@@ -154,6 +155,7 @@ const gameTypeVisual: Record<string, { name: string; Icon: any; chip: string; ra
   'fantasy-live': { name: 'Fantasy Live', Icon: Shirt, chip: 'bg-purple-600/20 text-purple-400',      rail: 'bg-purple-500',    dot: 'bg-purple-400' },
   duel:           { name: 'Duels',      Icon: Swords, chip: 'bg-hot-red/20 text-hot-red',             rail: 'bg-hot-red',       dot: 'bg-hot-red' },
   predictor:      { name: 'Predictor',  Icon: Crosshair, chip: 'bg-neon-cyan/20 text-neon-cyan',      rail: 'bg-neon-cyan',     dot: 'bg-neon-cyan' },
+  f1fantasy:      { name: 'Fantasy F1', Icon: Zap,    chip: 'bg-warm-yellow/20 text-warm-yellow',     rail: 'bg-warm-yellow',   dot: 'bg-warm-yellow' },
   tournament:     { name: 'Tournament', Icon: Trophy, chip: 'bg-warm-yellow/20 text-warm-yellow',     rail: 'bg-warm-yellow',   dot: 'bg-warm-yellow' },
 };
 const durationVisual: Record<string, { Icon: any; label: string }> = {
