@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.sportime.app',
+  appId: 'com.sportime.mobile',
   appName: 'Sportime',
   webDir: 'dist',
   backgroundColor: '#0f0f12',
