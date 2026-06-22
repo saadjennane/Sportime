@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Swords, Check, X, Crown, Trophy, Layers } from 'lucide-react';
 import { useDuelGame, type DuelLine, type DuelDriver } from '../../features/f1/useDuelGame';
+import { track } from '../../services/analytics';
 import { F1DuelSwipe } from './F1DuelSwipe';
 import type { GrandPrix } from '../../features/f1/useF1';
 
@@ -64,6 +65,7 @@ export const F1Duels: React.FC<{ gp: GrandPrix; userId?: string }> = ({ gp, user
     setSaving(true); setMsg(null);
     const r = await savePicks(picks);
     setSaving(false);
+    if (r.ok) track('f1_duel_saved', { race: gp.id, picks: chosen });
     setMsg(r.ok ? 'Card saved ✓' : r.error || 'Could not save');
   };
 

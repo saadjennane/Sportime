@@ -10,6 +10,7 @@ import { F1MarketCard } from '../components/f1/F1MarketCard';
 import { F1BetModal } from '../components/f1/F1BetModal';
 import { F1Sessions } from '../components/f1/F1Sessions';
 import { F1History } from '../components/f1/F1History';
+import { track } from '../services/analytics';
 
 type RaceTab = 'gp' | 'picks' | 'results';
 const TABS: { key: RaceTab; label: string }[] = [
@@ -102,7 +103,7 @@ const RacesPage: React.FC = () => {
   const onPlace = async (stake: number) => {
     if (!picked) return { ok: false, error: 'No selection' };
     const r = await placeBet(picked.market.key, picked.sel.entityId, picked.sel.selection, stake);
-    if (r.ok) refreshProfile();
+    if (r.ok) { refreshProfile(); track('f1_bet_placed', { market: picked.market.key, stake }); }
     return r;
   };
 

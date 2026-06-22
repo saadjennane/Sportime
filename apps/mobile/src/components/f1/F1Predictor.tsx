@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Crosshair, Check, Trophy, X, ChevronRight } from 'lucide-react';
 import { usePredGame, type PredDriver } from '../../features/f1/usePredGame';
+import { track } from '../../services/analytics';
 
 const SUFFIX = new Set(['jr', 'jr.', 'sr', 'sr.', 'ii', 'iii', 'iv', 'v']);
 const surname = (d?: PredDriver | null) => {
@@ -69,6 +70,7 @@ export const F1Predictor: React.FC<{ gameId: string; userId?: string }> = ({ gam
     setSaving(true); setMsg(null);
     const r = await savePicks(activeRid, draft);
     setSaving(false);
+    if (r.ok) track('f1_predictor_saved', { game: gameId, race: activeRid });
     setMsg(r.ok ? 'Predictions saved ✓' : r.error || 'Could not save');
   };
 

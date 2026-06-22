@@ -105,7 +105,8 @@ import { completeGuestRegistration } from './services/userService';
 import { updateUserProfile } from './services/profileService';
 import { joinChallenge as joinChallengeOnSupabase } from './services/challengeService';
 import { saveDailyEntry, ensureChallengeEntry } from './services/challengeEntryService';
-import { initializeOneSignal, setupOneSignalForUser } from './services/oneSignalService';
+import { initializeOneSignal, setupOneSignalForUser, logoutOneSignal } from './services/oneSignalService';
+import { initAnalytics, identifyUser, resetAnalytics, track } from './services/analytics';
 import { useNotifications } from './hooks/useNotifications';
 import { useTicket } from './services/ticketService';
 
@@ -367,20 +368,16 @@ function App() {
   // ✅ Auto-track user activity for XP calculation
   useActivityTracker(isGuest ? null : (profile?.id || null));
 
-  // ✅ Initialize OneSignal on app load
+  // ✅ Initialize OneSignal + PostHog on app load
   useEffect(() => {
-    if (USE_SUPABASE) {
-      initializeOneSignal().catch(err =>
-        console.error('[App] Failed to initialize OneSignal:', err)
-      );
-    }
+    initAnalytics();
+    if (USE_SUPABASE) initializeOneSignal();
   }, []);
 
-  // ✅ Setup OneSignal for authenticated users
+  // ✅ Setup OneSignal + identify the user in analytics, for authenticated users
   useEffect(() => {
     if (!USE_SUPABASE || !profile || isGuest) return;
-
-    // Setup OneSignal when user is authenticated and not a guest
+    identifyUser(profile.id, { username: profile.username ?? undefined });
     setupOneSignalForUser(profile.id).catch(err =>
       console.error('[App] Failed to setup OneSignal for user:', err)
     );
@@ -680,6 +677,8 @@ function App() {
   };
 
   const handleSignOut = async () => {
+    resetAnalytics();
+    logoutOneSignal();
     await supabaseSignOut();
     setPendingSignupEmail(null);
     setPendingSignupMode(null);
@@ -1172,6 +1171,7 @@ function App() {
           addToast('Challenge joined! Good luck! ⚽', 'success');
         }
         await refreshChallenges();
+        track('game_joined', { type: 'betting', method });
         setActiveChallengeId(challengeId);
       } catch (error) {
         console.error('[App] Failed to join challenge', error);

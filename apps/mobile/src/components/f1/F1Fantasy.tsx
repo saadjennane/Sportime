@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Zap, Star, Flag, Battery, Check, X, Trophy, Shirt, Radio } from 'lucide-react';
 import { useFantasyGame, type Cat, type FDriver, type FConstructor, type FRule } from '../../features/f1/useFantasyGame';
+import { track } from '../../services/analytics';
 
 const SUF = new Set(['jr', 'jr.', 'sr', 'sr.', 'ii', 'iii', 'iv', 'v']);
 const surname = (d?: FDriver | null) => {
@@ -87,6 +88,7 @@ export const F1Fantasy: React.FC<{ gameId: string; userId?: string }> = ({ gameI
     setSaving(true); setMsg(null);
     const r = await saveRoster({ drivers: picks.filter(Boolean) as number[], constructor: constructor!, captain, flp, energyShots: shots });
     setSaving(false);
+    if (r.ok) track('f1_fantasy_roster_saved', { game: gameId, condition: game.condition, captain: !!captain });
     setMsg(r.ok ? 'Team saved ✓' : r.error || 'Could not save');
   };
 

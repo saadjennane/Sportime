@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Crown, Check, Trophy, X } from 'lucide-react';
 import { usePredSeason, type PredConstructor } from '../../features/f1/usePredSeason';
+import { track } from '../../services/analytics';
 import type { PredDriver } from '../../features/f1/usePredGame';
 
 const SUFFIX = new Set(['jr', 'jr.', 'sr', 'sr.', 'ii', 'iii', 'iv', 'v']);
@@ -50,6 +51,7 @@ export const F1SeasonForecast: React.FC<{ gameId: string; userId?: string }> = (
     setSaving(true); setMsg(null);
     const r = await savePicks({ champion, top3_drivers: td, top3_constructors: tc });
     setSaving(false);
+    if (r.ok) track('f1_season_forecast_saved', { game: gameId });
     setMsg(r.ok ? 'Forecast saved ✓' : r.error || 'Could not save');
   };
 

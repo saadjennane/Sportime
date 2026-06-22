@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Trophy, Check, X, Crown } from 'lucide-react';
 import { useHof, type HofKind, type HofCandidate } from '../features/f1/useHof';
+import { track } from '../services/analytics';
 import type { Profile } from '../types';
 
 const initials = (n: string) => (n || '').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
@@ -41,6 +42,7 @@ export const F1FanPulsePage: React.FC<{ profile: Profile | null }> = ({ profile 
     const clean = top.filter(Boolean);
     const r = await save(clean);
     setSaving(false);
+    if (r.ok) track('f1_hof_saved', { kind, count: clean.length });
     setMsg(r.ok ? 'Saved ✓' : r.error || 'Could not save');
     if (r.ok) setView('pulse');
   };

@@ -59,5 +59,9 @@
 	<string>Sportime accesses your photos so you can choose a profile photo.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Sportime saves photos to your library when you choose to.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 </dict>
 </plist>
