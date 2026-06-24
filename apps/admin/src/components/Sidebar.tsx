@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Star, DatabaseZap, Trophy, Globe, Shield, Users, Settings,
   Flag, Gauge, ChevronDown, Menu, X, Calendar, DollarSign, Radio, Disc3,
-  Zap, Gift, PartyPopper, Gamepad2, List,
+  Zap, Gift, PartyPopper, Gamepad2, List, BarChart3,
 } from 'lucide-react';
 import { useState } from 'react';
 import packageJson from '../../package.json';
@@ -19,6 +19,7 @@ type Section = { label: string; entries: Entry[] };
 const isSub = (e: Entry): e is Sub => 'group' in e;
 
 const DASHBOARD: Item = { to: '/', icon: LayoutDashboard, label: 'Dashboard' };
+const ANALYTICS: Item = { to: '/analytics', icon: BarChart3, label: 'Analytics' };
 
 const CELEBRATIONS: Item = { to: '/celebrations', icon: PartyPopper, label: 'Celebrations' };
 
@@ -132,6 +133,7 @@ export function Sidebar({ className = '' }: SidebarProps) {
           {/* Navigation */}
           <nav className="flex-1 p-3 overflow-y-auto space-y-1">
             <Link item={DASHBOARD} />
+            <Link item={ANALYTICS} />
             {SECTIONS.map((section) => {
               const sKey = `section:${section.label}`;
               const sC = collapsed.has(sKey);

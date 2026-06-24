@@ -7,6 +7,7 @@ type UpdateProfileInput = {
   favoriteClub?: string | null
   favoriteNationalTeam?: string | null
   profilePictureUrl?: string | null
+  sports?: string[]
 }
 
 export async function updateUserProfile(userId: string, updates: UpdateProfileInput): Promise<Profile> {
@@ -14,7 +15,7 @@ export async function updateUserProfile(userId: string, updates: UpdateProfileIn
     throw new Error('[profileService] Cannot update profile without a user id')
   }
 
-  const payload: Record<string, string | null> = {}
+  const payload: Record<string, string | string[] | null> = {}
 
   if (updates.username !== undefined) {
     payload.username = updates.username
@@ -30,6 +31,9 @@ export async function updateUserProfile(userId: string, updates: UpdateProfileIn
   }
   if (updates.profilePictureUrl !== undefined) {
     payload.profile_picture_url = updates.profilePictureUrl
+  }
+  if (updates.sports !== undefined) {
+    payload.sports = updates.sports
   }
 
   const { data, error } = await supabase

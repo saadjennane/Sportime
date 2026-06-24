@@ -12,6 +12,10 @@ interface NotificationCenterProps {
   isOpen: boolean;
   onClose: () => void;
   userId: string | null | undefined;
+  /** Called after a read state change so the app-level (header badge) count can resync. */
+  onChanged?: () => void;
+  /** Route a notification's deep link to the right screen (App's resolveRoute). */
+  onNavigate?: (link: string) => void;
 }
 
 // Convert Supabase notification to frontend format
@@ -23,25 +27,42 @@ function mapNotification(n: SupabaseNotification): Notification {
     message: n.message,
     timestamp: n.created_at,
     isRead: n.is_read,
-    action: n.action_label
+    // Navigation depends on the link, NOT the label — journey notifs carry action_link
+    // (a sportime:// route) with no label. Build the action whenever a link exists.
+    action: (n.action_label || n.action_link)
       ? {
-          label: n.action_label,
+          label: n.action_label || 'View',
           link: n.action_link || undefined,
         }
       : undefined,
   };
 }
 
-export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose, userId }) => {
+export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose, userId, onChanged, onNavigate }) => {
   const {
     notifications: supabaseNotifications,
     unreadCount,
     isLoading,
-    markAsRead,
-    markAllAsRead,
+    markAsRead: markAsReadBase,
+    markAllAsRead: markAllAsReadBase,
     loadMore,
     hasMore,
   } = useNotifications(userId);
+
+  // Resync the header badge (a separate useNotifications instance) after read changes.
+  const markAsRead = async (id: string) => { await markAsReadBase(id); onChanged?.(); };
+  const markAllAsRead = async () => { await markAllAsReadBase(); onChanged?.(); };
+
+  // Mark-on-close: opening the panel shows what's unread (highlighted); closing it marks
+  // everything read — no need to tap each notification, and nothing stays unread after.
+  const handleClose = () => { if (unreadCount > 0) markAllAsRead(); onClose(); };
+
+  // Tap a notification → route to its deep link and close (which marks all read).
+  const activate = (n: Notification) => {
+    const link = n.action?.link;
+    if (link && onNavigate) { onNavigate(link); handleClose(); }
+    else if (!n.isRead) markAsRead(n.id);
+  };
 
   const notifications = supabaseNotifications.map(mapNotification);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -72,7 +93,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
+            onClick={handleClose}
             className="fixed inset-0 bg-black/50 z-50"
           />
           <motion.div
@@ -82,7 +103,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
             className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-deep-navy border-l border-disabled shadow-2xl flex flex-col z-50"
           >
-            <header className="flex items-center justify-between p-4 border-b border-disabled flex-shrink-0">
+            <header className="flex items-center justify-between p-4 pt-[max(1rem,env(safe-area-inset-top))] border-b border-disabled flex-shrink-0">
               <h2 className="text-xl font-bold text-text-primary">Notifications</h2>
               <div className="flex items-center gap-2">
                 {unreadCount > 0 && (
@@ -90,7 +111,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
                     Mark all as read
                   </button>
                 )}
-                <button onClick={onClose} className="p-2 text-text-secondary hover:bg-white/10 rounded-full">
+                <button onClick={handleClose} className="p-2 text-text-secondary hover:bg-white/10 rounded-full">
                   <X size={20} />
                 </button>
               </div>
@@ -103,7 +124,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
                     <NotificationItem
                       key={notification.id}
                       notification={notification}
-                      onMarkAsRead={() => markAsRead(notification.id)}
+                      onActivate={() => activate(notification)}
                     />
                   ))}
                   {isLoading && (

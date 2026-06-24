@@ -4,10 +4,12 @@ import { supabase } from '../../services/supabase';
 
 interface SignUpStepProps {
   onMagicLinkSent: (email: string) => Promise<string>;
+  /** Verifies the OTP with the correct type (handles guest in-place upgrade). */
+  onVerifyOtp: (email: string, token: string) => Promise<void>;
   onBack: () => void;
 }
 
-export const SignUpStep: React.FC<SignUpStepProps> = ({ onMagicLinkSent, onBack }) => {
+export const SignUpStep: React.FC<SignUpStepProps> = ({ onMagicLinkSent, onVerifyOtp, onBack }) => {
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
@@ -39,21 +41,9 @@ export const SignUpStep: React.FC<SignUpStepProps> = ({ onMagicLinkSent, onBack 
     setLoading(true);
     setError(null);
     try {
-      const { data, error: verifyError } = await supabase.auth.verifyOtp({
-        email,
-        token: otp,
-        type: 'email',
-      });
-
-      if (verifyError) {
-        throw verifyError;
-      }
-
-      if (data.session) {
-        // OTP verified successfully, user is now authenticated
-        // The AuthContext will handle the session update automatically
-        setSuccessMessage('Account verified! Setting up your profile...');
-      }
+      // Verifies with the correct OTP type (email_change for a guest upgrade → keeps data).
+      await onVerifyOtp(email, otp);
+      setSuccessMessage('Verified! Setting up your profile...');
     } catch (err: any) {
       const message = err?.message || err?.error_description || 'Invalid OTP code. Please try again.';
       setError(message);

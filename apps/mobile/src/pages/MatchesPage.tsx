@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Match, Bet } from '../types';
 import UpcomingPage from './Upcoming';
-import FinishedMatchesPage from './FinishedMatches';
+import { FinishedDigest } from '../components/matches/FinishedDigest';
 import PicksPage from './PicksPage';
-import { BetHistoryPage } from './BetHistoryPage';
 import { EmptyState } from '../components/EmptyState';
-import { format } from 'date-fns';
+import { format, isToday, isYesterday } from 'date-fns';
+import { useUserPicks } from '../features/matches/useUserPicks';
 import { Settings, Calendar, Target } from 'lucide-react';
 import { useLeagueOrder } from '../hooks/useLeagueOrder';
 import { useImportedLeagues } from '../hooks/useImportedLeagues';
@@ -25,11 +25,20 @@ interface MatchesPageProps {
   onPlayGame: (matchId: string, matchName: string) => void;
   onViewResults?: (fixtureId: string, matchName: string) => void;
   onBrowseGames?: () => void;
+  /** Opens the full pick history (hosted at App level so Profile can open it too). */
+  onOpenHistory: () => void;
+  /** Deep-link requested sub-tab (today/picks/finished) — applied then cleared. */
+  requestedTab?: 'today' | 'picks' | 'finished' | null;
+  onTabConsumed?: () => void;
 }
 
-const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayGame, onViewResults, onBrowseGames }) => {
+const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayGame, onViewResults, onBrowseGames, onOpenHistory, requestedTab, onTabConsumed }) => {
   const [activeTab, setActiveTab] = useState<Tab>('today');
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+
+  // Apply a deep-link requested tab (from a notification), then clear it.
+  useEffect(() => {
+    if (requestedTab) { setActiveTab(requestedTab); onTabConsumed?.(); }
+  }, [requestedTab, onTabConsumed]);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [selectedMatchForStats, setSelectedMatchForStats] = useState<Match | null>(null);
 
@@ -43,8 +52,18 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
   // Picks tab badge = active (unsettled) picks only — settled ones live in Finished.
   const activePicksCount = useMemo(() => bets.filter(b => b.status === 'pending').length, [bets]);
 
-  // Unread badge for settled bets the user hasn't seen; cleared on opening Finished.
-  const { unreadCount, markAllSeen } = useUnreadSettled(bets);
+  // Picks (with match dates) — owned here so the Finished badge and the Finished tab
+  // share one fetch. Finished now shows Today + Yesterday, so the badge is scoped to those.
+  const { picks: userPicks, isLoading: picksLoading } = useUserPicks(bets);
+  const recentSettledBets = useMemo(() => {
+    const recent = (t: string) => { const d = new Date(t); return Number.isFinite(d.getTime()) && (isToday(d) || isYesterday(d)); };
+    return userPicks
+      .filter(p => (p.bet.status === 'won' || p.bet.status === 'lost') && recent(p.match.kickoffTime))
+      .map(p => p.bet);
+  }, [userPicks]);
+
+  // Unread badge = settled results from Today/Yesterday the user hasn't seen; cleared on opening Finished.
+  const { unreadCount, markAllSeen } = useUnreadSettled(recentSettledBets);
   useEffect(() => {
     if (activeTab === 'finished') markAllSeen();
   }, [activeTab, markAllSeen]);
@@ -222,35 +241,6 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
     return result;
   }, [groupedUpcoming, pickedMatchIds]);
 
-  // Finished tab (daily) = today's matches that are finished.
-  const groupedFinished = useMemo(() => {
-    const result: Record<string, Match[]> = {};
-    for (const [league, leagueMatches] of Object.entries(groupedUpcoming)) {
-      const filtered = leagueMatches.filter(m => m.status === 'played');
-      if (filtered.length) result[league] = filtered;
-    }
-    return result;
-  }, [groupedUpcoming]);
-
-  // Finished header stats over ALL of today's picks (finished + pending):
-  // won count, total picks, and the day's net earnings (+won / −lost stakes).
-  const finishedHeaderStats = useMemo(() => {
-    const todayIds = new Set(upcomingMatches.map(m => m.id));
-    const todayBets = bets.filter(b => todayIds.has(b.matchId));
-    const won = todayBets.filter(b => b.status === 'won').length;
-    // Net balance: win => profit (payout − stake), loss => −stake.
-    const net = todayBets.reduce(
-      (t, b) =>
-        b.status === 'won'
-          ? t + ((b.winAmount ?? 0) - b.amount)
-          : b.status === 'lost'
-            ? t - b.amount
-            : t,
-      0,
-    );
-    return { won, totalPicks: todayBets.length, net };
-  }, [upcomingMatches, bets]);
-
   // Day badges must match the LIST (which drops picked → Picks and finished → Finished).
   // For the day currently loaded we use the exact visible count (updates instantly on a
   // pick); the other day uses the server count, which the hook also filters the same way.
@@ -362,21 +352,13 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
           onPlayGame={onPlayGame}
           orderedLeagues={effectiveOrderedLeagues}
         />
-      ) : loading ? (
-        <div className="card-base p-6 text-center text-text-secondary text-sm">Loading results…</div>
-      ) : error ? (
-        <div className="card-base p-6 text-center text-hot-red text-sm">Failed to load results: {error}</div>
       ) : (
-        <FinishedMatchesPage
-          groupedMatches={groupedFinished}
-          bets={bets}
-          successfulPicks={finishedHeaderStats.won}
-          totalPicks={finishedHeaderStats.totalPicks}
-          earnings={finishedHeaderStats.net}
+        <FinishedDigest
+          picks={userPicks}
+          isLoading={picksLoading}
           onViewStats={setSelectedMatchForStats}
           onViewResults={onViewResults}
-          orderedLeagues={effectiveOrderedLeagues}
-          onOpenHistory={() => setIsHistoryOpen(true)}
+          onOpenHistory={onOpenHistory}
         />
       )}
 
@@ -391,15 +373,6 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matches, bets, onBet, onPlayG
         match={selectedMatchForStats}
         onClose={() => setSelectedMatchForStats(null)}
       />
-
-      {isHistoryOpen && (
-        <BetHistoryPage
-          bets={bets}
-          onClose={() => setIsHistoryOpen(false)}
-          onViewStats={setSelectedMatchForStats}
-          onViewResults={onViewResults}
-        />
-      )}
     </div>
     </PullToRefresh>
   );

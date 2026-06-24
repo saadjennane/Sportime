@@ -16,7 +16,7 @@ const toastIcons = {
 
 export const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, removeToast }) => {
   return (
-    <div className="fixed top-5 right-5 z-[100] w-full max-w-xs space-y-2">
+    <div className="fixed right-4 left-4 sm:left-auto top-[calc(env(safe-area-inset-top)+0.75rem)] z-[100] w-auto sm:w-full sm:max-w-xs space-y-2 ml-auto pointer-events-none">
       <AnimatePresence>
         {toasts.map(toast => (
           <motion.div
@@ -26,7 +26,7 @@ export const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, removeTo
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.8 }}
             transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-            className="bg-white rounded-xl shadow-lg p-4 flex items-start gap-3"
+            className="bg-white rounded-xl shadow-lg p-4 flex items-start gap-3 pointer-events-auto"
           >
             <div className="flex-shrink-0 mt-0.5">{toastIcons[toast.type]}</div>
             <p className="flex-1 text-sm font-medium text-gray-800">{toast.message}</p>

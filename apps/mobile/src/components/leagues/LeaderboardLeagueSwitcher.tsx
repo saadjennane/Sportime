@@ -10,6 +10,8 @@ interface LeaderboardLeagueSwitcherProps {
   leagueMembers: LeagueMember[];
   activeLeagueId: string | null;
   onSelectLeague: (leagueId: string | null) => void;
+  /** Set of user_ids who actually joined this game (i.e. appear in its leaderboard). */
+  joinedUserIds?: Set<string>;
 }
 
 export const LeaderboardLeagueSwitcher: React.FC<LeaderboardLeagueSwitcherProps> = ({
@@ -19,6 +21,7 @@ export const LeaderboardLeagueSwitcher: React.FC<LeaderboardLeagueSwitcherProps>
   leagueMembers,
   activeLeagueId,
   onSelectLeague,
+  joinedUserIds,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -28,7 +31,13 @@ export const LeaderboardLeagueSwitcher: React.FC<LeaderboardLeagueSwitcherProps>
     return userLeagues.filter(ul => linkedGameLeagueIds.has(ul.id));
   }, [gameId, userLeagues, leagueGames]);
 
-  const getMemberCount = (leagueId: string) => leagueMembers.filter(m => m.league_id === leagueId).length;
+  // Number of this squad's members who actually joined the game (fall back to total
+  // membership if the joined set isn't provided yet).
+  const getJoinedCount = (leagueId: string) => {
+    const members = leagueMembers.filter(m => m.league_id === leagueId);
+    if (!joinedUserIds) return members.length;
+    return members.filter(m => joinedUserIds.has(m.user_id)).length;
+  };
 
   const activeSelection = useMemo(() => {
     if (activeLeagueId === null) {
@@ -99,7 +108,7 @@ export const LeaderboardLeagueSwitcher: React.FC<LeaderboardLeagueSwitcherProps>
                     <img src={league.image_url} alt={league.name} className="w-5 h-5 rounded-full" />
                     <span className="text-text-primary font-semibold">{league.name}</span>
                   </div>
-                  <span className="text-xs text-text-disabled">{getMemberCount(league.id)} members</span>
+                  <span className="text-xs text-text-disabled">{getJoinedCount(league.id)} joined</span>
                 </button>
               ))}
             </div>

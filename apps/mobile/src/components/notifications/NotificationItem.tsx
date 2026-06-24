@@ -23,13 +23,14 @@ const typeColors: Record<Notification['type'], string> = {
 
 interface NotificationItemProps {
   notification: Notification;
-  onMarkAsRead: () => void;
+  /** Tap = mark read + navigate to the notification's deep link (if any) + close. */
+  onActivate: () => void;
 }
 
-export const NotificationItem: React.FC<NotificationItemProps> = ({ notification, onMarkAsRead }) => {
+export const NotificationItem: React.FC<NotificationItemProps> = ({ notification, onActivate }) => {
   return (
     <div
-      onClick={notification.isRead ? undefined : onMarkAsRead}
+      onClick={onActivate}
       className={`p-4 border-b border-disabled cursor-pointer transition-colors ${
         notification.isRead ? 'bg-deep-navy' : 'bg-navy-accent hover:bg-navy-accent/50'
       }`}

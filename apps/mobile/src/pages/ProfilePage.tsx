@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Profile, LevelConfig, Badge, UserBadge, UserStreak, SpinTier } from '../types';
-import { User, Shield, Settings, Edit, Globe, Award, Target, Gift, BarChart2, List, Ticket, Coins, ChevronRight, Plus, LogOut } from 'lucide-react';
+import { User, Shield, Settings, Target, Gift, BarChart2, List, Ticket, Coins, ChevronRight, Plus, LogOut, Clock } from 'lucide-react';
 import { ProfileSettingsModal } from '../components/profile/ProfileSettingsModal';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { getLevelBetLimit } from '../config/constants';
@@ -35,17 +35,18 @@ interface ProfilePageProps {
   allBadges: Badge[];
   userBadges: UserBadge[];
   userStreaks: UserStreak[];
-  onUpdateProfile: (updatedData: { username: string; displayName: string; newProfilePic: File | null; favoriteClub?: string | null; favoriteNationalTeam?: string | null; }) => void;
+  onUpdateProfile: (updatedData: { username: string; displayName: string; newProfilePic: File | null; sports?: string[]; }) => void;
   onUpdateEmail: (newEmail: string) => void;
   onSignOut: () => void;
   onDeleteAccount: () => void;
   onOpenSpinWheel: (tier: SpinTier) => void;
   onOpenPremiumModal: () => void;
   onGoToShop?: () => void;
+  onOpenHistory?: () => void;
 }
 
 const ProfilePage: React.FC<ProfilePageProps> = (props) => {
-  const { profile, onOpenSpinWheel, onOpenPremiumModal, onGoToShop } = props;
+  const { profile, onOpenSpinWheel, onOpenPremiumModal, onGoToShop, onOpenHistory } = props;
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'stats'>('overview');
   const [showPredStats, setShowPredStats] = useState(false);
@@ -71,23 +72,6 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
     return () => { cancelled = true; };
   }, [profile.id]);
 
-  // Favorite club / national team — resolved from real catalogs (fb_teams / countries).
-  const [favoriteClub, setFavoriteClub] = useState<{ name: string; logo: string | null } | null>(null);
-  const [favoriteNationalTeam, setFavoriteNationalTeam] = useState<{ name: string; flag: string | null } | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    if (profile.favorite_club && supabase) {
-      supabase.from('fb_teams').select('name, logo, logo_url').eq('id', profile.favorite_club).maybeSingle()
-        .then(({ data }: any) => { if (!cancelled && data) setFavoriteClub({ name: data.name, logo: data.logo_url || data.logo }); });
-    } else setFavoriteClub(null);
-    if (profile.favorite_national_team && supabase) {
-      supabase.from('countries').select('id, flag').eq('id', profile.favorite_national_team).maybeSingle()
-        .then(({ data }: any) => { if (!cancelled && data) setFavoriteNationalTeam({ name: data.id, flag: data.flag }); });
-    } else setFavoriteNationalTeam(null);
-    return () => { cancelled = true; };
-  }, [profile.favorite_club, profile.favorite_national_team]);
-
-  const preferencesSkipped = !profile.is_guest && !profile.favorite_club && !profile.favorite_national_team;
   const levelBetLimit = getLevelBetLimit(levelName);
   const maxBetLabel = levelBetLimit === null ? 'No Limit' : levelBetLimit.toLocaleString();
 
@@ -205,6 +189,19 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
               </div>
             </div>
 
+            {/* Picks History */}
+            {onOpenHistory && (
+              <button onClick={onOpenHistory}
+                className="w-full card-base p-3.5 flex items-center gap-3 text-left hover:bg-white/5 transition">
+                <Clock size={22} className="text-electric-blue flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-semibold text-text-disabled uppercase tracking-wide">Pick History</p>
+                  <p className="text-sm font-bold text-text-primary">Your past results</p>
+                </div>
+                <ChevronRight size={18} className="text-text-disabled flex-shrink-0" />
+              </button>
+            )}
+
             {/* 3 — Play credits: tickets + spins */}
             <div className="card-base p-4 space-y-3">
               <div className="space-y-1.5">
@@ -225,27 +222,7 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
               </div>
             </div>
 
-            {/* Complete-profile nudge (only if both prefs empty) */}
-            {preferencesSkipped && (
-              <button onClick={() => setIsSettingsOpen(true)}
-                className="w-full bg-gradient-to-r from-warm-yellow to-orange-500 text-deep-navy p-3 rounded-xl shadow flex items-center justify-between gap-3">
-                <span className="text-sm font-bold text-left">Choose your fan preferences to unlock fan stats & leagues.</span>
-                <ChevronRight className="flex-shrink-0" size={18} />
-              </button>
-            )}
-
-            {/* 4 — Fan preferences (compact rows) */}
-            <div className="card-base p-4 space-y-2.5">
-              <h3 className="text-sm font-bold text-text-secondary flex items-center gap-2"><Edit size={16} className="text-electric-blue" /> Fan Preferences</h3>
-              <PrefRow icon={<Award size={15} />} label="Favorite Club" valueText={favoriteClub?.name}
-                valueIcon={favoriteClub?.logo ? <img src={favoriteClub.logo} alt="" className="w-5 h-5 object-contain" /> : undefined}
-                onClick={() => setIsSettingsOpen(true)} />
-              <PrefRow icon={<Globe size={15} />} label="National Team" valueText={favoriteNationalTeam?.name}
-                valueIcon={favoriteNationalTeam?.flag ? <img src={favoriteNationalTeam.flag} alt="" className="w-5 h-5 object-contain" /> : undefined}
-                onClick={() => setIsSettingsOpen(true)} />
-            </div>
-
-            {/* 5 — Badges */}
+            {/* 4 — Badges */}
             <div className="card-base p-4">
               <h3 className="text-sm font-bold text-text-secondary flex items-center gap-2 mb-3">
                 <Shield size={16} className="text-neon-cyan" /> Badges
@@ -256,7 +233,7 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
         )}
 
         {activeTab === 'stats' && (
-          <UserProfileStats userId={profile.id} />
+          <UserProfileStats userId={profile.id} sports={profile.sports} />
         )}
 
         {/* Settings is isolated so a crash there can never blank the whole app,
@@ -284,16 +261,6 @@ const ProfilePage: React.FC<ProfilePageProps> = (props) => {
   );
 };
 
-// Compact single-line preference row.
-const PrefRow: React.FC<{ icon: React.ReactNode; label: string; valueText?: string; valueIcon?: React.ReactNode; onClick: () => void; }> = ({ icon, label, valueText, valueIcon, onClick }) => (
-  <button onClick={onClick} className="w-full bg-deep-navy rounded-lg px-3 py-2.5 flex items-center justify-between hover:bg-white/5 transition">
-    <span className="text-xs font-semibold text-text-disabled flex items-center gap-1.5">{icon} {label}</span>
-    {valueText ? (
-      <span className="flex items-center gap-1.5 font-semibold text-text-primary text-sm">{valueIcon}{valueText}</span>
-    ) : (
-      <span className="text-xs font-semibold text-electric-blue">Tap to choose</span>
-    )}
-  </button>
-);
+// (Fan preferences — favorite club / national team — now live only in Fan Pulse.)
 
 export default ProfilePage;

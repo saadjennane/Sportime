@@ -3,6 +3,7 @@ import { Layout } from './components/Layout';
 import { AuthGate } from './components/AuthGate';
 import { TournamentPage } from './pages/TournamentPage';
 import { Dashboard } from './pages/Dashboard';
+import { AnalyticsPage } from './pages/AnalyticsPage';
 import { LeaguesPage } from './pages/LeaguesPage';
 import { TeamsPage } from './pages/TeamsPage';
 import { PlayersPage } from './pages/PlayersPage';
@@ -27,6 +28,7 @@ function App() {
     <Layout>
       <Routes>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/tournament" element={<TournamentPage />} />
         <Route path="/tournament/:type" element={<TournamentPage />} />
         <Route path="/leagues" element={<LeaguesPage />} />

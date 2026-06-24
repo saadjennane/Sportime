@@ -69,6 +69,13 @@ const LeaderboardPage: React.FC<LeaderboardPageProps> = (props) => {
     }));
   }, [serverRows, currentUserId, challenge.challengeBalance]);
 
+  // Everyone who joined this game (present in its leaderboard) — used to count how many
+  // of each squad's members actually joined.
+  const joinedUserIds = useMemo(
+    () => new Set(fullLeaderboard.map(e => e.userId!).filter(Boolean)),
+    [fullLeaderboard],
+  );
+
   const displayedLeaderboard = useMemo(() => {
     if (activeFilterLeagueId) {
       const memberIds = new Set(leagueMembers.filter(m => m.league_id === activeFilterLeagueId).map(m => m.user_id));
@@ -126,6 +133,7 @@ const LeaderboardPage: React.FC<LeaderboardPageProps> = (props) => {
         leagueMembers={leagueMembers}
         activeLeagueId={activeFilterLeagueId}
         onSelectLeague={setActiveFilterLeagueId}
+        joinedUserIds={joinedUserIds}
       />
       
       {!isCurrentUserAdmin && activePeriod.start_date && activePeriod.end_date && (

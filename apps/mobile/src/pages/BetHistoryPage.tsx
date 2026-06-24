@@ -3,8 +3,9 @@ import { Match, Bet } from '../types';
 import { useUserPicks } from '../features/matches/useUserPicks';
 import { PickCard } from '../components/matches/PickCard';
 import { FinishedCard } from '../components/matches/FinishedCard';
-import { ArrowLeft, Loader, CheckCircle2, Coins } from 'lucide-react';
-import { format, isToday, isYesterday } from 'date-fns';
+import { ArrowLeft, Loader } from 'lucide-react';
+import { format, isToday, isYesterday, isBefore, startOfDay, subDays } from 'date-fns';
+import { PicksSummaryStats as SummaryStats } from '../components/matches/PicksSummaryStats';
 
 interface BetHistoryPageProps {
   bets: Bet[];
@@ -41,13 +42,14 @@ export const BetHistoryPage: React.FC<BetHistoryPageProps> = ({ bets, onClose, o
 
   // History = picks from BEFORE today. Today's finished matches live in the Finished
   // tab, so we exclude them here to keep a clean Finished(today) / History(earlier) split.
-  const pastPicks = useMemo(
-    () => picks.filter((p) => {
+  const pastPicks = useMemo(() => {
+    // History now starts BEFORE yesterday — Today & Yesterday live in the Finished tab.
+    const yesterday0 = startOfDay(subDays(new Date(), 1));
+    return picks.filter((p) => {
       const d = new Date(p.match.kickoffTime);
-      return Number.isFinite(d.getTime()) && !isToday(d);
-    }),
-    [picks],
-  );
+      return Number.isFinite(d.getTime()) && isBefore(d, yesterday0);
+    });
+  }, [picks]);
 
   const days: DayGroup[] = useMemo(() => {
     const map = new Map<string, { match: Match; bet: Bet }[]>();
@@ -160,31 +162,5 @@ export const BetHistoryPage: React.FC<BetHistoryPageProps> = ({ bets, onClose, o
     </div>
   );
 };
-
-// Two-tile summary (Successful Picks + Result) — shared by the Overall card and each day header.
-const SummaryStats: React.FC<{ won: number; total: number; settled: number; net: number }> = ({ won, total, settled, net }) => (
-  <div className="grid grid-cols-2 gap-2">
-    <div className="bg-navy-accent rounded-lg p-2 flex items-center gap-2">
-      <CheckCircle2 size={18} className="text-lime-glow flex-shrink-0" />
-      <div className="min-w-0">
-        <p className="text-[11px] text-text-disabled leading-tight">Successful Picks</p>
-        <p className="text-sm font-bold text-text-primary">{won}/{total}</p>
-      </div>
-    </div>
-    <div className="bg-navy-accent rounded-lg p-2 flex items-center gap-2">
-      <Coins size={18} className="text-warm-yellow flex-shrink-0" />
-      <div className="min-w-0">
-        <p className="text-[11px] text-text-disabled leading-tight">Result</p>
-        {settled === 0 ? (
-          <p className="text-sm font-bold text-text-disabled">Pending</p>
-        ) : (
-          <p className={`text-sm font-bold ${net >= 0 ? 'text-lime-glow' : 'text-hot-red'}`}>
-            {net >= 0 ? '+' : ''}{net.toLocaleString()}
-          </p>
-        )}
-      </div>
-    </div>
-  </div>
-);
 
 export default BetHistoryPage;

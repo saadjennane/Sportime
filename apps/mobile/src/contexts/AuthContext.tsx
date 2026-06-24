@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '../services/supabase'
 import { createGuestAccount, refreshProfile } from '../services/userService'
@@ -13,6 +13,10 @@ interface AuthContextValue {
   ensureGuest: () => Promise<{ userId: string }>
   refreshProfile: () => Promise<void>
   sendMagicLink: (email: string) => Promise<string>
+  /** Send the signup/login OTP — upgrades the current GUEST in place (keeps data) when possible. */
+  requestSignupOtp: (email: string) => Promise<string>
+  /** Verify the OTP with the correct type (email_change for a guest upgrade, email otherwise). */
+  verifySignupOtp: (email: string, token: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -163,6 +167,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [])
 
+  // Tracks whether the last OTP request was an in-place guest upgrade (email_change)
+  // or a normal sign-in (email) — so verify uses the right OTP type.
+  const lastOtpFlow = useRef<'upgrade' | 'signin'>('signin')
+
+  const requestSignupOtp = useCallback(async (email: string): Promise<string> => {
+    if (!supabase) throw new Error('Supabase is not configured')
+    const normalized = email.trim().toLowerCase()
+    const isGuestNow = !!user && (profile?.user_type === 'guest' || (profile as any)?.is_guest)
+
+    if (isGuestNow) {
+      // Upgrade the guest in place: change its email → SAME account → coins/picks/history kept.
+      const { error } = await supabase.auth.updateUser({ email: normalized })
+      if (!error) { lastOtpFlow.current = 'upgrade'; return 'Check your inbox for the 6-digit code to confirm your email.' }
+      // Email already belongs to an account → sign into it instead (this guest is discarded).
+      if (/registered|already|exists|taken|in use/i.test(error.message)) {
+        const { error: e2 } = await supabase.auth.signInWithOtp({ email: normalized, options: { shouldCreateUser: false } })
+        if (e2) throw e2
+        lastOtpFlow.current = 'signin'; return 'Welcome back! Check your inbox for the code to sign in.'
+      }
+      throw error
+    }
+
+    const { error } = await supabase.auth.signInWithOtp({ email: normalized, options: { shouldCreateUser: true } })
+    if (error) throw error
+    lastOtpFlow.current = 'signin'; return 'Check your inbox for the 6-digit code.'
+  }, [user, profile])
+
+  const verifySignupOtp = useCallback(async (email: string, token: string): Promise<void> => {
+    if (!supabase) throw new Error('Supabase is not configured')
+    const type = lastOtpFlow.current === 'upgrade' ? 'email_change' : 'email'
+    const { error } = await supabase.auth.verifyOtp({ email: email.trim().toLowerCase(), token: token.trim(), type: type as any })
+    if (error) throw error
+  }, [])
+
   const value = useMemo<AuthContextValue>(() => ({
     user,
     session,
@@ -172,7 +210,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ensureGuest,
     refreshProfile: loadProfile,
     sendMagicLink,
-  }), [user, session, profile, isLoading, signOut, ensureGuest, loadProfile, sendMagicLink])
+    requestSignupOtp,
+    verifySignupOtp,
+  }), [user, session, profile, isLoading, signOut, ensureGuest, loadProfile, sendMagicLink, requestSignupOtp, verifySignupOtp])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

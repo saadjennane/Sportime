@@ -45,6 +45,20 @@ Deno.serve(async (req) => {
   });
   if (error) return new Response(`set_subscription failed: ${error.message}`, { status: 500 });
 
+  // Analytics — map the RevenueCat event to our premium funnel events.
+  const PREMIUM_EVENT: Record<string, string> = {
+    INITIAL_PURCHASE: 'premium_purchased', RENEWAL: 'premium_renewed',
+    CANCELLATION: 'premium_cancelled', EXPIRATION: 'premium_cancelled',
+    BILLING_ISSUE: 'premium_payment_failed',
+  };
+  const analyticsEvent = PREMIUM_EVENT[type];
+  if (analyticsEvent) {
+    await db.rpc('track_server_event', {
+      p_user: userId, p_event: analyticsEvent,
+      p_props: { plan: ev.product_id ?? null, store: ev.store ?? null, price: ev.price ?? null, currency: ev.currency ?? null },
+    }).catch(() => {});
+  }
+
   // Welcome bonus on the first ever purchase (premium_bonus coins from game_config).
   if (type === 'INITIAL_PURCHASE') {
     const { data: cfg } = await db.from('game_config')

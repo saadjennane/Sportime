@@ -24,21 +24,11 @@ interface UseUserPicksReturn {
 }
 
 const FINISHED_STATUSES = ['FT', 'AET', 'PEN', 'AWARDED', 'W.O', 'CANC', 'ABD', 'POST'];
-const INITIAL_PICKS_LIMIT = 10;
-const LOAD_MORE_INCREMENT = 10;
 
 export function useUserPicks(userBets: Bet[] = []): UseUserPicksReturn {
   const [picks, setPicks] = useState<PickWithMatch[]>([]);
-  const [displayedCount, setDisplayedCount] = useState(INITIAL_PICKS_LIMIT);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Calculate if we need lazy loading
-  const needsLazyLoading = useMemo(() => {
-    if (userBets.length > INITIAL_PICKS_LIMIT) return true;
-    // Check if bets span more than 2 days - we'll calculate this after fetching
-    return false;
-  }, [userBets.length]);
 
   const fetchMatchesForBets = useCallback(async () => {
     if (!supabase || userBets.length === 0) {
@@ -297,39 +287,15 @@ export function useUserPicks(userBets: Bet[] = []): UseUserPicksReturn {
     }, { pending: 0, won: 0, lost: 0, totalWinnings: 0 });
   }, [picks]);
 
-  // Check if picks span more than 2 days
-  const picksSpanMultipleDays = useMemo(() => {
-    if (picks.length < 2) return false;
-    const dates = picks.map(p => new Date(p.match.kickoffTime).toDateString());
-    const uniqueDates = [...new Set(dates)];
-    return uniqueDates.length > 2;
-  }, [picks]);
-
-  // Determine if we should use lazy loading
-  const shouldLazyLoad = picks.length > INITIAL_PICKS_LIMIT || picksSpanMultipleDays;
-
-  // Get displayed picks (with lazy loading)
-  const displayedPicks = shouldLazyLoad
-    ? picks.slice(0, displayedCount)
-    : picks;
-
-  const hasMore = shouldLazyLoad && displayedCount < picks.length;
-
-  const loadMore = useCallback(() => {
-    if (hasMore) {
-      setDisplayedCount(prev => prev + LOAD_MORE_INCREMENT);
-    }
-  }, [hasMore]);
-
-  const refetch = useCallback(() => {
-    setDisplayedCount(INITIAL_PICKS_LIMIT);
-    fetchMatchesForBets();
-  }, [fetchMatchesForBets]);
+  // Return ALL picks. The fetch already loads every fixture for the user's bets, and no
+  // consumer paginates — slicing to 10 was hiding older picks from History entirely.
+  const loadMore = useCallback(() => { /* no-op: all picks returned */ }, []);
+  const refetch = useCallback(() => { fetchMatchesForBets(); }, [fetchMatchesForBets]);
 
   return {
-    picks: displayedPicks,
+    picks,
     isLoading,
-    hasMore,
+    hasMore: false,
     error,
     loadMore,
     refetch,

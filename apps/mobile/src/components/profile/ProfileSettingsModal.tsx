@@ -1,9 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Profile } from '../../types';
-import { X, Mail, LogOut, Trash2, Loader2, Camera } from 'lucide-react';
+import { X, Mail, LogOut, Trash2, Loader2, Camera, Globe, Flag } from 'lucide-react';
 import { DeleteAccountModal } from '../DeleteAccountModal';
-import { SearchableSelect } from '../SearchableSelect';
-import { supabase } from '../../services/supabase';
 import { UsernameInput } from '../auth/UsernameInput';
 import { DisplayNamePreview } from '../auth/DisplayNamePreview';
 import { canUseNativeCamera, pickProfileImageNative } from '../../native/pickImage';
@@ -12,7 +10,7 @@ interface ProfileSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   profile: Profile;
-  onUpdateProfile: (updatedData: { username: string; displayName: string; newProfilePic: File | null; favoriteClub?: string | null; favoriteNationalTeam?: string | null; }) => void;
+  onUpdateProfile: (updatedData: { username: string; displayName: string; newProfilePic: File | null; sports?: string[]; }) => void;
   onUpdateEmail: (newEmail: string) => void;
   onSignOut: () => void;
   onDeleteAccount: () => void;
@@ -25,8 +23,10 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({ isOp
   const [newEmail, setNewEmail] = useState('');
   const [newProfilePicFile, setNewProfilePicFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(profile.profile_picture_url || null);
-  const [favoriteClub, setFavoriteClub] = useState<string | null>(profile.favorite_club || null);
-  const [favoriteNationalTeam, setFavoriteNationalTeam] = useState<string | null>(profile.favorite_national_team || null);
+  const [sports, setSports] = useState<string[]>(profile.sports ?? ['football', 'f1']);
+
+  const toggleSport = (sport: string) =>
+    setSports(prev => (prev.includes(sport) ? prev.filter(s => s !== sport) : [...prev, sport]));
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
@@ -47,7 +47,7 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({ isOp
     e.preventDefault();
     if (usernameError) return;
     setLoading('profile');
-    onUpdateProfile({ username, displayName, newProfilePic: newProfilePicFile, favoriteClub, favoriteNationalTeam });
+    onUpdateProfile({ username, displayName, newProfilePic: newProfilePicFile, sports });
     setLoading(null);
     onClose();
   };
@@ -91,21 +91,6 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({ isOp
     }
   };
 
-  // Real catalogs (fb_teams / countries), loaded when the modal opens.
-  const [clubOptions, setClubOptions] = useState<{ value: string; label: string; icon?: string }[]>([]);
-  const [countryOptions, setCountryOptions] = useState<{ value: string; label: string; icon?: string }[]>([]);
-  useEffect(() => {
-    if (!isOpen || !supabase) return;
-    let cancelled = false;
-    supabase.from('fb_teams').select('id, name, logo, logo_url').order('name').then(({ data }: any) => {
-      if (!cancelled && data) setClubOptions(data.map((t: any) => ({ value: t.id, label: t.name, icon: t.logo_url || t.logo || undefined })));
-    });
-    supabase.from('countries').select('id, flag').order('id').then(({ data }: any) => {
-      if (!cancelled && data) setCountryOptions(data.map((c: any) => ({ value: c.id, label: c.id, icon: c.flag || undefined })));
-    });
-    return () => { cancelled = true; };
-  }, [isOpen]);
-
   return (
     <>
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[70] animate-scale-in">
@@ -140,8 +125,14 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({ isOp
 
               <DisplayNamePreview displayName={displayName} username={username} />
 
-              <SearchableSelect label="Favorite Club" options={clubOptions} value={favoriteClub} onChange={setFavoriteClub} placeholder="Choose a club" />
-              <SearchableSelect label="Favorite National Team" options={countryOptions} value={favoriteNationalTeam} onChange={setFavoriteNationalTeam} placeholder="Choose a country" />
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1">Sports you follow</label>
+                <p className="text-xs text-text-disabled mb-2">Your Stats will only show the sports you add here.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <SportToggle label="Football" icon={<Globe size={18} />} active={sports.includes('football')} onClick={() => toggleSport('football')} />
+                  <SportToggle label="Formula 1" icon={<Flag size={18} />} active={sports.includes('f1')} onClick={() => toggleSport('f1')} />
+                </div>
+              </div>
 
               <button type="submit" disabled={!!usernameError} className="w-full py-3 bg-electric-blue text-white font-bold rounded-xl hover:brightness-110 disabled:opacity-50">
                 {loading === 'profile' ? <Loader2 className="animate-spin mx-auto" /> : 'Save Changes'}
@@ -178,11 +169,25 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({ isOp
           </div>
         </div>
       </div>
-      <DeleteAccountModal 
-        isOpen={isDeleteModalOpen} 
-        onClose={() => setIsDeleteModalOpen(false)} 
-        onConfirm={onDeleteAccount} 
+      <DeleteAccountModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={onDeleteAccount}
       />
     </>
   );
 };
+
+const SportToggle: React.FC<{ label: string; icon: React.ReactNode; active: boolean; onClick: () => void }> = ({ label, icon, active, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`flex items-center justify-center gap-2 py-3 rounded-xl border font-semibold transition ${
+      active
+        ? 'bg-electric-blue/15 border-electric-blue text-electric-blue'
+        : 'bg-navy-accent border-disabled text-text-secondary hover:border-white/30'
+    }`}
+  >
+    {icon} {label}
+  </button>
+);

@@ -26,6 +26,11 @@ export function identifyUser(id: string, props?: Record<string, any>): void {
   if (started) try { posthog.identify(id, props); } catch { /* ignore */ }
 }
 
+/** Register super properties sent on EVERY event (platform, app_version, sport, …). */
+export function registerSuperProps(props: Record<string, any>): void {
+  if (started) try { posthog.register(props); } catch { /* ignore */ }
+}
+
 export function resetAnalytics(): void {
   if (started) try { posthog.reset(); } catch { /* ignore */ }
 }

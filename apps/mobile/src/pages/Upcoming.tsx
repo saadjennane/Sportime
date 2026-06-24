@@ -25,7 +25,7 @@ const UpcomingPage: React.FC<UpcomingPageProps> = ({ groupedMatches, orderedLeag
           <p className="text-sm text-text-disabled mt-2">Check back soon — new fixtures land here every day.</p>
         </div>
       ) : (
-        orderedLeagues.map((leagueName, index) => {
+        orderedLeagues.map((leagueName) => {
           const matchesForLeague = groupedMatches[leagueName] || [];
           if (matchesForLeague.length === 0) return null;
 
@@ -35,7 +35,7 @@ const UpcomingPage: React.FC<UpcomingPageProps> = ({ groupedMatches, orderedLeag
               leagueName={leagueName}
               leagueLogo={matchesForLeague[0].leagueLogo}
               matchesCount={matchesForLeague.length}
-              initialOpen={index < 5}
+              initialOpen
             >
               <AnimatePresence initial={false}>
                 {matchesForLeague.map(match => (

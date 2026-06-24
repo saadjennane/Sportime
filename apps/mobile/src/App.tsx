@@ -4,6 +4,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { Header } from './components/Header';
 import { BetModal } from './components/BetModal';
 import { FooterNav } from './components/FooterNav';
+import { LogoSpinner } from './components/LogoSpinner';
 import { SportSwitcher } from './components/SportSwitcher';
 import { useSport } from './contexts/SportContext';
 import RacesPage from './pages/RacesPage';
@@ -49,6 +50,7 @@ import { MiniCreateLeagueModal } from './components/leagues/MiniCreateLeagueModa
 import { SelectLeaguesToLinkModal } from './components/leagues/SelectLeaguesToLinkModal';
 import { useMockStore } from './store/useMockStore';
 import { useSpinStore } from './store/useSpinStore';
+import { getUserSpinState } from './services/spinService';
 import * as streakService from './services/streakService';
 // Load diagnostic tools in dev mode
 if (import.meta.env.DEV) {
@@ -82,6 +84,8 @@ import FanPulsePage from './pages/FanPulsePage';
 import { PremiumModal } from './components/premium/PremiumModal';
 import { CoinShopModal } from './components/shop/CoinShopModal';
 import { ResultsModal } from './components/modals/ResultsModal';
+import { BetHistoryPage } from './pages/BetHistoryPage';
+import { MatchStatsDrawer } from './components/matches/stats/MatchStatsDrawer';
 import { EmptyState } from './components/EmptyState';
 import { DailyStreakModal } from './components/streaks/DailyStreakModal';
 import { ContextualPremiumPrompt } from './components/premium/ContextualPremiumPrompt';
@@ -105,8 +109,10 @@ import { completeGuestRegistration } from './services/userService';
 import { updateUserProfile } from './services/profileService';
 import { joinChallenge as joinChallengeOnSupabase } from './services/challengeService';
 import { saveDailyEntry, ensureChallengeEntry } from './services/challengeEntryService';
-import { initializeOneSignal, setupOneSignalForUser, logoutOneSignal } from './services/oneSignalService';
-import { initAnalytics, identifyUser, resetAnalytics, track } from './services/analytics';
+import { initializeOneSignal, setupOneSignalForUser, logoutOneSignal, setNotificationOpenHandler } from './services/oneSignalService';
+import { initAnalytics, identifyUser, resetAnalytics, registerSuperProps } from './services/analytics';
+import { EVENTS, trackEvent, trackScreen } from './analytics/events';
+import { Capacitor } from '@capacitor/core';
 import { useNotifications } from './hooks/useNotifications';
 import { useTicket } from './services/ticketService';
 
@@ -146,11 +152,7 @@ function F1ComingSoon({ title }: { title: string }) {
 
 // Fallback shown while a lazy-loaded page chunk is being fetched.
 function PageLoader() {
-  return (
-    <div className="min-h-[50vh] flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-electric-blue/30 border-t-electric-blue rounded-full animate-spin" />
-    </div>
-  );
+  return <LogoSpinner />;
 }
 
 function App() {
@@ -177,6 +179,9 @@ function App() {
   const [isPremiumModalOpen, setIsPremiumModalOpen] = useState(false);
   const [isCoinShopModalOpen, setIsCoinShopModalOpen] = useState(false);
   const [resultsModal, setResultsModal] = useState<{ isOpen: boolean; fixtureId: string | null; matchName: string | null }>({ isOpen: false, fixtureId: null, matchName: null });
+  // Pick History overlay — hosted here so both Matches (Finished CTA) and Profile can open it.
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyStatsMatch, setHistoryStatsMatch] = useState<Match | null>(null);
   const [dailyStreakData, setDailyStreakData] = useState<{ isOpen: boolean; streakDay: number }>({ isOpen: false, streakDay: 0 });
   const [contextualPrompt, setContextualPrompt] = useState<{ type: ContextualPromptType; isOpen: boolean } | null>(null);
 
@@ -213,7 +218,7 @@ function App() {
     tickLiveGame, joinChallenge: joinChallengeAction, subscribeToPremium,
   } = useMockStore();
 
-  const { user: authUser, profile: authProfile, isLoading: authLoading, ensureGuest, signOut: supabaseSignOut, refreshProfile: reloadProfile, sendMagicLink } = useAuth();
+  const { user: authUser, profile: authProfile, isLoading: authLoading, ensureGuest, signOut: supabaseSignOut, refreshProfile: reloadProfile, sendMagicLink, requestSignupOtp, verifySignupOtp } = useAuth();
 
   // Fetch user streak from Supabase (replaces mock store userStreaks)
   const { streak: supabaseStreak, isLoading: streakLoading, refetch: refetchStreak } = useUserStreak(authProfile?.id);
@@ -322,6 +327,14 @@ function App() {
     const hasGuestUsername = profile.username?.startsWith('guest_') ?? false;
     const needsOnboarding = !profile.username || hasGuestUsername;
 
+    // Guest upgraded IN PLACE: the auth email is now the signup email (email_change verified),
+    // but the profile row is still a guest → run onboarding to finish (keeps the same account).
+    const authEmail = authUser?.email?.toLowerCase() ?? '';
+    if (isGuestProfile && needsOnboarding && pendingSignupEmail && authEmail === pendingSignupEmail) {
+      if (authFlow !== 'onboarding') { setAuthFlow('onboarding'); setShowSignUpPrompt(false); }
+      return;
+    }
+
     // If user just verified OTP and needs onboarding, trigger it
     if (pendingSignupMode === 'signin' && matchesPendingEmail && needsOnboarding) {
       if (authFlow !== 'onboarding') {
@@ -363,7 +376,7 @@ function App() {
       setPendingSignupEmail(null);
       setPendingSignupMode(null);
     }
-  }, [profile, pendingSignupEmail, pendingSignupMode, authFlow]);
+  }, [profile, pendingSignupEmail, pendingSignupMode, authFlow, authUser]);
 
   // ✅ Auto-track user activity for XP calculation
   useActivityTracker(isGuest ? null : (profile?.id || null));
@@ -371,24 +384,60 @@ function App() {
   // ✅ Initialize OneSignal + PostHog on app load
   useEffect(() => {
     initAnalytics();
+    registerSuperProps({ platform: Capacitor.getPlatform() });
+    CapApp.getInfo().then(i => registerSuperProps({ app_version: i.version })).catch(() => {});
+    trackEvent(EVENTS.SESSION_STARTED, { resumed: false });
     if (USE_SUPABASE) initializeOneSignal();
   }, []);
+
+  // Screen views — fire on top-level page changes (with the previous screen).
+  const prevScreenRef = useRef<string | null>(null);
+  useEffect(() => {
+    trackScreen(page, prevScreenRef.current ?? undefined);
+    prevScreenRef.current = page;
+  }, [page]);
+
+  // Premium paywall view (funnel entry).
+  useEffect(() => { if (isPremiumModalOpen) trackEvent(EVENTS.PAYWALL_VIEWED, {}); }, [isPremiumModalOpen]);
 
   // ✅ Setup OneSignal + identify the user in analytics, for authenticated users
   useEffect(() => {
     if (!USE_SUPABASE || !profile || isGuest) return;
-    identifyUser(profile.id, { username: profile.username ?? undefined });
+    {
+      const sports = (profile.sports ?? ['football', 'f1']) as string[];
+      identifyUser(profile.id, {
+        username: profile.username ?? undefined,
+        user_type: profile.user_type,
+        is_premium: !!profile.is_subscriber,
+        signup_date: profile.created_at,
+        level: profile.current_level ?? profile.level,
+        follows_football: sports.includes('football'),
+        follows_f1: sports.includes('f1'),
+        favourite_club: profile.favorite_club ?? undefined,
+      });
+      registerSuperProps({ is_premium: !!profile.is_subscriber });
+    }
     setupOneSignalForUser(profile.id).catch(err =>
       console.error('[App] Failed to setup OneSignal for user:', err)
     );
+    // B5a — persist the user's timezone for the orchestrator's quiet-hours. Segmentation is
+    // DB-driven (OneSignal's free plan caps data tags), so audiences are computed from our own
+    // tables (sports, favourites, premium, dormancy, picks) and targeted by external_id.
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+      // Persist tz (quiet-hours) + last_active_at (powers the reactivation ladder).
+      if (supabase) supabase.from('users')
+        .update({ ...(tz ? { timezone: tz } : {}), last_active_at: new Date().toISOString() })
+        .eq('id', profile.id).then(() => {}, () => {});
+    } catch { /* no Intl */ }
   }, [profile?.id, isGuest]);
 
   // ✅ Get notifications unread count (only for authenticated users)
-  const { unreadCount: supabaseUnreadCount } = useNotifications(
+  const { unreadCount: supabaseUnreadCount, refetch: refetchUnreadNotifs } = useNotifications(
     USE_SUPABASE && !isGuest ? profile?.id : null
   );
 
-  const { initializeUserSpinState } = useSpinStore();
+  const { initializeUserSpinState, updateUserSpinState } = useSpinStore();
   const headerSpinState = useSpinStore(state => profile ? state.userSpinStates[profile.id] : null);
   const freeSpinReady = !!profile && !isGuest && (!headerSpinState?.lastFreeSpinAt || Date.now() - new Date(headerSpinState.lastFreeSpinAt).getTime() >= 24 * 3600 * 1000);
 
@@ -424,17 +473,23 @@ function App() {
   }, [profile?.id]);
   const reopenInvite = (gameId: string) => { const inv = pendingInvites[gameId]; if (inv) setMasterpassInvite(inv); };
 
-  // Deeplink: sportime://masterpass/<token> or https://sportime.app/i/<token> -> claim a +1 invite.
+  // B1 — deep-link router entry points: cold-start launch URL, warm appUrlOpen, and
+  // notification clicks (route carried in OneSignal data.route). All funnel to resolveRoute.
+  const resolveRouteRef = useRef<(url: string) => void>(() => {});
   useEffect(() => {
-    const extract = (url: string): string | null => { const m = url.match(/(?:masterpass\/|\/i\/)([a-f0-9]{16,})/i); return m ? m[1] : null; };
     let sub: any;
     (async () => {
       try {
-        sub = await CapApp.addListener('appUrlOpen', ({ url }: { url: string }) => { const t = extract(url); if (t) setClaimToken(t); });
+        sub = await CapApp.addListener('appUrlOpen', ({ url }: { url: string }) => { trackEvent(EVENTS.DEEPLINK_OPENED, { route: url }); resolveRouteRef.current(url); });
         const launch = await CapApp.getLaunchUrl();
-        if (launch?.url) { const t = extract(launch.url); if (t) setClaimToken(t); }
+        if (launch?.url) resolveRouteRef.current(launch.url);
       } catch { /* not native */ }
     })();
+    setNotificationOpenHandler((route, notifKey) => {
+      trackEvent(EVENTS.NOTIF_OPENED, { notif_key: notifKey, route });
+      if (notifKey && supabase) supabase.rpc('mark_notif_opened', { p_notif_key: notifKey }).then(() => {}, () => {});
+      if (route) resolveRouteRef.current(route);
+    });
     return () => { try { sub?.remove?.(); } catch { /* ignore */ } };
   }, []);
 
@@ -578,6 +633,9 @@ function App() {
     setAuthFlow(isGuest ? 'guest' : 'authenticated');
 
     initializeUserSpinState(profile.id);
+    // Hydrate the store with the REAL spin counts/cooldown (otherwise Profile + Header
+    // show the hardcoded defaults from initializeUserSpinState).
+    if (!isGuest) getUserSpinState(profile.id).then(s => updateUserSpinState(profile.id, s)).catch(() => {});
 
     // RevenueCat: identify the user for purchases (no-op until the plugin is installed/configured).
     if (!isGuest && !rcConfiguredRef.current) {
@@ -620,7 +678,7 @@ function App() {
 
     setLoading(false);
     initialLoadDoneRef.current = true;
-  }, [profile, isGuest, initializeUserSpinState, challengesLoading, shouldUseSupabaseChallenges]);
+  }, [profile, isGuest, initializeUserSpinState, updateUserSpinState, challengesLoading, shouldUseSupabaseChallenges]);
 
   // Base balance from profile. Match bets are now deducted server-side
   // (place_match_bet RPC), so coins_balance already reflects locked stakes.
@@ -663,10 +721,12 @@ function App() {
     }
 
     try {
-      const message = await sendMagicLink(normalizedEmail);
+      // Upgrades the current guest in place (keeps coins/picks) when the email is new;
+      // falls back to signing into an existing account if the email is already registered.
+      const message = await requestSignupOtp(normalizedEmail);
       setPendingSignupEmail(normalizedEmail);
       setPendingSignupMode('signin');
-      addToast('Magic link sent! Check your email.', 'success');
+      addToast('Code sent! Check your email.', 'success');
       return message;
     } catch (error: any) {
       console.error('[App] Failed to send magic link', error);
@@ -689,7 +749,7 @@ function App() {
     addToast('You have been signed out.', 'info');
   };
 
-  const handleUpdateProfile = async (updatedData: { username: string; displayName: string; newProfilePic: File | null; favoriteClub?: string | null; favoriteNationalTeam?: string | null; }) => {
+  const handleUpdateProfile = async (updatedData: { username: string; displayName: string; newProfilePic: File | null; sports?: string[]; }) => {
     if (!profile || isGuest) return;
     addToast('Updating profile...', 'info');
 
@@ -697,19 +757,14 @@ function App() {
       const payload: {
         username: string;
         displayName: string;
-        favoriteClub?: string | null;
-        favoriteNationalTeam?: string | null;
+        sports?: string[];
       } = {
         username: updatedData.username,
         displayName: updatedData.displayName,
       };
 
-      if (updatedData.favoriteClub !== undefined) {
-        payload.favoriteClub = updatedData.favoriteClub;
-      }
-
-      if (updatedData.favoriteNationalTeam !== undefined) {
-        payload.favoriteNationalTeam = updatedData.favoriteNationalTeam;
+      if (updatedData.sports !== undefined) {
+        payload.sports = updatedData.sports;
       }
 
       await updateUserProfile(profile.id, payload);
@@ -741,6 +796,7 @@ function App() {
         favoriteNationalTeam: payload.favoriteNationalTeam ?? null,
       });
 
+      trackEvent(EVENTS.SIGNUP_COMPLETED, { method: pendingSignupMode ?? 'email' });
       await reloadProfile();
       setPendingSignupEmail(null);
       setPendingSignupMode(null);
@@ -780,6 +836,12 @@ function App() {
         p_odds: safeOdds,
       });
       if (error) throw error;
+      trackEvent(EVENTS.PICK_PLACED, {
+        fixture_id: modalState.match.id,
+        prediction, stake: amount, odds: safeOdds, sport: 'football',
+        league_id: modalState.match.meta?.leagueId,
+        is_first_pick: bets.length === 0,
+      });
       await Promise.all([refreshMatchBets(), reloadProfile()]);
     } catch (err: any) {
       console.error('[App] place_match_bet failed', err);
@@ -1171,7 +1233,7 @@ function App() {
           addToast('Challenge joined! Good luck! ⚽', 'success');
         }
         await refreshChallenges();
-        track('game_joined', { type: 'betting', method });
+        trackEvent(EVENTS.GAME_JOINED, { game_id: challengeId, game_type: 'betting', entry_method: method });
         setActiveChallengeId(challengeId);
       } catch (error) {
         console.error('[App] Failed to join challenge', error);
@@ -1440,11 +1502,52 @@ function App() {
 
   const handleSubscribe = (plan: 'monthly' | 'seasonal') => {
     if (profile) {
+      trackEvent(EVENTS.PREMIUM_CTA_CLICKED, { plan });
       subscribeToPremium(profile.id, plan);
       addToast(`Subscribed to ${plan} plan! Premium activated.`, 'success');
       setIsPremiumModalOpen(false);
     }
   };
+
+  // Requested Matches sub-tab from a deep link (consumed by MatchesPage).
+  const [matchTab, setMatchTab] = useState<'today' | 'picks' | 'finished' | null>(null);
+
+  // B1 — resolve a sportime:// (or https://sportime.app/) deep link to app state.
+  const resolveRoute = useCallback((raw: string) => {
+    if (!raw) return;
+    try {
+      const rest = raw
+        .replace(/^sportime:\/\//i, '')
+        .replace(/^https?:\/\/sportime\.app\//i, '')
+        .replace(/^\/+/, '')
+        .split('?')[0];
+      const [seg, id] = rest.split('/');
+      const auth = () => { if (!profile || isGuest) { handleTriggerSignUp(); return false; } return true; };
+      switch (seg) {
+        case '': case 'matches': case 'match': setPage('matches'); setMatchTab('today'); break;
+        case 'picks': setPage('matches'); setMatchTab('picks'); break;
+        case 'finished': setPage('matches'); setMatchTab('finished'); break;
+        case 'games': case 'challenges': setPage('challenges'); break;
+        case 'challenge': if (id && auth()) setActiveChallengeId(id); else setPage('challenges'); break;
+        case 'swipe': if (id && auth()) setActiveSwipeGameId(id); else setPage('challenges'); break;
+        case 'fantasy': if (id && auth()) setActiveFantasyGameId(id); else setPage('challenges'); break;
+        case 'tq': if (id && auth()) setActiveTournamentId(id); else setPage('challenges'); break;
+        case 'live': if (id && auth()) setActiveLiveGame({ id, status: 'Ongoing' }); else setPage('challenges'); break;
+        case 'leaderboard': setPage('challenges'); break;
+        case 'squads': case 'squad': setPage('squads'); if (id && id !== 'join') setActiveLeagueId(id); break;
+        case 'league': setPage('squads'); break;
+        case 'fanpulse': case 'f1': setPage('funzone'); break;
+        case 'shop': setIsCoinShopModalOpen(true); break;
+        case 'wallet': setPage('profile'); break;
+        case 'spin': if (auth()) handleOpenSpinWheel((id as SpinTier) || 'free'); break;
+        case 'premium': setIsPremiumModalOpen(true); break;
+        case 'profile': setPage('profile'); if (id === 'history') setHistoryOpen(true); break;
+        case 'masterpass': case 'i': if (id) setClaimToken(id); break;
+        default: setPage('matches');
+      }
+    } catch (e) { console.warn('[deeplink] resolve failed', raw, e); }
+  }, [profile, isGuest, handleTriggerSignUp, handleOpenSpinWheel]);
+  useEffect(() => { resolveRouteRef.current = resolveRoute; }, [resolveRoute]);
 
   const renderPage = () => {
     if (joinLeagueCode) {
@@ -1717,7 +1820,7 @@ function App() {
           <ErrorBoundary>
             {sport === 'f1'
               ? <RacesPage />
-              : <MatchesPage matches={matches} bets={bets} onBet={handleBetClick} onPlayGame={handlePlayGameClick} onViewResults={(fixtureId, matchName) => setResultsModal({ isOpen: true, fixtureId, matchName })} onBrowseGames={() => handlePageChange('challenges')} />}
+              : <MatchesPage matches={matches} bets={bets} onBet={handleBetClick} onPlayGame={handlePlayGameClick} onViewResults={(fixtureId, matchName) => setResultsModal({ isOpen: true, fixtureId, matchName })} onBrowseGames={() => handlePageChange('challenges')} onOpenHistory={() => setHistoryOpen(true)} requestedTab={matchTab} onTabConsumed={() => setMatchTab(null)} />}
           </ErrorBoundary>
         );
       case 'challenges':
@@ -1741,7 +1844,7 @@ function App() {
         if (profile && !isGuest) {
           // Use Supabase streak data if available, fallback to mock for guests/errors
           const profileStreaks = supabaseStreak ? [supabaseStreak] : userStreaks;
-          return <ProfilePage profile={profile} levels={levelsConfig} allBadges={badges} userBadges={userBadges} userStreaks={profileStreaks} onUpdateProfile={handleUpdateProfile} onUpdateEmail={handleUpdateEmail} onSignOut={handleSignOut} onDeleteAccount={handleDeleteAccount} onOpenSpinWheel={handleOpenSpinWheel} onOpenPremiumModal={() => setIsPremiumModalOpen(true)} onGoToShop={() => setIsCoinShopModalOpen(true)} />;
+          return <ProfilePage profile={profile} levels={levelsConfig} allBadges={badges} userBadges={userBadges} userStreaks={profileStreaks} onUpdateProfile={handleUpdateProfile} onUpdateEmail={handleUpdateEmail} onSignOut={handleSignOut} onDeleteAccount={handleDeleteAccount} onOpenSpinWheel={handleOpenSpinWheel} onOpenPremiumModal={() => setIsPremiumModalOpen(true)} onGoToShop={() => setIsCoinShopModalOpen(true)} onOpenHistory={() => setHistoryOpen(true)} />;
         }
         return null;
       default:
@@ -1753,11 +1856,11 @@ function App() {
   const currentBetLimit = useMemo(() => getLevelBetLimit(profileLevel), [profileLevel]);
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center bg-deep-navy"><div className="text-2xl font-semibold text-text-secondary">Loading...</div></div>;
+    return <div className="min-h-screen bg-deep-navy"><LogoSpinner fullscreen size={72} /></div>;
   }
 
   if (authFlow === 'signing_up' || joinLeagueCode && profile?.is_guest) {
-    return <SignUpStep onMagicLinkSent={handleMagicLinkSent} onBack={handleCancelSignUp} />;
+    return <SignUpStep onMagicLinkSent={handleMagicLinkSent} onVerifyOtp={verifySignupOtp} onBack={handleCancelSignUp} />;
   }
   if (authFlow === 'onboarding' && profile) {
     return <OnboardingPage profile={profile} onComplete={handleCompleteOnboarding} />;
@@ -1845,12 +1948,23 @@ function App() {
     );
   }
 
+  // When a game/drill-in takeover is active, the page goes full-screen: the global
+  // header, Football/F1 selector and footer nav are CSS-hidden (kept mounted, NOT
+  // unmounted — so opening a game stays "mount the page only" and feels instant).
+  // These pages bring their own back button.
+  const immersiveView = !!(
+    viewingLeaderboardFor || activeChallengeId || viewingPredictionChallenge ||
+    activeSwipeGameId || viewingSwipeLeaderboardFor || activeTournamentId ||
+    activeFantasyGameId || activeLiveGame
+  );
+
   return (
     <div className="main-background fixed inset-0 flex flex-col overflow-hidden">
       <ToastContainer toasts={toasts} removeToast={removeToast} />
 
-      {/* Fixed top header (profile / coins) — never scrolls */}
-      <div className="flex-shrink-0 w-full max-w-md mx-auto px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2">
+      {/* Fixed top header (profile / coins) — never scrolls. CSS-hidden (not unmounted)
+          in immersive game view so opening a game doesn't tear down + rebuild the chrome. */}
+      <div className={`flex-shrink-0 w-full max-w-md mx-auto px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 ${immersiveView ? 'hidden' : ''}`}>
         <Header
           profile={profile}
           coinBalance={coinBalance}
@@ -1867,19 +1981,23 @@ function App() {
         />
       </div>
 
-      {/* Sport universe selector (Football / F1) — fixed under the header */}
-      <div className="flex-shrink-0 w-full max-w-md mx-auto px-4 pb-2">
+      {/* Sport universe selector (Football / F1) — CSS-hidden in immersive game view */}
+      <div className={`flex-shrink-0 w-full max-w-md mx-auto px-4 pb-2 ${immersiveView ? 'hidden' : ''}`}>
         <SportSwitcher />
       </div>
 
       {/* Single scroll region for page content */}
       <div id="app-scroll" className="flex-1 overflow-y-auto overscroll-y-contain">
-        <div className="w-full max-w-md mx-auto px-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] space-y-4">
+        <div className={`w-full max-w-md mx-auto px-4 space-y-4 ${immersiveView
+          ? 'pt-[max(0.75rem,env(safe-area-inset-top))] pb-[calc(1.5rem+env(safe-area-inset-bottom))]'
+          : 'pb-[calc(4.5rem+env(safe-area-inset-bottom))]'}`}>
           <Suspense fallback={<PageLoader />}>{renderPage()}</Suspense>
         </div>
       </div>
 
-      <FooterNav activePage={page} onPageChange={handlePageChange} />
+      <div className={immersiveView ? 'hidden' : ''}>
+        <FooterNav activePage={page} onPageChange={handlePageChange} />
+      </div>
 
       {modalState.match && modalState.prediction && (
         <BetModal
@@ -2021,6 +2139,8 @@ function App() {
       isOpen={isNotificationCenterOpen}
       onClose={() => setIsNotificationCenterOpen(false)}
       userId={profile?.id}
+      onChanged={refetchUnreadNotifs}
+      onNavigate={(link) => resolveRoute(link)}
     />
     <PremiumModal
       isOpen={isPremiumModalOpen}
@@ -2029,6 +2149,16 @@ function App() {
       addToast={addToast}
       onPurchased={() => reloadProfile()}
     />
+    {historyOpen && (
+      <BetHistoryPage
+        bets={bets}
+        onClose={() => setHistoryOpen(false)}
+        onViewStats={setHistoryStatsMatch}
+        onViewResults={(fixtureId, matchName) => setResultsModal({ isOpen: true, fixtureId, matchName })}
+      />
+    )}
+    <MatchStatsDrawer match={historyStatsMatch} onClose={() => setHistoryStatsMatch(null)} />
+
     <ResultsModal
       isOpen={resultsModal.isOpen}
       onClose={() => setResultsModal({ isOpen: false, fixtureId: null, matchName: null })}

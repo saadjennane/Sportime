@@ -54,7 +54,11 @@ export function useUnreadSettled(bets: Bet[]) {
   }, [settledIds]);
 
   // Drop ids that are no longer settled bets (e.g. cancelled) to keep it small.
+  // IMPORTANT: skip while bets haven't loaded yet (settledIds empty) — otherwise the
+  // initial empty state would prune EVERY seen id and wipe localStorage, so the badge
+  // would reappear on every app launch.
   useEffect(() => {
+    if (settledIds.length === 0) return;
     setSeen((prev) => {
       if (prev.size === 0) return prev;
       const valid = new Set(settledIds);

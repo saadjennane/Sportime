@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../services/supabase';
 
-export type HofKind = 'driver' | 'constructor';
+export type HofKind = 'driver' | 'constructor' | 'current_driver';
 export interface HofCandidate { key: string; name: string; image: string | null }
 export interface HofAggItem { key: string; name: string; image: string | null; count: number; pct: number }
 export interface HofAgg { participants: number; items: HofAggItem[] }

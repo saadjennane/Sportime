@@ -121,6 +121,7 @@ export interface Profile {
   xp_total?: number;
   favorite_club?: string;
   favorite_national_team?: string;
+  sports?: string[];
   sports_preferences?: {
     football?: {
       club?: string;
