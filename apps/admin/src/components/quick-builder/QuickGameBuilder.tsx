@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { X, ChevronLeft, Check, Target, Hand, Gamepad2, Trophy, Loader2 } from 'lucide-react';
+import { X, ChevronLeft, Check, Target, Hand, Gamepad2, Trophy, Flag, Swords, Crown, Loader2 } from 'lucide-react';
 import {
   listLeaguesFull, searchFixtures, createMatchdayChallenge, setChallengeStatus,
 } from '../../services/tournamentAdminService';
 import { listRewardPacks, assignPackToGame } from '../../services/rewardService';
+import F1GameWizard, { type F1Format } from './F1GameWizard';
 
 // ── Defaults engine ─────────────────────────────────────────────────────────
 const TIERS: [string, number][] = [['amateur', 2000], ['master', 10000], ['apex', 20000]];
@@ -25,23 +26,26 @@ const LABEL: Record<Format, string> = { pickem: "Pick'em", swipe: 'Swipe' };
 
 interface Props { onClose: () => void; onCreated: () => void; flash: (m: string) => void; }
 
+type Selection = { sport: 'football'; format: Format } | { sport: 'f1'; format: F1Format };
+
 export default function QuickGameBuilder({ onClose, onCreated, flash }: Props) {
-  const [view, setView] = useState<'launcher' | 'wizard'>('launcher');
-  const [format, setFormat] = useState<Format>('pickem');
+  const [sel, setSel] = useState<Selection | null>(null);
 
   return (
     <div className="fixed inset-0 z-[120] flex items-start justify-center bg-black/60 p-4 overflow-y-auto" onClick={onClose}>
       <div className="bg-surface border border-border-subtle rounded-2xl shadow-2xl w-full max-w-2xl my-8" onClick={e => e.stopPropagation()}>
-        {view === 'launcher'
-          ? <Launcher onPick={(f) => { setFormat(f); setView('wizard'); }} onClose={onClose} />
-          : <Wizard key={format} format={format} onBack={() => setView('launcher')} onClose={onClose} onCreated={onCreated} flash={flash} />}
+        {!sel
+          ? <Launcher onPick={setSel} onClose={onClose} />
+          : sel.sport === 'football'
+            ? <Wizard key={`fb-${sel.format}`} format={sel.format} onBack={() => setSel(null)} onClose={onClose} onCreated={onCreated} flash={flash} />
+            : <F1GameWizard key={`f1-${sel.format}`} format={sel.format} onBack={() => setSel(null)} onClose={onClose} onCreated={onCreated} flash={flash} />}
       </div>
     </div>
   );
 }
 
-// ── Launcher: choose the game type ───────────────────────────────────────────
-function Launcher({ onPick, onClose }: { onPick: (f: Format) => void; onClose: () => void }) {
+// ── Launcher: choose the sport + game type ───────────────────────────────────
+function Launcher({ onPick, onClose }: { onPick: (s: Selection) => void; onClose: () => void }) {
   const [sport, setSport] = useState<'football' | 'f1'>('football');
   return (
     <div className="p-6">
@@ -52,24 +56,40 @@ function Launcher({ onPick, onClose }: { onPick: (f: Format) => void; onClose: (
 
       <div className="flex gap-1 bg-background-dark border border-border-subtle rounded-lg p-1 w-fit mb-5">
         {(['football', 'f1'] as const).map(s => (
-          <button key={s} onClick={() => setSport(s)} disabled={s === 'f1'}
-            className={`px-4 py-1.5 text-sm font-semibold rounded-md capitalize disabled:opacity-40 ${sport === s ? 'bg-electric-blue text-white' : 'text-text-secondary'}`}>
-            {s === 'f1' ? 'F1 (soon)' : 'Football'}
+          <button key={s} onClick={() => setSport(s)}
+            className={`px-4 py-1.5 text-sm font-semibold rounded-md ${sport === s ? 'bg-electric-blue text-white' : 'text-text-secondary'}`}>
+            {s === 'f1' ? 'F1' : 'Football'}
           </button>
         ))}
       </div>
 
-      <p className="text-xs uppercase tracking-wide text-text-disabled font-semibold mb-2">On a matchday</p>
-      <div className="grid grid-cols-3 gap-3 mb-5">
-        <TypeCard icon={<Target size={22} />} title="Pick'em" desc="Predict results of a round" onClick={() => onPick('pickem')} />
-        <TypeCard icon={<Hand size={22} />} title="Swipe" desc="Same matches, swiped" onClick={() => onPick('swipe')} />
-        <TypeCard icon={<Gamepad2 size={22} />} title="Fantasy" desc="Build a squad" soon />
-      </div>
-
-      <p className="text-xs uppercase tracking-wide text-text-disabled font-semibold mb-2">On a tournament</p>
-      <div className="grid grid-cols-3 gap-3">
-        <TypeCard icon={<Trophy size={22} />} title="Tournament Quest" desc="Predict a whole tournament" soon />
-      </div>
+      {sport === 'football' ? (
+        <>
+          <p className="text-xs uppercase tracking-wide text-text-disabled font-semibold mb-2">On a matchday</p>
+          <div className="grid grid-cols-3 gap-3 mb-5">
+            <TypeCard icon={<Target size={22} />} title="Pick'em" desc="Predict results of a round" onClick={() => onPick({ sport: 'football', format: 'pickem' })} />
+            <TypeCard icon={<Hand size={22} />} title="Swipe" desc="Same matches, swiped" onClick={() => onPick({ sport: 'football', format: 'swipe' })} />
+            <TypeCard icon={<Gamepad2 size={22} />} title="Fantasy" desc="Build a squad" soon />
+          </div>
+          <p className="text-xs uppercase tracking-wide text-text-disabled font-semibold mb-2">On a tournament</p>
+          <div className="grid grid-cols-3 gap-3">
+            <TypeCard icon={<Trophy size={22} />} title="Tournament Quest" desc="Predict a whole tournament" soon />
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="text-xs uppercase tracking-wide text-text-disabled font-semibold mb-2">On a race</p>
+          <div className="grid grid-cols-3 gap-3 mb-5">
+            <TypeCard icon={<Flag size={22} />} title="GP Predictor" desc="Predict one or more GPs" onClick={() => onPick({ sport: 'f1', format: 'predictor' })} />
+            <TypeCard icon={<Swords size={22} />} title="Teammates Duels" desc="Driver vs teammate" onClick={() => onPick({ sport: 'f1', format: 'duels' })} />
+            <TypeCard icon={<Gamepad2 size={22} />} title="Fantasy F1" desc="Build a grid" onClick={() => onPick({ sport: 'f1', format: 'fantasy' })} />
+          </div>
+          <p className="text-xs uppercase tracking-wide text-text-disabled font-semibold mb-2">Across a season</p>
+          <div className="grid grid-cols-3 gap-3">
+            <TypeCard icon={<Crown size={22} />} title="Season Forecast" desc="Predict the championship" onClick={() => onPick({ sport: 'f1', format: 'season' })} />
+          </div>
+        </>
+      )}
     </div>
   );
 }

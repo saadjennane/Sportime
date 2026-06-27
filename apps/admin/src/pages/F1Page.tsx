@@ -6,6 +6,8 @@ import { F1OddsAdmin } from '../components/F1OddsAdmin';
 import { F1DuelsAdmin } from '../components/F1DuelsAdmin';
 import { F1PredictorAdmin } from '../components/F1PredictorAdmin';
 import { F1FantasyAdmin } from '../components/F1FantasyAdmin';
+import QuickGameBuilder from '../components/quick-builder/QuickGameBuilder';
+import { toast } from '../components/ui/Toast';
 
 interface F1Market {
   key: string;
@@ -100,6 +102,7 @@ function MarketsTab() {
 
 export function F1Page() {
   const [tab, setTab] = useState<'markets' | 'odds' | 'duels' | 'predictor' | 'fantasy'>('markets');
+  const [showBuilder, setShowBuilder] = useState(false);
   const TabBtn = ({ id, label }: { id: 'markets' | 'odds' | 'duels' | 'predictor' | 'fantasy'; label: string }) => (
     <button
       onClick={() => setTab(id)}
@@ -112,9 +115,19 @@ export function F1Page() {
   );
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      <h1 className="text-3xl font-bold mb-5 flex items-center gap-2">
-        <Flag className="w-7 h-7 text-electric-blue" /> Formula 1
-      </h1>
+      <div className="flex items-center justify-between mb-5">
+        <h1 className="text-3xl font-bold flex items-center gap-2">
+          <Flag className="w-7 h-7 text-electric-blue" /> Formula 1
+        </h1>
+        <button onClick={() => setShowBuilder(true)} className="px-3 py-2 rounded-lg font-semibold text-sm bg-electric-blue text-white">+ New Game</button>
+      </div>
+      {showBuilder && (
+        <QuickGameBuilder
+          onClose={() => setShowBuilder(false)}
+          onCreated={() => setShowBuilder(false)}
+          flash={(m) => toast(m, m.startsWith('Failed') ? 'error' : 'success')}
+        />
+      )}
       <div className="flex gap-2 mb-6">
         <TabBtn id="markets" label="Markets" />
         <TabBtn id="odds" label="Odds" />
