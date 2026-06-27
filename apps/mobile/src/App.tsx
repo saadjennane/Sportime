@@ -186,7 +186,7 @@ function App() {
   const [contextualPrompt, setContextualPrompt] = useState<{ type: ContextualPromptType; isOpen: boolean } | null>(null);
 
   const [page, setPage] = useState<Page>('matches');
-  const { sport } = useSport();
+  const { sport, setSport } = useSport();
   const [matches, setMatches] = useState<Match[]>(mockMatches);
   // `bets` now comes from useMatchBets (persisted); see below.
   const [modalState, setModalState] = useState<{ isOpen: boolean; match: Match | null; prediction: 'teamA' | 'draw' | 'teamB' | null; odds: number; }>({ isOpen: false, match: null, prediction: null, odds: 0 });
@@ -1531,20 +1531,24 @@ function App() {
         .split('?')[0];
       const [seg, id] = rest.split('/');
       const auth = () => { if (!profile || isGuest) { handleTriggerSignUp(); return false; } return true; };
+      // Most deep links target football screens; if the user is on F1 the page would
+      // switch but the content stays F1-filtered. Force the matching sport per route.
+      const football = () => setSport('football');
       switch (seg) {
-        case '': case 'matches': case 'match': setPage('matches'); setMatchTab('today'); break;
-        case 'picks': setPage('matches'); setMatchTab('picks'); break;
-        case 'finished': setPage('matches'); setMatchTab('finished'); break;
-        case 'games': case 'challenges': setPage('challenges'); break;
-        case 'challenge': if (id && auth()) setActiveChallengeId(id); else setPage('challenges'); break;
-        case 'swipe': if (id && auth()) setActiveSwipeGameId(id); else setPage('challenges'); break;
-        case 'fantasy': if (id && auth()) setActiveFantasyGameId(id); else setPage('challenges'); break;
-        case 'tq': if (id && auth()) setActiveTournamentId(id); else setPage('challenges'); break;
-        case 'live': if (id && auth()) setActiveLiveGame({ id, status: 'Ongoing' }); else setPage('challenges'); break;
-        case 'leaderboard': setPage('challenges'); break;
+        case '': case 'matches': case 'match': football(); setPage('matches'); setMatchTab('today'); break;
+        case 'picks': football(); setPage('matches'); setMatchTab('picks'); break;
+        case 'finished': football(); setPage('matches'); setMatchTab('finished'); break;
+        case 'games': case 'challenges': football(); setPage('challenges'); break;
+        case 'challenge': football(); if (id && auth()) setActiveChallengeId(id); else setPage('challenges'); break;
+        case 'swipe': football(); if (id && auth()) setActiveSwipeGameId(id); else setPage('challenges'); break;
+        case 'fantasy': football(); if (id && auth()) setActiveFantasyGameId(id); else setPage('challenges'); break;
+        case 'tq': football(); if (id && auth()) setActiveTournamentId(id); else setPage('challenges'); break;
+        case 'live': football(); if (id && auth()) setActiveLiveGame({ id, status: 'Ongoing' }); else setPage('challenges'); break;
+        case 'leaderboard': football(); setPage('challenges'); break;
         case 'squads': case 'squad': setPage('squads'); if (id && id !== 'join') setActiveLeagueId(id); break;
         case 'league': setPage('squads'); break;
-        case 'fanpulse': case 'f1': setPage('funzone'); break;
+        case 'fanpulse': football(); setPage('funzone'); break;
+        case 'f1': setSport('f1'); setPage('funzone'); break;
         case 'shop': setIsCoinShopModalOpen(true); break;
         case 'wallet': setPage('profile'); break;
         case 'spin': if (auth()) handleOpenSpinWheel((id as SpinTier) || 'free'); break;
@@ -1554,7 +1558,7 @@ function App() {
         default: setPage('matches');
       }
     } catch (e) { console.warn('[deeplink] resolve failed', raw, e); }
-  }, [profile, isGuest, handleTriggerSignUp, handleOpenSpinWheel]);
+  }, [profile, isGuest, handleTriggerSignUp, handleOpenSpinWheel, setSport]);
   useEffect(() => { resolveRouteRef.current = resolveRoute; }, [resolveRoute]);
 
   const renderPage = () => {
