@@ -348,7 +348,8 @@ export async function getSquadFeed(squadId: string, limit: number = 50): Promise
     .select(`
       *,
       users!squad_feed_user_id_fkey (id, username, avatar_url),
-      squad_feed_likes (count)
+      squad_feed_likes (user_id, reaction),
+      squad_feed_comments (count)
     `)
     .eq('squad_id', squadId)
     .order('created_at', { ascending: false })
@@ -369,7 +370,8 @@ export async function createCelebrationPost(
   squadId: string,
   gameId: string,
   userId: string,
-  message: string
+  message: string,
+  metadata?: Record<string, any>
 ): Promise<SquadFeedPost> {
   const { data: post, error } = await supabase
     .from('squad_feed')
@@ -379,6 +381,7 @@ export async function createCelebrationPost(
       post_type: 'celebration',
       content: message,
       related_game_id: gameId,
+      metadata: metadata ?? {},
     })
     .select()
     .single();
@@ -432,6 +435,54 @@ export async function toggleLike(postId: string, userId: string): Promise<{ like
 
     return { liked: true };
   }
+}
+
+// ============================================================================
+// REACTIONS (multi-emoji) — one reaction per user per post
+// ============================================================================
+
+export const SQUAD_REACTIONS = ['👍', '🔥', '😂', '😮', '💪', '😭'] as const;
+
+/** Set the user's reaction on a post, or clear it when emoji is null / same as current. */
+export async function setReaction(postId: string, userId: string, emoji: string | null): Promise<void> {
+  if (!emoji) {
+    const { error } = await supabase.from('squad_feed_likes').delete().eq('post_id', postId).eq('user_id', userId);
+    if (error) throw error;
+    return;
+  }
+  const { error } = await supabase
+    .from('squad_feed_likes')
+    .upsert({ post_id: postId, user_id: userId, reaction: emoji }, { onConflict: 'post_id,user_id' });
+  if (error) throw error;
+}
+
+// ============================================================================
+// COMMENTS
+// ============================================================================
+
+export async function getSquadComments(postId: string): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('squad_feed_comments')
+    .select('id, body, created_at, user_id, users!squad_feed_comments_user_id_fkey (username, avatar_url)')
+    .eq('post_id', postId)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function addComment(postId: string, userId: string, body: string): Promise<any> {
+  const { data, error } = await supabase
+    .from('squad_feed_comments')
+    .insert({ post_id: postId, user_id: userId, body })
+    .select('id, body, created_at, user_id, users!squad_feed_comments_user_id_fkey (username, avatar_url)')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteComment(commentId: string): Promise<void> {
+  const { error } = await supabase.from('squad_feed_comments').delete().eq('id', commentId);
+  if (error) throw error;
 }
 
 // ============================================================================

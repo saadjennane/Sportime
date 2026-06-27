@@ -8,7 +8,7 @@ import { LinkGameModal } from '../components/leagues/LinkGameModal';
 import { useMockStore } from '../store/useMockStore';
 import { ConfirmationModal } from '../components/leagues/ConfirmationModal';
 import { AnimatePresence, motion } from 'framer-motion';
-import { LeagueFeed } from '../components/leagues/LeagueFeed';
+import { SquadFeed } from '../components/leagues/SquadFeed';
 import { SnapshotModal } from '../components/leagues/SnapshotModal';
 import { CreatePrivateLeagueWizard } from '../components/leagues/wizard/CreatePrivateLeagueWizard';
 import { LiveGameSetupModal } from '../components/leagues/live-game/LiveGameSetupModal';
@@ -174,7 +174,7 @@ const LeaguePage: React.FC<LeaguePageProps> = (props) => {
 
       {/* Tab Content */}
       <div className="animate-scale-in">
-        {activeTab === 'feed' && <LeagueFeed posts={feedForThisLeague} members={members} currentUserId={currentUserId} onViewSnapshot={setViewingSnapshot} onToggleLike={(postId) => toggleFeedPostLike(postId, currentUserId)} />}
+        {activeTab === 'feed' && <SquadFeed squadId={league.id} currentUserId={currentUserId} />}
         {activeTab === 'games' && (
           <div className="space-y-4">
             {currentUserRole === 'admin' && (

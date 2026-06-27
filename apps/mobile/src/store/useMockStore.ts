@@ -1063,6 +1063,11 @@ export const useMockStore = create<MockDataState & MockDataActions>((set, get) =
       leagueFeed: [newFeedPost, ...leagueFeed],
     });
 
+    // Also persist to the real squad feed so it surfaces in the live (Supabase) feed.
+    import('../services/squadService')
+      .then(s => s.createCelebrationPost(leagueId, game.id, adminId, message, { top_players: topPlayers }))
+      .catch(err => console.warn('[celebrateWinners] real persist failed', err));
+
     return { success: true };
   },
 
