@@ -3,9 +3,10 @@ import { Zap, Plus, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { Spinner } from '../components/ui/States';
 import { toast } from '../components/ui/Toast';
+import { EntryLockCell } from './EntryLockCell';
 
 interface Gp { id: number; name: string; round: number | null; race_at: string | null }
-interface FGame { id: string; race_id: number; condition: string; status: string; race?: { name: string; round: number | null; race_at: string | null } }
+interface FGame { id: string; race_id: number; condition: string; status: string; entry_lock_at?: string | null; race?: { name: string; round: number | null; race_at: string | null } }
 interface CatRow { category: string | null; names: string }
 
 const CONDITIONS: [string, string][] = [
@@ -26,7 +27,7 @@ export function F1FantasyAdmin() {
   const load = async () => {
     setLoading(true);
     const [{ data: g }, { data: races }, { data: dr }, { data: co }] = await Promise.all([
-      supabase.from('f1_fantasy_games').select('id,race_id,condition,status,race:f1_races(name,round,race_at)').order('race_id'),
+      supabase.from('f1_fantasy_games').select('id,race_id,condition,status,entry_lock_at,race:f1_races(name,round,race_at)').order('race_id'),
       supabase.from('f1_races').select('id,name,round,race_at').neq('status', 'Cancelled').gt('race_at', new Date().toISOString()).order('race_at'),
       supabase.rpc('f1_fantasy_cat_summary', { p_kind: 'driver' }),
       supabase.rpc('f1_fantasy_cat_summary', { p_kind: 'constructor' }),
@@ -115,10 +116,13 @@ export function F1FantasyAdmin() {
               <div className="font-semibold flex items-center gap-2"><Zap className="w-4 h-4 text-warm-yellow" /> {g.race?.round ? `R${g.race.round} · ` : ''}{g.race?.name ?? `Race ${g.race_id}`}</div>
               <div className="text-xs text-text-secondary mt-0.5">status {g.status} · {g.race?.race_at ? new Date(g.race.race_at).toLocaleDateString() : ''}</div>
             </div>
-            <select value={g.condition} onChange={(e) => createOrUpdate(g.race_id, e.target.value, g.id)} disabled={busy === g.id || g.status === 'settled'}
-              className="bg-deep-navy border border-border-subtle rounded-lg px-3 py-2 text-sm shrink-0">
-              {CONDITIONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-            </select>
+            <div className="flex items-center gap-1 shrink-0">
+              <select value={g.condition} onChange={(e) => createOrUpdate(g.race_id, e.target.value, g.id)} disabled={busy === g.id || g.status === 'settled'}
+                className="bg-deep-navy border border-border-subtle rounded-lg px-3 py-2 text-sm">
+                {CONDITIONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              </select>
+              <EntryLockCell kind="f1fantasy" id={g.id} value={g.entry_lock_at} onSaved={load} />
+            </div>
           </div>
         ))}
       </div>

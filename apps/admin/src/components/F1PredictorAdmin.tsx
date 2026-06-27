@@ -3,13 +3,14 @@ import { Crosshair, Save, Plus, Trash2, Crown, Flag } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { Spinner, EmptyState } from '../components/ui/States';
 import { toast } from '../components/ui/Toast';
+import { EntryLockCell } from './EntryLockCell';
 
 interface Gp { id: number; name: string; round: number | null; race_at: string | null }
-interface SeasonGame { id: string; name: string; season: number | null; status: string; lock_at: string | null; is_active: boolean; rewards: { upto: number; coins: number }[] }
+interface SeasonGame { id: string; name: string; season: number | null; status: string; lock_at: string | null; is_active: boolean; rewards: { upto: number; coins: number }[]; entry_lock_at?: string | null }
 interface PredGame {
   id: string; name: string; race_ids: number[]; status: string; entry_cost: number;
   scoring: Record<string, number>; rewards: { upto: number; coins: number }[];
-  is_active: boolean;
+  is_active: boolean; entry_lock_at?: string | null;
 }
 const SCORE_FIELDS: [string, string][] = [
   ['pole', 'Pole'], ['winner', 'Winner'], ['top5_exact', 'Top5 exact'],
@@ -37,9 +38,9 @@ export function F1PredictorAdmin() {
   const load = async () => {
     setLoading(true);
     const [{ data: g }, { data: races }, { data: sg }] = await Promise.all([
-      supabase.from('f1_pred_games').select('id,name,race_ids,status,entry_cost,scoring,rewards,is_active').eq('kind', 'gp').order('created_at', { ascending: false }),
+      supabase.from('f1_pred_games').select('id,name,race_ids,status,entry_cost,scoring,rewards,is_active,entry_lock_at').eq('kind', 'gp').order('created_at', { ascending: false }),
       supabase.from('f1_races').select('id,name,round,race_at').neq('status', 'Cancelled').gt('race_at', new Date().toISOString()).order('race_at'),
-      supabase.from('f1_pred_games').select('id,name,season,status,lock_at,is_active,rewards').eq('kind', 'season').order('created_at', { ascending: false }),
+      supabase.from('f1_pred_games').select('id,name,season,status,lock_at,is_active,rewards,entry_lock_at').eq('kind', 'season').order('created_at', { ascending: false }),
     ]);
     const rows = (g ?? []) as any as PredGame[];
     setGames(rows);
@@ -135,12 +136,15 @@ export function F1PredictorAdmin() {
               <div className="font-semibold flex items-center gap-2"><Flag className="w-4 h-4 text-warm-yellow" /> {g.name} <span className="text-text-secondary font-normal">· {g.season}</span></div>
               <div className="text-xs text-text-secondary mt-0.5">status {g.status}{g.lock_at ? ` · locks ${new Date(g.lock_at).toLocaleDateString()}` : ''}</div>
             </div>
-            {g.status !== 'settled' && (
-              <button onClick={() => settleSeason(g)} disabled={sBusy === g.id}
-                className="bg-lime-glow/15 text-lime-glow px-4 py-2 rounded-lg font-semibold hover:bg-lime-glow/25 disabled:opacity-50 shrink-0">
-                {sBusy === g.id ? 'Settling…' : 'Settle from standings'}
-              </button>
-            )}
+            <div className="flex items-center gap-2 shrink-0">
+              {g.status !== 'settled' && (
+                <button onClick={() => settleSeason(g)} disabled={sBusy === g.id}
+                  className="bg-lime-glow/15 text-lime-glow px-4 py-2 rounded-lg font-semibold hover:bg-lime-glow/25 disabled:opacity-50">
+                  {sBusy === g.id ? 'Settling…' : 'Settle from standings'}
+                </button>
+              )}
+              <EntryLockCell kind="f1pred" id={g.id} value={g.entry_lock_at} onSaved={load} />
+            </div>
           </div>
         ))}
       </div>
@@ -183,9 +187,12 @@ export function F1PredictorAdmin() {
                   <div className="font-semibold flex items-center gap-2"><Crosshair className="w-4 h-4 text-neon-cyan" /> {g.name}</div>
                   <div className="text-xs text-text-secondary mt-0.5">{g.race_ids?.length ?? 0} GP · status {g.status}</div>
                 </div>
-                <label className="flex items-center gap-2 text-xs text-text-secondary shrink-0">
-                  <input type="checkbox" checked={d.active} onChange={(e) => patch(g.id, (x) => { x.active = e.target.checked; })} /> Active
-                </label>
+                <div className="flex items-center gap-2 shrink-0">
+                  <label className="flex items-center gap-2 text-xs text-text-secondary">
+                    <input type="checkbox" checked={d.active} onChange={(e) => patch(g.id, (x) => { x.active = e.target.checked; })} /> Active
+                  </label>
+                  <EntryLockCell kind="f1pred" id={g.id} value={g.entry_lock_at} onSaved={load} />
+                </div>
               </div>
 
               {/* Scoring */}

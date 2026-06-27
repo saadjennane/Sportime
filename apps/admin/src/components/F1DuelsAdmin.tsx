@@ -3,6 +3,7 @@ import { Swords, Save, Plus } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { Spinner, EmptyState } from '../components/ui/States';
 import { toast } from '../components/ui/Toast';
+import { EntryLockCell } from './EntryLockCell';
 
 interface Gp { id: number; name: string; round: number | null; race_at: string | null }
 
@@ -10,6 +11,7 @@ interface DuelGame {
   id: string;
   race_id: number;
   status: string;
+  entry_lock_at?: string | null;
   entry_cost: number;
   rewards: Record<string, number>;
   upset_bonus: number;
@@ -33,7 +35,7 @@ export function F1DuelsAdmin() {
     setLoading(true);
     const { data } = await supabase
       .from('f1_duel_games')
-      .select('id,race_id,status,entry_cost,rewards,upset_bonus,pairs,is_active,race:f1_races(name,round,race_at)')
+      .select('id,race_id,status,entry_cost,rewards,upset_bonus,pairs,is_active,entry_lock_at,race:f1_races(name,round,race_at)')
       .neq('status', 'settled')
       .order('race_id');
     const rows = (data ?? []) as any as DuelGame[];
@@ -137,10 +139,13 @@ export function F1DuelsAdmin() {
                     {g.pairs?.length ?? 0} duels · status {g.status} · {g.race?.race_at ? new Date(g.race.race_at).toLocaleDateString() : ''}
                   </div>
                 </div>
-                <label className="flex items-center gap-2 text-xs text-text-secondary shrink-0">
-                  <input type="checkbox" checked={d.active} onChange={(e) => patch(g.id, (x) => { x.active = e.target.checked; })} />
-                  Active
-                </label>
+                <div className="flex items-center gap-2 shrink-0">
+                  <label className="flex items-center gap-2 text-xs text-text-secondary">
+                    <input type="checkbox" checked={d.active} onChange={(e) => patch(g.id, (x) => { x.active = e.target.checked; })} />
+                    Active
+                  </label>
+                  <EntryLockCell kind="f1duel" id={g.id} value={g.entry_lock_at} onSaved={load} />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-end">
