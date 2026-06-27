@@ -13,6 +13,7 @@ import { parseISO } from 'date-fns';
 import { Zap, Clock, Flag, Trophy, Flame, Loader2, Search } from 'lucide-react';
 import { calculateBettingGameState, safeParseISO, parseEndDateLocal, getBettingGameDeadline, calculateGameState, getGameDeadline, areAllMatchesFinished } from '../services/gameStateService';
 import { hasViewedResults, markResultsViewed } from '../services/resultsViewedService';
+import { gameTypeIdentity } from '../components/games/gameTypeIdentity';
 
 export type CtaState = 'JOIN' | 'PLACE_BETS' | 'MAKE_PREDICTIONS' | 'SELECT_TEAM' | 'COMPLETE_TEAM' | 'AWAITING' | 'RESULTS' | 'IN_PROGRESS' | 'LOCKED' | 'INELIGIBLE';
 type GamesTab = 'my-games' | 'browse';
@@ -140,6 +141,15 @@ interface GamesListPageProps {
 
 const GamesListPage: React.FC<GamesListPageProps> = (props) => {
   const { games, userChallengeEntries, userSwipeEntries, userFantasyTeams, joinedGameIds, onJoinChallenge, onViewChallenge, onJoinSwipeGame, onPlaySwipeGame, onViewFantasyGame, onViewTournament, onPlayDuel, onPlayPredictor, onPlayFantasyF1, profile, userTickets, isLoading, onRefresh, onShowLiveGames, pendingInviteGameIds, onReopenInvite, pendingGameIds } = props;
+
+  // Quick type filter (chip row) — applies across both tabs.
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const presentTypes = useMemo(() => {
+    const seen = new Set<string>(); const order: string[] = [];
+    for (const g of games) { if (!seen.has(g.game_type)) { seen.add(g.game_type); order.push(g.game_type); } }
+    return order;
+  }, [games]);
+  const matchesType = (g: SportimeGame) => typeFilter === 'all' || g.game_type === typeFilter;
 
   const [activeTab, setActiveTab] = useState<GamesTab>('my-games');
   const tabTouched = React.useRef(false);
@@ -494,6 +504,32 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
         )}
       </div>
 
+      {/* Type filter chips — differentiate & filter game types */}
+      {presentTypes.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+          <button
+            onClick={() => setTypeFilter('all')}
+            className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${typeFilter === 'all' ? 'bg-electric-blue text-white border-transparent' : 'border-white/10 text-text-secondary'}`}
+          >
+            All
+          </button>
+          {presentTypes.map(t => {
+            const id = gameTypeIdentity(t);
+            const I = id.Icon;
+            const active = typeFilter === t;
+            return (
+              <button
+                key={t}
+                onClick={() => setTypeFilter(active ? 'all' : t)}
+                className={`flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${active ? `${id.chip} border-transparent` : 'border-white/10 text-text-secondary'}`}
+              >
+                <I size={13} /> {id.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {isLoading && games.length === 0 ? (
         <div className="flex justify-center py-16"><Loader2 className="animate-spin text-electric-blue" size={32} /></div>
       ) : (
@@ -511,42 +547,42 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
         <>
           <GameSection
             title="Play Now"
-            count={playNowGames.length}
+            count={playNowGames.filter(matchesType).length}
             icon={<Zap />}
             colorClass="text-lime-glow"
             defaultOpen={true}
           >
-            {playNowGames.map(game => renderGameCard(game, true))}
+            {playNowGames.filter(matchesType).map(game => renderGameCard(game, true))}
           </GameSection>
 
           <GameSection
             title="Awaiting Results"
-            count={awaitingGames.length}
+            count={awaitingGames.filter(matchesType).length}
             icon={<Clock />}
             colorClass="text-warm-yellow"
             defaultOpen={true}
           >
-            {awaitingGames.map(game => renderGameCard(game, true))}
+            {awaitingGames.filter(matchesType).map(game => renderGameCard(game, true))}
           </GameSection>
 
           <GameSection
             title="Recently Finished"
-            count={recentlyFinishedGames.length}
+            count={recentlyFinishedGames.filter(matchesType).length}
             icon={<Trophy />}
             colorClass="text-neon-cyan"
             defaultOpen={true}
           >
-            {recentlyFinishedGames.map(game => renderGameCard(game, true))}
+            {recentlyFinishedGames.filter(matchesType).map(game => renderGameCard(game, true))}
           </GameSection>
 
           <GameSection
             title="Past Games"
-            count={pastGamesSection.length}
+            count={pastGamesSection.filter(matchesType).length}
             icon={<Flag />}
             colorClass="text-text-disabled"
             defaultOpen={false}
           >
-            {pastGamesSection.map(game => renderGameCard(game, true))}
+            {pastGamesSection.filter(matchesType).map(game => renderGameCard(game, true))}
           </GameSection>
         </>
         )
@@ -558,14 +594,14 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
           <GamesFilterPanel filters={filters} onFilterChange={setFilters} />
 
           {/* Available Games */}
-          {availableGames.length > 0 ? (
+          {availableGames.filter(matchesType).length > 0 ? (
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-lime-glow px-1">
                 <Zap size={18} />
                 <h2 className="font-bold">Available</h2>
-                <span className="text-xs font-bold bg-lime-glow/15 px-2 py-0.5 rounded-full">{availableGames.length}</span>
+                <span className="text-xs font-bold bg-lime-glow/15 px-2 py-0.5 rounded-full">{availableGames.filter(matchesType).length}</span>
               </div>
-              {availableGames.map(game => renderGameCard(game, false))}
+              {availableGames.filter(matchesType).map(game => renderGameCard(game, false))}
             </div>
           ) : (
             <EmptyState
