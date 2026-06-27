@@ -282,11 +282,11 @@ function App() {
     () => f1Games.filter((g) => f1JoinedIds.has(g.id) && (g.status === 'Upcoming' || g.status === 'Ongoing')).length,
     [f1Games, f1JoinedIds],
   );
-  // F1 "action needed": an upcoming race game the user hasn't played yet (joining = picking).
-  const f1PendingIds = useMemo(
-    () => new Set(f1Games.filter((g) => g.status === 'Upcoming' && !f1JoinedIds.has(g.id)).map((g) => g.id)),
-    [f1Games, f1JoinedIds],
-  );
+  // F1 "action needed" mirrors football: only a game you've JOINED that still needs an
+  // action. F1 entries are atomic (joining = a complete pick set), so a joined game is
+  // never "incomplete" → no pending badge once entered. (Unplayed available races are a
+  // discovery concern, surfaced in Browse — not a red action badge.)
+  const f1PendingIds = useMemo(() => new Set<string>(), []);
   const [duelRace, setDuelRace] = useState<{ id: number; raceAt: string | null; name: string } | null>(null);
   const [predOpen, setPredOpen] = useState<{ id: string; name: string } | null>(null);
   const [seasonOpen, setSeasonOpen] = useState<{ id: string; name: string } | null>(null);
@@ -1836,7 +1836,7 @@ function App() {
           </ErrorBoundary>
         );
       case 'challenges':
-        if (sport === 'f1') return <GamesListPage games={f1Games} userChallengeEntries={[]} userSwipeEntries={[]} userFantasyTeams={[]} onJoinChallenge={() => {}} onViewChallenge={() => {}} onJoinSwipeGame={() => {}} onPlaySwipeGame={() => {}} onViewFantasyGame={() => {}} onViewTournament={() => {}} onPlayDuel={handlePlayDuel} onPlayPredictor={handlePlayPredictor} onPlayFantasyF1={handlePlayFantasyF1} joinedGameIds={f1JoinedIds} myGamesCount={f1MyGamesCount} profile={profile} userTickets={userTickets} isLoading={false} onRefresh={() => { refreshDuels(); refreshPred(); refreshFantasy(); }} />;
+        if (sport === 'f1') return <GamesListPage games={f1Games} userChallengeEntries={[]} userSwipeEntries={[]} userFantasyTeams={[]} onJoinChallenge={() => {}} onViewChallenge={() => {}} onJoinSwipeGame={() => {}} onPlaySwipeGame={() => {}} onViewFantasyGame={() => {}} onViewTournament={() => {}} onPlayDuel={handlePlayDuel} onPlayPredictor={handlePlayPredictor} onPlayFantasyF1={handlePlayFantasyF1} joinedGameIds={f1JoinedIds} myGamesCount={f1MyGamesCount} profile={profile} userTickets={userTickets} isLoading={false} onRefresh={() => { refreshDuels(); refreshPred(); refreshFantasy(); }} pendingGameIds={f1PendingIds} />;
         return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} onViewTournament={handleViewTournament} joinedGameIds={joinedChallengeSet} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} isLoading={challengesLoading} onRefresh={refreshChallenges} onShowLiveGames={() => setShowLiveGames(true)} pendingInviteGameIds={new Set(Object.keys(pendingInvites))} onReopenInvite={reopenInvite} pendingGameIds={pendingGameIds} />;
       case 'squads':
           return <LeaguesListPage
