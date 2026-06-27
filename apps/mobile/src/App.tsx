@@ -638,7 +638,11 @@ function App() {
       return;
     }
 
-    setAuthFlow(isGuest ? 'guest' : 'authenticated');
+    // Resting auth state only — never clobber a transient flow. A guest upgrade calls
+    // updateUser({email}) which fires USER_UPDATED → profile reload → this effect; without
+    // this guard it would reset 'signing_up' to 'guest' and unmount the OTP modal mid-flow.
+    // The transition effect above drives the legitimate exits (→ onboarding / authenticated).
+    setAuthFlow(prev => (prev === 'signing_up' || prev === 'onboarding') ? prev : (isGuest ? 'guest' : 'authenticated'));
 
     initializeUserSpinState(profile.id);
     // Hydrate the store with the REAL spin counts/cooldown (otherwise Profile + Header
