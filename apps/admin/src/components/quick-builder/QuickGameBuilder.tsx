@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { X, ChevronLeft, Check, Target, Hand, Gamepad2, Trophy, Flag, Swords, Crown, Loader2 } from 'lucide-react';
 import {
   listLeaguesFull, searchFixtures, createMatchdayChallenge, setChallengeStatus,
+  createFantasyGame, setFantasyStatus,
 } from '../../services/tournamentAdminService';
 import { listRewardPacks, assignPackToGame } from '../../services/rewardService';
 import F1GameWizard, { type F1Format } from './F1GameWizard';
@@ -19,10 +20,12 @@ const today = () => new Date().toISOString().slice(0, 10);
 const roundShort = (round: string) => { const m = String(round || '').match(/(\d+)\s*$/); return m ? `MD${m[1]}` : (round || 'Round'); };
 const fmtDay = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 
-type Format = 'pickem' | 'swipe';
-const GAME_TYPE: Record<Format, 'betting' | 'prediction'> = { pickem: 'betting', swipe: 'prediction' };
-const TWIN: Record<Format, Format> = { pickem: 'swipe', swipe: 'pickem' };
-const LABEL: Record<Format, string> = { pickem: "Pick'em", swipe: 'Swipe' };
+type Format = 'pickem' | 'swipe' | 'fantasy';
+type TwinFormat = 'pickem' | 'swipe';
+const GAME_TYPE: Record<TwinFormat, 'betting' | 'prediction'> = { pickem: 'betting', swipe: 'prediction' };
+const TWIN: Record<TwinFormat, TwinFormat> = { pickem: 'swipe', swipe: 'pickem' };
+const LABEL: Record<Format, string> = { pickem: "Pick'em", swipe: 'Swipe', fantasy: 'Fantasy' };
+const hasTwin = (f: Format): f is TwinFormat => f === 'pickem' || f === 'swipe';
 
 interface Props { onClose: () => void; onCreated: () => void; flash: (m: string) => void; }
 
@@ -69,7 +72,7 @@ function Launcher({ onPick, onClose }: { onPick: (s: Selection) => void; onClose
           <div className="grid grid-cols-3 gap-3 mb-5">
             <TypeCard icon={<Target size={22} />} title="Pick'em" desc="Predict results of a round" onClick={() => onPick({ sport: 'football', format: 'pickem' })} />
             <TypeCard icon={<Hand size={22} />} title="Swipe" desc="Same matches, swiped" onClick={() => onPick({ sport: 'football', format: 'swipe' })} />
-            <TypeCard icon={<Gamepad2 size={22} />} title="Fantasy" desc="Build a squad" soon />
+            <TypeCard icon={<Gamepad2 size={22} />} title="Fantasy" desc="Build a squad" onClick={() => onPick({ sport: 'football', format: 'fantasy' })} />
           </div>
           <p className="text-xs uppercase tracking-wide text-text-disabled font-semibold mb-2">On a tournament</p>
           <div className="grid grid-cols-3 gap-3">
@@ -187,7 +190,8 @@ function Wizard({ format, onBack, onClose, onCreated, flash }: { format: Format 
     let scope = '…';
     if (sel.length === 1) scope = mode === 'calendar' ? fmtDay(sel[0].date) : roundShort(sel[0].key);
     else if (sel.length > 1) scope = mode === 'calendar' ? `${sel.length} days` : `${sel.length} rounds`;
-    return `${lg} — ${scope}${format === 'swipe' ? ' (Swipe)' : ''}`;
+    const suffix = format === 'swipe' ? ' (Swipe)' : format === 'fantasy' ? ' (Fantasy)' : '';
+    return `${lg} — ${scope}${suffix}`;
   }, [leagues, leagueId, groups, picked, mode, format]);
   useEffect(() => { if (!nameEdited) setName(autoName); }, [autoName, nameEdited]);
 
@@ -209,13 +213,18 @@ function Wizard({ format, onBack, onClose, onCreated, flash }: { format: Format 
   const pack = packs.find(p => p.id === packId);
 
   // ── Create ─────────────────────────────────────────────────────────────────
-  const createOne = async (fmt: Format, publish: 'now' | 'draft') => {
+  const basePayload = (publish: 'now' | 'draft') => ({
+    league_ids: [leagueId], fixture_ids: [...picked], mode,
+    entry_cost: entryCost, min_players: Number(minPlayers) || 0, max_players: Number(maxPlayers) || 0,
+    minimum_level: minLevel, is_visible: publish === 'now', rules_html: null,
+    tier, duration_type: duration, requires_subscription: requiresSub, required_badges: [] as string[],
+  });
+
+  // Pick'em / Swipe (challenges) — supports a twin format.
+  const createChallenge = async (fmt: TwinFormat, publish: 'now' | 'draft') => {
     const payload = {
+      ...basePayload(publish),
       name: fmt === format ? name : name.replace(/ \(Swipe\)$/, '') + (fmt === 'swipe' ? ' (Swipe)' : ''),
-      league_ids: [leagueId], fixture_ids: [...picked], mode,
-      entry_cost: entryCost, min_players: Number(minPlayers) || 0, max_players: Number(maxPlayers) || 0,
-      minimum_level: minLevel, is_visible: publish === 'now', rules_html: null,
-      tier, duration_type: duration, requires_subscription: requiresSub, required_badges: [] as string[],
       game_type: GAME_TYPE[fmt],
     };
     const { data, error } = await createMatchdayChallenge(payload);
@@ -224,15 +233,29 @@ function Wizard({ format, onBack, onClose, onCreated, flash }: { format: Format 
     const id = d.challenge_id as string;
     if (publish === 'now') await setChallengeStatus(id, 'upcoming');
     if (packId) await assignPackToGame(GAME_TYPE[fmt], id, packId, pack?.tiers ?? []);
-    return id;
+  };
+
+  // Fantasy (fantasy_games) — created 'Upcoming'; draft flips status.
+  const createFantasy = async (publish: 'now' | 'draft') => {
+    const { data, error } = await createFantasyGame({ ...basePayload(publish), name });
+    const d = data as any;
+    if (error || !d?.ok) throw new Error(error?.message || d?.error || 'create failed');
+    const id = d.game_id as string;
+    if (publish === 'draft') await setFantasyStatus(id, 'Draft');
+    if (packId) await assignPackToGame('fantasy', id, packId, pack?.tiers ?? []);
   };
 
   const submit = async (publish: 'now' | 'draft') => {
     setSubmitting(true);
     try {
-      await createOne(format, publish);
-      if (alsoCreateTwin) await createOne(TWIN[format], publish);
-      flash(`${LABEL[format]}${alsoCreateTwin ? ` + ${LABEL[TWIN[format]]}` : ''} ${publish === 'now' ? 'published' : 'saved as draft'} ✓`);
+      if (format === 'fantasy') {
+        await createFantasy(publish);
+      } else {
+        await createChallenge(format, publish);
+        if (alsoCreateTwin) await createChallenge(TWIN[format], publish);
+      }
+      const twinNote = format !== 'fantasy' && alsoCreateTwin ? ` + ${LABEL[TWIN[format]]}` : '';
+      flash(`${LABEL[format]}${twinNote} ${publish === 'now' ? 'published' : 'saved as draft'} ✓`);
       onCreated();
     } catch (e: any) {
       flash(`Failed: ${e.message}`);
@@ -384,10 +407,12 @@ function Wizard({ format, onBack, onClose, onCreated, flash }: { format: Format 
             <p className="text-sm text-text-secondary mt-0.5">🎁 {pack?.name ?? 'No reward pack'}</p>
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-text-secondary">
-            <input type="checkbox" checked={alsoCreateTwin} onChange={e => setAlsoCreateTwin(e.target.checked)} />
-            Also create the {LABEL[TWIN[format]]} version (same content)
-          </label>
+          {hasTwin(format) && (
+            <label className="flex items-center gap-2 text-sm text-text-secondary">
+              <input type="checkbox" checked={alsoCreateTwin} onChange={e => setAlsoCreateTwin(e.target.checked)} />
+              Also create the {LABEL[TWIN[format]]} version (same content)
+            </label>
+          )}
 
           <div className="flex justify-end gap-2 pt-1">
             <button disabled={submitting} onClick={() => submit('draft')} className="px-4 py-2 rounded-lg font-semibold bg-surface-hover text-text-primary border border-border-subtle disabled:opacity-50">💾 Save Draft</button>
