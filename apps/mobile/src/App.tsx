@@ -282,6 +282,11 @@ function App() {
     () => f1Games.filter((g) => f1JoinedIds.has(g.id) && (g.status === 'Upcoming' || g.status === 'Ongoing')).length,
     [f1Games, f1JoinedIds],
   );
+  // F1 "action needed": an upcoming race game the user hasn't played yet (joining = picking).
+  const f1PendingIds = useMemo(
+    () => new Set(f1Games.filter((g) => g.status === 'Upcoming' && !f1JoinedIds.has(g.id)).map((g) => g.id)),
+    [f1Games, f1JoinedIds],
+  );
   const [duelRace, setDuelRace] = useState<{ id: number; raceAt: string | null; name: string } | null>(null);
   const [predOpen, setPredOpen] = useState<{ id: string; name: string } | null>(null);
   const [seasonOpen, setSeasonOpen] = useState<{ id: string; name: string } | null>(null);
@@ -1984,7 +1989,7 @@ function App() {
 
       {/* Sport universe selector (Football / F1) — CSS-hidden in immersive game view */}
       <div className={`flex-shrink-0 w-full max-w-md mx-auto px-4 pb-2 ${immersiveView ? 'hidden' : ''}`}>
-        <SportSwitcher />
+        <SportSwitcher badges={{ football: pendingGameIds.size, f1: f1PendingIds.size }} />
       </div>
 
       {/* Single scroll region for page content */}
@@ -1997,7 +2002,7 @@ function App() {
       </div>
 
       <div className={immersiveView ? 'hidden' : ''}>
-        <FooterNav activePage={page} onPageChange={handlePageChange} gamesBadge={pendingGameIds.size} />
+        <FooterNav activePage={page} onPageChange={handlePageChange} gamesBadge={sport === 'f1' ? f1PendingIds.size : pendingGameIds.size} />
       </div>
 
       {modalState.match && modalState.prediction && (
