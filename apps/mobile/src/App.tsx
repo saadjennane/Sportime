@@ -12,7 +12,6 @@ import { mockMatches } from './data/mockMatches';
 import { mockChallengeMatches } from './data/mockChallenges';
 import { mockFantasyPlayers } from './data/mockFantasy.tsx';
 import { Match, Bet, UserChallengeEntry, Profile, LevelConfig, Badge, UserBadge, UserFantasyTeam, UserTicket, SportimeGame, SpinTier, SwipeMatchDay, FantasyGame, ActiveSession, ContextualPromptType, DailyChallengeEntry, ChallengeMatch, ChallengeBet, Challenge } from './types';
-const AdminPage = lazy(() => import('./pages/Admin'));
 import GamesListPage from './pages/GamesListPage';
 const ChallengeRoomPage = lazy(() => import('./pages/ChallengeRoomPage'));
 const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage'));
@@ -136,7 +135,7 @@ function createEmptyChallengeEntry(challengeId: string, userId: string, matches:
 }
 
 
-export type Page = 'challenges' | 'matches' | 'profile' | 'admin' | 'squads' | 'funzone';
+export type Page = 'challenges' | 'matches' | 'profile' | 'squads' | 'funzone';
 type AuthFlowState = 'guest' | 'authenticated' | 'signing_up' | 'onboarding';
 
 // Placeholder for F1-specific tabs not built yet (Games / Fan Pulse).
@@ -1838,8 +1837,6 @@ function App() {
       case 'funzone':
         if (sport === 'f1') return <F1FanPulsePage profile={profile} />;
         return <FanPulsePage profile={profile} />;
-      case 'admin':
-        return <AdminPage profile={profile} addToast={addToast} />;
       case 'profile':
         if (profile && !isGuest) {
           // Use Supabase streak data if available, fallback to mock for guests/errors

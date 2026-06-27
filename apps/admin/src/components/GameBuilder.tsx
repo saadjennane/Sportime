@@ -13,6 +13,7 @@ import {
 import { RichText } from './RichText';
 import { Medal, Zap, Repeat, CalendarDays, Trash2 } from 'lucide-react';
 import { RewardPackBuilder } from './RewardPackBuilder';
+import QuickGameBuilder from './quick-builder/QuickGameBuilder';
 import { listRewardPacks, deleteRewardPack, assignPackToGame, distributeRewards } from '../services/rewardService';
 
 const STATUSES = ['draft', 'open', 'running', 'resolved', 'cancelled'];
@@ -72,6 +73,7 @@ export default function GameBuilder() {
   const [rewardPacks, setRewardPacks] = useState<any[]>([]);
   const [editingPack, setEditingPack] = useState<any>(undefined); // undefined=closed, null=new, obj=edit
   const [showPacks, setShowPacks] = useState(false);
+  const [showQuickBuilder, setShowQuickBuilder] = useState(false);
   const [filters, setFilters] = useState({ type: 'all', league: 'all', tier: 'all', duration: 'all', status: 'all' });
   const [views, setViews] = useState<{ name: string; filters: any }[]>(() => { try { return JSON.parse(localStorage.getItem('gb_views') || '[]'); } catch { return []; } });
 
@@ -148,6 +150,7 @@ export default function GameBuilder() {
           : 'All games across every type. Create from a type hub (Tournament Quest, Match Day, Swipe Prediction, Fantasy).'}
         actions={
           <div className="flex flex-wrap gap-2">
+            <button onClick={() => setShowQuickBuilder(true)} className="px-3 py-2 rounded-lg font-semibold text-sm bg-electric-blue text-white">+ New Game</button>
             {focus === 'tq' && (
               <button onClick={() => setCreating(creating === 'tq' ? null : 'tq')}
                 className={`px-3 py-2 rounded-lg font-semibold text-sm ${creating === 'tq' ? 'bg-surface-hover text-text-secondary' : 'bg-electric-blue text-white'}`}>
@@ -165,6 +168,8 @@ export default function GameBuilder() {
         }
       />
       {msg && <div className="bg-electric-blue/10 border border-electric-blue/30 text-electric-blue rounded-lg px-4 py-2 text-sm">{msg}</div>}
+
+      {showQuickBuilder && <QuickGameBuilder onClose={() => setShowQuickBuilder(false)} onCreated={() => { setShowQuickBuilder(false); reload(); }} flash={flash} />}
 
       {showPacks && (
         <div className="bg-surface border border-border-subtle rounded-xl p-4">
