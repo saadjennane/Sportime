@@ -35,7 +35,7 @@ export async function getTournamentCatalogGames(): Promise<any[]> {
   // instead of vanishing from the list.
   const { data, error } = await supabase
     .from('tq_competitions')
-    .select('id, name, start_date, end_date, status, entry_cost')
+    .select('id, name, start_date, end_date, status, entry_cost, entry_lock_at')
     .in('status', ['open', 'running', 'resolved']);
   if (error || !data) return [];
 
@@ -50,6 +50,7 @@ export async function getTournamentCatalogGames(): Promise<any[]> {
   return (data as any[]).map(c => ({
     id: c.id, name: c.name, game_type: 'tournament',
     start_date: c.start_date, end_date: c.end_date,
+    entry_lock_at: c.entry_lock_at ?? undefined,
     entry_cost: c.entry_cost ?? 0, tier: 'amateur',
     status: c.status === 'resolved' ? 'Finished' : 'Open', format: 'tournament',
     sport: 'football', totalPlayers: counts[c.id] ?? 0, participants: [], rewards: [],

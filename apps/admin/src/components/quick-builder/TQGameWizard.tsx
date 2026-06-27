@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { X, ChevronLeft, Loader2 } from 'lucide-react';
-import { createFromLeague, setStatus, listSourceLeagues } from '../../services/tournamentAdminService';
+import { createFromLeague, setStatus, listSourceLeagues, setEntryLock } from '../../services/tournamentAdminService';
 import { listRewardPacks, assignPackToGame } from '../../services/rewardService';
 
 const TIERS: [string, number][] = [['amateur', 2000], ['master', 10000], ['apex', 20000]];
@@ -32,6 +32,7 @@ export default function TQGameWizard({ onBack, onClose, onCreated, flash }: Prop
   const [packTouched, setPackTouched] = useState(false);
   const [opensMode, setOpensMode] = useState<'publish' | 'schedule'>('publish');
   const [opensAt, setOpensAt] = useState('');
+  const [entryLockAt, setEntryLockAt] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [minLevel, setMinLevel] = useState('Rookie');
   const [requiresSub, setRequiresSub] = useState(false);
@@ -71,6 +72,7 @@ export default function TQGameWizard({ onBack, onClose, onCreated, flash }: Prop
       const id = d.competition_id as string;
       if (publish === 'now') await setStatus(id, 'open');
       if (packId) await assignPackToGame('tq', id, packId, pack?.tiers ?? []);
+      if (entryLockAt) await setEntryLock('tq', id, new Date(entryLockAt).toISOString());
       flash(`Tournament Quest ${publish === 'now' ? 'published' : 'saved as draft'} — ${d.groups} groups, ${d.teams} teams ✓`);
       onCreated();
     } catch (e: any) {
@@ -160,6 +162,12 @@ export default function TQGameWizard({ onBack, onClose, onCreated, flash }: Prop
               {opensMode === 'schedule' && <input type="datetime-local" value={opensAt} onChange={e => setOpensAt(e.target.value)} className="inp flex-1" />}
             </div>
           </div>
+
+          <label className="block">
+            <span className="text-sm font-semibold text-text-secondary">🔒 Entry lock override (optional)</span>
+            <input type="datetime-local" value={entryLockAt} onChange={e => setEntryLockAt(e.target.value)} className="inp mt-1" />
+            <p className="text-xs text-text-disabled mt-1">Leave empty to keep entry open until the tournament's natural lock.</p>
+          </label>
 
           <div className="border-t border-border-subtle pt-3">
             <button onClick={() => setShowAdvanced(v => !v)} className="text-sm font-semibold text-text-secondary">{showAdvanced ? '▾' : '▸'} Access conditions (advanced)</button>

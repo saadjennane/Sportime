@@ -16,7 +16,7 @@ export function useDuelCatalog(userId: string | null | undefined) {
   const load = useCallback(async () => {
     const { data } = await supabase
       .from('f1_duel_games')
-      .select('id,race_id,status,entry_cost,rewards,pairs,is_active,race:f1_races(name,round,race_at,status)')
+      .select('id,race_id,status,entry_cost,rewards,pairs,is_active,entry_lock_at,race:f1_races(name,round,race_at,status)')
       .eq('is_active', true)
       .order('race_id');
     const rows = (data ?? []) as any[];
@@ -54,6 +54,7 @@ export function useDuelCatalog(userId: string | null | undefined) {
         rewards: topReward > 0 ? [{ rank: '1', reward: { type: 'coins', amount: topReward } } as any] : [],
         first_kickoff_time: raceAt ?? undefined,
         entry_deadline: raceAt ?? undefined,
+        entry_lock_at: r.entry_lock_at ?? undefined,
       };
     });
 

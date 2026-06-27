@@ -28,6 +28,12 @@ const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const ENTRY_LOCK_BUFFER_MS = 15 * 60 * 1000;
 
 export function calculateEntryDeadline(game: SportimeGame): Date {
+  // Priority 0: explicit admin override always wins.
+  if (game.entry_lock_at) {
+    const override = new Date(game.entry_lock_at);
+    if (!isNaN(override.getTime())) return override;
+  }
+
   // Priority 1: Use first_kickoff_time if available (set by fetchChallengeCatalog)
   if (game.first_kickoff_time) {
     const kickoffDate = new Date(game.first_kickoff_time);

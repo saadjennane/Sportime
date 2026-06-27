@@ -4,6 +4,7 @@ import {
   listUpcomingRaces, createPredGame, setPredConfig, createSeason, createDuel, setDuelConfig, createFantasy,
   DEFAULT_PRED_SCORING, DEFAULT_PRED_REWARDS, DEFAULT_DUEL_REWARDS, type F1Race,
 } from '../../services/f1AdminService';
+import { setEntryLock, type EntryLockKind } from '../../services/tournamentAdminService';
 
 export type F1Format = 'predictor' | 'duels' | 'fantasy' | 'season';
 const LABEL: Record<F1Format, string> = { predictor: 'GP Predictor', duels: 'Teammates Duels', fantasy: 'Fantasy F1', season: 'Season Forecast' };
@@ -38,6 +39,7 @@ export default function F1GameWizard({ format, onBack, onClose, onCreated, flash
   // step 2
   const [entryCost, setEntryCost] = useState(0);
   const [upsetBonus, setUpsetBonus] = useState(25);
+  const [entryLockAt, setEntryLockAt] = useState('');
 
   useEffect(() => {
     if (!needsRaces) return;
@@ -59,21 +61,28 @@ export default function F1GameWizard({ format, onBack, onClose, onCreated, flash
   const submit = async (publish: 'now' | 'draft') => {
     setSubmitting(true);
     try {
+      let createdId: string | null = null;
+      let kind: EntryLockKind = 'f1pred';
       if (format === 'predictor') {
         const { data, error } = await createPredGame(name || 'GP Predictor', [...raceIds]);
         if (error || !data) throw new Error(error?.message || 'create failed');
         await setPredConfig(data as string, { scoring: DEFAULT_PRED_SCORING, rewards: DEFAULT_PRED_REWARDS, entry_cost: entryCost, is_active: publish === 'now' });
+        createdId = data as string; kind = 'f1pred';
       } else if (format === 'duels') {
         const { data, error } = await createDuel(raceId!);
         if (error || !data) throw new Error(error?.message || 'create failed');
         await setDuelConfig(data as string, { rewards: DEFAULT_DUEL_REWARDS, entry_cost: entryCost, is_active: publish === 'now', upset_bonus: upsetBonus });
+        createdId = data as string; kind = 'f1duel';
       } else if (format === 'fantasy') {
-        const { error } = await createFantasy(raceId!, condition);
+        const { data, error } = await createFantasy(raceId!, condition);
         if (error) throw new Error(error.message);
+        createdId = (data as string) ?? null; kind = 'f1fantasy';
       } else {
-        const { error } = await createSeason(name || 'Season Forecast', Math.floor(season), lockAt ? new Date(lockAt).toISOString() : null);
+        const { data, error } = await createSeason(name || 'Season Forecast', Math.floor(season), lockAt ? new Date(lockAt).toISOString() : null);
         if (error) throw new Error(error.message);
+        createdId = (data as string) ?? null; kind = 'f1pred';
       }
+      if (entryLockAt && createdId) await setEntryLock(kind, createdId, new Date(entryLockAt).toISOString());
       flash(`${LABEL[format]} ${hasPublish && publish === 'draft' ? 'saved as draft' : 'created'} ✓`);
       onCreated();
     } catch (e: any) {
@@ -177,6 +186,11 @@ export default function F1GameWizard({ format, onBack, onClose, onCreated, flash
           ) : (
             <p className="text-sm text-text-secondary">No entry cost. This game uses the default scoring & rewards.</p>
           )}
+          <label className="block">
+            <span className="text-sm font-semibold text-text-secondary">🔒 Entry lock override (optional)</span>
+            <input type="datetime-local" value={entryLockAt} onChange={e => setEntryLockAt(e.target.value)} className="inp mt-1" />
+            <p className="text-xs text-text-disabled mt-1">Leave empty to use the race's natural lock (qualifying / start).</p>
+          </label>
           <p className="text-xs text-text-disabled">Default scoring & rewards are applied — fine-tune them later in the F1 admin tab if needed.</p>
           <div className="flex justify-end pt-1">
             <button onClick={() => setStep(3)} className="px-5 py-2 rounded-lg font-semibold bg-electric-blue text-white">Next →</button>

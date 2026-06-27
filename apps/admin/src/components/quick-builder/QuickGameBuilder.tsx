@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { X, ChevronLeft, Check, Target, Hand, Gamepad2, Trophy, Flag, Swords, Crown, Loader2 } from 'lucide-react';
 import {
   listLeaguesFull, searchFixtures, createMatchdayChallenge, setChallengeStatus,
-  createFantasyGame, setFantasyStatus,
+  createFantasyGame, setFantasyStatus, setEntryLock,
 } from '../../services/tournamentAdminService';
 import { listRewardPacks, assignPackToGame } from '../../services/rewardService';
 import F1GameWizard, { type F1Format } from './F1GameWizard';
@@ -141,6 +141,7 @@ function Wizard({ format, onBack, onClose, onCreated, flash }: { format: Format 
   const [requiresSub, setRequiresSub] = useState(false);
   const [minPlayers, setMinPlayers] = useState('');
   const [maxPlayers, setMaxPlayers] = useState('');
+  const [entryLockAt, setEntryLockAt] = useState(''); // datetime-local override (optional)
 
   // step 3
   const [alsoCreateTwin, setAlsoCreateTwin] = useState(false);
@@ -237,6 +238,7 @@ function Wizard({ format, onBack, onClose, onCreated, flash }: { format: Format 
     const id = d.challenge_id as string;
     if (publish === 'now') await setChallengeStatus(id, 'upcoming');
     if (packId) await assignPackToGame(GAME_TYPE[fmt], id, packId, pack?.tiers ?? []);
+    if (entryLockAt) await setEntryLock('challenge', id, new Date(entryLockAt).toISOString());
   };
 
   // Fantasy (fantasy_games) — created 'Upcoming'; draft flips status.
@@ -247,6 +249,7 @@ function Wizard({ format, onBack, onClose, onCreated, flash }: { format: Format 
     const id = d.game_id as string;
     if (publish === 'draft') await setFantasyStatus(id, 'Draft');
     if (packId) await assignPackToGame('fantasy', id, packId, pack?.tiers ?? []);
+    if (entryLockAt) await setEntryLock('fantasy', id, new Date(entryLockAt).toISOString());
   };
 
   const submit = async (publish: 'now' | 'draft') => {
@@ -379,6 +382,12 @@ function Wizard({ format, onBack, onClose, onCreated, flash }: { format: Format 
               {packs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
             {pack && <p className="text-xs text-text-disabled mt-1">{(pack.tiers ?? []).length} bracket(s)</p>}
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-semibold text-text-secondary">🔒 Entry lock override (optional)</span>
+            <input type="datetime-local" value={entryLockAt} onChange={e => setEntryLockAt(e.target.value)} className="inp mt-1" />
+            <p className="text-xs text-text-disabled mt-1">Leave empty to auto-lock 15 min before the first kickoff.</p>
           </label>
 
           <div className="border-t border-border-subtle pt-3">

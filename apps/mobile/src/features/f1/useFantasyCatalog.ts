@@ -19,7 +19,7 @@ export function useFantasyCatalog(userId: string | null | undefined) {
   const load = useCallback(async () => {
     const { data } = await supabase
       .from('f1_fantasy_games')
-      .select('id,condition,status,race:f1_races(name,quali_start_at,race_at,status)')
+      .select('id,condition,status,entry_lock_at,race:f1_races(name,quali_start_at,race_at,status)')
       .eq('is_active', true).order('created_at', { ascending: false });
     const rows = (data ?? []) as any[];
     if (!rows.length) { setGames([]); setJoinedIds(new Set()); return; }
@@ -47,6 +47,7 @@ export function useFantasyCatalog(userId: string | null | undefined) {
         entry_cost: 0, minimum_players: 0, maximum_players: 1_000_000,
         status, totalPlayers: 0, participants: [], rewards: [],
         first_kickoff_time: quali ?? undefined, entry_deadline: quali ?? undefined,
+        entry_lock_at: r.entry_lock_at ?? undefined,
       };
     });
     setGames(mapped);

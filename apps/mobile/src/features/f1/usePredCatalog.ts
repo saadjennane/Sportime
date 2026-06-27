@@ -17,7 +17,7 @@ export function usePredCatalog(userId: string | null | undefined) {
   const load = useCallback(async () => {
     const { data } = await supabase
       .from('f1_pred_games')
-      .select('id,kind,name,race_ids,status,entry_cost,rewards,lock_at')
+      .select('id,kind,name,race_ids,status,entry_cost,rewards,lock_at,entry_lock_at')
       .eq('is_active', true)
       .order('created_at', { ascending: false });
     const all = (data ?? []) as any[];
@@ -67,6 +67,7 @@ export function usePredCatalog(userId: string | null | undefined) {
         rewards: topReward > 0 ? [{ rank: '1', reward: { type: 'coins', amount: topReward } } as any] : [],
         first_kickoff_time: nextQuali ? new Date(nextQuali).toISOString() : undefined,
         entry_deadline: nextQuali ? new Date(nextQuali).toISOString() : undefined,
+        entry_lock_at: r.entry_lock_at ?? undefined,
       };
     });
 
@@ -88,6 +89,7 @@ export function usePredCatalog(userId: string | null | undefined) {
         rewards: topReward > 0 ? [{ rank: '1', reward: { type: 'coins', amount: topReward } } as any] : [],
         first_kickoff_time: r.lock_at ?? undefined,
         entry_deadline: r.lock_at ?? undefined,
+        entry_lock_at: r.entry_lock_at ?? undefined,
       };
     });
 

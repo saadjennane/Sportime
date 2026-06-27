@@ -63,6 +63,12 @@ export async function createFromLeague(p: any) {
   return supabase.functions.invoke('tq-create-from-league', { body: p });
 }
 
+export type EntryLockKind = 'challenge' | 'fantasy' | 'tq' | 'f1pred' | 'f1duel' | 'f1fantasy';
+/** Set (or clear with null) the explicit entry-lock override for any game family. */
+export async function setEntryLock(kind: EntryLockKind, id: string, lock: string | null) {
+  return supabase.rpc('set_entry_lock', { p_kind: kind, p_id: id, p_lock: lock });
+}
+
 /** Backfill an existing competition's content: players (always) + matches (needs league+season). */
 export async function seedContent(competitionId: string, leagueApiId?: number | null, season?: number | null) {
   return supabase.functions.invoke('tq-create-from-league', {
@@ -145,13 +151,13 @@ export async function createFantasyGame(p: any) {
 }
 export async function listChallenges() {
   const { data } = await supabase.from('challenges')
-    .select('id, name, status, start_date, end_date, entry_cost, is_visible, rules, game_type, source_league_id, reward_pack_id')
+    .select('id, name, status, start_date, end_date, entry_cost, is_visible, rules, game_type, source_league_id, reward_pack_id, entry_lock_at')
     .in('game_type', ['betting', 'prediction']).order('created_at', { ascending: false });
   return data ?? [];
 }
 export async function listFantasyGames() {
   const { data } = await supabase.from('fantasy_games')
-    .select('id, name, status, entry_cost, is_visible, min_players, max_players, tier, duration_type, source_league_id, reward_pack_id')
+    .select('id, name, status, entry_cost, is_visible, min_players, max_players, tier, duration_type, source_league_id, reward_pack_id, entry_lock_at')
     .order('created_at', { ascending: false });
   return data ?? [];
 }

@@ -566,6 +566,7 @@ export async function getFantasyCatalogGames(): Promise<any[]> {
       game_type: 'fantasy',
       start_date,
       end_date,
+      entry_lock_at: fg.entry_lock_at ?? undefined,
       entry_cost: fg.entry_cost ?? 0,
       tier: fg.tier ?? 'amateur',
       status: 'Open',
