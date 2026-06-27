@@ -21,15 +21,18 @@ type GamesTab = 'my-games' | 'browse';
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
- * Calculates entry deadline: 30 minutes before the first match
+ * Calculates entry deadline: ENTRY_LOCK_BUFFER_MS before the first match
  * Priority: first_kickoff_time > matches[].kickoffTime > end_date (fallback)
  */
+// Entry closes this long before the first kickoff (was 30 min — reduced to allow later sign-ups).
+const ENTRY_LOCK_BUFFER_MS = 15 * 60 * 1000;
+
 export function calculateEntryDeadline(game: SportimeGame): Date {
   // Priority 1: Use first_kickoff_time if available (set by fetchChallengeCatalog)
   if (game.first_kickoff_time) {
     const kickoffDate = new Date(game.first_kickoff_time);
     if (!isNaN(kickoffDate.getTime())) {
-      return new Date(kickoffDate.getTime() - 30 * 60 * 1000); // 30 minutes before first match
+      return new Date(kickoffDate.getTime() - ENTRY_LOCK_BUFFER_MS);
     }
   }
 
@@ -41,7 +44,7 @@ export function calculateEntryDeadline(game: SportimeGame): Date {
 
     if (kickoffTimes.length > 0) {
       const firstKickoff = Math.min(...kickoffTimes);
-      return new Date(firstKickoff - 30 * 60 * 1000);
+      return new Date(firstKickoff - ENTRY_LOCK_BUFFER_MS);
     }
   }
 
@@ -353,7 +356,7 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
     if (!hasJoined) {
       // Entry deadline determines if registration is open, not start_date
       // A game can have start_date passed (start of the matchday weekend) but still accept entries
-      // until 30 minutes before the first match kickoff (entry deadline)
+      // until ENTRY_LOCK_BUFFER_MS before the first match kickoff (entry deadline)
       if (!entryOpen) {
         return 'LOCKED';
       }

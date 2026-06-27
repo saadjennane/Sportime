@@ -604,7 +604,7 @@ export interface SportimeGame {
   matches?: SwipeMatch[];
   gameWeeks?: FantasyGameWeek[];
   challengeId?: string;
-  entry_deadline?: string; // ISO date, calculated: firstMatchDate - 30min
+  entry_deadline?: string; // ISO date, calculated: firstMatchDate - ENTRY_LOCK_BUFFER (15min)
   first_kickoff_time?: string; // ISO date, earliest match kickoff time
   period_type?: 'matchdays' | 'calendar'; // How to group matches: by championship matchday or calendar date
   // Stats for GameInfoModal
