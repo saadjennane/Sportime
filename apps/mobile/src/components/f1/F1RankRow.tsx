@@ -2,6 +2,16 @@ import React from 'react';
 
 const driverName = (d: any) => d?.abbr || d?.name?.split(' ').slice(-1)[0] || '?';
 
+// "Kimi Antonelli" → "K. Antonelli" ; "Gabriel Bortoleto" → "G. Bortoleto".
+// Keeps long surnames intact (no more truncation) while staying compact.
+const shortName = (d: any) => {
+  const full = (d?.name || '').trim();
+  if (!full) return d?.abbr || '?';
+  const parts = full.split(/\s+/);
+  if (parts.length === 1) return parts[0];
+  return `${parts[0][0]}. ${parts[parts.length - 1]}`;
+};
+
 /** One classification line — podium-coloured position, driver photo, full name,
  *  constructor logo (on a light backdrop so dark logos stay visible), time/gap. */
 export const F1RankRow: React.FC<{ row: any; index: number }> = ({ row, index }) => {
@@ -14,7 +24,7 @@ export const F1RankRow: React.FC<{ row: any; index: number }> = ({ row, index })
         ? <img src={row.driver.image} alt="" className="w-11 h-11 rounded-full object-cover bg-navy-accent shrink-0" />
         : <div className="w-11 h-11 rounded-full bg-navy-accent flex items-center justify-center text-xs font-bold text-text-secondary shrink-0">{driverName(row.driver).slice(0, 3)}</div>}
       <div className="min-w-0 flex-1">
-        <div className="text-[15px] font-bold text-text-primary truncate leading-tight">{row.driver?.name || driverName(row.driver)}</div>
+        <div className="text-[15px] font-bold text-text-primary truncate leading-tight">{shortName(row.driver)}</div>
         {row.driver?.number != null && <div className="text-[11px] text-text-secondary tabular-nums">#{row.driver.number}</div>}
       </div>
       {row.team?.logo && <img src={row.team.logo} alt={row.team?.name ?? ''} className="w-7 h-7 object-contain bg-white rounded-md p-0.5 shrink-0" />}
