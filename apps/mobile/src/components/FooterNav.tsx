@@ -6,6 +6,7 @@ import { useSport } from '../contexts/SportContext';
 interface FooterNavProps {
   activePage: Page;
   onPageChange: (page: Page) => void;
+  gamesBadge?: number; // count of games awaiting a user action
 }
 
 const NavItem: React.FC<{
@@ -13,7 +14,13 @@ const NavItem: React.FC<{
   label: string;
   isActive: boolean;
   onClick: () => void;
-}> = ({ icon, label, isActive, onClick }) => {
+  badge?: number;
+}> = ({ icon, label, isActive, onClick, badge }) => {
+  const dot = badge && badge > 0 ? (
+    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-hot-red text-white text-[10px] font-bold leading-none">
+      {badge > 9 ? '9+' : badge}
+    </span>
+  ) : null;
   return (
     <button
       onClick={onClick}
@@ -21,12 +28,12 @@ const NavItem: React.FC<{
     >
       {isActive ? (
         <div className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl border-2 border-electric-blue/50 bg-electric-blue/20">
-          {React.cloneElement(icon as React.ReactElement, { size: 26, className: "text-electric-blue" })}
+          <span className="relative">{React.cloneElement(icon as React.ReactElement, { size: 26, className: "text-electric-blue" })}{dot}</span>
           <span className="text-xs text-electric-blue font-semibold">{label}</span>
         </div>
       ) : (
         <div className="flex flex-col items-center gap-1 text-white/70 font-medium">
-          {React.cloneElement(icon as React.ReactElement, { size: 26 })}
+          <span className="relative">{React.cloneElement(icon as React.ReactElement, { size: 26 })}{dot}</span>
           <span className="text-xs">{label}</span>
         </div>
       )}
@@ -34,7 +41,7 @@ const NavItem: React.FC<{
   );
 };
 
-export const FooterNav: React.FC<FooterNavProps> = ({ activePage, onPageChange }) => {
+export const FooterNav: React.FC<FooterNavProps> = ({ activePage, onPageChange, gamesBadge }) => {
   const { sport } = useSport();
   const isF1 = sport === 'f1';
   return (
@@ -52,6 +59,7 @@ export const FooterNav: React.FC<FooterNavProps> = ({ activePage, onPageChange }
           label={isF1 ? 'F1 Games' : 'Games'}
           isActive={activePage === 'challenges'}
           onClick={() => onPageChange('challenges')}
+          badge={gamesBadge}
         />
         <NavItem
           icon={<Users />}

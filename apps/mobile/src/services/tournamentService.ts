@@ -122,6 +122,22 @@ export async function getMyTournamentEntry(competitionId: string, userId: string
   };
 }
 
+/**
+ * Pending action for a joined Tournament Quest: a still-upcoming match (kickoff in
+ * the future) the user hasn't predicted yet — the recurring, points-rich pick they
+ * might forget. Long-term/group/bracket are one-time and excluded here.
+ */
+export async function tournamentHasPendingPicks(competitionId: string, userId: string, now: number = Date.now()): Promise<boolean> {
+  const [comp, entry] = await Promise.all([
+    getTournament(competitionId),
+    getMyTournamentEntry(competitionId, userId),
+  ]);
+  if (!comp || comp.status === 'resolved') return false;
+  const picked = new Set((entry?.dailyPicks ?? []).map(p => p.match_id));
+  const matches = [...comp.officialMatches, ...comp.knockoutMatches];
+  return matches.some(m => m.start_time && new Date(m.start_time).getTime() > now && !picked.has(m.id));
+}
+
 export async function getTournamentLeaderboard(competitionId: string): Promise<TQLeaderboardRow[]> {
   const { data } = await supabase.from('tq_leaderboard').select('rank, total_score, tiebreak_delta, username, avatar, user_id').eq('competition_id', competitionId).order('rank');
   return (data as any) ?? [];

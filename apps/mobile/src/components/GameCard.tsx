@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { SportimeGame, TournamentType, Profile, UserTicket, GameType, UserChallengeEntry, UserSwipeEntry } from '../types';
 import { format, parseISO, isBefore } from 'date-fns';
-import { Calendar, Coins, Gift, ArrowRight, Clock, Users, Ticket, Star, Trophy, Award, Info, Flame, Lock, CheckCircle2, CircleDot, Target, Layers, Shirt, Zap, Repeat, CalendarDays, Swords, Crosshair } from 'lucide-react';
+import { Calendar, Coins, Gift, ArrowRight, Clock, Users, Ticket, Star, Trophy, Award, Info, Flame, Lock, CheckCircle2, CircleDot, Target, Layers, Shirt, Zap, Repeat, CalendarDays, Swords, Crosshair, AlertCircle } from 'lucide-react';
 import { CtaState, calculateEntryDeadline } from '../pages/GamesListPage';
 import { normalizeTournamentTier } from '../config/constants';
 import { getGameDeadline } from '../services/gameStateService';
@@ -85,6 +85,7 @@ interface GameCardProps {
   userSwipeEntry?: UserSwipeEntry;  // For swipe games
   hasPendingInvite?: boolean;       // a MasterPass +1 slot is still open for this game
   onReopenInvite?: () => void;
+  pendingAction?: boolean;          // user joined but still has a pick/lineup to do before deadline
 }
 
 // =============================================================================
@@ -164,7 +165,7 @@ const durationVisual: Record<string, { Icon: any; label: string }> = {
   season: { Icon: CalendarDays, label: 'Season' },
 };
 
-export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick, onPlay, onShowRewards, onShowInfo, onViewLeaderboard, profile, userTickets, userEntry, userSwipeEntry, hasPendingInvite, onReopenInvite }) => {
+export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick, onPlay, onShowRewards, onShowInfo, onViewLeaderboard, profile, userTickets, userEntry, userSwipeEntry, hasPendingInvite, onReopenInvite, pendingAction }) => {
   // Calculate progress status for the badge
   const progressStatus = useMemo(() => getProgressStatus(game, userEntry, userSwipeEntry), [game, userEntry, userSwipeEntry]);
   const details = gameTypeDetails[game.game_type as keyof typeof gameTypeDetails];
@@ -409,6 +410,13 @@ export const GameCard: React.FC<GameCardProps> = ({ game, ctaState, onJoinClick,
           )}
 
           <div className="flex items-center gap-2">
+            {/* Pending action — joined but a pick/lineup is still due before deadline */}
+            {pendingAction && (
+              <span className="flex items-center gap-1 text-xs font-bold text-hot-red bg-hot-red/15 px-2 py-1 rounded-lg animate-pulse">
+                <AlertCircle size={14} />
+                Action needed
+              </span>
+            )}
             {/* Progress badge — only for fantasy (betting & prediction convey state via the button text) */}
             {['SELECT_TEAM', 'COMPLETE_TEAM'].includes(ctaState) && progressStatus === 'complete' && (
               <span className="flex items-center gap-1 text-xs font-medium text-lime-glow bg-lime-glow/10 px-2 py-1 rounded-lg">

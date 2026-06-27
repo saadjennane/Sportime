@@ -135,10 +135,11 @@ interface GamesListPageProps {
   onShowLiveGames?: () => void;
   pendingInviteGameIds?: Set<string>;
   onReopenInvite?: (gameId: string) => void;
+  pendingGameIds?: Set<string>;     // games with an action due (badge)
 }
 
 const GamesListPage: React.FC<GamesListPageProps> = (props) => {
-  const { games, userChallengeEntries, userSwipeEntries, userFantasyTeams, joinedGameIds, onJoinChallenge, onViewChallenge, onJoinSwipeGame, onPlaySwipeGame, onViewFantasyGame, onViewTournament, onPlayDuel, onPlayPredictor, onPlayFantasyF1, profile, userTickets, isLoading, onRefresh, onShowLiveGames, pendingInviteGameIds, onReopenInvite } = props;
+  const { games, userChallengeEntries, userSwipeEntries, userFantasyTeams, joinedGameIds, onJoinChallenge, onViewChallenge, onJoinSwipeGame, onPlaySwipeGame, onViewFantasyGame, onViewTournament, onPlayDuel, onPlayPredictor, onPlayFantasyF1, profile, userTickets, isLoading, onRefresh, onShowLiveGames, pendingInviteGameIds, onReopenInvite, pendingGameIds } = props;
 
   const [activeTab, setActiveTab] = useState<GamesTab>('my-games');
   const tabTouched = React.useRef(false);
@@ -453,6 +454,7 @@ const GamesListPage: React.FC<GamesListPageProps> = (props) => {
         userSwipeEntry={userSwipeEntry}
         hasPendingInvite={pendingInviteGameIds?.has(game.id)}
         onReopenInvite={() => onReopenInvite?.(game.id)}
+        pendingAction={pendingGameIds?.has(game.id)}
       />
     );
   };

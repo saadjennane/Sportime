@@ -91,6 +91,7 @@ import { ContextualPremiumPrompt } from './components/premium/ContextualPremiumP
 import { useActivityTracker } from './hooks/useActivityTracker';
 import { useAuth } from './contexts/AuthContext';
 import { useChallengesCatalog } from './features/challenges/useChallengesCatalog';
+import { useGamePending } from './features/challenges/useGamePending';
 import { useDuelCatalog, duelRaceId } from './features/f1/useDuelCatalog';
 import { usePredCatalog, predGameId, seasonGameId } from './features/f1/usePredCatalog';
 import { useFantasyCatalog, fantasyGameId } from './features/f1/useFantasyCatalog';
@@ -304,6 +305,9 @@ function App() {
   const userChallengeEntries = shouldUseSupabaseChallenges ? supabaseChallengeEntries : mockUserChallengeEntries;
   const userSwipeEntries = shouldUseSupabaseChallenges ? supabaseSwipeEntries : mockUserSwipeEntries;
   const userFantasyTeams = shouldUseSupabaseChallenges ? supabaseFantasyTeams : mockUserFantasyTeams;
+
+  // Games awaiting a user action (pick/lineup before deadline) → footer + card badges.
+  const pendingGameIds = useGamePending(games, joinedChallengeSet, userChallengeEntries, userSwipeEntries, userFantasyTeams, profile?.id ?? null);
 
   const {
     tickets: supabaseTickets,
@@ -1824,7 +1828,7 @@ function App() {
         );
       case 'challenges':
         if (sport === 'f1') return <GamesListPage games={f1Games} userChallengeEntries={[]} userSwipeEntries={[]} userFantasyTeams={[]} onJoinChallenge={() => {}} onViewChallenge={() => {}} onJoinSwipeGame={() => {}} onPlaySwipeGame={() => {}} onViewFantasyGame={() => {}} onViewTournament={() => {}} onPlayDuel={handlePlayDuel} onPlayPredictor={handlePlayPredictor} onPlayFantasyF1={handlePlayFantasyF1} joinedGameIds={f1JoinedIds} myGamesCount={f1MyGamesCount} profile={profile} userTickets={userTickets} isLoading={false} onRefresh={() => { refreshDuels(); refreshPred(); refreshFantasy(); }} />;
-        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} onViewTournament={handleViewTournament} joinedGameIds={joinedChallengeSet} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} isLoading={challengesLoading} onRefresh={refreshChallenges} onShowLiveGames={() => setShowLiveGames(true)} pendingInviteGameIds={new Set(Object.keys(pendingInvites))} onReopenInvite={reopenInvite} />;
+        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} onViewTournament={handleViewTournament} joinedGameIds={joinedChallengeSet} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} isLoading={challengesLoading} onRefresh={refreshChallenges} onShowLiveGames={() => setShowLiveGames(true)} pendingInviteGameIds={new Set(Object.keys(pendingInvites))} onReopenInvite={reopenInvite} pendingGameIds={pendingGameIds} />;
       case 'squads':
           return <LeaguesListPage
               leagues={realSquads}
@@ -1845,7 +1849,7 @@ function App() {
         }
         return null;
       default:
-        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} onViewTournament={handleViewTournament} joinedGameIds={joinedChallengeSet} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} isLoading={challengesLoading} onRefresh={refreshChallenges} onShowLiveGames={() => setShowLiveGames(true)} pendingInviteGameIds={new Set(Object.keys(pendingInvites))} onReopenInvite={reopenInvite} />;
+        return <GamesListPage games={games} userChallengeEntries={userChallengeEntries} userSwipeEntries={userSwipeEntries} userFantasyTeams={userFantasyTeams} onJoinChallenge={handleJoinChallenge} onViewChallenge={setActiveChallengeId} onJoinSwipeGame={handleJoinSwipeGame} onPlaySwipeGame={handlePlaySwipeGame} onViewFantasyGame={handleViewFantasyGame} onViewTournament={handleViewTournament} joinedGameIds={joinedChallengeSet} myGamesCount={myGamesCount} profile={profile} userTickets={userTickets} isLoading={challengesLoading} onRefresh={refreshChallenges} onShowLiveGames={() => setShowLiveGames(true)} pendingInviteGameIds={new Set(Object.keys(pendingInvites))} onReopenInvite={reopenInvite} pendingGameIds={pendingGameIds} />;
     }
   }
   
@@ -1993,7 +1997,7 @@ function App() {
       </div>
 
       <div className={immersiveView ? 'hidden' : ''}>
-        <FooterNav activePage={page} onPageChange={handlePageChange} />
+        <FooterNav activePage={page} onPageChange={handlePageChange} gamesBadge={pendingGameIds.size} />
       </div>
 
       {modalState.match && modalState.prediction && (
