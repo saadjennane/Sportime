@@ -6,6 +6,7 @@ import {
 } from '../../services/tournamentAdminService';
 import { listRewardPacks, assignPackToGame } from '../../services/rewardService';
 import F1GameWizard, { type F1Format } from './F1GameWizard';
+import TQGameWizard from './TQGameWizard';
 
 // ── Defaults engine ─────────────────────────────────────────────────────────
 const TIERS: [string, number][] = [['amateur', 2000], ['master', 10000], ['apex', 20000]];
@@ -29,19 +30,22 @@ const hasTwin = (f: Format): f is TwinFormat => f === 'pickem' || f === 'swipe';
 
 interface Props { onClose: () => void; onCreated: () => void; flash: (m: string) => void; }
 
-type Selection = { sport: 'football'; format: Format } | { sport: 'f1'; format: F1Format };
+type Selection = { sport: 'football'; format: Format | 'tq' } | { sport: 'f1'; format: F1Format };
 
 export default function QuickGameBuilder({ onClose, onCreated, flash }: Props) {
   const [sel, setSel] = useState<Selection | null>(null);
+  const back = () => setSel(null);
 
   return (
     <div className="fixed inset-0 z-[120] flex items-start justify-center bg-black/60 p-4 overflow-y-auto" onClick={onClose}>
       <div className="bg-surface border border-border-subtle rounded-2xl shadow-2xl w-full max-w-2xl my-8" onClick={e => e.stopPropagation()}>
         {!sel
           ? <Launcher onPick={setSel} onClose={onClose} />
-          : sel.sport === 'football'
-            ? <Wizard key={`fb-${sel.format}`} format={sel.format} onBack={() => setSel(null)} onClose={onClose} onCreated={onCreated} flash={flash} />
-            : <F1GameWizard key={`f1-${sel.format}`} format={sel.format} onBack={() => setSel(null)} onClose={onClose} onCreated={onCreated} flash={flash} />}
+          : sel.sport === 'f1'
+            ? <F1GameWizard key={`f1-${sel.format}`} format={sel.format} onBack={back} onClose={onClose} onCreated={onCreated} flash={flash} />
+            : sel.format === 'tq'
+              ? <TQGameWizard onBack={back} onClose={onClose} onCreated={onCreated} flash={flash} />
+              : <Wizard key={`fb-${sel.format}`} format={sel.format} onBack={back} onClose={onClose} onCreated={onCreated} flash={flash} />}
       </div>
     </div>
   );
@@ -76,7 +80,7 @@ function Launcher({ onPick, onClose }: { onPick: (s: Selection) => void; onClose
           </div>
           <p className="text-xs uppercase tracking-wide text-text-disabled font-semibold mb-2">On a tournament</p>
           <div className="grid grid-cols-3 gap-3">
-            <TypeCard icon={<Trophy size={22} />} title="Tournament Quest" desc="Predict a whole tournament" soon />
+            <TypeCard icon={<Trophy size={22} />} title="Tournament Quest" desc="Predict a whole tournament" onClick={() => onPick({ sport: 'football', format: 'tq' })} />
           </div>
         </>
       ) : (

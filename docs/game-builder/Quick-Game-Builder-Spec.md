@@ -161,7 +161,12 @@ type GameDraft = PickemDraft | SwipeDraft | FantasyDraft | TQDraft;
 
 ## 9. Phasage
 
-1. **Phase 1** — Launcher + wizard **Pick'em** (et Swipe via cross-create) ; moteur de defaults + matrice de coût.
-2. **Phase 2** — **Fantasy** (même wizard, pool auto).
-3. **Phase 3** — **Tournament Quest** (scope compétition + preview structure + barème éditable).
-4. **Phase 4** — **Presets** sauvegardés (création récurrente en <10 s) + extension **F1**.
+1. ✅ **Phase 1** — Launcher + wizard **Pick'em** (+ Swipe via cross-create) ; moteur de defaults + matrice de coût. *(done)*
+2. ✅ **Phase 2** — **Fantasy** football (même wizard, pool auto). *(done)*
+3. ✅ **Phase 3** — **Tournament Quest** (scope compétition + saison, structure auto, barème par défaut). *(done)*
+4. ✅ **F1** — toggle F1 du launcher : GP Predictor, Teammates Duels, Fantasy F1, Season Forecast. *(done)*
+5. ⏳ **Phase 4** — **Presets** sauvegardés (création récurrente en <10 s) + barème TQ éditable in-wizard.
+
+### État au build courant
+Tous les formats sont créables via **+ New Game** (admin) :
+Football → Pick'em · Swipe · Fantasy · Tournament Quest ; F1 → GP Predictor · Teammates Duels · Fantasy F1 · Season Forecast.
