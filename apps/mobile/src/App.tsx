@@ -38,6 +38,7 @@ const TournamentQuestPage = lazy(() => import('./pages/TournamentQuestPage').the
 import { USE_SUPABASE } from './config/env';
 import { OnboardingPage, OnboardingCompletePayload } from './pages/OnboardingPage';
 import { SignUpPromptModal } from './components/SignUpPromptModal';
+import { GuestCtaBar } from './components/GuestCtaBar';
 import { SignUpStep } from './pages/onboarding/SignUpStep';
 import LeaguesListPage from './pages/LeaguesListPage';
 const LeaguePage = lazy(() => import('./pages/LeaguePage'));
@@ -2004,12 +2005,21 @@ function App() {
       <div id="app-scroll" className="flex-1 overflow-y-auto overscroll-y-contain">
         <div className={`w-full max-w-md mx-auto px-4 space-y-4 ${immersiveView
           ? 'pt-[max(0.75rem,env(safe-area-inset-top))] pb-[calc(1.5rem+env(safe-area-inset-bottom))]'
-          : 'pb-[calc(4.5rem+env(safe-area-inset-bottom))]'}`}>
+          : isGuest
+            ? 'pb-[calc(7.5rem+env(safe-area-inset-bottom))]'
+            : 'pb-[calc(4.5rem+env(safe-area-inset-bottom))]'}`}>
           <Suspense fallback={<PageLoader />}>{renderPage()}</Suspense>
         </div>
       </div>
 
       <div className={immersiveView ? 'hidden' : ''}>
+        {isGuest && (
+          <GuestCtaBar
+            coins={profile?.coins_balance ?? 0}
+            tickets={userTickets.filter(t => !t.is_used).length}
+            onCreate={handleTriggerSignUp}
+          />
+        )}
         <FooterNav activePage={page} onPageChange={handlePageChange} gamesBadge={sport === 'f1' ? f1PendingIds.size : pendingGameIds.size} />
       </div>
 
@@ -2069,7 +2079,7 @@ function App() {
         />
       )}
       {joinSwipeGameModalState.isOpen && joinSwipeGameModalState.game && ( <JoinSwipeGameConfirmationModal isOpen={joinSwipeGameModalState.isOpen} onClose={() => setJoinSwipeGameModalState({ isOpen: false, game: null })} onConfirm={handleConfirmJoinSwipeGame} game={joinSwipeGameModalState.game as SwipeMatchDay} userBalance={coinBalance} /> )}
-      <SignUpPromptModal isOpen={showSignUpPrompt} onConfirm={handleStartSignUp} onCancel={() => setShowSignUpPrompt(false)} />
+      <SignUpPromptModal isOpen={showSignUpPrompt} onConfirm={handleStartSignUp} onCancel={() => setShowSignUpPrompt(false)} coins={profile?.coins_balance ?? 0} tickets={userTickets.filter(t => !t.is_used).length} />
       <CreateLeagueModal isOpen={showCreateLeagueModal} onClose={() => setShowCreateLeagueModal(false)} onCreate={handleCreateLeague} />
       
       {modalAction && (
