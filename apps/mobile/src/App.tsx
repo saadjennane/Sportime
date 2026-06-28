@@ -174,6 +174,8 @@ function App() {
   const [pendingSignupEmail, setPendingSignupEmail] = useState<string | null>(null);
   const [pendingSignupMode, setPendingSignupMode] = useState<'upgrade' | 'signin' | null>(null);
   const [showSignUpPrompt, setShowSignUpPrompt] = useState(false);
+  const [signupReason, setSignupReason] = useState<string | null>(null); // contextual headline for the prompt
+  const prevCoinsRef = useRef<number | null>(null);
   const [isTicketWalletOpen, setIsTicketWalletOpen] = useState(false);
   const [spinWheelState, setSpinWheelState] = useState<{ isOpen: boolean; tier: SpinTier | null }>({ isOpen: false, tier: null });
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
@@ -708,11 +710,31 @@ function App() {
     }
   };
 
-  const handleTriggerSignUp = () => {
+  const handleTriggerSignUp = (reason?: string) => {
     if (isGuest) {
+      setSignupReason(reason ?? null);
       setShowSignUpPrompt(true);
     }
   };
+
+  // Contextual trigger: nudge a guest to save right after a meaningful coin gain (a win).
+  // Throttled (≥50 gain, once / 12h, never mid-flow) to avoid nagging.
+  useEffect(() => {
+    if (!isGuest) { prevCoinsRef.current = null; return; }
+    const coins = profile?.coins_balance ?? 0;
+    const prev = prevCoinsRef.current;
+    prevCoinsRef.current = coins;
+    if (prev == null) return;                 // baseline on first read
+    const gain = coins - prev;
+    if (gain < 50) return;                     // only meaningful wins
+    if (showSignUpPrompt || authFlow === 'signing_up' || authFlow === 'onboarding') return;
+    const last = Number(localStorage.getItem('guest_win_prompt_at') || 0);
+    if (Date.now() - last < 12 * 3600 * 1000) return; // 12h cooldown
+    localStorage.setItem('guest_win_prompt_at', String(Date.now()));
+    setSignupReason(`You just won ${gain.toLocaleString()} 🪙 — create your account to keep it.`);
+    setShowSignUpPrompt(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.coins_balance, isGuest]);
 
   const handleStartSignUp = () => {
     setShowSignUpPrompt(false);
@@ -2079,7 +2101,7 @@ function App() {
         />
       )}
       {joinSwipeGameModalState.isOpen && joinSwipeGameModalState.game && ( <JoinSwipeGameConfirmationModal isOpen={joinSwipeGameModalState.isOpen} onClose={() => setJoinSwipeGameModalState({ isOpen: false, game: null })} onConfirm={handleConfirmJoinSwipeGame} game={joinSwipeGameModalState.game as SwipeMatchDay} userBalance={coinBalance} /> )}
-      <SignUpPromptModal isOpen={showSignUpPrompt} onConfirm={handleStartSignUp} onCancel={() => setShowSignUpPrompt(false)} coins={profile?.coins_balance ?? 0} tickets={userTickets.filter(t => !t.is_used).length} />
+      <SignUpPromptModal isOpen={showSignUpPrompt} onConfirm={handleStartSignUp} onCancel={() => { setShowSignUpPrompt(false); setSignupReason(null); }} reason={signupReason} coins={profile?.coins_balance ?? 0} tickets={userTickets.filter(t => !t.is_used).length} />
       <CreateLeagueModal isOpen={showCreateLeagueModal} onClose={() => setShowCreateLeagueModal(false)} onCreate={handleCreateLeague} />
       
       {modalAction && (

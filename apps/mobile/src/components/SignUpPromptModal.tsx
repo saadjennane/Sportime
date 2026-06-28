@@ -7,6 +7,7 @@ interface SignUpPromptModalProps {
   onCancel: () => void;
   coins?: number;   // guest's current balance — shown as "at risk" (loss aversion)
   tickets?: number; // guest's current tickets
+  reason?: string | null; // contextual headline (e.g. "You just won 500 🪙 …")
 }
 
 const BENEFITS: { icon: string; label: string }[] = [
@@ -17,7 +18,7 @@ const BENEFITS: { icon: string; label: string }[] = [
   { icon: '📱', label: 'Access your account on any device' },
 ];
 
-export const SignUpPromptModal: React.FC<SignUpPromptModalProps> = ({ isOpen, onConfirm, onCancel, coins = 0, tickets = 0 }) => {
+export const SignUpPromptModal: React.FC<SignUpPromptModalProps> = ({ isOpen, onConfirm, onCancel, coins = 0, tickets = 0, reason }) => {
   if (!isOpen) return null;
 
   const atRisk = [
@@ -33,8 +34,8 @@ export const SignUpPromptModal: React.FC<SignUpPromptModalProps> = ({ isOpen, on
         </button>
 
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-text-primary">Secure your progress</h2>
-          <p className="text-text-secondary mt-2 text-sm">You're playing as a guest. Create a free account so you don't lose it.</p>
+          <h2 className="text-2xl font-bold text-text-primary">{reason ? 'Nice win! 🎉' : 'Secure your progress'}</h2>
+          <p className="text-text-secondary mt-2 text-sm">{reason ?? "You're playing as a guest. Create a free account so you don't lose it."}</p>
         </div>
 
         {/* Loss-aversion: what's at stake right now */}
