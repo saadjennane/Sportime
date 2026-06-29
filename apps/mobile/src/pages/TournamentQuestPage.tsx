@@ -135,6 +135,10 @@ export const TournamentQuestPage: React.FC<Props> = ({ competitionId, userId, on
     for (const r of comp.format.knockout_rounds) {
       if (!isPhaseOpen(comp, r)) continue;
       for (const m of comp.knockoutMatches.filter(km => km.knockout_round === r)) {
+        // A knockout match that already kicked off (or isn't scheduled) can't be predicted
+        // anymore → don't keep it in the "to predict" badge.
+        const predictable = m.status === 'scheduled' && (m.start_time == null || new Date(m.start_time).getTime() > Date.now());
+        if (!predictable) continue;
         const hasPick = (entry?.bracketPicks ?? []).some(bp => bp.round_key === r && (bp.predicted_winner_team_id === m.team_a?.id || bp.predicted_winner_team_id === m.team_b?.id));
         if (!hasPick) p.bracket++;
       }
@@ -556,8 +560,11 @@ const BracketSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onP
         const matches = matchesOf(round);
         const open = isPhaseOpen(comp, round);
         const weight = comp.config?.scoring?.bracket?.[round];
-        const pickedCount = matches.filter(m => picks[round]?.[m.id]).length;
-        const incomplete = open && pickedCount < matches.length;
+        // Only count matches you can still predict (not started, not resolved) — a tie that
+        // already kicked off must not keep the round flagged as "to predict".
+        const editable = matches.filter(m => m.winner_team_id == null && !(!!m.start_time && new Date(m.start_time).getTime() <= Date.now()));
+        const pickedCount = editable.filter(m => picks[round]?.[m.id]).length;
+        const incomplete = open && pickedCount < editable.length;
         return (
           <div key={round} className="bg-navy-accent rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
@@ -570,9 +577,9 @@ const BracketSection: React.FC<{ comp: TQCompetition; entry: TQEntry | null; onP
               ? <p className="text-xs text-text-disabled">Teams set once the previous round finishes.</p>
               : <div className="space-y-3">
                   {/* Completion counter */}
-                  {open && (
+                  {open && editable.length > 0 && (
                     <p className={`text-[11px] font-semibold ${incomplete ? 'text-warm-yellow' : 'text-lime-glow'}`}>
-                      {pickedCount}/{matches.length} predicted{incomplete ? ' — pick the rest before kick-off' : ' ✓'}
+                      {pickedCount}/{editable.length} predicted{incomplete ? ' — pick the rest before kick-off' : ' ✓'}
                     </p>
                   )}
                   {matches.map(m => {
