@@ -19,6 +19,7 @@ export function usePredGame(gameId: string | null, userId?: string) {
   const [races, setRaces] = useState<PredRace[]>([]);
   const [drivers, setDrivers] = useState<PredDriver[]>([]);
   const [cards, setCards] = useState<Record<number, PredCard>>({}); // race_id → card
+  const [results, setResults] = useState<Record<number, Record<number, number>>>({}); // race_id → driver_id → finishing position
   const [board, setBoard] = useState<PredLeaderRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -41,6 +42,15 @@ export function usePredGame(gameId: string | null, userId?: string) {
     const logo = new Map<number, string | null>((co ?? []).map((c: any) => [c.id, c.logo]));
     setRaces(((rc ?? []) as any[]).sort((a, b) => new Date(a.race_at ?? 0).getTime() - new Date(b.race_at ?? 0).getTime()));
     setDrivers(((dr ?? []) as any[]).map((d) => ({ id: d.id, name: d.name, last_name: d.last_name, image: d.image, number: d.number, team_logo: logo.get(d.constructor_id) ?? null })));
+
+    // Actual finishing positions per race (to show each prediction's real result).
+    const { data: rr } = await supabase.from('f1_results').select('race_id,driver_id,position').in('race_id', g.race_ids ?? []);
+    const resMap: Record<number, Record<number, number>> = {};
+    (rr ?? []).forEach((row: any) => {
+      if (row.position == null) return;
+      (resMap[row.race_id] ??= {})[row.driver_id] = row.position;
+    });
+    setResults(resMap);
 
     if (userId) {
       const { data: p } = await supabase
@@ -65,5 +75,5 @@ export function usePredGame(gameId: string | null, userId?: string) {
     return { ok: true as const };
   }, [gameId, load]);
 
-  return { game, races, drivers, cards, board, loading, savePicks, refresh: load };
+  return { game, races, drivers, cards, results, board, loading, savePicks, refresh: load };
 }

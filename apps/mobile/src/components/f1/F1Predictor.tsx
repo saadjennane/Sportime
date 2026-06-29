@@ -21,7 +21,7 @@ const Avatar: React.FC<{ d?: PredDriver | null; size?: number }> = ({ d, size = 
 
 /** GP Predictor — Pole / Winner / Top 5 (ordered) / Fastest lap / First DNF, per GP. */
 export const F1Predictor: React.FC<{ gameId: string; userId?: string }> = ({ gameId, userId }) => {
-  const { game, races, drivers, cards, board, loading, savePicks } = usePredGame(gameId, userId);
+  const { game, races, drivers, cards, results, board, loading, savePicks } = usePredGame(gameId, userId);
   const [activeRid, setActiveRid] = useState<number | null>(null);
   const [draft, setDraft] = useState<{ pole?: number | null; winner?: number | null; top5: number[]; fastest_lap?: number | null; first_dnf?: number | null; sprint?: number | null }>({ top5: [] });
   const [picker, setPicker] = useState<Field | null>(null);
@@ -65,6 +65,7 @@ export const F1Predictor: React.FC<{ gameId: string; userId?: string }> = ({ gam
 
   const activeRace = races.find((r) => r.id === activeRid) || null;
   const card = activeRid != null ? cards[activeRid] : undefined;
+  const raceResults = activeRid != null ? results[activeRid] : undefined; // driver_id → finishing position
   const qualiLocked = !!activeRace?.quali_start_at && new Date(activeRace.quali_start_at).getTime() <= Date.now();
   const settled = card?.status === 'settled';
   const locked = qualiLocked || settled || game.status === 'settled';
@@ -166,11 +167,23 @@ export const F1Predictor: React.FC<{ gameId: string; userId?: string }> = ({ gam
             </div>
             {[0, 1, 2, 3, 4].map((i) => {
               const d = draft.top5[i] != null ? byId.get(draft.top5[i]) : null;
+              const realP = settled && d ? raceResults?.[d.id] : undefined;
+              const inTop5 = realP != null && realP <= 5;
+              const exact = realP === i + 1;
               return (
                 <button key={i} onClick={() => !locked && setPicker(`top5:${i}` as Field)} disabled={locked}
                   className="w-full flex items-center gap-2 disabled:opacity-100 text-left">
                   <span className="w-5 text-center text-xs font-bold text-text-secondary tabular-nums">P{i + 1}</span>
-                  {d ? <><Avatar d={d} size={28} /><span className="text-sm font-semibold text-text-primary truncate flex-1">{surname(d)}</span>{d.team_logo && <img src={d.team_logo} className="w-4 h-4 object-contain bg-white rounded p-0.5" />}</>
+                  {d ? <>
+                    <Avatar d={d} size={28} />
+                    <span className="text-sm font-semibold text-text-primary truncate flex-1">{surname(d)}</span>
+                    {d.team_logo && <img src={d.team_logo} className="w-4 h-4 object-contain bg-white rounded p-0.5 shrink-0" />}
+                    {settled && (
+                      <span className={`text-[11px] font-bold tabular-nums shrink-0 ${exact ? 'text-lime-glow' : inTop5 ? 'text-warm-yellow' : 'text-hot-red'}`}>
+                        {realP != null ? `→ P${realP}` : '→ —'} {exact ? `+${game.scoring.top5_exact}` : inTop5 ? `+${game.scoring.top5_partial}` : '0'}
+                      </span>
+                    )}
+                  </>
                     : <span className="flex-1 text-sm text-text-disabled">Tap to pick</span>}
                 </button>
               );
