@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Crosshair, Check, Trophy, X, ChevronRight } from 'lucide-react';
+import { Crosshair, Check, Trophy, X, ChevronRight, Info } from 'lucide-react';
 import { usePredGame, type PredDriver } from '../../features/f1/usePredGame';
 import { track } from '../../services/analytics';
 
@@ -27,6 +27,7 @@ export const F1Predictor: React.FC<{ gameId: string; userId?: string }> = ({ gam
   const [picker, setPicker] = useState<Field | null>(null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [showRules, setShowRules] = useState(false);
 
   const byId = useMemo(() => new Map(drivers.map((d) => [d.id, d])), [drivers]);
 
@@ -108,15 +109,10 @@ export const F1Predictor: React.FC<{ gameId: string; userId?: string }> = ({ gam
 
   return (
     <div className="space-y-3">
-      {/* Intro */}
-      <div className="card-base p-4">
-        <div className="flex items-center gap-2 text-neon-cyan font-bold"><Crosshair size={18} /> {game.name}</div>
-        <p className="text-xs text-text-secondary mt-1">Predict each GP before qualifying. Pole <b className="text-text-primary">+{game.scoring.pole}</b> · Winner <b className="text-text-primary">+{game.scoring.winner}</b> · Top 5 <b className="text-text-primary">+{game.scoring.top5_exact}</b>/slot (<b>+{game.scoring.top5_partial}</b> wrong place) · Fastest lap <b className="text-text-primary">+{game.scoring.fastest_lap}</b> · First DNF <b className="text-text-primary">+{game.scoring.first_dnf}</b>{game.scoring.sprint ? <> · Sprint win <b className="text-text-primary">+{game.scoring.sprint}</b> (sprint weekends)</> : null}.</p>
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {game.rewards.map((t, i) => (
-            <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-navy-accent text-text-secondary">≤ rank {t.upto} → <span className="text-warm-yellow font-bold">{t.coins}</span></span>
-          ))}
-        </div>
+      {/* Compact header — details moved into Rules */}
+      <div className="card-base p-3 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-neon-cyan font-bold min-w-0"><Crosshair size={18} className="shrink-0" /> <span className="truncate">{game.name}</span></div>
+        <button onClick={() => setShowRules(true)} className="shrink-0 flex items-center gap-1 text-xs font-semibold text-electric-blue bg-electric-blue/10 px-3 py-1.5 rounded-lg"><Info size={14} /> Rules</button>
       </div>
 
       {/* GP switcher (only if >1) */}
@@ -193,6 +189,52 @@ export const F1Predictor: React.FC<{ gameId: string; userId?: string }> = ({ gam
               <div className="text-sm font-bold text-text-primary tabular-nums w-10 text-right">{r.score}</div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Rules */}
+      {showRules && (
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60" onClick={() => setShowRules(false)}>
+          <div className="w-full max-w-md bg-deep-navy rounded-t-2xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+              <div className="font-bold text-text-primary">How it works</div>
+              <button onClick={() => setShowRules(false)} className="p-1 text-text-secondary"><X size={20} /></button>
+            </div>
+            <div className="overflow-y-auto p-4 space-y-4">
+              <p className="text-sm text-text-secondary">Predict each Grand Prix before qualifying. Points per correct call:</p>
+              <div className="space-y-1.5 text-sm">
+                {[
+                  ['Pole', game.scoring.pole],
+                  ['Winner', game.scoring.winner],
+                  ['Top 5 — per exact slot', game.scoring.top5_exact],
+                  ['Top 5 — right driver, wrong place', game.scoring.top5_partial],
+                  ['Fastest lap', game.scoring.fastest_lap],
+                  ['First DNF', game.scoring.first_dnf],
+                  ...(game.scoring.sprint ? [['Sprint win (sprint weekends)', game.scoring.sprint] as [string, number]] : []),
+                ].map(([label, pts]) => (
+                  <div key={label as string} className="flex items-center justify-between">
+                    <span className="text-text-secondary">{label}</span>
+                    <span className="font-bold text-lime-glow">+{pts}</span>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-text-secondary font-semibold mb-2">Coin rewards — by your final rank</p>
+                <div className="space-y-1.5">
+                  {(() => { let prev = 0; return game.rewards.map((t, i) => {
+                    const from = prev + 1, to = t.upto; prev = t.upto;
+                    const rank = from === to ? `${from}${from === 1 ? 'st' : from === 2 ? 'nd' : from === 3 ? 'rd' : 'th'}` : `${from}–${to}`;
+                    return (
+                      <div key={i} className="flex items-center justify-between text-sm">
+                        <span className="text-text-secondary">{from === 1 ? '🥇 ' : ''}{rank}</span>
+                        <span className="text-warm-yellow font-bold">{t.coins.toLocaleString()} coins</span>
+                      </div>
+                    );
+                  }); })()}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
