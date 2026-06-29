@@ -187,17 +187,26 @@ serve(async (req) => {
           // La fixture n'existe pas - on doit d'abord trouver/créer les équipes
           console.log(`[sync-fixture-schedules] Fixture ${fixtureApiId} doesn't exist in DB`)
 
-          // Récupérer les IDs des équipes depuis fb_teams
+          if (!homeTeamApiId || !awayTeamApiId) {
+            console.log(`[sync-fixture-schedules] Skipping fixture ${fixtureApiId}: TBD team(s)`)
+            continue
+          }
+
+          // Récupérer les IDs des équipes depuis fb_teams. Les équipes peuvent porter
+          // leur id API dans `api_id` OU `api_team_id` selon le chemin d'import — on
+          // matche les DEUX (sinon les inserts de nouvelles fixtures sont skippés à tort).
           const { data: homeTeam } = await supabase
             .from('fb_teams')
             .select('id')
-            .eq('api_team_id', homeTeamApiId)
+            .or(`api_id.eq.${homeTeamApiId},api_team_id.eq.${homeTeamApiId}`)
+            .limit(1)
             .maybeSingle()
 
           const { data: awayTeam } = await supabase
             .from('fb_teams')
             .select('id')
-            .eq('api_team_id', awayTeamApiId)
+            .or(`api_id.eq.${awayTeamApiId},api_team_id.eq.${awayTeamApiId}`)
+            .limit(1)
             .maybeSingle()
 
           if (!homeTeam || !awayTeam) {
@@ -212,6 +221,7 @@ serve(async (req) => {
               api_id: fixtureApiId,
               date: newDate,
               status: newStatus,
+              round: apiFixture.league?.round ?? null,
               league_id: league.id,
               home_team_id: homeTeam.id,
               away_team_id: awayTeam.id,
