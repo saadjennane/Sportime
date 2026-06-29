@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Crosshair, Check, Trophy, X, ChevronRight, Info } from 'lucide-react';
+import { Crosshair, Check, Trophy, X, ChevronRight, Info, Gift } from 'lucide-react';
 import { usePredGame, type PredDriver } from '../../features/f1/usePredGame';
 import { track } from '../../services/analytics';
 
@@ -28,6 +28,8 @@ export const F1Predictor: React.FC<{ gameId: string; userId?: string }> = ({ gam
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [showRules, setShowRules] = useState(false);
+  const [showRewards, setShowRewards] = useState(false);
+  const [showBoard, setShowBoard] = useState(false);
 
   const byId = useMemo(() => new Map(drivers.map((d) => [d.id, d])), [drivers]);
 
@@ -102,17 +104,26 @@ export const F1Predictor: React.FC<{ gameId: string; userId?: string }> = ({ gam
             {d.team_logo && <img src={d.team_logo} alt="" className="w-5 h-5 object-contain bg-white rounded p-0.5" />}
           </div>
         ) : <span className="flex-1 text-sm text-text-disabled">Tap to pick</span>}
-        {pts != null ? <span className="text-xs font-bold text-lime-glow shrink-0">+{pts}</span> : !locked && <ChevronRight size={16} className="text-text-disabled shrink-0" />}
+        {settled ? (
+          value == null ? <span className="text-xs text-text-disabled shrink-0">—</span>
+          : (pts != null && pts > 0)
+            ? <span className="flex items-center gap-1 text-xs font-bold text-lime-glow shrink-0"><Check size={14} /> +{pts}</span>
+            : <span className="flex items-center gap-1 text-xs font-bold text-hot-red shrink-0"><X size={14} /> 0</span>
+        ) : (pts != null ? <span className="text-xs font-bold text-lime-glow shrink-0">+{pts}</span> : !locked && <ChevronRight size={16} className="text-text-disabled shrink-0" />)}
       </button>
     );
   };
 
   return (
     <div className="space-y-3">
-      {/* Compact header — details moved into Rules */}
+      {/* Compact header — details behind buttons */}
       <div className="card-base p-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-neon-cyan font-bold min-w-0"><Crosshair size={18} className="shrink-0" /> <span className="truncate">{game.name}</span></div>
-        <button onClick={() => setShowRules(true)} className="shrink-0 flex items-center gap-1 text-xs font-semibold text-electric-blue bg-electric-blue/10 px-3 py-1.5 rounded-lg"><Info size={14} /> Rules</button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button onClick={() => setShowRules(true)} className="p-2 rounded-lg bg-electric-blue/10 text-electric-blue" aria-label="Rules"><Info size={16} /></button>
+          <button onClick={() => setShowRewards(true)} className="p-2 rounded-lg bg-warm-yellow/15 text-warm-yellow" aria-label="Rewards"><Gift size={16} /></button>
+          <button onClick={() => setShowBoard(true)} className="p-2 rounded-lg bg-navy-accent text-text-secondary" aria-label="Leaderboard"><Trophy size={16} /></button>
+        </div>
       </div>
 
       {/* GP switcher (only if >1) */}
@@ -147,7 +158,11 @@ export const F1Predictor: React.FC<{ gameId: string; userId?: string }> = ({ gam
           <div className="rounded-lg bg-deep-navy border border-disabled p-2 space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="text-[11px] uppercase tracking-wide text-text-secondary">Top 5 (in order)</span>
-              {ptsFor('top5') != null && <span className="text-xs font-bold text-lime-glow">+{ptsFor('top5')}</span>}
+              {settled
+                ? (ptsFor('top5') != null && ptsFor('top5') > 0
+                    ? <span className="flex items-center gap-1 text-xs font-bold text-lime-glow"><Check size={14} /> +{ptsFor('top5')}</span>
+                    : <span className="flex items-center gap-1 text-xs font-bold text-hot-red"><X size={14} /> 0</span>)
+                : ptsFor('top5') != null && <span className="text-xs font-bold text-lime-glow">+{ptsFor('top5')}</span>}
             </div>
             {[0, 1, 2, 3, 4].map((i) => {
               const d = draft.top5[i] != null ? byId.get(draft.top5[i]) : null;
@@ -173,22 +188,6 @@ export const F1Predictor: React.FC<{ gameId: string; userId?: string }> = ({ gam
           )}
           {msg && <div className="text-center text-xs text-text-secondary">{msg}</div>}
           {qualiLocked && !settled && <div className="text-center text-xs text-text-secondary">Locked — qualifying has started.</div>}
-        </div>
-      )}
-
-      {/* Leaderboard */}
-      {board.length > 0 && (
-        <div className="card-base divide-y divide-white/5">
-          <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-text-secondary flex items-center gap-1"><Trophy size={13} className="text-warm-yellow" /> Leaderboard {game.status === 'settled' ? '· final' : '· live'}</div>
-          {board.slice(0, 20).map((r) => (
-            <div key={r.user_id} className={`flex items-center gap-3 px-3 py-2 ${r.user_id === userId ? 'bg-electric-blue/10' : ''}`}>
-              <span className="w-5 text-center font-bold tabular-nums text-sm text-text-secondary">{r.rank}</span>
-              {r.avatar ? <img src={r.avatar} alt="" className="w-7 h-7 rounded-full object-cover bg-navy-accent" /> : <div className="w-7 h-7 rounded-full bg-navy-accent" />}
-              <div className="flex-1 min-w-0 text-sm font-medium text-text-primary truncate">{r.username ?? 'Player'}</div>
-              {game.status === 'settled' && r.reward > 0 && <span className="text-[11px] text-warm-yellow font-bold">+{r.reward}</span>}
-              <div className="text-sm font-bold text-text-primary tabular-nums w-10 text-right">{r.score}</div>
-            </div>
-          ))}
         </div>
       )}
 
@@ -218,21 +217,57 @@ export const F1Predictor: React.FC<{ gameId: string; userId?: string }> = ({ gam
                   </div>
                 ))}
               </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-text-secondary font-semibold mb-2">Coin rewards — by your final rank</p>
-                <div className="space-y-1.5">
-                  {(() => { let prev = 0; return game.rewards.map((t, i) => {
-                    const from = prev + 1, to = t.upto; prev = t.upto;
-                    const rank = from === to ? `${from}${from === 1 ? 'st' : from === 2 ? 'nd' : from === 3 ? 'rd' : 'th'}` : `${from}–${to}`;
-                    return (
-                      <div key={i} className="flex items-center justify-between text-sm">
-                        <span className="text-text-secondary">{from === 1 ? '🥇 ' : ''}{rank}</span>
-                        <span className="text-warm-yellow font-bold">{t.coins.toLocaleString()} coins</span>
-                      </div>
-                    );
-                  }); })()}
-                </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rewards */}
+      {showRewards && (
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60" onClick={() => setShowRewards(false)}>
+          <div className="w-full max-w-md bg-deep-navy rounded-t-2xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+              <div className="font-bold text-text-primary flex items-center gap-2"><Gift size={18} className="text-warm-yellow" /> Coin rewards</div>
+              <button onClick={() => setShowRewards(false)} className="p-1 text-text-secondary"><X size={20} /></button>
+            </div>
+            <div className="overflow-y-auto p-4 space-y-3">
+              <p className="text-sm text-text-secondary">Coins paid out at the end, by your final leaderboard rank:</p>
+              <div className="space-y-1.5">
+                {(() => { let prev = 0; return game.rewards.map((t, i) => {
+                  const from = prev + 1, to = t.upto; prev = t.upto;
+                  const rank = from === to ? `${from}${from === 1 ? 'st' : from === 2 ? 'nd' : from === 3 ? 'rd' : 'th'}` : `${from}–${to}`;
+                  return (
+                    <div key={i} className="flex items-center justify-between text-sm rounded-lg bg-navy-accent px-3 py-2">
+                      <span className="text-text-primary font-semibold">{from === 1 ? '🥇 ' : ''}{rank}</span>
+                      <span className="text-warm-yellow font-bold">{t.coins.toLocaleString()} coins</span>
+                    </div>
+                  );
+                }); })()}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Leaderboard */}
+      {showBoard && (
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60" onClick={() => setShowBoard(false)}>
+          <div className="w-full max-w-md bg-deep-navy rounded-t-2xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+              <div className="font-bold text-text-primary flex items-center gap-2"><Trophy size={18} className="text-warm-yellow" /> Leaderboard {game.status === 'settled' ? '· final' : '· live'}</div>
+              <button onClick={() => setShowBoard(false)} className="p-1 text-text-secondary"><X size={20} /></button>
+            </div>
+            <div className="overflow-y-auto divide-y divide-white/5">
+              {board.length === 0 ? <div className="p-6 text-center text-text-secondary text-sm">No players yet.</div>
+                : board.map((r) => (
+                  <div key={r.user_id} className={`flex items-center gap-3 px-3 py-2 ${r.user_id === userId ? 'bg-electric-blue/10' : ''}`}>
+                    <span className="w-5 text-center font-bold tabular-nums text-sm text-text-secondary">{r.rank}</span>
+                    {r.avatar ? <img src={r.avatar} alt="" className="w-7 h-7 rounded-full object-cover bg-navy-accent" /> : <div className="w-7 h-7 rounded-full bg-navy-accent" />}
+                    <div className="flex-1 min-w-0 text-sm font-medium text-text-primary truncate">{r.username ?? 'Player'}</div>
+                    {game.status === 'settled' && r.reward > 0 && <span className="text-[11px] text-warm-yellow font-bold">+{r.reward}</span>}
+                    <div className="text-sm font-bold text-text-primary tabular-nums w-10 text-right">{r.score}</div>
+                  </div>
+                ))}
             </div>
           </div>
         </div>
