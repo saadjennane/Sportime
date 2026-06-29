@@ -12,9 +12,14 @@ const shortName = (d: any) => {
   return `${parts[0][0]}. ${parts[parts.length - 1]}`;
 };
 
+// F1 points by finishing position (top 10). Fastest-lap bonus not derivable here.
+const F1_POINTS = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
+const pointsFor = (pos: number) => (pos >= 1 && pos <= 10 ? F1_POINTS[pos - 1] : 0);
+
 /** One classification line — podium-coloured position, driver photo, full name,
- *  constructor logo (on a light backdrop so dark logos stay visible), time/gap. */
-export const F1RankRow: React.FC<{ row: any; index: number }> = ({ row, index }) => {
+ *  constructor logo (on a light backdrop so dark logos stay visible), time/gap.
+ *  When `showPoints` (finished race), also shows the championship points earned. */
+export const F1RankRow: React.FC<{ row: any; index: number; showPoints?: boolean }> = ({ row, index, showPoints }) => {
   const pos = row.position ?? index + 1;
   const posColor = pos === 1 ? 'text-warm-yellow' : pos === 2 ? 'text-text-secondary' : pos === 3 ? 'text-[#CD7F32]' : 'text-text-disabled';
   return (
@@ -29,6 +34,11 @@ export const F1RankRow: React.FC<{ row: any; index: number }> = ({ row, index })
       </div>
       {row.team?.logo && <img src={row.team.logo} alt={row.team?.name ?? ''} className="w-7 h-7 object-contain bg-white rounded-md p-0.5 shrink-0" />}
       <span className="text-xs text-text-secondary tabular-nums shrink-0 w-16 text-right">{(row.time && String(row.time)) || row.gap || '—'}</span>
+      {showPoints && (
+        <span className={`text-xs font-bold tabular-nums shrink-0 w-9 text-right ${pointsFor(pos) > 0 ? 'text-lime-glow' : 'text-text-disabled'}`}>
+          {pointsFor(pos) > 0 ? `+${pointsFor(pos)}` : '0'}
+        </span>
+      )}
     </div>
   );
 };

@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Settings, Flag, MapPin, Clock, ListOrdered, History, ChevronRight, ChevronUp, ChevronDown, X } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Flag, MapPin, Clock, ListOrdered, History, ChevronRight, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { useNextGrandPrix, usePastGrandPrix, type GrandPrix } from '../features/f1/useF1';
 import { useRaceBetting, type F1Selection, type F1MarketView } from '../features/f1/useRaceBetting';
@@ -10,6 +10,7 @@ import { F1MarketCard } from '../components/f1/F1MarketCard';
 import { F1BetModal } from '../components/f1/F1BetModal';
 import { F1Sessions } from '../components/f1/F1Sessions';
 import { F1History } from '../components/f1/F1History';
+import { F1Standings } from '../components/f1/F1Standings';
 import { track } from '../services/analytics';
 
 type RaceTab = 'gp' | 'picks' | 'results';
@@ -72,22 +73,18 @@ const RacesPage: React.FC = () => {
   const [picked, setPicked] = useState<{ market: F1MarketView; sel: F1Selection } | null>(null);
   const [sessionsGp, setSessionsGp] = useState<GrandPrix | null>(null);
   const [historyGp, setHistoryGp] = useState<GrandPrix | null>(null);
-  const [showOrder, setShowOrder] = useState(false);
-  const [order, setOrder] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem('f1.marketOrder') || '[]'); } catch { return []; } });
+  const [standings, setStandings] = useState<'drivers' | 'teams' | null>(null);
 
-  // Apply the user's saved market order (unknown markets fall to the end).
-  const orderedMarkets = useMemo(() => {
-    const idx = (k: string) => { const i = order.indexOf(k); return i < 0 ? 999 : i; };
-    return [...markets].sort((a, b) => idx(a.key) - idx(b.key));
-  }, [markets, order]);
-  const moveMarket = (i: number, dir: -1 | 1) => {
-    const keys = orderedMarkets.map((m) => m.key);
-    const j = i + dir;
-    if (j < 0 || j >= keys.length) return;
-    [keys[i], keys[j]] = [keys[j], keys[i]];
-    setOrder(keys);
-    try { localStorage.setItem('f1.marketOrder', JSON.stringify(keys)); } catch { /* ignore */ }
-  };
+  // Results-tab badge: number of settled F1 picks not yet seen (clears on opening Results).
+  const settledCount = useMemo(() => resultGroups.reduce((n, g) => n + g.bets.length, 0), [resultGroups]);
+  const [seenResults, setSeenResults] = useState<number>(() => { try { return Number(localStorage.getItem('f1.resultsSeen') || 0); } catch { return 0; } });
+  useEffect(() => {
+    if (tab === 'results' && settledCount !== seenResults) {
+      setSeenResults(settledCount);
+      try { localStorage.setItem('f1.resultsSeen', String(settledCount)); } catch { /* ignore */ }
+    }
+  }, [tab, settledCount, seenResults]);
+  const resultsBadge = settledCount > seenResults ? settledCount : 0;
 
   const balance = profile?.coins_balance ?? 0;
   const maxBet = useMemo(() => getLevelBetLimit((profile as any)?.level ?? (profile as any)?.current_level), [profile]);
@@ -116,30 +113,32 @@ const RacesPage: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <div className="flex-1 flex bg-navy-accent rounded-xl p-1">
-          {TABS.map((t) => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={`flex-1 p-2 rounded-lg font-semibold transition-all text-sm ${tab === t.key ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'}`}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-        <button onClick={() => setShowOrder(true)} disabled={tab !== 'gp' || orderedMarkets.length === 0}
-          className="p-3 bg-navy-accent rounded-xl text-text-secondary hover:text-electric-blue disabled:opacity-40 disabled:hover:text-text-secondary" aria-label="Reorder markets">
-          <Settings size={20} />
-        </button>
+      <div className="flex bg-navy-accent rounded-xl p-1">
+        {TABS.map((t) => (
+          <button key={t.key} onClick={() => setTab(t.key)}
+            className={`relative flex-1 p-2 rounded-lg font-semibold transition-all text-sm ${tab === t.key ? 'bg-electric-blue text-white shadow' : 'text-text-secondary'}`}>
+            {t.label}
+            {t.key === 'results' && resultsBadge > 0 && (
+              <span className="absolute top-1 right-2 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-hot-red text-white text-[10px] font-bold leading-none">{resultsBadge > 9 ? '9+' : resultsBadge}</span>
+            )}
+          </button>
+        ))}
       </div>
 
       {tab === 'gp' && (
         <>
+          {/* Championship standings */}
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => setStandings('drivers')} className="py-2.5 rounded-xl bg-navy-accent text-sm font-bold text-electric-blue active:scale-[0.99] transition">Drivers</button>
+            <button onClick={() => setStandings('teams')} className="py-2.5 rounded-xl bg-navy-accent text-sm font-bold text-electric-blue active:scale-[0.99] transition">Teams</button>
+          </div>
           <GpHeader gp={gp} loading={gpLoading} onOpenSessions={() => gp && setSessionsGp(gp)} onOpenHistory={() => gp && setHistoryGp(gp)} />
           {loading ? (
-            <div className="card-base p-6 text-center text-text-secondary text-sm">Loading markets…</div>
+            <div className="card-base p-6 text-center text-text-secondary text-sm">Loading picks…</div>
           ) : markets.length === 0 ? (
-            <div className="card-base p-6 text-center text-text-secondary text-sm">No markets open yet for this Grand Prix.</div>
+            <div className="card-base p-6 text-center text-text-secondary text-sm">No picks open yet for this Grand Prix.</div>
           ) : (
-            orderedMarkets.map((m) => <F1MarketCard key={m.key} market={m} bets={bets} betKey={betKey} onPick={(sel) => setPicked({ market: m, sel })} />)
+            markets.map((m) => <F1MarketCard key={m.key} market={m} bets={bets} betKey={betKey} onPick={(sel) => setPicked({ market: m, sel })} />)
           )}
 
           {/* Past Grands Prix — tap to see each weekend's sessions / results */}
@@ -249,29 +248,7 @@ const RacesPage: React.FC = () => {
 
       {sessionsGp && <F1Sessions gp={sessionsGp} onClose={() => setSessionsGp(null)} />}
       {historyGp && <F1History gp={historyGp} onClose={() => setHistoryGp(null)} />}
-
-      {showOrder && (
-        <div className="fixed inset-0 z-[70] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setShowOrder(false)}>
-          <div className="w-full sm:max-w-md bg-deep-navy rounded-t-2xl sm:rounded-2xl border-t sm:border border-white/10 max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-              <div className="font-bold text-text-primary">Reorder markets</div>
-              <button onClick={() => setShowOrder(false)} className="p-1 text-text-secondary"><X size={20} /></button>
-            </div>
-            <div className="p-3 space-y-2 overflow-y-auto">
-              {orderedMarkets.map((m, i) => (
-                <div key={m.key} className="flex items-center gap-3 px-3 py-2.5 card-base">
-                  <span className="w-5 text-text-secondary tabular-nums text-sm">{i + 1}</span>
-                  <span className="flex-1 text-sm font-medium text-text-primary truncate">{m.label}</span>
-                  <button onClick={() => moveMarket(i, -1)} disabled={i === 0}
-                    className="p-1.5 rounded-lg bg-navy-accent text-text-secondary disabled:opacity-30"><ChevronUp size={16} /></button>
-                  <button onClick={() => moveMarket(i, 1)} disabled={i === orderedMarkets.length - 1}
-                    className="p-1.5 rounded-lg bg-navy-accent text-text-secondary disabled:opacity-30"><ChevronDown size={16} /></button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      {standings && <F1Standings type={standings} onClose={() => setStandings(null)} />}
     </div>
   );
 };

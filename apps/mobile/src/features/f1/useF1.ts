@@ -51,7 +51,10 @@ export function usePastGrandPrix(limit = 10) {
   return { gps, loading };
 }
 
-/** The next Grand Prix whose race is still in the future (skips Cancelled). */
+/**
+ * The Grand Prix to feature. Normally the next upcoming race — BUT keep showing the
+ * GP that just finished until the day AFTER its race (no instant jump to the next one).
+ */
 export function useNextGrandPrix() {
   const [gp, setGp] = useState<GrandPrix | null>(null);
   const [loading, setLoading] = useState(true);
@@ -59,16 +62,25 @@ export function useNextGrandPrix() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data } = await supabase
-        .from('f1_races')
-        .select(GP_COLS)
-        .neq('status', 'Cancelled')
-        .gt('race_at', new Date().toISOString())
-        .order('race_at', { ascending: true })
-        .limit(1)
-        .maybeSingle();
+      const nowIso = new Date().toISOString();
+      const [{ data: next }, { data: last }] = await Promise.all([
+        supabase.from('f1_races').select(GP_COLS).neq('status', 'Cancelled')
+          .gt('race_at', nowIso).order('race_at', { ascending: true }).limit(1).maybeSingle(),
+        supabase.from('f1_races').select(GP_COLS).neq('status', 'Cancelled')
+          .lt('race_at', nowIso).order('race_at', { ascending: false }).limit(1).maybeSingle(),
+      ]);
       if (cancelled) return;
-      setGp(data ? mapGp(data) : null);
+
+      // Show the just-finished GP until midnight of its race day (i.e. surface the next
+      // one only "the day after"). After that, fall back to the next upcoming race.
+      let chosen = next ?? null;
+      if (last?.race_at) {
+        const dayAfter = new Date(last.race_at);
+        dayAfter.setHours(0, 0, 0, 0);
+        dayAfter.setDate(dayAfter.getDate() + 1);
+        if (Date.now() < dayAfter.getTime()) chosen = last;
+      }
+      setGp(chosen ? mapGp(chosen) : null);
       setLoading(false);
     })();
     return () => { cancelled = true; };

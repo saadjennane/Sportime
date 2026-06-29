@@ -30,13 +30,25 @@ export const F1Predictor: React.FC<{ gameId: string; userId?: string }> = ({ gam
 
   const byId = useMemo(() => new Map(drivers.map((d) => [d.id, d])), [drivers]);
 
-  useEffect(() => {
-    if (activeRid == null && races.length) {
-      const now = Date.now();
-      const open = races.find((r) => !r.quali_start_at || new Date(r.quali_start_at).getTime() > now);
-      setActiveRid((open ?? races[0]).id);
+  // Only reveal the next race once the current one is finished (settled): show all
+  // finished races + the first not-yet-finished one, and hide everything after it.
+  const visibleRaces = useMemo(() => {
+    const sorted = [...races].sort((a, b) => (a.round ?? a.id) - (b.round ?? b.id));
+    const out: typeof sorted = [];
+    for (const r of sorted) {
+      out.push(r);
+      if (cards[r.id]?.status !== 'settled') break;
     }
-  }, [races, activeRid]);
+    return out;
+  }, [races, cards]);
+
+  useEffect(() => {
+    if (activeRid == null && visibleRaces.length) {
+      const now = Date.now();
+      const open = visibleRaces.find((r) => !r.quali_start_at || new Date(r.quali_start_at).getTime() > now);
+      setActiveRid((open ?? visibleRaces[visibleRaces.length - 1]).id);
+    }
+  }, [visibleRaces, activeRid]);
 
   useEffect(() => {
     if (activeRid == null) return;
@@ -108,9 +120,9 @@ export const F1Predictor: React.FC<{ gameId: string; userId?: string }> = ({ gam
       </div>
 
       {/* GP switcher (only if >1) */}
-      {races.length > 1 && (
+      {visibleRaces.length > 1 && (
         <div className="flex gap-2 overflow-x-auto pb-1">
-          {races.map((r) => {
+          {visibleRaces.map((r) => {
             const c = cards[r.id];
             const done = c?.status === 'settled';
             const hasCard = !!c;

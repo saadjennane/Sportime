@@ -82,7 +82,7 @@ export const F1Sessions: React.FC<{ gp: GrandPrix; onClose: () => void }> = ({ g
                   {up ? <div className="px-2 py-3 text-sm text-text-secondary">Starts {fmt(s.date)}.</div>
                     : rows == null ? <div className="px-2 py-3 text-sm text-text-secondary">Loading…</div>
                       : rows.length === 0 ? <div className="px-2 py-3 text-sm text-text-secondary">No data yet.</div>
-                        : rows.map((row: any, i: number) => <F1RankRow key={i} row={row} index={i} />)}
+                        : rows.map((row: any, i: number) => <F1RankRow key={i} row={row} index={i} showPoints={!up && !isLive && s.type === 'Race'} />)}
                 </div>
               )}
             </div>
