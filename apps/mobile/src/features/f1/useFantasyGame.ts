@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../services/supabase';
+import { mapRewards } from '../../services/rewardMappers';
+import type { GameRewardTier } from '../../types';
 
 export type Cat = 'elite' | 'confirmed' | 'outsider';
 export interface FDriver { id: number; name: string; last_name: string | null; image: string | null; number: number | null; constructor_id: number | null; category: Cat | null }
 export interface FConstructor { id: number; name: string; logo: string | null; category: Cat | null }
 export interface FRule { drivers: { elite: number; confirmed: number; outsider: number } | null; constructor_block?: string | null }
-export interface FGame { id: string; condition: string; rule: FRule; status: string; raceName: string; qualiStartAt: string | null }
+export interface FGame { id: string; condition: string; rule: FRule; status: string; raceName: string; qualiStartAt: string | null; rewards: GameRewardTier[] }
 export interface FRoster {
   drivers: number[]; constructor_id: number | null; captain_driver_id: number | null; flp_driver_id: number | null;
   energy_shots: { type: 'driver' | 'constructor'; id: number }[]; score: number | null; breakdown: any; status: string;
@@ -25,9 +27,9 @@ export function useFantasyGame(gameId: string | null, userId?: string) {
     if (!gameId) { setLoading(false); return; }
     setLoading(true);
     const { data: g } = await supabase
-      .from('f1_fantasy_games').select('id,condition,rule,status,race:f1_races(name,quali_start_at)').eq('id', gameId).maybeSingle();
+      .from('f1_fantasy_games').select('id,condition,rule,status,rewards_json,race:f1_races(name,quali_start_at)').eq('id', gameId).maybeSingle();
     if (!g) { setGame(null); setLoading(false); return; }
-    setGame({ id: g.id, condition: g.condition, rule: (g.rule ?? {}) as FRule, status: g.status, raceName: (g as any).race?.name ?? 'Grand Prix', qualiStartAt: (g as any).race?.quali_start_at ?? null });
+    setGame({ id: g.id, condition: g.condition, rule: (g.rule ?? {}) as FRule, status: g.status, raceName: (g as any).race?.name ?? 'Grand Prix', qualiStartAt: (g as any).race?.quali_start_at ?? null, rewards: mapRewards((g as any).rewards_json) });
 
     const season = '(select max(season) from f1_drivers)';
     const [{ data: dr }, { data: co }] = await Promise.all([

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Crosshair, Check, Trophy, X, ChevronRight, Info, Gift } from 'lucide-react';
+import { Crosshair, Check, Trophy, X, ChevronRight, Gift } from 'lucide-react';
 import { usePredGame, type PredDriver } from '../../features/f1/usePredGame';
+import { GameHeader } from '../games/GameHeader';
 import { track } from '../../services/analytics';
 
 const SUFFIX = new Set(['jr', 'jr.', 'sr', 'sr.', 'ii', 'iii', 'iv', 'v']);
@@ -66,6 +67,7 @@ export const F1Predictor: React.FC<{ gameId: string; userId?: string }> = ({ gam
   const activeRace = races.find((r) => r.id === activeRid) || null;
   const card = activeRid != null ? cards[activeRid] : undefined;
   const raceResults = activeRid != null ? results[activeRid] : undefined; // driver_id → finishing position
+  const me = board.find((r) => r.user_id === userId);
   const qualiLocked = !!activeRace?.quali_start_at && new Date(activeRace.quali_start_at).getTime() <= Date.now();
   const settled = card?.status === 'settled';
   const locked = qualiLocked || settled || game.status === 'settled';
@@ -100,9 +102,9 @@ export const F1Predictor: React.FC<{ gameId: string; userId?: string }> = ({ gam
         <span className="text-[11px] uppercase tracking-wide text-text-secondary w-20 shrink-0">{label}</span>
         {d ? (
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            <Avatar d={d} size={32} />
+            <Avatar d={d} size={44} />
             <span className="text-sm font-bold text-text-primary truncate">{surname(d)}</span>
-            {d.team_logo && <img src={d.team_logo} alt="" className="w-5 h-5 object-contain bg-white rounded p-0.5" />}
+            {d.team_logo && <img src={d.team_logo} alt="" className="w-7 h-7 object-contain bg-white rounded p-0.5" />}
           </div>
         ) : <span className="flex-1 text-sm text-text-disabled">Tap to pick</span>}
         {settled ? (
@@ -117,15 +119,15 @@ export const F1Predictor: React.FC<{ gameId: string; userId?: string }> = ({ gam
 
   return (
     <div className="space-y-3">
-      {/* Compact header — details behind buttons */}
-      <div className="card-base p-3 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-neon-cyan font-bold min-w-0"><Crosshair size={18} className="shrink-0" /> <span className="truncate">{game.name}</span></div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button onClick={() => setShowRules(true)} className="p-2 rounded-lg bg-electric-blue/10 text-electric-blue" aria-label="Rules"><Info size={16} /></button>
-          <button onClick={() => setShowRewards(true)} className="p-2 rounded-lg bg-warm-yellow/15 text-warm-yellow" aria-label="Rewards"><Gift size={16} /></button>
-          <button onClick={() => setShowBoard(true)} className="p-2 rounded-lg bg-navy-accent text-text-secondary" aria-label="Leaderboard"><Trophy size={16} /></button>
-        </div>
-      </div>
+      <GameHeader
+        title={game.name}
+        icon={<Crosshair size={18} className="text-neon-cyan shrink-0" />}
+        onRules={() => setShowRules(true)}
+        onRewards={game.rewards.length ? () => setShowRewards(true) : undefined}
+        onLeaderboard={() => setShowBoard(true)}
+        rank={me?.rank}
+        points={me?.score}
+      />
 
       {/* GP switcher (only if >1) */}
       {visibleRaces.length > 1 && (
@@ -175,9 +177,9 @@ export const F1Predictor: React.FC<{ gameId: string; userId?: string }> = ({ gam
                   className="w-full flex items-center gap-2 disabled:opacity-100 text-left">
                   <span className="w-5 text-center text-xs font-bold text-text-secondary tabular-nums">P{i + 1}</span>
                   {d ? <>
-                    <Avatar d={d} size={28} />
+                    <Avatar d={d} size={40} />
                     <span className="text-sm font-semibold text-text-primary truncate flex-1">{surname(d)}</span>
-                    {d.team_logo && <img src={d.team_logo} className="w-4 h-4 object-contain bg-white rounded p-0.5 shrink-0" />}
+                    {d.team_logo && <img src={d.team_logo} className="w-6 h-6 object-contain bg-white rounded p-0.5 shrink-0" />}
                     {settled && (
                       <span className={`text-[11px] font-bold tabular-nums shrink-0 ${exact ? 'text-lime-glow' : inTop5 ? 'text-warm-yellow' : 'text-hot-red'}`}>
                         {realP != null ? `→ P${realP}` : '→ —'} {exact ? `+${game.scoring.top5_exact}` : inTop5 ? `+${game.scoring.top5_partial}` : '0'}
@@ -300,10 +302,10 @@ export const F1Predictor: React.FC<{ gameId: string; userId?: string }> = ({ gam
                 return (
                   <button key={d.id} onClick={() => !usedInTop5 && pickDriver(d.id)} disabled={usedInTop5}
                     className={`w-full flex items-center gap-3 p-2 rounded-lg text-left ${usedInTop5 ? 'opacity-30' : 'hover:bg-navy-accent'}`}>
-                    <Avatar d={d} size={36} />
+                    <Avatar d={d} size={44} />
                     <span className="text-sm font-semibold text-text-primary flex-1 truncate">{surname(d)}</span>
                     {d.number != null && <span className="text-xs text-text-secondary tabular-nums">#{d.number}</span>}
-                    {d.team_logo && <img src={d.team_logo} alt="" className="w-6 h-6 object-contain bg-white rounded p-0.5" />}
+                    {d.team_logo && <img src={d.team_logo} alt="" className="w-7 h-7 object-contain bg-white rounded p-0.5" />}
                   </button>
                 );
               })}

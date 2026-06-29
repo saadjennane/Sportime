@@ -1948,7 +1948,6 @@ function App() {
       <div className="main-background fixed inset-0 flex flex-col overflow-hidden">
         <div className="flex-shrink-0 w-full max-w-md mx-auto px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 flex items-center gap-2">
           <button onClick={() => { setPredOpen(null); refreshPred(); }} className="px-2 py-1 text-sm font-semibold text-text-secondary">← Back</button>
-          <div className="font-bold text-text-primary truncate">{predOpen.name}</div>
         </div>
         <div className="flex-1 overflow-y-auto w-full max-w-md mx-auto px-4 pb-24">
           <F1Predictor gameId={predOpen.id} userId={profile.id} />

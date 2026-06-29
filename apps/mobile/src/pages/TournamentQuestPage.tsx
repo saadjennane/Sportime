@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Trophy, Lock, Check, X, Clock, Star, Crown, Medal, Loader2, Info } from 'lucide-react';
+import { ArrowLeft, Trophy, Lock, Check, X, Clock, Star, Crown, Medal, Loader2 } from 'lucide-react';
 import { PullToRefresh } from '../components/PullToRefresh';
+import { GameHeader } from '../components/games/GameHeader';
+import { RewardsPreviewModal } from '../components/RewardsPreviewModal';
 import {
   TQCompetition, TQEntry, TQLeaderboardRow, TQTeam, TQMatch, TQDailyPick,
   getTournament, getMyTournamentEntry, getTournamentLeaderboard, isPhaseOpen,
@@ -62,6 +64,7 @@ export const TournamentQuestPage: React.FC<Props> = ({ competitionId, userId, on
   const [loading, setLoading] = useState(true);
   const [lbOpen, setLbOpen] = useState(false);
   const [howOpen, setHowOpen] = useState(false);
+  const [rewardsOpen, setRewardsOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   // Bumped on every reload so the sections (which seed local state from `entry` at
   // mount) remount and reflect server-recomputed picks/points.
@@ -156,23 +159,22 @@ export const TournamentQuestPage: React.FC<Props> = ({ competitionId, userId, on
   }
 
   const total = entry?.total_score ?? 0;
+  const myRank = lb.find((r) => r.user_id === userId)?.rank ?? null;
 
   return (
     <PullToRefresh onRefresh={reload}>
     <div className="min-h-screen bg-deep-navy text-text-primary pb-24">
       {/* Header */}
-      <div className="px-4 pt-4 pb-3 border-b border-white/10 bg-navy-accent">
-        <div className="flex items-center justify-between">
-          <button onClick={onBack} className="flex items-center gap-1 text-text-secondary"><ArrowLeft size={20} /> Back</button>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setHowOpen(true)} aria-label="How it works" className="flex items-center gap-1 px-2.5 py-1.5 bg-deep-navy rounded-lg text-sm font-semibold text-text-secondary"><Info size={16} /> How it works</button>
-            <button onClick={() => setLbOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-deep-navy rounded-lg text-sm font-semibold"><Trophy size={16} className="text-warm-yellow" /> {total} pts</button>
-          </div>
-        </div>
-        <h1 className="text-2xl font-bold mt-2">{comp.name}</h1>
-        <p className="text-xs text-text-secondary">
-          {comp.format.groups_count} groups · {comp.format.knockout_participants} qualify · {comp.format.knockout_rounds.map(r => ROUND_LABEL[r] ?? r).join(' → ')}
-        </p>
+      <div className="px-4 pt-4 pb-3 border-b border-white/10 bg-navy-accent space-y-2">
+        <button onClick={onBack} className="flex items-center gap-1 text-text-secondary text-sm font-semibold"><ArrowLeft size={18} /> Back</button>
+        <GameHeader
+          title={comp.name}
+          onRules={() => setHowOpen(true)}
+          onRewards={comp.rewards?.length ? () => setRewardsOpen(true) : undefined}
+          onLeaderboard={() => setLbOpen(true)}
+          rank={myRank}
+          points={total}
+        />
       </div>
 
       {/* Tabs */}
@@ -225,6 +227,7 @@ export const TournamentQuestPage: React.FC<Props> = ({ competitionId, userId, on
       )}
 
       {howOpen && <HowItWorks onClose={() => setHowOpen(false)} />}
+      <RewardsPreviewModal isOpen={rewardsOpen} onClose={() => setRewardsOpen(false)} game={{ name: comp.name, rewards: comp.rewards } as any} />
     </div>
     </PullToRefresh>
   );

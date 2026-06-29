@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Challenge, ChallengeMatch, UserChallengeEntry, ChallengeBet, BoosterSelection, DailyChallengeEntry, LeaderboardEntry, Profile, UserLeague, LeagueMember, LeagueGame, Game } from '../types';
-import { ArrowLeft, Coins, Trophy, Info, Clock, Lock } from 'lucide-react';
+import { Challenge, ChallengeMatch, UserChallengeEntry, ChallengeBet, BoosterSelection, DailyChallengeEntry, LeaderboardEntry, Profile, UserLeague, LeagueMember, LeagueGame, Game, GameRewardTier } from '../types';
+import { ArrowLeft, Coins, Clock, Lock } from 'lucide-react';
 import { ChallengeBetController } from '../components/ChallengeBetController';
 import { useChallengeLeaderboard } from '../features/challenges/useChallengeLeaderboard';
 import { BoosterSelector } from '../components/BoosterSelector';
@@ -9,6 +9,8 @@ import { MatchDaySwitcher } from '../components/fantasy/MatchDaySwitcher';
 import { addDays, parseISO, isBefore, format } from 'date-fns';
 import { GameInfoModal } from '../components/GameInfoModal';
 import { LinkGameButton } from '../components/leagues/LinkGameButton';
+import { GameHeader } from '../components/games/GameHeader';
+import { RewardsPreviewModal } from '../components/RewardsPreviewModal';
 import { PullToRefresh } from '../components/PullToRefresh';
 
 interface ChallengeRoomPageProps {
@@ -216,6 +218,8 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   const [armingBooster, setArmingBooster] = useState<{ groupKey: string, type: 'x2' | 'x3' } | null>(null);
   const [modalState, setModalState] = useState<{ groupKey: string, type: 'x2' | 'x3' } | null>(null);
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
+  const [isRewardsModalOpen, setIsRewardsModalOpen] = useState(false);
+  const challengeRewards = (challenge as any).rewards as GameRewardTier[] | undefined;
 
   // Countdown calculation for current matchday deadline
   const currentMatchdayDeadline = useMemo(() => {
@@ -463,42 +467,34 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
   return (
     <PullToRefresh onRefresh={async () => { onRefreshMatches?.(); refreshLeaderboard(); }}>
     <div className="space-y-6">
-      {/* Header with Back, Total Points (centered), and Actions — stays fixed on scroll */}
+      {/* Top nav — Back + link-to-league, stays fixed on scroll */}
       <header className="sticky top-0 z-20 -mx-4 px-4 py-3 bg-deep-navy flex items-center justify-between">
         <button onClick={onBack} className="flex items-center gap-2 text-text-secondary font-semibold hover:text-electric-blue">
           <ArrowLeft size={20} /> Back
         </button>
-
-        {/* Total Points - Centered */}
-        <div className="flex items-center gap-1.5 text-lime-glow font-bold">
-          <Trophy size={18} />
-          <span>{challengeTotalPoints.toLocaleString()} pts</span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <LinkGameButton
-            game={challenge}
-            userId={profile.id}
-            userLeagues={userLeagues}
-            leagueMembers={leagueMembers}
-            leagueGames={leagueGames}
-            onLink={onLinkGame}
-            loading={false}
-          />
-          <button onClick={() => setIsInfoModalOpen(true)} className="p-2 bg-navy-accent rounded-lg shadow-sm text-text-secondary hover:text-electric-blue">
-            <Info size={20} />
-          </button>
-          <button onClick={() => onViewLeaderboard(challenge.id)} className="p-2 bg-navy-accent rounded-lg shadow-sm text-text-secondary hover:text-electric-blue">
-            <Trophy size={20} />
-          </button>
-        </div>
+        <LinkGameButton
+          game={challenge}
+          userId={profile.id}
+          userLeagues={userLeagues}
+          leagueMembers={leagueMembers}
+          leagueGames={leagueGames}
+          onLink={onLinkGame}
+          loading={false}
+        />
       </header>
 
-      {/* Challenge Title and Countdown */}
+      {/* Unified game header + countdown */}
       <div>
-        <h2 className="text-2xl font-bold text-text-primary">{challenge.name}</h2>
+        <GameHeader
+          title={challenge.name}
+          onRules={() => setIsInfoModalOpen(true)}
+          onRewards={challengeRewards?.length ? () => setIsRewardsModalOpen(true) : undefined}
+          onLeaderboard={() => onViewLeaderboard(challenge.id)}
+          rank={rank || null}
+          points={challengeTotalPoints}
+        />
         {countdownText && !deadlinePassed && (
-          <div className={`flex items-center gap-1.5 mt-1 ${isUrgent ? 'text-hot-red font-semibold' : 'text-text-secondary'}`}>
+          <div className={`flex items-center gap-1.5 mt-2 px-1 ${isUrgent ? 'text-hot-red font-semibold' : 'text-text-secondary'}`}>
             <Clock size={14} />
             <span className="text-sm">{countdownText}</span>
           </div>
@@ -635,6 +631,7 @@ const ChallengeRoomPage: React.FC<ChallengeRoomPageProps> = (props) => {
         />
       )}
       <GameInfoModal isOpen={isInfoModalOpen} onClose={() => setIsInfoModalOpen(false)} game={challenge} />
+      <RewardsPreviewModal isOpen={isRewardsModalOpen} onClose={() => setIsRewardsModalOpen(false)} game={challenge as any} />
     </div>
     </PullToRefresh>
   );

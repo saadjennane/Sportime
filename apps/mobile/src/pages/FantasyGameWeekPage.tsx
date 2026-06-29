@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { FantasyGame, UserFantasyTeam, FantasyPlayer, PlayerPosition, Booster, Profile, UserLeague, LeagueMember, LeagueGame, Game } from '../../types';
-import { Info, Trophy, X, Check, Target, ArrowLeft, Replace, Trash2, Star } from 'lucide-react';
+import { Info, X, Check, Target, ArrowLeft, Replace, Trash2, Star } from 'lucide-react';
 import { FantasyPlayerModal } from '../components/FantasyPlayerModal';
 import { FantasyPlayerStatsModal } from '../components/fantasy/FantasyPlayerStatsModal';
 import { FantasyLeaderboardModal } from '../components/FantasyLeaderboardModal';
+import { RewardsPreviewModal } from '../components/RewardsPreviewModal';
 import { mockBoosters } from '../data/mockFantasy.tsx';
 import { BoosterSelectionModal } from '../components/BoosterSelectionModal';
 import { FantasyRulesModal } from '../components/FantasyRulesModal';
@@ -16,6 +17,7 @@ import { Bench } from '../components/fantasy/Bench';
 import { MatchDaySwitcher } from '../components/fantasy/MatchDaySwitcher';
 import { LivePointsBreakdown } from '../components/fantasy/LivePointsBreakdown';
 import { LinkGameButton } from '../components/leagues/LinkGameButton';
+import { GameHeader } from '../components/games/GameHeader';
 import { SubstitutionModal } from '../components/fantasy/SubstitutionModal';
 
 interface FantasyGameWeekPageProps {
@@ -48,6 +50,7 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(!!initialLeagueContext);
   const [isBoosterModalOpen, setIsBoosterModalOpen] = useState(false);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
+  const [isRewardsModalOpen, setIsRewardsModalOpen] = useState(false);
   const [selectedForSwap, setSelectedForSwap] = useState<FantasyPlayer | null>(null);
   const [isTeamConfirmed, setIsTeamConfirmed] = useState(false);
   const [substitutingPlayer, setSubstitutingPlayer] = useState<FantasyPlayer | null>(null);
@@ -354,23 +357,21 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
 
   return (
     <div className="space-y-4 pb-28">
-      <button onClick={onBack} className="flex items-center gap-2 text-sm text-text-secondary font-semibold hover:text-electric-blue">
-        <ArrowLeft size={18} />
-        Back
-      </button>
-
-      {/* ... rest of the component ... */}
-      <div className="flex justify-between items-start">
-        <div>
-          <h2 className="text-xl font-bold text-text-primary">{game.name}</h2>
-          <p className="text-sm font-semibold text-text-secondary">{selectedGameWeek.name}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <LinkGameButton game={game} userId={profile.id} userLeagues={userLeagues} leagueMembers={leagueMembers} leagueGames={leagueGames} onLink={onLinkGame} loading={false} />
-          <button onClick={() => setIsRulesModalOpen(true)} className="p-2 bg-navy-accent rounded-lg shadow-sm text-text-secondary hover:text-electric-blue"><Info size={20} /></button>
-          <button onClick={() => setIsLeaderboardOpen(true)} className="p-2 bg-navy-accent rounded-lg shadow-sm text-text-secondary hover:text-electric-blue"><Trophy size={20} /></button>
-        </div>
+      <div className="flex items-center justify-between gap-2">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm text-text-secondary font-semibold hover:text-electric-blue">
+          <ArrowLeft size={18} />
+          Back
+        </button>
+        <LinkGameButton game={game} userId={profile.id} userLeagues={userLeagues} leagueMembers={leagueMembers} leagueGames={leagueGames} onLink={onLinkGame} loading={false} />
       </div>
+
+      <GameHeader
+        title={game.name}
+        onRules={() => setIsRulesModalOpen(true)}
+        onRewards={game.rewards?.length ? () => setIsRewardsModalOpen(true) : undefined}
+        onLeaderboard={() => setIsLeaderboardOpen(true)}
+        points={simulationResult?.teamResult?.totalPoints ?? projectedScore ?? null}
+      />
 
       <div className="-mx-4">
         <MatchDaySwitcher gameWeeks={game.gameWeeks} selectedGameWeekId={selectedMatchDayId} onSelect={setSelectedMatchDayId} />
@@ -460,6 +461,7 @@ export const FantasyGameWeekPage: React.FC<FantasyGameWeekPageProps> = (props) =
       <FantasyLeaderboardModal isOpen={isLeaderboardOpen} onClose={() => setIsLeaderboardOpen(false)} game={game} initialLeagueContext={initialLeagueContext} allUsers={allUsers} userLeagues={userLeagues} leagueMembers={leagueMembers} leagueGames={leagueGames} currentUserId={currentUserId} />
       <BoosterSelectionModal isOpen={isBoosterModalOpen} onClose={() => setIsBoosterModalOpen(false)} boosters={boosters} onSelect={handleBoosterSelect} teamPlayers={starters} />
       <FantasyRulesModal isOpen={isRulesModalOpen} onClose={() => setIsRulesModalOpen(false)} />
+      <RewardsPreviewModal isOpen={isRewardsModalOpen} onClose={() => setIsRewardsModalOpen(false)} game={game as any} />
       {substitutingPlayer && (
         <SubstitutionModal
           isOpen={!!substitutingPlayer}

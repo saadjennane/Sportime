@@ -4,6 +4,14 @@ import { supabase } from '../lib/supabaseClient';
 import { Spinner } from '../components/ui/States';
 import { toast } from '../components/ui/Toast';
 import { EntryLockCell } from './EntryLockCell';
+import { BASE_REWARD_PACKS } from '../config/rewardPacks';
+
+// A Fantasy GP is a single-event (flash) game, so we offer the flash ladders.
+const REWARD_PACKS: [string, string][] = [
+  ['none', 'No rewards'], ['amateur', 'Amateur pack'], ['master', 'Master pack'], ['apex', 'Apex pack'],
+];
+const packPrizes = (key: string) =>
+  key === 'none' ? [] : (BASE_REWARD_PACKS as any)[key]?.flash ?? [];
 
 interface Gp { id: number; name: string; round: number | null; race_at: string | null }
 interface FGame { id: string; race_id: number; condition: string; status: string; entry_lock_at?: string | null; race?: { name: string; round: number | null; race_at: string | null } }
@@ -22,6 +30,7 @@ export function F1FantasyAdmin() {
   const [loading, setLoading] = useState(true);
   const [newGp, setNewGp] = useState<number | null>(null);
   const [newCond, setNewCond] = useState('standard');
+  const [newPack, setNewPack] = useState('none');
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = async () => {
@@ -45,9 +54,12 @@ export function F1FantasyAdmin() {
   };
   useEffect(() => { load(); }, []);
 
-  const createOrUpdate = async (raceId: number, condition: string, key: string) => {
+  const createOrUpdate = async (raceId: number, condition: string, key: string, rewards?: any[]) => {
     setBusy(key);
-    const { error } = await supabase.rpc('f1_fantasy_create_game', { p_race_id: raceId, p_condition: condition });
+    // rewards === undefined → preserve existing ladder (condition-only edit).
+    const params: Record<string, any> = { p_race_id: raceId, p_condition: condition };
+    if (rewards !== undefined) params.p_rewards = rewards;
+    const { error } = await supabase.rpc('f1_fantasy_create_game', params);
     setBusy(null);
     if (error) toast(`Failed: ${error.message}`, 'error');
     else { toast('Saved', 'success'); load(); }
@@ -101,7 +113,10 @@ export function F1FantasyAdmin() {
             <select value={newCond} onChange={(e) => setNewCond(e.target.value)} className="bg-deep-navy border border-border-subtle rounded-lg px-3 py-2 text-sm">
               {CONDITIONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
             </select>
-            <button onClick={() => newGp && createOrUpdate(newGp, newCond, 'new')} disabled={busy === 'new' || !newGp}
+            <select value={newPack} onChange={(e) => setNewPack(e.target.value)} className="bg-deep-navy border border-border-subtle rounded-lg px-3 py-2 text-sm">
+              {REWARD_PACKS.map(([k, l]) => <option key={k} value={k}>🎁 {l}</option>)}
+            </select>
+            <button onClick={() => newGp && createOrUpdate(newGp, newCond, 'new', packPrizes(newPack))} disabled={busy === 'new' || !newGp}
               className="flex items-center gap-2 bg-electric-blue/15 text-electric-blue px-4 py-2 rounded-lg font-semibold hover:bg-electric-blue/25 disabled:opacity-50">
               <Plus size={15} /> Create
             </button>
@@ -120,6 +135,12 @@ export function F1FantasyAdmin() {
               <select value={g.condition} onChange={(e) => createOrUpdate(g.race_id, e.target.value, g.id)} disabled={busy === g.id || g.status === 'settled'}
                 className="bg-deep-navy border border-border-subtle rounded-lg px-3 py-2 text-sm">
                 {CONDITIONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              </select>
+              <select value="keep" onChange={(e) => { if (e.target.value !== 'keep') createOrUpdate(g.race_id, g.condition, g.id, packPrizes(e.target.value)); }}
+                disabled={busy === g.id || g.status === 'settled'} title="Reward pack"
+                className="bg-deep-navy border border-border-subtle rounded-lg px-3 py-2 text-sm">
+                <option value="keep">🎁 Rewards…</option>
+                {REWARD_PACKS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
               </select>
               <EntryLockCell kind="f1fantasy" id={g.id} value={g.entry_lock_at} onSaved={load} />
             </div>

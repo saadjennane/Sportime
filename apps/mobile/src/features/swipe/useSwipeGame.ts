@@ -11,6 +11,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../services/supabase';
 import * as swipeService from '../../services/swipeGameService';
+import { mapRewards } from '../../services/rewardMappers';
 import { fixturesToSwipeMatches, groupFixturesByDate } from './swipeMappers';
 import type { SwipeMatch, SwipeMatchDay } from '../../types';
 import type { ChallengeMatchday } from '../../services/swipeGameService';
@@ -73,7 +74,7 @@ export function useSwipeGame(
         game_type: 'prediction',
         tier: 'free',
         entry_cost: data.entry_cost || 0,
-        rewards: data.prizes || [],
+        rewards: mapRewards(data.prizes),
         matches: [], // Will be populated per matchday
         status: data.status,
       });

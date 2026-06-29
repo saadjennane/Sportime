@@ -10,10 +10,8 @@ import {
   ArrowLeft,
   CheckCircle2,
   XCircle,
-  Trophy,
   Clock,
   ChevronDown,
-  Info,
   Layers,
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -21,7 +19,9 @@ import type { SwipeMatch, SwipePredictionOutcome, Profile, UserLeague, LeagueMem
 import type { ChallengeMatchday, SwipePredictionRecord } from '../../services/swipeGameService';
 import { MatchDaySwitcher } from '../../components/fantasy/MatchDaySwitcher';
 import { GameInfoModal } from '../../components/GameInfoModal';
+import { RewardsPreviewModal } from '../../components/RewardsPreviewModal';
 import { LinkGameButton } from '../../components/leagues/LinkGameButton';
+import { GameHeader } from '../../components/games/GameHeader';
 import { mapPredictionToOutcome, extractMatchdayNumber } from '../../features/swipe/swipeMappers';
 import { SwipeBoosterBar, GameBoosters } from './SwipeBoosterBar';
 
@@ -133,7 +133,9 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
 }) {
   const [isPicksVisible, setIsPicksVisible] = useState(true);
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
+  const [isRewardsModalOpen, setIsRewardsModalOpen] = useState(false);
   const [armedBooster, setArmedBooster] = useState<'x2' | 'x3' | null>(null);
+  const challengeRewards = (challenge as any)?.rewards as { id: string }[] | undefined;
 
   if (!challenge || !currentMatchday) {
     return (
@@ -285,39 +287,24 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
         >
           <ArrowLeft size={20} /> Back
         </button>
-
-        {/* Total Points - Centered */}
-        {challengeTotalPoints !== undefined && (
-          <div className="flex items-center gap-1.5 text-lime-glow font-bold">
-            <Trophy size={18} />
-            <span>{challengeTotalPoints.toLocaleString()} pts</span>
-          </div>
-        )}
-
-        <div className="flex items-center gap-2">
-          <LinkGameButton
-            game={challenge as any}
-            userId={profile.id}
-            userLeagues={userLeagues}
-            leagueMembers={leagueMembers}
-            leagueGames={leagueGames}
-            onLink={onLinkGame}
-            loading={false}
-          />
-          <button
-            onClick={() => setIsInfoModalOpen(true)}
-            className="p-2 bg-navy-accent rounded-lg shadow-sm text-text-secondary hover:text-electric-blue"
-          >
-            <Info size={20} />
-          </button>
-          <button
-            onClick={onViewLeaderboard}
-            className="flex items-center gap-1.5 p-2 bg-navy-accent rounded-lg shadow-sm text-text-secondary hover:text-electric-blue"
-          >
-            <Trophy size={20} />
-          </button>
-        </div>
+        <LinkGameButton
+          game={challenge as any}
+          userId={profile.id}
+          userLeagues={userLeagues}
+          leagueMembers={leagueMembers}
+          leagueGames={leagueGames}
+          onLink={onLinkGame}
+          loading={false}
+        />
       </header>
+
+      <GameHeader
+        title={challenge.name}
+        onRules={() => setIsInfoModalOpen(true)}
+        onRewards={challengeRewards?.length ? () => setIsRewardsModalOpen(true) : undefined}
+        onLeaderboard={onViewLeaderboard}
+        points={challengeTotalPoints ?? null}
+      />
 
       <div className="-mx-4">
         <MatchDaySwitcher
@@ -357,7 +344,7 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
               onClick={() => setIsPicksVisible(!isPicksVisible)}
               className="flex items-center gap-2"
             >
-              <h3 className="text-lg font-bold text-text-primary">{challenge.name}</h3>
+              <h3 className="text-lg font-bold text-text-primary">My picks</h3>
               <ChevronDown
                 className={`w-5 h-5 text-text-secondary transition-transform duration-300 ${
                   isPicksVisible ? 'rotate-180' : ''
@@ -597,6 +584,7 @@ export const SwipeRecapView = memo<SwipeRecapViewProps>(function SwipeRecapView(
       </div>
 
       <GameInfoModal isOpen={isInfoModalOpen} onClose={() => setIsInfoModalOpen(false)} game={challenge} />
+      <RewardsPreviewModal isOpen={isRewardsModalOpen} onClose={() => setIsRewardsModalOpen(false)} game={challenge as any} />
     </div>
   );
 });

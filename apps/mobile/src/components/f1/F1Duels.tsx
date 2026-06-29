@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Swords, Check, X, Crown, Trophy, Layers } from 'lucide-react';
 import { useDuelGame, type DuelLine, type DuelDriver } from '../../features/f1/useDuelGame';
 import { track } from '../../services/analytics';
+import { GameHeader } from '../games/GameHeader';
+import { F1Sheet } from './F1Sheet';
 import { F1DuelSwipe } from './F1DuelSwipe';
 import type { GrandPrix } from '../../features/f1/useF1';
 
@@ -46,6 +48,8 @@ export const F1Duels: React.FC<{ gp: GrandPrix; userId?: string }> = ({ gp, user
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [swipe, setSwipe] = useState(false);
+  const [sheet, setSheet] = useState<null | 'rules' | 'rewards' | 'board'>(null);
+  const me = board.find((r) => r.user_id === userId);
 
   useEffect(() => { setPicks(card?.picks ?? {}); }, [card]);
 
@@ -74,16 +78,15 @@ export const F1Duels: React.FC<{ gp: GrandPrix; userId?: string }> = ({ gp, user
 
   return (
     <div className="space-y-3">
-      {/* Intro */}
-      <div className="card-base p-4">
-        <div className="flex items-center gap-2 text-electric-blue font-bold"><Swords size={18} /> Teammates Duels</div>
-        <p className="text-xs text-text-secondary mt-1">Pick which teammate finishes ahead on all 11 lines. <span className="text-text-primary">+10</span> per correct duel. An <span className="text-lime-glow">upset</span> (backing the lower-ranked driver, <Crown size={10} className="inline text-warm-yellow" /> = favourite) scores <span className="text-lime-glow">+5</span>{game.upsetBonus > 0 && <> and pays <span className="text-lime-glow font-semibold">+{game.upsetBonus} coins</span></>}.</p>
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {Object.entries(game.rewards).sort((a, b) => Number(a[0]) - Number(b[0])).map(([f, c]) => (
-            <span key={f} className="text-[10px] px-2 py-0.5 rounded-full bg-navy-accent text-text-secondary">{f} fault{f === '1' ? '' : 's'} → <span className="text-warm-yellow font-bold">{c}</span></span>
-          ))}
-        </div>
-      </div>
+      <GameHeader
+        title="Teammates Duels"
+        icon={<Swords size={18} className="text-electric-blue shrink-0" />}
+        onRules={() => setSheet('rules')}
+        onRewards={Object.keys(game.rewards).length ? () => setSheet('rewards') : undefined}
+        onLeaderboard={board.length ? () => setSheet('board') : undefined}
+        rank={me?.rank}
+        points={me?.score}
+      />
 
       {/* Settled — your scorecard + reward breakdown */}
       {settled && card && (() => {
@@ -114,21 +117,6 @@ export const F1Duels: React.FC<{ gp: GrandPrix; userId?: string }> = ({ gp, user
           </div>
         );
       })()}
-
-      {settled && board.length > 0 && (
-        <div className="card-base divide-y divide-white/5">
-          <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-text-secondary">Leaderboard</div>
-          {board.slice(0, 20).map((r) => (
-            <div key={r.user_id} className={`flex items-center gap-3 px-3 py-2 ${r.user_id === userId ? 'bg-electric-blue/10' : ''}`}>
-              <span className="w-5 text-center font-bold tabular-nums text-sm text-text-secondary">{r.rank}</span>
-              {r.avatar ? <img src={r.avatar} alt="" className="w-7 h-7 rounded-full object-cover bg-navy-accent" /> : <div className="w-7 h-7 rounded-full bg-navy-accent" />}
-              <div className="flex-1 min-w-0 text-sm font-medium text-text-primary truncate">{r.username ?? 'Player'}</div>
-              <div className="text-xs text-text-secondary tabular-nums">{r.correct}/11 · {r.upsets}↑</div>
-              <div className="text-sm font-bold text-warm-yellow tabular-nums w-12 text-right">{r.score}</div>
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* Swipe mode entry */}
       {!locked && pairs.length > 0 && (
@@ -182,6 +170,41 @@ export const F1Duels: React.FC<{ gp: GrandPrix; userId?: string }> = ({ gp, user
       {locked && !settled && <div className="card-base p-3 text-center text-text-secondary text-sm">Picks are locked — the race has started. Results after the finish.</div>}
 
       {swipe && <F1DuelSwipe lines={pairs} initialPicks={picks} onPick={(t, d) => pick(t, d)} onClose={() => setSwipe(false)} />}
+
+      {sheet === 'rules' && (
+        <F1Sheet title="How it works" onClose={() => setSheet(null)}>
+          <p className="text-sm text-text-secondary">Pick which teammate finishes ahead on all 11 lines. <span className="text-text-primary">+10</span> per correct duel. An <span className="text-lime-glow">upset</span> (backing the lower-ranked driver, <Crown size={10} className="inline text-warm-yellow" /> = favourite) scores <span className="text-lime-glow">+5</span>{game.upsetBonus > 0 && <> and pays <span className="text-lime-glow font-semibold">+{game.upsetBonus} coins</span></>}.</p>
+        </F1Sheet>
+      )}
+      {sheet === 'rewards' && (
+        <F1Sheet title="Rewards" onClose={() => setSheet(null)}>
+          <p className="text-sm text-text-secondary mb-3">Coins paid by how few faults you make:</p>
+          <div className="space-y-1.5">
+            {Object.entries(game.rewards).sort((a, b) => Number(a[0]) - Number(b[0])).map(([f, c]) => (
+              <div key={f} className="flex items-center justify-between text-sm">
+                <span className="text-text-secondary">{f} fault{f === '1' ? '' : 's'} or fewer</span>
+                <span className="text-warm-yellow font-bold">{c} coins</span>
+              </div>
+            ))}
+            {game.upsetBonus > 0 && <div className="flex items-center justify-between text-sm pt-1"><span className="text-text-secondary">Each upset</span><span className="text-lime-glow font-bold">+{game.upsetBonus} coins</span></div>}
+          </div>
+        </F1Sheet>
+      )}
+      {sheet === 'board' && (
+        <F1Sheet title="Leaderboard" onClose={() => setSheet(null)}>
+          <div className="divide-y divide-white/5">
+            {board.slice(0, 50).map((r) => (
+              <div key={r.user_id} className={`flex items-center gap-3 py-2 ${r.user_id === userId ? 'bg-electric-blue/10 -mx-4 px-4' : ''}`}>
+                <span className="w-5 text-center font-bold tabular-nums text-sm text-text-secondary">{r.rank}</span>
+                {r.avatar ? <img src={r.avatar} alt="" className="w-7 h-7 rounded-full object-cover bg-navy-accent" /> : <div className="w-7 h-7 rounded-full bg-navy-accent" />}
+                <div className="flex-1 min-w-0 text-sm font-medium text-text-primary truncate">{r.username ?? 'Player'}</div>
+                <div className="text-xs text-text-secondary tabular-nums">{r.correct}/11 · {r.upsets}↑</div>
+                <div className="text-sm font-bold text-warm-yellow tabular-nums w-12 text-right">{r.score}</div>
+              </div>
+            ))}
+          </div>
+        </F1Sheet>
+      )}
     </div>
   );
 };

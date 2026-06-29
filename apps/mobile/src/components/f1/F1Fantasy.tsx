@@ -2,6 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Zap, Star, Flag, Battery, Check, X, Trophy, Shirt, Radio } from 'lucide-react';
 import { useFantasyGame, type Cat, type FDriver, type FConstructor, type FRule } from '../../features/f1/useFantasyGame';
 import { track } from '../../services/analytics';
+import { GameHeader } from '../games/GameHeader';
+import { F1Sheet } from './F1Sheet';
+import { RewardsPreviewModal } from '../RewardsPreviewModal';
 
 const SUF = new Set(['jr', 'jr.', 'sr', 'sr.', 'ii', 'iii', 'iv', 'v']);
 const surname = (d?: FDriver | null) => {
@@ -47,6 +50,8 @@ export const F1Fantasy: React.FC<{ gameId: string; userId?: string }> = ({ gameI
   const [picker, setPicker] = useState<null | { kind: 'driver'; slot: number; cat: Cat | 'any' } | { kind: 'constructor' }>(null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<null | 'rules' | 'board'>(null);
+  const [rewardsOpen, setRewardsOpen] = useState(false);
 
   useEffect(() => {
     if (roster) {
@@ -66,6 +71,7 @@ export const F1Fantasy: React.FC<{ gameId: string; userId?: string }> = ({ gameI
   if (!game) return <div className="card-base p-6 text-center text-text-secondary text-sm">Game not found.</div>;
 
   const cats = slotCats(game.rule);
+  const me = board.find((r) => r.user_id === userId);
   const settled = roster?.status === 'settled' || game.status === 'settled';
   const live = game.status === 'live' && !settled;
   const locked = settled || live || (!!game.qualiStartAt && new Date(game.qualiStartAt).getTime() <= Date.now());
@@ -98,10 +104,15 @@ export const F1Fantasy: React.FC<{ gameId: string; userId?: string }> = ({ gameI
 
   return (
     <div className="space-y-3">
-      <div className="card-base p-4">
-        <div className="flex items-center gap-2 text-warm-yellow font-bold"><Zap size={18} /> Fantasy F1 · {game.raceName}</div>
-        <p className="text-xs text-text-secondary mt-1">{CONDITION_LABEL[game.condition] ?? game.condition}. Pick 3 drivers + 1 constructor. Score × <b className="text-text-primary">energy</b>; <Star size={10} className="inline text-warm-yellow" /> Captain ×2, <Flag size={10} className="inline text-electric-blue" /> Fastest-lap +15, <Battery size={10} className="inline text-lime-glow" /> Energy Shot +10%.</p>
-      </div>
+      <GameHeader
+        title={`Fantasy F1 · ${game.raceName}`}
+        icon={<Zap size={18} className="text-warm-yellow shrink-0" />}
+        onRules={() => setSheet('rules')}
+        onRewards={game.rewards.length ? () => setRewardsOpen(true) : undefined}
+        onLeaderboard={board.length ? () => setSheet('board') : undefined}
+        rank={me?.rank}
+        points={me ? Math.round(me.score) : null}
+      />
 
       {(settled || live) && roster?.breakdown && (
         <div className="card-base p-4 space-y-1">
@@ -171,19 +182,26 @@ export const F1Fantasy: React.FC<{ gameId: string; userId?: string }> = ({ gameI
       {locked && !settled && !live && <div className="card-base p-3 text-center text-text-secondary text-sm">Locked — qualifying has started. Live scoring during the race.</div>}
       {live && <div className="text-center text-[11px] text-text-secondary">Updating every ~minute · progression banked every 10 laps</div>}
 
-      {/* Leaderboard */}
-      {board.length > 0 && (
-        <div className="card-base divide-y divide-white/5">
-          <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-text-secondary flex items-center gap-1"><Trophy size={13} className="text-warm-yellow" /> Leaderboard</div>
-          {board.slice(0, 20).map((r) => (
-            <div key={r.user_id} className={`flex items-center gap-3 px-3 py-2 ${r.user_id === userId ? 'bg-electric-blue/10' : ''}`}>
-              <span className="w-5 text-center font-bold tabular-nums text-sm text-text-secondary">{r.rank}</span>
-              {r.avatar ? <img src={r.avatar} alt="" className="w-7 h-7 rounded-full object-cover bg-navy-accent" /> : <div className="w-7 h-7 rounded-full bg-navy-accent" />}
-              <div className="flex-1 min-w-0 text-sm font-medium text-text-primary truncate">{r.username ?? 'Player'}</div>
-              <div className="text-sm font-bold text-text-primary tabular-nums">{Math.round(r.score)}</div>
-            </div>
-          ))}
-        </div>
+      <RewardsPreviewModal isOpen={rewardsOpen} onClose={() => setRewardsOpen(false)} game={{ name: `Fantasy F1 · ${game.raceName}`, rewards: game.rewards } as any} />
+
+      {sheet === 'rules' && (
+        <F1Sheet title="How it works" onClose={() => setSheet(null)}>
+          <p className="text-sm text-text-secondary"><b className="text-text-primary">{CONDITION_LABEL[game.condition] ?? game.condition}</b>. Pick 3 drivers + 1 constructor. Each scores × its <b className="text-text-primary">energy</b>. <Star size={12} className="inline text-warm-yellow" /> Captain ×2 · <Flag size={12} className="inline text-electric-blue" /> Fastest-lap +15 · <Battery size={12} className="inline text-lime-glow" /> Energy Shot +10%.</p>
+        </F1Sheet>
+      )}
+      {sheet === 'board' && (
+        <F1Sheet title="Leaderboard" onClose={() => setSheet(null)}>
+          <div className="divide-y divide-white/5">
+            {board.slice(0, 50).map((r) => (
+              <div key={r.user_id} className={`flex items-center gap-3 py-2 ${r.user_id === userId ? 'bg-electric-blue/10 -mx-4 px-4' : ''}`}>
+                <span className="w-5 text-center font-bold tabular-nums text-sm text-text-secondary">{r.rank}</span>
+                {r.avatar ? <img src={r.avatar} alt="" className="w-7 h-7 rounded-full object-cover bg-navy-accent" /> : <div className="w-7 h-7 rounded-full bg-navy-accent" />}
+                <div className="flex-1 min-w-0 text-sm font-medium text-text-primary truncate">{r.username ?? 'Player'}</div>
+                <div className="text-sm font-bold text-text-primary tabular-nums">{Math.round(r.score)}</div>
+              </div>
+            ))}
+          </div>
+        </F1Sheet>
       )}
 
       {/* Picker */}

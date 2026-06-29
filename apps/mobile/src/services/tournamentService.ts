@@ -1,4 +1,6 @@
 import { supabase } from './supabase';
+import { mapRewards } from './rewardMappers';
+import type { GameRewardTier } from '../types';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 export interface TQTeam { id: string; name: string; short_name: string | null; flag_url: string | null; }
@@ -26,6 +28,7 @@ export interface TQCompetition {
   id: string; name: string; slug: string; status: string; start_date: string | null; end_date: string | null;
   config: any; format: TQFormat; groups: TQGroup[]; officialMatches: TQMatch[]; knockoutMatches: TQMatch[];
   players: TQPlayer[]; phaseState: Record<string, { state: string; locks_at: string | null }>;
+  rewards: GameRewardTier[];
 }
 export interface TQLeaderboardRow { rank: number; total_score: number; tiebreak_delta: number | null; username: string | null; avatar: string | null; user_id: string; }
 
@@ -103,6 +106,7 @@ export async function getTournament(competitionId: string): Promise<TQCompetitio
     start_date: comp.start_date, end_date: comp.end_date, config: comp.config_json,
     format, groups, officialMatches: (matchRows ?? []) as any[],
     knockoutMatches: (koRows ?? []) as any[], players: (playerRows ?? []) as any[], phaseState,
+    rewards: mapRewards((comp as any).rewards_json),
   };
 }
 

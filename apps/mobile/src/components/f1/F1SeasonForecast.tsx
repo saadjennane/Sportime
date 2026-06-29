@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Crown, Check, Trophy, X } from 'lucide-react';
+import { Crown, Check, X } from 'lucide-react';
 import { usePredSeason, type PredConstructor } from '../../features/f1/usePredSeason';
 import { track } from '../../services/analytics';
+import { GameHeader } from '../games/GameHeader';
+import { F1Sheet } from './F1Sheet';
 import type { PredDriver } from '../../features/f1/usePredGame';
 
 const SUFFIX = new Set(['jr', 'jr.', 'sr', 'sr.', 'ii', 'iii', 'iv', 'v']);
@@ -22,6 +24,7 @@ export const F1SeasonForecast: React.FC<{ gameId: string; userId?: string }> = (
   const [picker, setPicker] = useState<Slot | null>(null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<null | 'rules' | 'rewards' | 'board'>(null);
 
   const dById = useMemo(() => new Map(drivers.map((d) => [d.id, d])), [drivers]);
   const cById = useMemo(() => new Map(constructors.map((c) => [c.id, c])), [constructors]);
@@ -38,6 +41,7 @@ export const F1SeasonForecast: React.FC<{ gameId: string; userId?: string }> = (
   const settled = game.status === 'settled' || card?.status === 'settled';
   const lockedByTime = !!game.lockAt && new Date(game.lockAt).getTime() <= Date.now();
   const locked = settled || lockedByTime;
+  const me = board.find((r) => r.user_id === userId);
 
   const choose = (id: number) => {
     if (!picker) return;
@@ -74,12 +78,21 @@ export const F1SeasonForecast: React.FC<{ gameId: string; userId?: string }> = (
 
   return (
     <div className="space-y-3">
-      <div className="card-base p-4">
-        <div className="flex items-center gap-2 text-warm-yellow font-bold"><Crown size={18} /> {game.name}</div>
-        <p className="text-xs text-text-secondary mt-1">Forecast the season: Champion <b className="text-text-primary">+{game.scoring.champion}</b>, Top 3 drivers <b className="text-text-primary">+{game.scoring.driver_exact}</b>/slot (<b>+{game.scoring.driver_partial}</b> wrong place), Top 3 constructors <b className="text-text-primary">+{game.scoring.constructor_exact}</b>/slot.</p>
-        {game.lockAt && !settled && <div className="text-[11px] text-text-secondary mt-1">{lockedByTime ? 'Locked — season under way.' : `Locks ${new Date(game.lockAt).toLocaleDateString()}`}</div>}
-        {settled && card && <div className="text-sm font-bold text-lime-glow mt-1">Final score: {card.score ?? 0} pts</div>}
-      </div>
+      <GameHeader
+        title={game.name}
+        icon={<Crown size={18} className="text-warm-yellow shrink-0" />}
+        onRules={() => setSheet('rules')}
+        onRewards={game.rewards.length ? () => setSheet('rewards') : undefined}
+        onLeaderboard={board.length ? () => setSheet('board') : undefined}
+        rank={me?.rank}
+        points={me?.score}
+      />
+      {(game.lockAt && !settled) || (settled && card) ? (
+        <div className="card-base px-3 py-2 text-xs">
+          {game.lockAt && !settled && <span className="text-text-secondary">{lockedByTime ? 'Locked — season under way.' : `Locks ${new Date(game.lockAt).toLocaleDateString()}`}</span>}
+          {settled && card && <span className="font-bold text-lime-glow">Final score: {card.score ?? 0} pts</span>}
+        </div>
+      ) : null}
 
       <div className="card-base p-3 space-y-3">
         <div>
@@ -104,19 +117,42 @@ export const F1SeasonForecast: React.FC<{ gameId: string; userId?: string }> = (
         {msg && <div className="text-center text-xs text-text-secondary">{msg}</div>}
       </div>
 
-      {board.length > 0 && (
-        <div className="card-base divide-y divide-white/5">
-          <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-text-secondary flex items-center gap-1"><Trophy size={13} className="text-warm-yellow" /> Leaderboard {settled ? '· final' : '· live'}</div>
-          {board.slice(0, 20).map((r) => (
-            <div key={r.user_id} className={`flex items-center gap-3 px-3 py-2 ${r.user_id === userId ? 'bg-electric-blue/10' : ''}`}>
-              <span className="w-5 text-center font-bold tabular-nums text-sm text-text-secondary">{r.rank}</span>
-              {r.avatar ? <img src={r.avatar} alt="" className="w-7 h-7 rounded-full object-cover bg-navy-accent" /> : <div className="w-7 h-7 rounded-full bg-navy-accent" />}
-              <div className="flex-1 min-w-0 text-sm font-medium text-text-primary truncate">{r.username ?? 'Player'}</div>
-              {settled && r.reward > 0 && <span className="text-[11px] text-warm-yellow font-bold">+{r.reward}</span>}
-              <div className="text-sm font-bold text-text-primary tabular-nums w-10 text-right">{r.score}</div>
-            </div>
-          ))}
-        </div>
+      {sheet === 'rules' && (
+        <F1Sheet title="How it works" onClose={() => setSheet(null)}>
+          <p className="text-sm text-text-secondary">Forecast the season before it locks. <b className="text-text-primary">Champion +{game.scoring.champion}</b>. <b className="text-text-primary">Top 3 drivers +{game.scoring.driver_exact}</b>/slot (<b>+{game.scoring.driver_partial}</b> for the right driver in the wrong place). <b className="text-text-primary">Top 3 constructors +{game.scoring.constructor_exact}</b>/slot.</p>
+        </F1Sheet>
+      )}
+      {sheet === 'rewards' && (
+        <F1Sheet title="Coin rewards" onClose={() => setSheet(null)}>
+          <p className="text-sm text-text-secondary mb-3">Coins paid out at the end, by your final leaderboard rank:</p>
+          <div className="space-y-1.5">
+            {(() => { let prev = 0; return game.rewards.map((t, i) => {
+              const from = prev + 1, to = t.upto; prev = t.upto;
+              const rank = from === to ? `${from}${from === 1 ? 'st' : from === 2 ? 'nd' : from === 3 ? 'rd' : 'th'}` : `${from}–${to}`;
+              return (
+                <div key={i} className="flex items-center justify-between text-sm rounded-lg bg-navy-accent px-3 py-2">
+                  <span className="text-text-primary font-semibold">{from === 1 ? '🥇 ' : ''}{rank}</span>
+                  <span className="text-warm-yellow font-bold">{t.coins.toLocaleString()} coins</span>
+                </div>
+              );
+            }); })()}
+          </div>
+        </F1Sheet>
+      )}
+      {sheet === 'board' && (
+        <F1Sheet title={`Leaderboard ${settled ? '· final' : '· live'}`} onClose={() => setSheet(null)}>
+          <div className="divide-y divide-white/5">
+            {board.slice(0, 50).map((r) => (
+              <div key={r.user_id} className={`flex items-center gap-3 py-2 ${r.user_id === userId ? 'bg-electric-blue/10 -mx-4 px-4' : ''}`}>
+                <span className="w-5 text-center font-bold tabular-nums text-sm text-text-secondary">{r.rank}</span>
+                {r.avatar ? <img src={r.avatar} alt="" className="w-7 h-7 rounded-full object-cover bg-navy-accent" /> : <div className="w-7 h-7 rounded-full bg-navy-accent" />}
+                <div className="flex-1 min-w-0 text-sm font-medium text-text-primary truncate">{r.username ?? 'Player'}</div>
+                {settled && r.reward > 0 && <span className="text-[11px] text-warm-yellow font-bold">+{r.reward}</span>}
+                <div className="text-sm font-bold text-text-primary tabular-nums w-10 text-right">{r.score}</div>
+              </div>
+            ))}
+          </div>
+        </F1Sheet>
       )}
 
       {picker && (
